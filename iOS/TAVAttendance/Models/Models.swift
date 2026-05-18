@@ -14,7 +14,7 @@ struct Profile: Codable, Identifiable {
     }
 }
 
-enum UserRole: String, Codable {
+enum UserRole: String, Codable, Hashable, Equatable {
     case admin, tutor, parent
 }
 

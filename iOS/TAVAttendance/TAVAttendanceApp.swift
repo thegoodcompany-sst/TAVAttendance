@@ -14,7 +14,12 @@ struct TAVAttendanceApp: App {
                 } else if auth.profile == nil {
                     LoginView()
                 } else {
-                    ClassListView()
+                    // Route to appropriate view based on role
+                    if auth.selectedRole == .tutor {
+                        AttendanceTakerView()
+                    } else {
+                        ClassListView()
+                    }
                 }
             }
             .environmentObject(auth)

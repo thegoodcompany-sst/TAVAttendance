@@ -7,6 +7,7 @@ final class AuthManager: ObservableObject {
 
     @Published var profile: Profile?
     @Published var isLoading = true
+    @Published var selectedRole: UserRole?
 
     private let db = SupabaseManager.shared.client
 
@@ -29,6 +30,7 @@ final class AuthManager: ObservableObject {
                 }
             case .signedOut, .userDeleted:
                 profile = nil
+                selectedRole = nil
                 isLoading = false
             default:
                 break
@@ -57,8 +59,9 @@ final class AuthManager: ObservableObject {
 
     // MARK: - Actions
 
-    func signIn(email: String, password: String) async throws {
+    func signIn(email: String, password: String, selectedRole: UserRole?) async throws {
         try await db.auth.signIn(email: email, password: password)
+        self.selectedRole = selectedRole
     }
 
     func signOut() async throws {
