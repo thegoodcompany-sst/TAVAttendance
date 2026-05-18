@@ -1,0 +1,12 @@
+# XcodeGen generates this — don't commit it
+TAVAttendance.xcodeproj/
+
+# Xcode build artifacts
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+
+# macOS
+.DS_Store
