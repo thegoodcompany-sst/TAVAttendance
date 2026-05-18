@@ -67,7 +67,7 @@ CREATE OR REPLACE VIEW attendance_summary AS
 SELECT
     s.student_id,
     st.full_name                                                     AS student_name,
-    s.class_id,
+    se.class_id,
     c.name                                                           AS class_name,
     COUNT(*)                                                         AS total_sessions,
     COUNT(*) FILTER (WHERE s.status = 'present')                    AS present_count,
@@ -83,7 +83,7 @@ FROM attendance_records s
 JOIN students st  ON st.id = s.student_id
 JOIN sessions se  ON se.id = s.session_id
 JOIN classes  c   ON c.id  = se.class_id
-GROUP BY s.student_id, st.full_name, s.class_id, c.name;
+GROUP BY s.student_id, st.full_name, se.class_id, c.name;
 
 
 -- ── Session + Roster Helper ────────────────────────────────────
