@@ -1,12 +1,11 @@
-# XcodeGen generates this — don't commit it
-TAVAttendance.xcodeproj/
+# Per-developer Xcode state — never commit these
+xcuserdata/
+*.xcuserdatad/
+*.xcuserstate
 
-# Xcode build artifacts
+# Build output
 build/
 DerivedData/
-*.xcuserstate
-*.xcuserdatad/
-xcuserdata/
 
 # macOS
 .DS_Store
