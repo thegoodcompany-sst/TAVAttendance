@@ -12,6 +12,7 @@
 		2016432196785011366FAB4C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 309D5646A5E18F3D281FEABD /* Assets.xcassets */; };
 		2ADC0F222562BC8827278955 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543023F8203B0054936C6A20 /* NetworkMonitor.swift */; };
 		2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */; };
+		B1C2D3E4F5A6B1C2D3E4F5A6 /* StudentProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A1B2C3D4E5F6 /* StudentProfileView.swift */; };
 		45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64ADFF510704F740AA4F9A37 /* AttendanceService.swift */; };
 		4A5DA3CF97AEE047612EA4B8 /* StudentManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27779637419CBFBFEA14E32A /* StudentManagementView.swift */; };
 		4B671F07BF5257F4D8698371 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8511E3D4328E027CE05E01E8 /* Supabase */; };
@@ -46,10 +47,11 @@
 		A296E59FB31DDA29EF190F3F /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
 		B85DEA9F263B167CCEC35BFC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		CB273005930FAD09CC8AD1F7 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorAssignmentView.swift; sourceTree = "<group>"; };
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A1B2C3D4E5F6 /* StudentProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProfileView.swift; sourceTree = "<group>"; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -86,6 +88,7 @@
 			isa = PBXGroup;
 			children = (
 				4F44A35FCED4364A1434BFDC /* RosterView.swift */,
+				A1B2C3D4E5F6A1B2C3D4E5F6 /* StudentProfileView.swift */,
 				A296E59FB31DDA29EF190F3F /* SessionListView.swift */,
 			);
 			path = Session;
@@ -211,11 +214,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-					B3761B335799DF70F2AAAA46 = {
-						DevelopmentTeam = "";
-					};
-				};
 			};
 			buildConfigurationList = A76FA904BD2D2EEF50075B71 /* Build configuration list for PBXProject "TAVAttendance" */;
 			developmentRegion = en;
@@ -261,6 +259,7 @@
 				A8EC3E2E6880A74FA9E4F19A /* ClassListView.swift in Sources */,
 				D84A9BB30A1CE2302FA69420 /* EnrollmentView.swift in Sources */,
 				2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */,
+				B1C2D3E4F5A6B1C2D3E4F5A6 /* StudentProfileView.swift in Sources */,
 				B0B75660DE1BA45C80EF5A00 /* KioskView.swift in Sources */,
 				D693F8B311CB2B7F6D73D158 /* LoginView.swift in Sources */,
 				C2DCEC585CCBC4BDAD601D61 /* Models.swift in Sources */,
@@ -403,7 +402,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -422,7 +421,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

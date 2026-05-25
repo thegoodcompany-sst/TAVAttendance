@@ -175,3 +175,50 @@ struct TutorAssignment: Codable, Identifiable {
         case tutorId = "tutor_id"
     }
 }
+
+// One session slot inside a KioskEntry — carries the class schedule time for auto-late detection
+struct KioskSession {
+    let id: UUID
+    let scheduleTime: String?  // "HH:mm" as stored in classes.schedule_time, nil if unset
+}
+
+// Used by the global kiosk — one entry per unique student across all today's sessions
+struct KioskEntry: Identifiable {
+    let studentId: UUID
+    let fullName: String
+    var status: AttendanceStatus?   // nil = not yet marked today
+    var sessions: [KioskSession]
+    var markedAt: Date?             // device-local time of the most recent marking this session
+    var id: UUID { studentId }
+
+    // Attending = physically present, whether on time or late (excludes absent/excused)
+    var isAttending: Bool { status == .present || status == .late }
+}
+
+// Fetched with a PostgREST join for the student profile history sheet
+struct AttendanceHistoryRecord: Codable, Identifiable {
+    let id: UUID
+    let status: AttendanceStatus
+    let markedAt: Date?
+    let session: SessionSummary
+
+    struct SessionSummary: Codable {
+        let sessionDate: String
+        let `class`: ClassSummary
+
+        struct ClassSummary: Codable {
+            let name: String
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case sessionDate = "session_date"
+            case `class` = "class"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, status
+        case markedAt = "marked_at"
+        case session
+    }
+}

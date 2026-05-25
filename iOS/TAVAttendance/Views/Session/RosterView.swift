@@ -10,8 +10,10 @@ struct RosterView: View {
     @StateObject private var network = NetworkMonitor()
     @StateObject private var pendingStore = PendingAttendanceStore()
 
-    // Track optimistic status updates locally for instant UI feedback
+    // Track optimistic status updates and mark times locally for instant UI feedback
     @State private var localStatus: [UUID: AttendanceStatus] = [:]
+    @State private var localMarkedAt: [UUID: Date] = [:]
+    @State private var selectedStudent: RosterEntry? = nil
 
     private let displayFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -24,6 +26,13 @@ struct RosterView: View {
         let f = DateFormatter()
         f.dateStyle = .medium
         f.timeStyle = .none
+        return f
+    }()
+
+    private let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short
         return f
     }()
 
@@ -77,23 +86,34 @@ struct RosterView: View {
         List(displayedRoster) { entry in
             rosterRow(entry)
                 .listRowSeparator(.visible)
+                .onTapGesture { selectedStudent = entry }
         }
         .listStyle(.plain)
+        .sheet(item: $selectedStudent) { entry in
+            StudentProfileView(studentId: entry.studentId, fullName: entry.fullName)
+        }
     }
 
     private func rosterRow(_ entry: RosterEntry) -> some View {
         HStack(spacing: 12) {
-            // Student name + pending indicator
-            HStack(spacing: 6) {
-                Text(entry.fullName)
-                    .font(.title3)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                if isPending(entry) {
-                    Image(systemName: "circle.fill")
-                        .font(.system(size: 8))
-                        .foregroundStyle(.orange)
-                        .help("Unsynced change")
+            // Student name + pending indicator + marked-at time
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(entry.fullName)
+                        .font(.title3)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    if isPending(entry) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.orange)
+                            .help("Unsynced change")
+                    }
+                }
+                if let t = effectiveMarkedAt(for: entry) {
+                    Text("Marked \(timeFormatter.string(from: t))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -168,6 +188,11 @@ struct RosterView: View {
         return entry.status
     }
 
+    private func effectiveMarkedAt(for entry: RosterEntry) -> Date? {
+        if let local = localMarkedAt[entry.studentId] { return local }
+        return entry.markedAt
+    }
+
     private func isPending(_ entry: RosterEntry) -> Bool {
         pendingStore.allPending().contains {
             $0.studentId == entry.studentId && $0.sessionId == session.id
@@ -189,6 +214,7 @@ struct RosterView: View {
     private func markAttendance(entry: RosterEntry, status: AttendanceStatus) async {
         // Optimistic update
         localStatus[entry.studentId] = status
+        localMarkedAt[entry.studentId] = Date()
 
         if network.isConnected {
             do {
@@ -200,6 +226,7 @@ struct RosterView: View {
                 )
                 // Clear local override once server confirms
                 localStatus.removeValue(forKey: entry.studentId)
+                localMarkedAt.removeValue(forKey: entry.studentId)
                 // Refresh to pick up server-assigned fields (attendanceId, markedAt)
                 if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
                     roster = updated
@@ -235,6 +262,7 @@ struct RosterView: View {
                 // Clear local overrides — server is now source of truth
                 for record in unsynced {
                     localStatus.removeValue(forKey: record.studentId)
+                    localMarkedAt.removeValue(forKey: record.studentId)
                 }
                 roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             }

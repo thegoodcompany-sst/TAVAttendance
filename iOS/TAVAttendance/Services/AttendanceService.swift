@@ -141,6 +141,101 @@ final class AttendanceService {
             .upsert(record, onConflict: "session_id,student_id").execute()
     }
 
+    // MARK: - Global kiosk
+
+    func fetchKioskEntries() async throws -> [KioskEntry] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: Date())
+
+        let classes = try await fetchMyClasses()
+        let classMap = Dictionary(uniqueKeysWithValues: classes.map { ($0.id, $0) })
+
+        var sessionPairs: [(classId: UUID, sessionId: UUID)] = []
+        for cls in classes {
+            let session = try await getOrCreateSession(classId: cls.id, date: today)
+            sessionPairs.append((cls.id, session.id))
+        }
+
+        var entryMap: [UUID: KioskEntry] = [:]
+        try await withThrowingTaskGroup(of: (UUID, UUID, [RosterEntry]).self) { group in
+            for (classId, sessionId) in sessionPairs {
+                group.addTask { (classId, sessionId, try await self.fetchRoster(sessionId: sessionId)) }
+            }
+            for try await (classId, sessionId, roster) in group {
+                let scheduleTime = classMap[classId]?.scheduleTime
+                let slot = KioskSession(id: sessionId, scheduleTime: scheduleTime)
+                for r in roster {
+                    if var existing = entryMap[r.studentId] {
+                        existing.sessions.append(slot)
+                        existing.status = Self.worstStatus(existing.status, r.status)
+                        if let t = r.markedAt, (existing.markedAt == nil || t > existing.markedAt!) {
+                            existing.markedAt = t
+                        }
+                        entryMap[r.studentId] = existing
+                    } else {
+                        entryMap[r.studentId] = KioskEntry(
+                            studentId: r.studentId, fullName: r.fullName,
+                            status: r.status, sessions: [slot], markedAt: r.markedAt)
+                    }
+                }
+            }
+        }
+        return Array(entryMap.values).sorted { $0.fullName < $1.fullName }
+    }
+
+    // late > present > absent > excused — worst shown when a student spans multiple sessions
+    private static func worstStatus(_ a: AttendanceStatus?, _ b: AttendanceStatus?) -> AttendanceStatus? {
+        let rank: [AttendanceStatus: Int] = [.late: 4, .present: 3, .absent: 2, .excused: 1]
+        switch (a, b) {
+        case (nil, let x): return x
+        case (let x, nil): return x
+        case (let x?, let y?): return (rank[y] ?? 0) > (rank[x] ?? 0) ? y : x
+        }
+    }
+
+    /// Marks a student across all their today's sessions. Status is applied as-is to every session.
+    func markKioskAttendance(entry: KioskEntry, status: AttendanceStatus) async throws {
+        for session in entry.sessions {
+            try await markAttendance(sessionId: session.id, studentId: entry.studentId, status: status)
+        }
+    }
+
+    /// Marks each session independently: late if the class has already started, present otherwise.
+    func markKioskSignIn(entry: KioskEntry) async throws {
+        let cal = Calendar.current
+        let now = Date()
+        var todayComponents = cal.dateComponents([.year, .month, .day], from: now)
+
+        for session in entry.sessions {
+            var status: AttendanceStatus = .present
+            if let timeStr = session.scheduleTime {
+                let parts = timeStr.split(separator: ":").compactMap { Int($0) }
+                if parts.count >= 2 {
+                    todayComponents.hour = parts[0]
+                    todayComponents.minute = parts[1]
+                    todayComponents.second = 0
+                    if let classStart = cal.date(from: todayComponents), now > classStart {
+                        status = .late
+                    }
+                }
+            }
+            try await markAttendance(sessionId: session.id, studentId: entry.studentId, status: status)
+        }
+    }
+
+    /// Fetches a student's recent attendance history with class name, for the profile sheet.
+    func fetchStudentAttendanceHistory(studentId: UUID, limit: Int = 20) async throws -> [AttendanceHistoryRecord] {
+        return try await db
+            .from("attendance_records")
+            .select("id, status, marked_at, session:sessions(session_date, class:classes(name))")
+            .eq("student_id", value: studentId)
+            .order("marked_at", ascending: false)
+            .limit(limit)
+            .execute()
+            .value
+    }
+
     func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (synced: Int, skipped: Int) {
         let payload = records.map { r -> [String: String] in
             ["session_id": r.sessionId.uuidString, "student_id": r.studentId.uuidString,
