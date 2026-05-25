@@ -1,67 +1,63 @@
 import Foundation
 
-// Persists unsynced attendance records to UserDefaults.
-// Swapped for CoreData if the queue grows large.
+struct PendingAttendanceRecord: Codable {
+    let sessionId: UUID
+    let studentId: UUID
+    var status: AttendanceStatus
+    var notes: String?
+    let clientMutationId: String
+    let markedAt: Date
+    var isSynced: Bool
+}
 
-final class PendingAttendanceStore {
-    static let shared = PendingAttendanceStore()
+final class PendingAttendanceStore: ObservableObject {
+    private let key = "pendingAttendance"
 
-    private let key = "tava.pending_attendance"
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
-
-    private init() {
-        encoder.dateEncodingStrategy = .iso8601
-        decoder.dateDecodingStrategy = .iso8601
-    }
-
-    // MARK: - Read / Write
-
-    func load() -> [PendingAttendanceRecord] {
+    private func load() -> [PendingAttendanceRecord] {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let records = try? decoder.decode([PendingAttendanceRecord].self, from: data)
-        else { return [] }
+              let records = try? JSONDecoder().decode([PendingAttendanceRecord].self, from: data) else {
+            return []
+        }
         return records
     }
 
     private func save(_ records: [PendingAttendanceRecord]) {
-        guard let data = try? encoder.encode(records) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        if let data = try? JSONEncoder().encode(records) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
     }
 
-    // MARK: - Queue / Update
-
-    func upsert(sessionId: UUID, studentId: UUID, status: AttendanceStatus, notes: String? = nil) {
+    func add(sessionId: UUID, studentId: UUID, status: AttendanceStatus, notes: String?) {
         var records = load()
-        if let idx = records.firstIndex(where: {
-            $0.sessionId == sessionId && $0.studentId == studentId
-        }) {
-            records[idx].status   = status
-            records[idx].notes    = notes
-            records[idx].isSynced = false
+        if let index = records.firstIndex(where: { $0.sessionId == sessionId && $0.studentId == studentId }) {
+            records[index].status = status
+            records[index].notes = notes
         } else {
-            records.append(PendingAttendanceRecord(
-                sessionId:        sessionId,
-                studentId:        studentId,
-                status:           status,
-                notes:            notes,
+            let record = PendingAttendanceRecord(
+                sessionId: sessionId,
+                studentId: studentId,
+                status: status,
+                notes: notes,
                 clientMutationId: UUID().uuidString,
-                markedAt:         Date(),
-                isSynced:         false
-            ))
+                markedAt: Date(),
+                isSynced: false
+            )
+            records.append(record)
         }
         save(records)
+    }
+
+    func allPending() -> [PendingAttendanceRecord] {
+        return load().filter { !$0.isSynced }
     }
 
     func markSynced(clientMutationIds: Set<String>) {
         var records = load()
-        for i in records.indices where clientMutationIds.contains(records[i].clientMutationId) {
-            records[i].isSynced = true
+        for index in records.indices {
+            if clientMutationIds.contains(records[index].clientMutationId) {
+                records[index].isSynced = true
+            }
         }
         save(records)
-    }
-
-    func pendingUnsynced() -> [PendingAttendanceRecord] {
-        load().filter { !$0.isSynced }
     }
 }

@@ -7,20 +7,73 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F44A35FCED4364A1434BFDC /* RosterView.swift */; };
 		10BC5C64E7AD432622E17329 /* TAVAttendanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */; };
 		2016432196785011366FAB4C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 309D5646A5E18F3D281FEABD /* Assets.xcassets */; };
-		7DF1B73A06F19ADF2257BE12 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E1911C1736FB0E6C990B64 /* ContentView.swift */; };
+		2ADC0F222562BC8827278955 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543023F8203B0054936C6A20 /* NetworkMonitor.swift */; };
+		2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */; };
+		45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64ADFF510704F740AA4F9A37 /* AttendanceService.swift */; };
+		4A5DA3CF97AEE047612EA4B8 /* StudentManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27779637419CBFBFEA14E32A /* StudentManagementView.swift */; };
+		4B671F07BF5257F4D8698371 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8511E3D4328E027CE05E01E8 /* Supabase */; };
+		6E41513F3BD4A9FB3BBC2722 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */; };
+		79A73C09091FD25379D235F8 /* SessionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A296E59FB31DDA29EF190F3F /* SessionListView.swift */; };
+		7B82E654CF7767F1DDC560CD /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F3C087DCCACB84D814052 /* SupabaseManager.swift */; };
+		7D3C850879FD3125ACFD677F /* ClassFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1598BFBB09802266CB1F424 /* ClassFormView.swift */; };
+		83BFCAAD82E7EEB250A165E7 /* PendingAttendanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */; };
+		8AC4398B1FEDFE3BBD4F5284 /* TutorAssignmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */; };
+		A8EC3E2E6880A74FA9E4F19A /* ClassListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942348981E4DF7666AF12F79 /* ClassListView.swift */; };
+		B0B75660DE1BA45C80EF5A00 /* KioskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C3EF0B9C7A9D52F0F319D35 /* KioskView.swift */; };
+		C2DCEC585CCBC4BDAD601D61 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB273005930FAD09CC8AD1F7 /* Models.swift */; };
+		D693F8B311CB2B7F6D73D158 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85DEA9F263B167CCEC35BFC /* LoginView.swift */; };
+		D84A9BB30A1CE2302FA69420 /* EnrollmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */; };
+		F7217E3079E64AAB8DDECED7 /* StudentFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC7DC93588149D2B2912D0C /* StudentFormView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		19E1911C1736FB0E6C990B64 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TAVAttendanceApp.swift; sourceTree = "<group>"; };
+		24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
+		27779637419CBFBFEA14E32A /* StudentManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentManagementView.swift; sourceTree = "<group>"; };
+		2C3EF0B9C7A9D52F0F319D35 /* KioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskView.swift; sourceTree = "<group>"; };
 		309D5646A5E18F3D281FEABD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		385F3C087DCCACB84D814052 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		4EC7DC93588149D2B2912D0C /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
+		4F44A35FCED4364A1434BFDC /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
+		543023F8203B0054936C6A20 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentView.swift; sourceTree = "<group>"; };
 		5CAA9B963B7BEE4160883812 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		64ADFF510704F740AA4F9A37 /* AttendanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceService.swift; sourceTree = "<group>"; };
+		942348981E4DF7666AF12F79 /* ClassListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassListView.swift; sourceTree = "<group>"; };
+		A296E59FB31DDA29EF190F3F /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
+		B85DEA9F263B167CCEC35BFC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		CB273005930FAD09CC8AD1F7 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorAssignmentView.swift; sourceTree = "<group>"; };
+		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
+		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
+		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		FB682923F656615C9626BCFD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B671F07BF5257F4D8698371 /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
+		1B55B3E13467DB71518CC4F2 /* Kiosk */ = {
+			isa = PBXGroup;
+			children = (
+				F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */,
+				2C3EF0B9C7A9D52F0F319D35 /* KioskView.swift */,
+			);
+			path = Kiosk;
+			sourceTree = "<group>";
+		};
 		28E6BCED7C8C917E0F28C5A8 = {
 			isa = PBXGroup;
 			children = (
@@ -29,15 +82,94 @@
 			);
 			sourceTree = "<group>";
 		};
+		44A6EFC23E15DF3807ED8E4B /* Session */ = {
+			isa = PBXGroup;
+			children = (
+				4F44A35FCED4364A1434BFDC /* RosterView.swift */,
+				A296E59FB31DDA29EF190F3F /* SessionListView.swift */,
+			);
+			path = Session;
+			sourceTree = "<group>";
+		};
 		4FF1F3FEA5695821BE4E3EFE /* TAVAttendance */ = {
 			isa = PBXGroup;
 			children = (
 				309D5646A5E18F3D281FEABD /* Assets.xcassets */,
-				19E1911C1736FB0E6C990B64 /* ContentView.swift */,
 				5CAA9B963B7BEE4160883812 /* Info.plist */,
 				232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */,
+				9E1CA679F85B258F455BB18F /* Core */,
+				B01C0DBACA98886FA038F890 /* Models */,
+				9B2124344B144DC479818A99 /* Services */,
+				B45DE67A859A4D79875E07C9 /* Views */,
 			);
 			path = TAVAttendance;
+			sourceTree = "<group>";
+		};
+		9B2124344B144DC479818A99 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				64ADFF510704F740AA4F9A37 /* AttendanceService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		9E1CA679F85B258F455BB18F /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */,
+				543023F8203B0054936C6A20 /* NetworkMonitor.swift */,
+				FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */,
+				385F3C087DCCACB84D814052 /* SupabaseManager.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		B01C0DBACA98886FA038F890 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				CB273005930FAD09CC8AD1F7 /* Models.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		B45DE67A859A4D79875E07C9 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D1EEFEA62629B5D8271E1429 /* Admin */,
+				D392CAF894665DE241C00943 /* Auth */,
+				F6109F62D7656F7E3193D086 /* Classes */,
+				1B55B3E13467DB71518CC4F2 /* Kiosk */,
+				44A6EFC23E15DF3807ED8E4B /* Session */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D1EEFEA62629B5D8271E1429 /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				F1598BFBB09802266CB1F424 /* ClassFormView.swift */,
+				5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */,
+				4EC7DC93588149D2B2912D0C /* StudentFormView.swift */,
+				27779637419CBFBFEA14E32A /* StudentManagementView.swift */,
+				EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */,
+			);
+			path = Admin;
+			sourceTree = "<group>";
+		};
+		D392CAF894665DE241C00943 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B85DEA9F263B167CCEC35BFC /* LoginView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		F6109F62D7656F7E3193D086 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				942348981E4DF7666AF12F79 /* ClassListView.swift */,
+			);
+			path = Classes;
 			sourceTree = "<group>";
 		};
 		F7C1A3B656D06525CBB93444 /* Products */ = {
@@ -57,6 +189,7 @@
 			buildPhases = (
 				64E0FDA99DF52E3A654F6F54 /* Sources */,
 				700080F06E611C4DC45C4C30 /* Resources */,
+				FB682923F656615C9626BCFD /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -64,6 +197,7 @@
 			);
 			name = TAVAttendance;
 			packageProductDependencies = (
+				8511E3D4328E027CE05E01E8 /* Supabase */,
 			);
 			productName = TAVAttendance;
 			productReference = CDE644C09FB4372E686B46F2 /* TAVAttendance.app */;
@@ -92,6 +226,9 @@
 			);
 			mainGroup = 28E6BCED7C8C917E0F28C5A8;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7F2FDF10B24D2524E41D7DB3 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F7C1A3B656D06525CBB93444 /* Products */;
 			projectDirPath = "";
@@ -118,8 +255,24 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7DF1B73A06F19ADF2257BE12 /* ContentView.swift in Sources */,
+				45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */,
+				6E41513F3BD4A9FB3BBC2722 /* AuthManager.swift in Sources */,
+				7D3C850879FD3125ACFD677F /* ClassFormView.swift in Sources */,
+				A8EC3E2E6880A74FA9E4F19A /* ClassListView.swift in Sources */,
+				D84A9BB30A1CE2302FA69420 /* EnrollmentView.swift in Sources */,
+				2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */,
+				B0B75660DE1BA45C80EF5A00 /* KioskView.swift in Sources */,
+				D693F8B311CB2B7F6D73D158 /* LoginView.swift in Sources */,
+				C2DCEC585CCBC4BDAD601D61 /* Models.swift in Sources */,
+				2ADC0F222562BC8827278955 /* NetworkMonitor.swift in Sources */,
+				83BFCAAD82E7EEB250A165E7 /* PendingAttendanceStore.swift in Sources */,
+				0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */,
+				79A73C09091FD25379D235F8 /* SessionListView.swift in Sources */,
+				F7217E3079E64AAB8DDECED7 /* StudentFormView.swift in Sources */,
+				4A5DA3CF97AEE047612EA4B8 /* StudentManagementView.swift in Sources */,
+				7B82E654CF7767F1DDC560CD /* SupabaseManager.swift in Sources */,
 				10BC5C64E7AD432622E17329 /* TAVAttendanceApp.swift in Sources */,
+				8AC4398B1FEDFE3BBD4F5284 /* TutorAssignmentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -161,7 +314,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -179,7 +331,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.10;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -218,7 +370,6 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -243,7 +394,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.10;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -251,15 +402,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tava.TAVAttendance;
 				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
@@ -268,15 +421,17 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tava.TAVAttendance;
 				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -303,6 +458,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7F2FDF10B24D2524E41D7DB3 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8511E3D4328E027CE05E01E8 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7F2FDF10B24D2524E41D7DB3 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AEDB9117D3EEC69B28C150E1 /* Project object */;
 }

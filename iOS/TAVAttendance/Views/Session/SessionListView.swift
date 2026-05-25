@@ -1,38 +1,50 @@
 import SwiftUI
 
 struct SessionListView: View {
-    let tClass: TAVClass
-    @StateObject private var viewModel: SessionListViewModel
+    let tavClass: TAVClass
 
-    init(tClass: TAVClass) {
-        self.tClass = tClass
-        _viewModel = StateObject(wrappedValue: SessionListViewModel(classId: tClass.id))
-    }
+    @EnvironmentObject var authManager: AuthManager
+    @State private var sessions: [Session] = []
+    @State private var isLoading = true
+    @State private var isStartingClass = false
+    @State private var navigationDestination: Session? = nil
+    @State private var showingEnrollment = false
+    @State private var showingTutorAssignment = false
+    @StateObject private var network = NetworkMonitor()
+
+    private var isAdmin: Bool { authManager.currentProfile?.role == "admin" }
+
+    private let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    private let displayFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX"); return f
+    }()
+    private let prettyFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateStyle = .medium; f.timeStyle = .none; return f
+    }()
 
     var body: some View {
         Group {
-            if viewModel.isLoading {
+            if isLoading {
                 ProgressView("Loading sessions…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     Section {
-                        Button("Start Today's Class") {
-                            Task { await viewModel.startToday() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(.init())
-                        .padding(.vertical, 4)
+                        startTodayButton
                     }
 
-                    Section("Recent Sessions") {
-                        if viewModel.sessions.isEmpty {
-                            Text("No sessions yet.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            ForEach(viewModel.sessions) { session in
+                    if sessions.isEmpty {
+                        Section {
+                            Text("No past sessions yet.").foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Section("Past Sessions") {
+                            ForEach(sessions) { session in
                                 NavigationLink(value: session) {
-                                    SessionRowView(session: session)
+                                    sessionRow(session)
                                 }
                             }
                         }
@@ -40,72 +52,104 @@ struct SessionListView: View {
                 }
             }
         }
-        .navigationTitle(tClass.name)
-        .navigationDestination(for: TAVSession.self) { session in
-            RosterView(session: session, className: tClass.name)
+        .navigationTitle(tavClass.name)
+        .navigationBarTitleDisplayMode(.large)
+        .navigationDestination(for: Session.self) { session in
+            RosterView(session: session, tavClass: tavClass)
         }
-        .task { await viewModel.load() }
-        .alert("Error", isPresented: $viewModel.hasError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "Unknown error")
+        .toolbar {
+            if isAdmin {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        showingTutorAssignment = true
+                    } label: {
+                        Label("Assign Teacher", systemImage: "person.2.badge.gearshape")
+                    }
+                    Button {
+                        showingEnrollment = true
+                    } label: {
+                        Label("Manage Students", systemImage: "person.badge.plus")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingEnrollment) {
+            EnrollmentView(tavClass: tavClass)
+        }
+        .sheet(isPresented: $showingTutorAssignment) {
+            TutorAssignmentView(tavClass: tavClass)
+        }
+        .task { await loadSessions() }
+    }
+
+    // MARK: - Subviews
+
+    @ViewBuilder
+    private var startTodayButton: some View {
+        Button {
+            guard !isStartingClass else { return }
+            Task { await startTodayClass() }
+        } label: {
+            HStack {
+                Image(systemName: "play.circle.fill").font(.title2)
+                Text("Start Today's Class").font(.headline)
+                Spacer()
+                if isStartingClass { ProgressView() }
+            }
+            .foregroundStyle(isStartingClass ? Color.gray : Color.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
+        }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isStartingClass ? Color.blue.opacity(0.5) : Color.blue)
+                .padding(.vertical, 2)
+        )
+        .disabled(isStartingClass)
+        .navigationDestination(isPresented: Binding(
+            get: { navigationDestination != nil },
+            set: { if !$0 { navigationDestination = nil } }
+        )) {
+            if let s = navigationDestination { RosterView(session: s, tavClass: tavClass) }
         }
     }
-}
 
-// MARK: - Row
-
-private struct SessionRowView: View {
-    let session: TAVSession
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(session.sessionDate).font(.headline)
-            if let topic = session.topic {
-                Text(topic).font(.caption).foregroundStyle(.secondary)
+    private func sessionRow(_ session: Session) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(formattedDate(session.sessionDate)).font(.headline)
+            if let topic = session.topic, !topic.isEmpty {
+                Text(topic).font(.subheadline).foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
     }
-}
 
-// MARK: - ViewModel
+    // MARK: - Actions
 
-@MainActor
-final class SessionListViewModel: ObservableObject {
-    @Published var sessions: [TAVSession] = []
-    @Published var isLoading = false
-    @Published var hasError  = false
-    @Published var errorMessage: String?
-    @Published var navigateTo: TAVSession?
-
-    private let classId: UUID
-
-    init(classId: UUID) { self.classId = classId }
-
-    func load() async {
+    private func loadSessions() async {
         isLoading = true
-        do {
-            sessions = try await AttendanceService.shared.fetchSessions(classId: classId)
-        } catch {
-            errorMessage = error.localizedDescription
-            hasError     = true
-        }
-        isLoading = false
+        defer { isLoading = false }
+        do { sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id) } catch {}
     }
 
-    func startToday() async {
-        isLoading = true
+    private func startTodayClass() async {
+        isStartingClass = true
+        defer { isStartingClass = false }
         do {
-            let session = try await AttendanceService.shared.getOrCreateTodaySession(classId: classId)
-            // Trigger navigation
+            let session = try await AttendanceService.shared.getOrCreateSession(
+                classId: tavClass.id, date: todayDateString())
             if !sessions.contains(where: { $0.id == session.id }) {
                 sessions.insert(session, at: 0)
             }
-            navigateTo = session
-        } catch {
-            errorMessage = error.localizedDescription
-            hasError     = true
-        }
-        isLoading = false
+            navigationDestination = session
+        } catch {}
+    }
+
+    private func todayDateString() -> String { dateFormatter.string(from: Date()) }
+
+    private func formattedDate(_ isoDate: String) -> String {
+        guard let date = displayFormatter.date(from: isoDate) else { return isoDate }
+        return prettyFormatter.string(from: date)
     }
 }

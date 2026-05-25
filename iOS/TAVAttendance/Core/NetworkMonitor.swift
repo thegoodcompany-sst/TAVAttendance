@@ -1,21 +1,18 @@
 import Network
-import Foundation
+import SwiftUI
 
-@MainActor
 final class NetworkMonitor: ObservableObject {
-    static let shared = NetworkMonitor()
-
-    @Published private(set) var isConnected = true
-
+    @Published var isConnected = true
     private let monitor = NWPathMonitor()
 
-    private init() {
+    init() {
         monitor.pathUpdateHandler = { [weak self] path in
-            let connected = path.status == .satisfied
-            Task { @MainActor [weak self] in
-                self?.isConnected = connected
+            DispatchQueue.main.async {
+                self?.isConnected = path.status == .satisfied
             }
         }
-        monitor.start(queue: DispatchQueue(label: "dev.tava.network-monitor"))
+        monitor.start(queue: DispatchQueue(label: "NetworkMonitor"))
     }
+
+    deinit { monitor.cancel() }
 }

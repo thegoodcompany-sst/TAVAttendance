@@ -1,36 +1,41 @@
+import SwiftUI
 import Supabase
-import Foundation
 
 @MainActor
 final class AuthManager: ObservableObject {
-    static let shared = AuthManager()
-
-    @Published var profile: Profile?
+    @Published var isAuthenticated = false
+    @Published var currentProfile: Profile? = nil
     @Published var isLoading = true
-    @Published var selectedRole: UserRole?
 
-    private let db = SupabaseManager.shared.client
+    private let supabase = SupabaseManager.shared.client
 
-    private init() {
-        Task { await listenForAuthChanges() }
+    init() {
+        Task {
+            await listenToAuthChanges()
+        }
     }
 
-    // MARK: - Auth State
-
-    private func listenForAuthChanges() async {
+    private func listenToAuthChanges() async {
         isLoading = true
-        for await state in db.auth.authStateChanges {
-            switch state.event {
-            case .initialSession, .signedIn:
-                if state.session != nil {
-                    await fetchProfile()
-                } else {
-                    profile = nil
-                    isLoading = false
+        for await (event, session) in supabase.auth.authStateChanges {
+            switch event {
+            case .signedIn:
+                isAuthenticated = true
+                if let userId = session?.user.id {
+                    await fetchProfile(userId: userId)
                 }
-            case .signedOut, .userDeleted:
-                profile = nil
-                selectedRole = nil
+                isLoading = false
+            case .signedOut:
+                isAuthenticated = false
+                currentProfile = nil
+                isLoading = false
+            case .initialSession:
+                if let userId = session?.user.id {
+                    isAuthenticated = true
+                    await fetchProfile(userId: userId)
+                } else {
+                    isAuthenticated = false
+                }
                 isLoading = false
             default:
                 break
@@ -38,33 +43,26 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    private func fetchProfile() async {
-        guard let userId = db.auth.currentUser?.id else {
-            isLoading = false
-            return
-        }
+    private func fetchProfile(userId: UUID) async {
         do {
-            profile = try await db
+            let profile: Profile = try await supabase
                 .from("profiles")
                 .select()
                 .eq("id", value: userId)
                 .single()
                 .execute()
                 .value
+            currentProfile = profile
         } catch {
             print("AuthManager: failed to fetch profile — \(error)")
         }
-        isLoading = false
     }
 
-    // MARK: - Actions
-
-    func signIn(email: String, password: String, selectedRole: UserRole?) async throws {
-        try await db.auth.signIn(email: email, password: password)
-        self.selectedRole = selectedRole
+    func signIn(email: String, password: String) async throws {
+        try await supabase.auth.signIn(email: email, password: password)
     }
 
     func signOut() async throws {
-        try await db.auth.signOut()
+        try await supabase.auth.signOut()
     }
 }

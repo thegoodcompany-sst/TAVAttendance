@@ -1,11 +1,9 @@
 import Foundation
 
-// MARK: - Profile
-
 struct Profile: Codable, Identifiable {
     let id: UUID
     let fullName: String
-    let role: UserRole
+    let role: String
     let phone: String?
 
     enum CodingKeys: String, CodingKey {
@@ -13,12 +11,6 @@ struct Profile: Codable, Identifiable {
         case fullName = "full_name"
     }
 }
-
-enum UserRole: String, Codable, Hashable, Equatable {
-    case admin, tutor, parent
-}
-
-// MARK: - Class
 
 struct TAVClass: Codable, Identifiable {
     let id: UUID
@@ -39,8 +31,6 @@ struct TAVClass: Codable, Identifiable {
     }
 }
 
-// MARK: - Student
-
 struct Student: Codable, Identifiable {
     let id: UUID
     let fullName: String
@@ -56,12 +46,10 @@ struct Student: Codable, Identifiable {
     }
 }
 
-// MARK: - Session
-
-struct TAVSession: Codable, Identifiable {
+struct Session: Codable, Identifiable, Hashable {
     let id: UUID
     let classId: UUID
-    let sessionDate: String   // "YYYY-MM-DD"
+    let sessionDate: String
     let topic: String?
     let notes: String?
 
@@ -72,40 +60,18 @@ struct TAVSession: Codable, Identifiable {
     }
 }
 
-// MARK: - Attendance
-
-enum AttendanceStatus: String, Codable, CaseIterable, Identifiable {
+enum AttendanceStatus: String, Codable, CaseIterable {
     case present, absent, late, excused
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .present: return "Present"
-        case .absent:  return "Absent"
-        case .late:    return "Late"
-        case .excused: return "Excused"
-        }
-    }
-
-    var shortLabel: String {
-        switch self {
-        case .present: return "P"
-        case .absent:  return "A"
-        case .late:    return "L"
-        case .excused: return "E"
-        }
-    }
 }
 
 struct AttendanceRecord: Codable, Identifiable {
-    let id: UUID
+    let id: UUID?
     let sessionId: UUID
     let studentId: UUID
-    let status: AttendanceStatus
+    var status: AttendanceStatus
     let markedBy: UUID?
     let markedAt: Date?
-    let notes: String?
+    var notes: String?
     let clientMutationId: String
 
     enum CodingKeys: String, CodingKey {
@@ -118,7 +84,6 @@ struct AttendanceRecord: Codable, Identifiable {
     }
 }
 
-// Sent to Supabase on upsert — omits server-assigned id.
 struct AttendanceInsert: Encodable {
     let sessionId: UUID
     let studentId: UUID
@@ -133,8 +98,6 @@ struct AttendanceInsert: Encodable {
         case clientMutationId = "client_mutation_id"
     }
 }
-
-// MARK: - Roster (from get_session_roster RPC)
 
 struct RosterEntry: Codable, Identifiable {
     let studentId: UUID
@@ -155,16 +118,60 @@ struct RosterEntry: Codable, Identifiable {
     }
 }
 
-// MARK: - Offline Pending Record
+// MARK: - Admin insert types (no server-assigned fields)
 
-struct PendingAttendanceRecord: Codable, Identifiable {
-    let sessionId: UUID
+struct ClassInsert: Encodable {
+    let name: String
+    let subject: String?
+    let level: String?
+    let scheduleDay: String?
+    let scheduleTime: String?
+    let durationMinutes: Int
+    let isActive: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case name, subject, level
+        case scheduleDay     = "schedule_day"
+        case scheduleTime    = "schedule_time"
+        case durationMinutes = "duration_minutes"
+        case isActive        = "is_active"
+    }
+}
+
+struct StudentInsert: Encodable {
+    let fullName: String
+    let school: String?
+    let yearOfStudy: String?
+
+    enum CodingKeys: String, CodingKey {
+        case fullName    = "full_name"
+        case school
+        case yearOfStudy = "year_of_study"
+    }
+}
+
+struct Enrollment: Codable, Identifiable {
+    let id: UUID
     let studentId: UUID
-    var status: AttendanceStatus
-    var notes: String?
-    let clientMutationId: String
-    let markedAt: Date
-    var isSynced: Bool
+    let classId: UUID
+    let isActive: Bool
 
-    var id: String { clientMutationId }
+    enum CodingKeys: String, CodingKey {
+        case id
+        case studentId = "student_id"
+        case classId   = "class_id"
+        case isActive  = "is_active"
+    }
+}
+
+struct TutorAssignment: Codable, Identifiable {
+    let id: UUID
+    let classId: UUID
+    let tutorId: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case classId = "class_id"
+        case tutorId = "tutor_id"
+    }
 }

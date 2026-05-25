@@ -2,28 +2,38 @@ import SwiftUI
 
 @main
 struct TAVAttendanceApp: App {
-    @StateObject private var auth    = AuthManager.shared
-    @StateObject private var network = NetworkMonitor.shared
+    @StateObject private var authManager = AuthManager()
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if auth.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if auth.profile == nil {
-                    LoginView()
+            if authManager.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if authManager.isAuthenticated {
+                if authManager.currentProfile?.role == "admin" {
+                    AdminTabView()
+                        .environmentObject(authManager)
                 } else {
-                    // Route to appropriate view based on role
-                    if auth.selectedRole == .tutor {
-                        AttendanceTakerView()
-                    } else {
-                        ClassListView()
-                    }
+                    ClassListView()
+                        .environmentObject(authManager)
                 }
+            } else {
+                LoginView()
+                    .environmentObject(authManager)
             }
-            .environmentObject(auth)
-            .environmentObject(network)
+        }
+    }
+}
+
+private struct AdminTabView: View {
+    var body: some View {
+        TabView {
+            ClassListView()
+                .tabItem { Label("Classes", systemImage: "rectangle.3.group") }
+            StudentManagementView()
+                .tabItem { Label("Students", systemImage: "person.3") }
+            GlobalKioskView()
+                .tabItem { Label("Sign-In", systemImage: "person.wave.2") }
         }
     }
 }

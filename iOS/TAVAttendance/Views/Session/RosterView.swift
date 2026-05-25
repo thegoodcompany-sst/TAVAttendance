@@ -1,170 +1,270 @@
 import SwiftUI
 
 struct RosterView: View {
-    let session: TAVSession
-    let className: String
+    let session: Session
+    let tavClass: TAVClass
 
-    @StateObject private var viewModel: RosterViewModel
-    @EnvironmentObject private var network: NetworkMonitor
+    @State private var roster: [RosterEntry] = []
+    @State private var isLoading = true
+    @State private var isSaving = false
+    @StateObject private var network = NetworkMonitor()
+    @StateObject private var pendingStore = PendingAttendanceStore()
 
-    init(session: TAVSession, className: String) {
-        self.session   = session
-        self.className = className
-        _viewModel = StateObject(wrappedValue: RosterViewModel(session: session))
-    }
+    // Track optimistic status updates locally for instant UI feedback
+    @State private var localStatus: [UUID: AttendanceStatus] = [:]
+
+    private let displayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    private let prettyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
 
     var body: some View {
         Group {
-            if viewModel.isLoading {
+            if isLoading {
                 ProgressView("Loading roster…")
-            } else if viewModel.roster.isEmpty {
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if roster.isEmpty {
                 ContentUnavailableView(
                     "No Students",
                     systemImage: "person.3",
                     description: Text("No students are enrolled in this class.")
                 )
             } else {
-                List(viewModel.roster) { entry in
-                    RosterRowView(
-                        entry: entry,
-                        isOffline: !network.isConnected
-                    ) { newStatus in
-                        viewModel.mark(studentId: entry.studentId, status: newStatus)
-                    }
-                }
+                rosterList
             }
         }
-        .navigationTitle(className)
+        .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 0) {
-                    Text(className).font(.headline)
-                    Text(session.sessionDate).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            if !network.isConnected {
-                ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                if !network.isConnected {
                     Label("Offline", systemImage: "wifi.slash")
                         .foregroundStyle(.orange)
-                        .font(.caption)
+                        .labelStyle(.iconOnly)
+                }
+                if network.isConnected && hasPendingUnsynced {
+                    Button {
+                        Task { await syncPending() }
+                    } label: {
+                        Label("Sync", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    .disabled(isSaving)
                 }
             }
         }
-        .task { await viewModel.load() }
+        .task {
+            await loadRoster()
+        }
         .onChange(of: network.isConnected) { _, connected in
-            if connected { Task { await viewModel.syncPending() } }
-        }
-        .alert("Error", isPresented: $viewModel.hasError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "Unknown error")
+            if connected {
+                Task { await syncPending() }
+            }
         }
     }
-}
 
-// MARK: - Roster Row
+    // MARK: - Roster List
 
-struct RosterRowView: View {
-    let entry: RosterEntry
-    let isOffline: Bool
-    let onMark: (AttendanceStatus) -> Void
+    private var rosterList: some View {
+        List(displayedRoster) { entry in
+            rosterRow(entry)
+                .listRowSeparator(.visible)
+        }
+        .listStyle(.plain)
+    }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(entry.fullName).font(.headline)
-                Spacer()
-                if isOffline {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+    private func rosterRow(_ entry: RosterEntry) -> some View {
+        HStack(spacing: 12) {
+            // Student name + pending indicator
+            HStack(spacing: 6) {
+                Text(entry.fullName)
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                if isPending(entry) {
+                    Image(systemName: "circle.fill")
+                        .font(.system(size: 8))
                         .foregroundStyle(.orange)
-                        .font(.caption)
+                        .help("Unsynced change")
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
+            // Status buttons
             HStack(spacing: 8) {
-                ForEach(AttendanceStatus.allCases) { status in
-                    Button(status.shortLabel) {
-                        onMark(status)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(tint(for: status))
-                    .fontWeight(entry.status == status ? .bold : .regular)
-                    .overlay {
-                        if entry.status == status {
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(tint(for: status) ?? .primary, lineWidth: 2)
-                        }
-                    }
+                ForEach(AttendanceStatus.allCases, id: \.self) { status in
+                    statusButton(status: status, entry: entry)
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
-    private func tint(for status: AttendanceStatus) -> Color? {
+    private func statusButton(status: AttendanceStatus, entry: RosterEntry) -> some View {
+        let currentStatus = effectiveStatus(for: entry)
+        let isSelected = currentStatus == status
+
+        return Button {
+            Task { await markAttendance(entry: entry, status: status) }
+        } label: {
+            Text(label(for: status))
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 44, height: 36)
+                .foregroundStyle(isSelected ? .white : color(for: status))
+                .background(
+                    isSelected
+                        ? color(for: status)
+                        : color(for: status).opacity(0.12)
+                )
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(
+                            isSelected ? .clear : color(for: status).opacity(0.4),
+                            lineWidth: 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Computed helpers
+
+    private var displayedRoster: [RosterEntry] {
+        // Overlay pending statuses on top of server-fetched roster
+        roster
+    }
+
+    private var hasPendingUnsynced: Bool {
+        pendingStore.allPending().contains { $0.sessionId == session.id }
+    }
+
+    private var navigationTitle: String {
+        let dateStr = formattedDate(session.sessionDate)
+        return "\(dateStr) · \(tavClass.name)"
+    }
+
+    private func effectiveStatus(for entry: RosterEntry) -> AttendanceStatus? {
+        // 1. Optimistic local override (set during this session)
+        if let local = localStatus[entry.studentId] {
+            return local
+        }
+        // 2. Pending store (persisted, not yet synced)
+        let pending = pendingStore.allPending()
+        if let record = pending.first(where: {
+            $0.studentId == entry.studentId && $0.sessionId == session.id
+        }) {
+            return record.status
+        }
+        // 3. Server value
+        return entry.status
+    }
+
+    private func isPending(_ entry: RosterEntry) -> Bool {
+        pendingStore.allPending().contains {
+            $0.studentId == entry.studentId && $0.sessionId == session.id
+        }
+    }
+
+    // MARK: - Actions
+
+    private func loadRoster() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+        } catch {
+            // Leave roster empty; user sees ContentUnavailableView
+        }
+    }
+
+    private func markAttendance(entry: RosterEntry, status: AttendanceStatus) async {
+        // Optimistic update
+        localStatus[entry.studentId] = status
+
+        if network.isConnected {
+            do {
+                try await AttendanceService.shared.markAttendance(
+                    sessionId: session.id,
+                    studentId: entry.studentId,
+                    status: status,
+                    notes: nil
+                )
+                // Clear local override once server confirms
+                localStatus.removeValue(forKey: entry.studentId)
+                // Refresh to pick up server-assigned fields (attendanceId, markedAt)
+                if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
+                    roster = updated
+                }
+            } catch {
+                // Keep local override; fall through to pending store as backup
+                pendingStore.add(
+                    sessionId: session.id,
+                    studentId: entry.studentId,
+                    status: status,
+                    notes: nil
+                )
+            }
+        } else {
+            pendingStore.add(
+                sessionId: session.id,
+                studentId: entry.studentId,
+                status: status,
+                notes: nil
+            )
+        }
+    }
+
+    private func syncPending() async {
+        let unsynced = pendingStore.allPending().filter { $0.sessionId == session.id }
+        guard !unsynced.isEmpty else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let (synced, _) = try await AttendanceService.shared.syncPending(unsynced)
+            if synced > 0 {
+                pendingStore.markSynced(clientMutationIds: Set(unsynced.map(\.clientMutationId)))
+                // Clear local overrides — server is now source of truth
+                for record in unsynced {
+                    localStatus.removeValue(forKey: record.studentId)
+                }
+                roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+            }
+        } catch {
+            // Silently fail — will retry on next reconnect
+        }
+    }
+
+    // MARK: - Formatting helpers
+
+    private func formattedDate(_ isoDate: String) -> String {
+        guard let date = displayFormatter.date(from: isoDate) else { return isoDate }
+        return prettyFormatter.string(from: date)
+    }
+
+    private func color(for status: AttendanceStatus) -> Color {
         switch status {
         case .present: return .green
         case .absent:  return .red
         case .late:    return .orange
-        case .excused: return .blue
-        }
-    }
-}
-
-// MARK: - ViewModel
-
-@MainActor
-final class RosterViewModel: ObservableObject {
-    @Published var roster: [RosterEntry] = []
-    @Published var isLoading = false
-    @Published var hasError  = false
-    @Published var errorMessage: String?
-
-    private let session: TAVSession
-
-    init(session: TAVSession) { self.session = session }
-
-    func load() async {
-        isLoading = true
-        do {
-            roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
-        } catch {
-            errorMessage = error.localizedDescription
-            hasError     = true
-        }
-        isLoading = false
-    }
-
-    func mark(studentId: UUID, status: AttendanceStatus) {
-        // Update local state immediately for snappy UI
-        if let idx = roster.firstIndex(where: { $0.studentId == studentId }) {
-            roster[idx].status = status
-        }
-
-        let sessionId = session.id
-        Task {
-            if NetworkMonitor.shared.isConnected {
-                do {
-                    try await AttendanceService.shared.markAttendance(
-                        sessionId: sessionId,
-                        studentId: studentId,
-                        status:    status
-                    )
-                } catch {
-                    PendingAttendanceStore.shared.upsert(sessionId: sessionId, studentId: studentId, status: status)
-                }
-            } else {
-                PendingAttendanceStore.shared.upsert(sessionId: sessionId, studentId: studentId, status: status)
-            }
+        case .excused: return .gray
         }
     }
 
-    func syncPending() async {
-        do {
-            try await AttendanceService.shared.syncPending()
-        } catch {
-            print("RosterViewModel: sync failed — \(error)")
+    private func label(for status: AttendanceStatus) -> String {
+        switch status {
+        case .present: return "P"
+        case .absent:  return "A"
+        case .late:    return "L"
+        case .excused: return "E"
         }
     }
 }
