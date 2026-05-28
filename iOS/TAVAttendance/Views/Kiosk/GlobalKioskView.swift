@@ -468,7 +468,7 @@ private struct KioskCard: View {
                 showMarkPresentConfirm = true
             }
         } label: {
-            ZStack(alignment: .topTrailing) {
+            ZStack {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(.secondarySystemGroupedBackground))
                     .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
@@ -476,17 +476,17 @@ private struct KioskCard: View {
                         RoundedRectangle(cornerRadius: 16)
                             .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
                     )
-
-                if isSelectionMode {
-                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(isSelected ? Color.accentColor : Color(.tertiaryLabel))
-                        .padding(10)
-                }
+                    .overlay(alignment: .topTrailing) {
+                        if isSelectionMode {
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(isSelected ? Color.accentColor : Color(.tertiaryLabel))
+                                .padding(10)
+                        }
+                    }
 
                 if isPending {
                     ProgressView().controlSize(.large)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: statusIcon)
