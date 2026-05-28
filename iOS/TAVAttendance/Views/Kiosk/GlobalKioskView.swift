@@ -213,6 +213,9 @@ struct GlobalKioskView: View {
                     SelectionActionButton(title: "Absent", icon: "person.slash.fill", color: .red, disabled: selectedIds.isEmpty) {
                         Task { await applyBulkAction(.absent) }
                     }
+                    SelectionActionButton(title: "Dismiss", icon: "figure.walk.departure", color: .purple, disabled: selectedIds.isEmpty) {
+                        Task { await applyBulkDismiss() }
+                    }
                 }
             }
             .padding(.horizontal, 24)
@@ -231,6 +234,29 @@ struct GlobalKioskView: View {
                     do {
                         try await AttendanceService.shared.markKioskAttendance(entry: entry, status: status)
                         await MainActor.run { updateEntry(entry.studentId, status: status) }
+                    } catch {}
+                    await MainActor.run { pendingIds.remove(entry.studentId) }
+                }
+            }
+        }
+        isSelectionMode = false
+        selectedIds = []
+    }
+
+    private func applyBulkDismiss() async {
+        let targets = entries.filter {
+            selectedIds.contains($0.studentId) &&
+            !$0.isDismissed &&
+            ($0.status == .present || $0.status == .late)
+        }
+        await withTaskGroup(of: Void.self) { group in
+            for entry in targets {
+                guard let sessionId = entry.sessions.first?.id else { continue }
+                group.addTask {
+                    await MainActor.run { pendingIds.insert(entry.studentId) }
+                    do {
+                        let dismissal = try await AttendanceService.shared.recordDismissal(sessionId: sessionId, studentId: entry.studentId)
+                        await MainActor.run { updateEntry(entry.studentId, dismissedAt: dismissal.dismissedAt ?? Date()) }
                     } catch {}
                     await MainActor.run { pendingIds.remove(entry.studentId) }
                 }
