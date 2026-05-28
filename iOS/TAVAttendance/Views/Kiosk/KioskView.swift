@@ -107,3 +107,54 @@ struct KioskView: View {
         pendingIds.remove(entry.studentId)
     }
 }
+
+// MARK: - Sign-in card
+
+private struct StudentSignInCard: View {
+    let entry: RosterEntry
+    let isPending: Bool
+    let onTap: () -> Void
+
+    private var isPresent: Bool { entry.status == .present }
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color(.secondarySystemGroupedBackground))
+                    .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+
+                if isPending {
+                    ProgressView().controlSize(.large)
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: isPresent ? "checkmark.circle.fill" : "person.circle")
+                            .font(.system(size: 32, weight: .medium))
+                            .foregroundStyle(isPresent ? Color.green : Color(.tertiaryLabel))
+
+                        Text(entry.fullName)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.8)
+
+                        if isPresent {
+                            Text("Signed in")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 16)
+                }
+            }
+            .frame(minHeight: 130)
+            .scaleEffect(isPending ? 0.97 : 1.0)
+            .animation(.spring(response: 0.2), value: isPending)
+        }
+        .buttonStyle(.plain)
+        .disabled(isPresent || isPending)
+        .animation(.spring(response: 0.3), value: isPresent)
+    }
+}

@@ -1,0 +1,35 @@
+# Xcode
+*.xcuserstate
+*.xcscmblueprint
+xcuserdata/
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xcarchive
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods
+Pods/
+
+# Node (web)
+node_modules/
+.env
+.env.local
+.env.*.local
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Credentials — never commit live keys
+# Copy SupabaseConfig.swift.example → SupabaseConfig.swift and fill in values.
+iOS/TAVAttendance/Core/SupabaseConfig.swift

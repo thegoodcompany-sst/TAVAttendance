@@ -9,24 +9,29 @@ struct LoginView: View {
     @State private var errorMessage: String? = nil
 
     var body: some View {
-        ZStack {
-            Color(.systemGroupedBackground)
-                .ignoresSafeArea()
+        Color(.systemGroupedBackground)
+            .ignoresSafeArea()
+            .overlay(
+                VStack(spacing: 36) {
+                    // Branding
+                    VStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.accentColor.opacity(0.12))
+                                .frame(width: 88, height: 88)
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(Color.accentColor)
+                        }
 
-            VStack {
-                Spacer()
-
-                VStack(spacing: 32) {
-                    // Header
-                    VStack(spacing: 8) {
                         Text("TAVA")
-                            .font(.system(size: 56, weight: .bold, design: .rounded))
-                            .foregroundColor(.primary)
+                            .font(.system(size: 48, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color.accentColor)
 
                         Text("Attendance")
-                            .font(.title2)
+                            .font(.title3)
                             .fontWeight(.medium)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
 
                     // Form card
@@ -35,7 +40,7 @@ struct LoginView: View {
                             Text("Email")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
 
                             TextField("you@example.com", text: $email)
                                 .textFieldStyle(.roundedBorder)
@@ -49,7 +54,7 @@ struct LoginView: View {
                             Text("Password")
                                 .font(.subheadline)
                                 .fontWeight(.medium)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(.secondary)
 
                             SecureField("Password", text: $password)
                                 .textFieldStyle(.roundedBorder)
@@ -59,7 +64,7 @@ struct LoginView: View {
                         if let errorMessage {
                             Text(errorMessage)
                                 .font(.subheadline)
-                                .foregroundColor(.red)
+                                .foregroundStyle(.red)
                                 .multilineTextAlignment(.center)
                                 .padding(.top, 4)
                         }
@@ -72,7 +77,7 @@ struct LoginView: View {
                             Button(action: signIn) {
                                 Text("Sign In")
                                     .font(.headline)
-                                    .foregroundColor(.white)
+                                    .foregroundStyle(.white)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 14)
                                     .background(Color.accentColor)
@@ -88,10 +93,7 @@ struct LoginView: View {
                 }
                 .frame(maxWidth: 440)
                 .padding(.horizontal, 32)
-
-                Spacer()
-            }
-        }
+            )
     }
 
     private func signIn() {

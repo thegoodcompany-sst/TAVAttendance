@@ -11,6 +11,9 @@ struct ClassListView: View {
     @State private var editingClass: TAVClass?
     @State private var classToDelete: TAVClass?
     @State private var showingDeleteConfirm = false
+    @State private var showingExport = false
+    @State private var showingImport = false
+    @State private var showingParentLinks = false
 
     private var isAdmin: Bool { authManager.currentProfile?.role == "admin" }
 
@@ -73,10 +76,30 @@ struct ClassListView: View {
                             .labelStyle(.iconOnly)
                     }
                     if isAdmin {
-                        Button {
-                            showingAddClass = true
+                        Menu {
+                            Button {
+                                showingAddClass = true
+                            } label: {
+                                Label("New Class", systemImage: "plus")
+                            }
+                            Divider()
+                            Button {
+                                showingExport = true
+                            } label: {
+                                Label("Export Attendance", systemImage: "square.and.arrow.up")
+                            }
+                            Button {
+                                showingImport = true
+                            } label: {
+                                Label("Import Students", systemImage: "square.and.arrow.down")
+                            }
+                            Button {
+                                showingParentLinks = true
+                            } label: {
+                                Label("Parent Links", systemImage: "person.2.circle")
+                            }
                         } label: {
-                            Image(systemName: "plus")
+                            Image(systemName: "ellipsis.circle")
                         }
                     }
                 }
@@ -95,6 +118,15 @@ struct ClassListView: View {
         }
         .sheet(item: $editingClass) { cls in
             ClassFormView(mode: .edit(cls)) { Task { await loadClasses() } }
+        }
+        .sheet(isPresented: $showingExport) {
+            ExportView()
+        }
+        .sheet(isPresented: $showingImport) {
+            StudentImportView()
+        }
+        .sheet(isPresented: $showingParentLinks) {
+            ParentLinkView()
         }
         .confirmationDialog(
             "Remove \"\(classToDelete?.name ?? "class")\"?",

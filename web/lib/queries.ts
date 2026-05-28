@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { todayInTz, yesterdayInTz } from '@/lib/date'
 import { worstStatus, type AttendanceStatus } from '@/lib/status'
@@ -74,13 +75,9 @@ async function getRosterForDate(date: string): Promise<StudentTodayEntry[]> {
   )
 }
 
-export async function getTodayRoster(): Promise<StudentTodayEntry[]> {
-  return getRosterForDate(todayInTz())
-}
+export const getTodayRoster = cache((): Promise<StudentTodayEntry[]> => getRosterForDate(todayInTz()))
 
-export async function getYesterdayRoster(): Promise<StudentTodayEntry[]> {
-  return getRosterForDate(yesterdayInTz())
-}
+export const getYesterdayRoster = cache((): Promise<StudentTodayEntry[]> => getRosterForDate(yesterdayInTz()))
 
 export type SessionSummary = {
   sessionId: string
@@ -94,7 +91,7 @@ export type SessionSummary = {
   totalEnrolled: number
 }
 
-export async function getTodaySessions(): Promise<SessionSummary[]> {
+export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
   const supabase = await createClient()
   const today = todayInTz()
 
@@ -129,7 +126,7 @@ export async function getTodaySessions(): Promise<SessionSummary[]> {
       totalEnrolled: total,
     }
   })
-}
+})
 
 export type StudentRow = {
   id: string
@@ -138,7 +135,7 @@ export type StudentRow = {
   yearOfStudy: string | null
 }
 
-export async function getAllStudents(): Promise<StudentRow[]> {
+export const getAllStudents = cache(async (): Promise<StudentRow[]> => {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('students')
@@ -157,7 +154,7 @@ export async function getAllStudents(): Promise<StudentRow[]> {
     school: s.school,
     yearOfStudy: s.year_of_study,
   }))
-}
+})
 
 export type ClassSummary = {
   classId: string

@@ -10,6 +10,7 @@ struct StudentManagementView: View {
     @State private var editingStudent: Student?
     @State private var studentToDelete: Student?
     @State private var showingDeleteConfirm = false
+    @State private var showingImport = false
 
     var body: some View {
         NavigationStack {
@@ -60,7 +61,12 @@ struct StudentManagementView: View {
             }
             .navigationTitle("Students")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        showingImport = true
+                    } label: {
+                        Label("Import from CSV", systemImage: "square.and.arrow.down")
+                    }
                     Button {
                         showingAddStudent = true
                     } label: {
@@ -74,6 +80,9 @@ struct StudentManagementView: View {
             }
             .sheet(item: $editingStudent) { student in
                 StudentFormView(mode: .edit(student)) { Task { await load() } }
+            }
+            .sheet(isPresented: $showingImport) {
+                StudentImportView()
             }
             .confirmationDialog(
                 "Remove \(studentToDelete?.fullName ?? "student")?",

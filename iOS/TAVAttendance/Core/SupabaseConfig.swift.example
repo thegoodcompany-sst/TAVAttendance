@@ -1,0 +1,6 @@
+// Copy this file to SupabaseConfig.swift and fill in the values.
+// SupabaseConfig.swift is gitignored — never commit live keys.
+enum SupabaseConfig {
+    static let projectURL = "https://<ref>.supabase.co"
+    static let anonKey = "<your-anon-key>"
+}

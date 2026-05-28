@@ -40,15 +40,20 @@ Admin mode persists until the kiosk is re-locked (gear → Lock Kiosk Now). It d
 
 ### Kiosk status semantics
 
-| Kiosk shows | DB status | Card colour | Tappable? |
+| Kiosk shows | DB row | Card colour | Tappable? |
 |---|---|---|---|
-| Unsigned | `nil` | Grey (default) | Yes → auto sign-in |
+| Unsigned | `attendance_records` row absent or `nil` status | Grey (default) | Yes → auto sign-in |
 | On Time | `.present` | Green | No (admin: tap to override) |
 | Late | `.late` | Orange | No (admin: tap to mark On Time) |
+| Late + reason | `.late` + `late_reason IS NOT NULL` | Orange + `info.circle.fill` glyph | Admin: tap glyph to see reason |
 | Not Here | `.excused` | Grey (default) | Yes → student can still sign in |
 | Absent | `.absent` | Red | No (admin context-menu only) |
+| Dismissed | `.present` or `.late` + row in `dismissals` table | Purple | No (admin: long-press → Undo Dismissal) |
 
-**"Not Here" vs "Absent"**: Not Here (excused) is a soft "undo" — the card goes grey and the student can tap to sign in later. Absent is a hard admin mark (red card, context-menu only). In the teacher roster view, both are simply their P/A/L/E status.
+**"Not Here" vs "Absent" vs "Dismissed"**:
+- **Not Here** (excused): soft undo — card goes grey, student can tap to sign in again.
+- **Absent**: hard admin mark (red, context-menu only). Cannot be undone by the student.
+- **Dismissed**: student was physically present (attendance row unchanged, counts toward attendance %) but has been signed out early by admin. Stored in the `dismissals` table, not `attendance_records`. Purple card with a secondary label showing the original On Time / Late status underneath.
 
 ### Status aggregation across multiple sessions
 When a student is enrolled in more than one class today, `KioskEntry.status` is the "worst" status across all their sessions: `late > present > absent > excused`. The merge logic is in `AttendanceService.worstStatus(_:_:)`.
@@ -130,6 +135,75 @@ There is no automated test suite. Manual testing checklist:
 
 ### Student profile history
 - The `fetchStudentAttendanceHistory` query uses a PostgREST join. If the sheet shows a blank list with no error, check the Supabase logs for a PostgREST 400 — the FK join string may be mismatched.
+
+---
+
+## Running tests
+
+| Platform | Command | Working directory |
+|---|---|---|
+| iOS | `bash scripts/test_ios.sh` | `iOS/` |
+| Android | `./gradlew test` | `Andriod/` (note: directory name is misspelled in repo) |
+| Web | `pnpm test` | `web/` |
+
+---
+
+## Cross-platform parity workflow
+
+After implementing any iOS feature, before declaring the task done:
+
+1. Run `git diff --stat HEAD~N..HEAD -- iOS/` to summarise the iOS files touched.
+2. Output a **paste-ready prompt block** (see template below) under a heading **"📋 Android port handoff"** containing:
+   - One-paragraph feature summary (what was built and why).
+   - Bulleted list of iOS files changed with a one-line purpose each.
+   - Equivalent Android file targets (see `Andriod/PORTING_NOTES.md` for the mapping once it exists; until then, use the mapping table at the bottom of this section).
+   - Any new Supabase columns, RPCs, or Storage buckets the Android code must call.
+   - A sample unit test the Android agent should write (mirroring the corresponding iOS XCTest).
+3. Output the same block under **"📋 Web port handoff"** for the `web/` package.
+
+> **The user pastes each block into a fresh agent invocation — do NOT spawn the porting agent automatically.** Each port is a separate review cycle.
+
+### iOS → Android file mapping (until PORTING_NOTES.md exists)
+
+| iOS file | Android equivalent |
+|---|---|
+| `Models/Models.swift` | `data/models/Models.kt` |
+| `Services/AttendanceService.swift` | `data/service/AttendanceService.kt` |
+| `Views/Kiosk/GlobalKioskView.swift` | `screens/kiosk/GlobalKioskScreen.kt` |
+| `Views/Session/StudentProfileView.swift` | `screens/StudentProfileSheet.kt` |
+| `Views/Session/RosterView.swift` | `screens/RosterScreen.kt` |
+| `Views/Session/SessionListView.swift` | `screens/SessionListScreen.kt` |
+| `Views/Admin/ClassFormView.swift` | `screens/ClassFormDialog.kt` |
+| `Views/Admin/StudentManagementView.swift` | `screens/StudentManagementScreen.kt` |
+| `Views/Admin/ExportView.swift` | *(new)* `screens/ExportScreen.kt` |
+| `Views/Admin/StudentImportView.swift` | *(new)* `screens/StudentImportScreen.kt` |
+| `Views/Admin/ParentLinkView.swift` | *(new)* `screens/ParentLinkScreen.kt` |
+
+### Paste-ready prompt template
+
+```
+You are porting iOS feature changes to the Android app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Andriod/
+(note: directory name is misspelled — "Andriod" not "Android").
+
+## Feature summary
+[one paragraph]
+
+## iOS files changed
+- `iOS/TAVAttendance/[path]` — [purpose]
+
+## Android targets
+- `Andriod/app/src/main/java/com/example/tavattendance/[path]` — [purpose]
+
+## New Supabase schema (must be consumed by Android)
+- [list new columns, RPCs, buckets]
+
+## Sample test to write
+[paste the equivalent iOS XCTest case as pseudo-Kotlin]
+
+Implement all changes. Match existing Kotlin/Compose patterns in the repo.
+Do not change any Supabase migration files — they are shared.
+```
 
 ---
 

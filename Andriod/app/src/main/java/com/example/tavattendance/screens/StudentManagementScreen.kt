@@ -1,0 +1,159 @@
+package com.example.tavattendance.screens
+
+import android.app.Application
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.data.models.Student
+import com.example.tavattendance.data.models.StudentInsert
+import com.example.tavattendance.data.service.AttendanceService
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class StudentManagementViewModel(app: Application) : AndroidViewModel(app) {
+    private val _students = MutableStateFlow<List<Student>>(emptyList())
+    val students = _students.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading = _isLoading.asStateFlow()
+
+    init { loadStudents() }
+
+    fun loadStudents() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            runCatching { _students.value = AttendanceService.fetchAllStudents() }
+            _isLoading.value = false
+        }
+    }
+
+    fun addStudent(student: StudentInsert) {
+        viewModelScope.launch {
+            runCatching { AttendanceService.createStudent(student) }.onSuccess { loadStudents() }
+        }
+    }
+
+    fun editStudent(id: String, student: StudentInsert) {
+        viewModelScope.launch {
+            runCatching { AttendanceService.updateStudent(id, student) }.onSuccess { loadStudents() }
+        }
+    }
+
+    fun deactivateStudent(id: String) {
+        viewModelScope.launch {
+            runCatching { AttendanceService.deactivateStudent(id) }.onSuccess { loadStudents() }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
+    val students by vm.students.collectAsState()
+    val isLoading by vm.isLoading.collectAsState()
+    var showAddDialog by remember { mutableStateOf(false) }
+    var editingStudent by remember { mutableStateOf<Student?>(null) }
+    var profileStudent by remember { mutableStateOf<Student?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Students") },
+                actions = {
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Add student")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            when {
+                isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                students.isEmpty() -> Text(
+                    "No active students.",
+                    modifier = Modifier.align(Alignment.Center),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(students, key = { it.id }) { student ->
+                        ListItem(
+                            headlineContent = { Text(student.fullName) },
+                            supportingContent = {
+                                val detail = listOfNotNull(student.school, student.yearOfStudy).joinToString(" · ")
+                                if (detail.isNotBlank()) Text(detail)
+                            },
+                            trailingContent = {
+                                Row {
+                                    IconButton(onClick = { editingStudent = student }) {
+                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    }
+                                    var showConfirm by remember { mutableStateOf(false) }
+                                    IconButton(onClick = { showConfirm = true }) {
+                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    }
+                                    if (showConfirm) {
+                                        AlertDialog(
+                                            onDismissRequest = { showConfirm = false },
+                                            title = { Text("Deactivate Student") },
+                                            text = { Text("Deactivate \"${student.fullName}\"?") },
+                                            confirmButton = {
+                                                TextButton(onClick = { vm.deactivateStudent(student.id); showConfirm = false }) {
+                                                    Text("Deactivate", color = MaterialTheme.colorScheme.error)
+                                                }
+                                            },
+                                            dismissButton = {
+                                                TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
+                                            }
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.clickable { profileStudent = student }
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddDialog) {
+        StudentFormDialog(
+            title = "New Student",
+            onDismiss = { showAddDialog = false },
+            onSave = { vm.addStudent(it); showAddDialog = false }
+        )
+    }
+
+    editingStudent?.let { s ->
+        StudentFormDialog(
+            title = "Edit Student",
+            initial = s,
+            onDismiss = { editingStudent = null },
+            onSave = { vm.editStudent(s.id, it); editingStudent = null }
+        )
+    }
+
+    profileStudent?.let { s ->
+        StudentProfileSheet(
+            studentId = s.id,
+            fullName = s.fullName,
+            onDismiss = { profileStudent = null }
+        )
+    }
+}
