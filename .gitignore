@@ -30,6 +30,9 @@ node_modules/
 supabase/.branches/
 supabase/.temp/
 
+# Android
+Andriod/.kotlin/
+
 # Credentials — never commit live keys
 # Copy SupabaseConfig.swift.example → SupabaseConfig.swift and fill in values.
 iOS/TAVAttendance/Core/SupabaseConfig.swift
