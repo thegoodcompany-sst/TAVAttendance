@@ -16,6 +16,9 @@ struct GlobalKioskView: View {
     // Grants extra controls: absent marking, late→present override, present→late override.
     @State private var isAdminUnlocked = false
 
+    @State private var isSelectionMode = false
+    @State private var selectedIds: Set<UUID> = []
+
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16)]
 
     private var isAdminMode: Bool { !isLocked && (!storedPIN.isEmpty ? isAdminUnlocked : true) }
@@ -26,10 +29,6 @@ struct GlobalKioskView: View {
 
             VStack(spacing: 0) {
                 kioskHeader
-
-                if isAdminMode && !entries.isEmpty {
-                    bulkActionsBar
-                }
 
                 if isLoading {
                     Spacer()
@@ -50,16 +49,34 @@ struct GlobalKioskView: View {
                                 KioskCard(
                                     entry: entry,
                                     isPending: pendingIds.contains(entry.studentId),
-                                    isAdminMode: isAdminMode
+                                    isAdminMode: isAdminMode,
+                                    isSelectionMode: isSelectionMode,
+                                    isSelected: selectedIds.contains(entry.studentId)
                                 ) { action in
                                     Task { await handle(action, for: entry) }
+                                } onToggleSelection: {
+                                    if selectedIds.contains(entry.studentId) {
+                                        selectedIds.remove(entry.studentId)
+                                    } else {
+                                        selectedIds.insert(entry.studentId)
+                                    }
                                 }
                             }
                         }
                         .padding(24)
+                        .padding(.bottom, isSelectionMode ? 88 : 0)
                     }
                     .refreshable { await load() }
                 }
+            }
+
+            if isSelectionMode {
+                VStack {
+                    Spacer()
+                    selectionActionBar
+                }
+                .ignoresSafeArea(edges: .bottom)
+                .zIndex(5)
             }
 
             if showPINEntry {
@@ -87,7 +104,11 @@ struct GlobalKioskView: View {
             await load()
         }
         .onChange(of: isLocked) { _, locked in
-            if locked { isAdminUnlocked = false }
+            if locked {
+                isAdminUnlocked = false
+                isSelectionMode = false
+                selectedIds = []
+            }
         }
         .sheet(isPresented: $showSettings) {
             KioskSettingsSheet(storedPIN: $storedPIN, isLocked: $isLocked)
@@ -100,9 +121,10 @@ struct GlobalKioskView: View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 8) {
-                    Text("Sign In")
+                    Text(isSelectionMode ? "\(selectedIds.count) selected" : "Sign In")
                         .font(.system(size: 32, weight: .bold))
-                    if isAdminMode {
+                        .animation(.none, value: isSelectionMode)
+                    if isAdminMode && !isSelectionMode {
                         Text("ADMIN")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.white)
@@ -117,11 +139,36 @@ struct GlobalKioskView: View {
 
             Spacer()
 
-            if !entries.isEmpty {
+            if !entries.isEmpty && !isSelectionMode {
                 let n = entries.filter(\.isAttending).count
                 Text("\(n) / \(entries.count) attended")
                     .font(.headline)
                     .foregroundStyle(.secondary)
+            }
+
+            if isSelectionMode {
+                Button {
+                    isSelectionMode = false
+                    selectedIds = []
+                } label: {
+                    Text("Cancel")
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemGray5), in: Capsule())
+                }
+            } else if isAdminMode && !entries.isEmpty {
+                Button {
+                    isSelectionMode = true
+                    selectedIds = []
+                } label: {
+                    Image(systemName: "checkmark.circle")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .padding(10)
+                        .background(Color(.systemGray5), in: Circle())
+                }
             }
 
             if isLocked {
@@ -132,7 +179,7 @@ struct GlobalKioskView: View {
                         .padding(10)
                         .background(Color(.systemGray5), in: Circle())
                 }
-            } else {
+            } else if !isSelectionMode {
                 Button { showSettings = true } label: {
                     Image(systemName: "gearshape.fill")
                         .font(.title3)
@@ -147,76 +194,50 @@ struct GlobalKioskView: View {
         .background(.bar)
     }
 
-    // MARK: - Bulk actions bar
+    // MARK: - Selection action bar
 
-    private var bulkActionsBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                BulkActionButton(
-                    title: "Mark All Late",
-                    icon: "clock.badge.exclamationmark.fill",
-                    color: .orange
-                ) {
-                    Task { await bulkMarkLate() }
+    private var selectionActionBar: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 12) {
+                SelectionActionButton(title: "Late", icon: "clock.badge.exclamationmark.fill", color: .orange, disabled: selectedIds.isEmpty) {
+                    Task { await applyBulkAction(.late) }
                 }
-                BulkActionButton(
-                    title: "Late → On Time",
-                    icon: "checkmark.circle.fill",
-                    color: .green
-                ) {
-                    Task { await bulkMarkLatePresent() }
+                SelectionActionButton(title: "On Time", icon: "checkmark.circle.fill", color: .green, disabled: selectedIds.isEmpty) {
+                    Task { await applyBulkAction(.present) }
                 }
-                BulkActionButton(
-                    title: "Mark All Not Here",
-                    icon: "person.badge.minus",
-                    color: .secondary
-                ) {
-                    Task { await bulkMarkNotHere() }
+                SelectionActionButton(title: "Not Here", icon: "person.badge.minus", color: Color(.secondaryLabel), disabled: selectedIds.isEmpty) {
+                    Task { await applyBulkAction(.excused) }
+                }
+                if isAdminMode {
+                    SelectionActionButton(title: "Absent", icon: "person.slash.fill", color: .red, disabled: selectedIds.isEmpty) {
+                        Task { await applyBulkAction(.absent) }
+                    }
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 10)
-        }
-        .background(Color(.secondarySystemGroupedBackground))
-    }
-
-    private func bulkMarkLate() async {
-        let targets = entries.filter { $0.status == nil || $0.status == .excused }
-        for entry in targets {
-            guard !pendingIds.contains(entry.studentId) else { continue }
-            pendingIds.insert(entry.studentId)
-            do {
-                try await AttendanceService.shared.markKioskAttendance(entry: entry, status: .late)
-                updateEntry(entry.studentId, status: .late)
-            } catch {}
-            pendingIds.remove(entry.studentId)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
+            .background(.bar)
         }
     }
 
-    private func bulkMarkLatePresent() async {
-        let targets = entries.filter { $0.status == .late }
-        for entry in targets {
-            guard !pendingIds.contains(entry.studentId) else { continue }
-            pendingIds.insert(entry.studentId)
-            do {
-                try await AttendanceService.shared.markKioskAttendance(entry: entry, status: .present)
-                updateEntry(entry.studentId, status: .present)
-            } catch {}
-            pendingIds.remove(entry.studentId)
+    private func applyBulkAction(_ status: AttendanceStatus) async {
+        let targets = entries.filter { selectedIds.contains($0.studentId) }
+        await withTaskGroup(of: Void.self) { group in
+            for entry in targets {
+                group.addTask {
+                    await MainActor.run { pendingIds.insert(entry.studentId) }
+                    do {
+                        try await AttendanceService.shared.markKioskAttendance(entry: entry, status: status)
+                        await MainActor.run { updateEntry(entry.studentId, status: status) }
+                    } catch {}
+                    await MainActor.run { pendingIds.remove(entry.studentId) }
+                }
+            }
         }
-    }
-
-    private func bulkMarkNotHere() async {
-        let targets = entries.filter { $0.status == nil || $0.status == .excused }
-        for entry in targets {
-            guard !pendingIds.contains(entry.studentId) else { continue }
-            pendingIds.insert(entry.studentId)
-            do {
-                try await AttendanceService.shared.markKioskAttendance(entry: entry, status: .excused)
-                updateEntry(entry.studentId, status: .excused)
-            } catch {}
-            pendingIds.remove(entry.studentId)
-        }
+        isSelectionMode = false
+        selectedIds = []
     }
 
     // MARK: - Actions
@@ -336,31 +357,30 @@ struct GlobalKioskView: View {
     }
 }
 
-// MARK: - Bulk action button
+// MARK: - Selection action button
 
-private struct BulkActionButton: View {
+private struct SelectionActionButton: View {
     let title: String
     let icon: String
     let color: Color
+    let disabled: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 6) {
+            VStack(spacing: 5) {
                 Image(systemName: icon)
-                    .font(.caption.weight(.semibold))
+                    .font(.title2)
                 Text(title)
                     .font(.caption.weight(.semibold))
             }
-            .foregroundStyle(color == .secondary ? Color.secondary : color)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-                (color == .secondary ? Color(.systemGray5) : color.opacity(0.12)),
-                in: Capsule()
-            )
+            .foregroundStyle(disabled ? Color(.tertiaryLabel) : color)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(disabled ? Color(.systemGray6) : color.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
+        .disabled(disabled)
     }
 }
 
@@ -370,7 +390,10 @@ private struct KioskCard: View {
     let entry: KioskEntry
     let isPending: Bool
     let isAdminMode: Bool
+    let isSelectionMode: Bool
+    let isSelected: Bool
     let onAction: (GlobalKioskView.KioskAction) -> Void
+    let onToggleSelection: () -> Void
 
     @State private var showLateReason = false
     @State private var showLateReasonAlert = false
@@ -427,6 +450,7 @@ private struct KioskCard: View {
     }
 
     private var canTap: Bool {
+        if isSelectionMode { return true }
         guard !entry.isDismissed else { return false }
         return entry.status == nil || entry.status == .excused ||
             (isAdminMode && (entry.status == .late || entry.status == .absent))
@@ -434,19 +458,35 @@ private struct KioskCard: View {
 
     var body: some View {
         Button {
+            if isSelectionMode {
+                onToggleSelection()
+                return
+            }
             if entry.status == nil || entry.status == .excused {
                 onAction(.signIn)
             } else if isAdminMode && entry.status != .present {
                 showMarkPresentConfirm = true
             }
         } label: {
-            ZStack {
+            ZStack(alignment: .topTrailing) {
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(isSelected ? Color.accentColor.opacity(0.08) : Color(.secondarySystemGroupedBackground))
                     .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                    )
+
+                if isSelectionMode {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.accentColor : Color(.tertiaryLabel))
+                        .padding(10)
+                }
 
                 if isPending {
                     ProgressView().controlSize(.large)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: statusIcon)
@@ -514,7 +554,8 @@ private struct KioskCard: View {
         .disabled(isPending || !canTap)
         .animation(.spring(response: 0.3), value: entry.status)
         .animation(.spring(response: 0.3), value: entry.isDismissed)
-        .contextMenu { contextMenuContent }
+        .animation(.spring(response: 0.2), value: isSelected)
+        .contextMenu { if !isSelectionMode { contextMenuContent } }
         .confirmationDialog(
             "Mark \(entry.fullName) as On Time?",
             isPresented: $showMarkPresentConfirm,
