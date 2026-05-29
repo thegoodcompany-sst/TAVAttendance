@@ -121,11 +121,11 @@ final class AttendanceService {
             .eq("class_id", value: classId).eq("session_date", value: date)
             .execute().value
         if let session = existing.first { return session }
-        let new = Session(id: UUID(), classId: classId, sessionDate: date, topic: nil, notes: nil, startedAt: nil, subTutorId: nil)
+        let new = Session(id: UUID(), classId: classId, sessionDate: date, topic: nil, notes: nil, startedAt: nil, endedAt: nil, subTutorId: nil)
         return try await db.from("sessions").insert(new).select().single().execute().value
     }
 
-    /// Sets started_at = NOW(). Re-tapping "Start Class" updates the start time (useful if tapped early).
+    /// Sets started_at = NOW(). Call only when the session has not yet been started.
     func startSession(id: UUID) async throws {
         struct Patch: Encodable {
             let startedAt: Date
@@ -133,6 +133,33 @@ final class AttendanceService {
         }
         try await db.from("sessions")
             .update(Patch(startedAt: Date()))
+            .eq("id", value: id)
+            .execute()
+    }
+
+    /// Sets ended_at = NOW(). Does not affect started_at or attendance records.
+    func endSession(id: UUID) async throws {
+        struct Patch: Encodable {
+            let endedAt: Date
+            enum CodingKeys: String, CodingKey { case endedAt = "ended_at" }
+        }
+        try await db.from("sessions")
+            .update(Patch(endedAt: Date()))
+            .eq("id", value: id)
+            .execute()
+    }
+
+    /// Clears ended_at, reopening the session for attendance marking.
+    func resumeSession(id: UUID) async throws {
+        struct Patch: Encodable {
+            enum CodingKeys: String, CodingKey { case endedAt = "ended_at" }
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encodeNil(forKey: .endedAt)
+            }
+        }
+        try await db.from("sessions")
+            .update(Patch())
             .eq("id", value: id)
             .execute()
     }

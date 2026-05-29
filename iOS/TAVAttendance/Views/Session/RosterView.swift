@@ -4,9 +4,13 @@ struct RosterView: View {
     let session: Session
     let tavClass: TAVClass
 
+    @Environment(\.dismiss) private var dismiss
     @State private var roster: [RosterEntry] = []
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var isEndingClass = false
+    @State private var showEndClassConfirm = false
+    @State private var endClassError: String? = nil
     @StateObject private var network = NetworkMonitor()
     @StateObject private var pendingStore = PendingAttendanceStore()
 
@@ -68,7 +72,32 @@ struct RosterView: View {
                     }
                     .disabled(isSaving)
                 }
+                if isEndingClass {
+                    ProgressView()
+                } else {
+                    Button("End Class") {
+                        showEndClassConfirm = true
+                    }
+                    .foregroundStyle(.red)
+                    .disabled(isEndingClass)
+                }
             }
+        }
+        .confirmationDialog("End Class", isPresented: $showEndClassConfirm, titleVisibility: .visible) {
+            Button("End Class", role: .destructive) {
+                Task { await endClass() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Students can no longer be marked after the class ends. You can resume from the class page.")
+        }
+        .alert("Could Not End Class", isPresented: Binding(
+            get: { endClassError != nil },
+            set: { if !$0 { endClassError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(endClassError ?? "")
         }
         .task {
             await loadRoster()
@@ -201,6 +230,17 @@ struct RosterView: View {
 
     // MARK: - Actions
 
+    private func endClass() async {
+        isEndingClass = true
+        defer { isEndingClass = false }
+        do {
+            try await AttendanceService.shared.endSession(id: session.id)
+            dismiss()
+        } catch {
+            endClassError = error.localizedDescription
+        }
+    }
+
     private func loadRoster() async {
         isLoading = true
         defer { isLoading = false }
@@ -224,13 +264,14 @@ struct RosterView: View {
                     status: status,
                     notes: nil
                 )
-                // Clear local override once server confirms
-                localStatus.removeValue(forKey: entry.studentId)
-                localMarkedAt.removeValue(forKey: entry.studentId)
-                // Refresh to pick up server-assigned fields (attendanceId, markedAt)
+                // Refresh first, then clear local override — clearing before the roster
+                // arrives causes a flicker as SwiftUI briefly falls back to the stale
+                // server value.
                 if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
                     roster = updated
                 }
+                localStatus.removeValue(forKey: entry.studentId)
+                localMarkedAt.removeValue(forKey: entry.studentId)
             } catch {
                 // Keep local override; fall through to pending store as backup
                 pendingStore.add(
@@ -259,12 +300,11 @@ struct RosterView: View {
             let (synced, _) = try await AttendanceService.shared.syncPending(unsynced)
             if synced > 0 {
                 pendingStore.markSynced(clientMutationIds: Set(unsynced.map(\.clientMutationId)))
-                // Clear local overrides — server is now source of truth
+                roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
                 for record in unsynced {
                     localStatus.removeValue(forKey: record.studentId)
                     localMarkedAt.removeValue(forKey: record.studentId)
                 }
-                roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             }
         } catch {
             // Silently fail — will retry on next reconnect

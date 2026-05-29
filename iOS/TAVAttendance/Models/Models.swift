@@ -64,6 +64,7 @@ struct Session: Codable, Identifiable, Hashable {
     let topic: String?
     let notes: String?
     let startedAt: Date?
+    let endedAt: Date?      // set when tutor ends the class; nil while in progress
     let subTutorId: UUID?   // per-session substitute tutor
 
     enum CodingKeys: String, CodingKey {
@@ -71,6 +72,7 @@ struct Session: Codable, Identifiable, Hashable {
         case classId     = "class_id"
         case sessionDate = "session_date"
         case startedAt   = "started_at"
+        case endedAt     = "ended_at"
         case subTutorId  = "sub_tutor_id"
     }
 }

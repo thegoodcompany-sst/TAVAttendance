@@ -1,5 +1,17 @@
 import SwiftUI
 
+// Unified route for all navigation out of SessionListView
+private enum SessionRoute: Identifiable {
+    case live(Session)
+    case detail(Session)
+
+    var id: UUID {
+        switch self {
+        case .live(let s), .detail(let s): return s.id
+        }
+    }
+}
+
 struct SessionListView: View {
     let tavClass: TAVClass
 
@@ -7,15 +19,16 @@ struct SessionListView: View {
     @State private var sessions: [Session] = []
     @State private var isLoading = true
     @State private var isStartingClass = false
-    @State private var navigationDestination: Session? = nil
+    @State private var isEndingClass = false
+    @State private var route: SessionRoute? = nil
     @State private var showingEnrollment = false
     @State private var showingTutorAssignment = false
     @StateObject private var network = NetworkMonitor()
 
-    // Punctuality stats (Task 1)
+    // Punctuality stats
     @State private var punctuality: PunctualitySummary? = nil
 
-    // Substitution (Task 2)
+    // Substitution
     @State private var tutors: [Profile] = []
     @State private var sessionForSubstitute: Session? = nil
 
@@ -57,7 +70,7 @@ struct SessionListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
-                    // Task 1: Punctuality header card
+                    // Punctuality header card
                     Section {
                         HStack {
                             statCol("On Time", value: onTimePct, color: .green)
@@ -69,21 +82,31 @@ struct SessionListView: View {
                         .frame(height: 56)
                     } header: { Text("Last 30 Days") }
 
+                    // Today's class controls — state-driven
                     Section {
-                        startTodayButton
+                        todayClassControls
                     }
 
-                    if sessions.isEmpty {
+                    if pastSessions.isEmpty {
                         Section {
                             Text("No past sessions yet.").foregroundStyle(.secondary)
                         }
                     } else {
                         Section("Past Sessions") {
-                            ForEach(sessions) { session in
-                                NavigationLink(value: session) {
-                                    sessionRow(session)
+                            ForEach(pastSessions) { session in
+                                Button {
+                                    route = .detail(session)
+                                } label: {
+                                    HStack {
+                                        sessionRow(session)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .contentShape(Rectangle())
                                 }
-                                // Task 2: Substitute swipe action
+                                .buttonStyle(.plain)
                                 .swipeActions(edge: .leading) {
                                     Button {
                                         sessionForSubstitute = session
@@ -100,8 +123,18 @@ struct SessionListView: View {
         }
         .navigationTitle(tavClass.name)
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: Session.self) { session in
-            RosterView(session: session, tavClass: tavClass)
+        .navigationDestination(isPresented: Binding(
+            get: { route != nil },
+            set: { if !$0 { route = nil } }
+        )) {
+            switch route {
+            case .live(let s):
+                RosterView(session: s, tavClass: tavClass)
+            case .detail(let s):
+                SessionDetailView(session: s, tavClass: tavClass)
+            case nil:
+                EmptyView()
+            }
         }
         .toolbar {
             if isAdmin {
@@ -125,17 +158,127 @@ struct SessionListView: View {
         .sheet(isPresented: $showingTutorAssignment) {
             TutorAssignmentView(tavClass: tavClass)
         }
-        // Task 2: Substitute sheet
         .sheet(item: $sessionForSubstitute) { session in
             SubstituteTutorSheet(session: session, tutors: tutors) {
                 Task { await loadSessions() }
             }
         }
+        // loadSessions on every appear so the today-section updates after popping from RosterView
+        .onAppear {
+            Task { await loadSessions() }
+        }
         .task {
-            await loadSessions()
             await loadPunctuality()
             await loadTutors()
         }
+    }
+
+    // MARK: - Today class controls
+
+    @ViewBuilder
+    private var todayClassControls: some View {
+        if let session = todaySession {
+            if session.endedAt != nil {
+                // Class was ended — allow resume
+                resumeRow(session: session, subtitle: "Ended \(timeFormatter.string(from: session.endedAt!))")
+            } else if session.startedAt != nil {
+                // Class in progress — resume or end
+                resumeRow(session: session, subtitle: "Started \(timeFormatter.string(from: session.startedAt!))")
+                endClassRow(session: session)
+            } else {
+                // Session row exists but not yet started
+                startRow
+            }
+        } else {
+            startRow
+        }
+    }
+
+    private var startRow: some View {
+        Button {
+            guard !isStartingClass else { return }
+            Task { await startTodayClass() }
+        } label: {
+            HStack {
+                Image(systemName: "play.circle.fill")
+                    .font(.title2)
+                Text("Start Today's Class")
+                    .font(.headline)
+                Spacer()
+                if isStartingClass { ProgressView() }
+            }
+            .foregroundStyle(isStartingClass ? Color.gray : Color.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
+        }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isStartingClass ? Color.blue.opacity(0.5) : Color.blue)
+                .padding(.vertical, 2)
+        )
+        .disabled(isStartingClass)
+    }
+
+    private func resumeRow(session: Session, subtitle: String) -> some View {
+        Button {
+            guard !isStartingClass else { return }
+            Task { await resumeTodayClass(session: session) }
+        } label: {
+            HStack {
+                Image(systemName: "play.circle.fill")
+                    .font(.title2)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Resume Class")
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.caption)
+                        .opacity(0.85)
+                }
+                Spacer()
+                if isStartingClass { ProgressView() }
+            }
+            .foregroundStyle(isStartingClass ? Color.gray : Color.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 4)
+            .frame(maxWidth: .infinity)
+        }
+        .listRowBackground(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(isStartingClass ? Color.blue.opacity(0.5) : Color.blue)
+                .padding(.vertical, 2)
+        )
+        .disabled(isStartingClass || isEndingClass)
+    }
+
+    private func endClassRow(session: Session) -> some View {
+        Button {
+            guard !isEndingClass else { return }
+            Task { await endTodayClass(session: session) }
+        } label: {
+            HStack {
+                Spacer()
+                Label(isEndingClass ? "Ending…" : "End Class", systemImage: "stop.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
+                    .foregroundStyle(isEndingClass ? .gray : .red)
+                    .background((isEndingClass ? Color.gray : Color.red).opacity(0.1))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                (isEndingClass ? Color.gray : Color.red).opacity(0.4),
+                                lineWidth: 1
+                            )
+                    )
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+        }
+        .listRowBackground(Color.clear)
+        .disabled(isEndingClass || isStartingClass)
     }
 
     // MARK: - Subviews
@@ -156,45 +299,8 @@ struct SessionListView: View {
         sessions.first(where: { $0.sessionDate == todayDateString() })
     }
 
-    @ViewBuilder
-    private var startTodayButton: some View {
-        let inProgress = todaySession?.startedAt != nil
-        Button {
-            guard !isStartingClass else { return }
-            Task { await startTodayClass() }
-        } label: {
-            HStack {
-                Image(systemName: "play.circle.fill")
-                    .font(.title2)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(inProgress ? "Class In Progress" : "Start Today's Class")
-                        .font(.headline)
-                    if inProgress, let s = todaySession?.startedAt {
-                        Text("Started \(timeFormatter.string(from: s))")
-                            .font(.caption)
-                            .opacity(0.85)
-                    }
-                }
-                Spacer()
-                if isStartingClass { ProgressView() }
-            }
-            .foregroundStyle(isStartingClass ? Color.gray : Color.white)
-            .padding(.vertical, 8)
-            .padding(.horizontal, 4)
-            .frame(maxWidth: .infinity)
-        }
-        .listRowBackground(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isStartingClass ? Color.blue.opacity(0.5) : (inProgress ? Color.green : Color.blue))
-                .padding(.vertical, 2)
-        )
-        .disabled(isStartingClass)
-        .navigationDestination(isPresented: Binding(
-            get: { navigationDestination != nil },
-            set: { if !$0 { navigationDestination = nil } }
-        )) {
-            if let s = navigationDestination { RosterView(session: s, tavClass: tavClass) }
-        }
+    private var pastSessions: [Session] {
+        sessions.filter { $0.sessionDate != todayDateString() }
     }
 
     private func sessionRow(_ session: Session) -> some View {
@@ -202,7 +308,6 @@ struct SessionListView: View {
             HStack {
                 Text(formattedDate(session.sessionDate)).font(.headline)
                 Spacer()
-                // Task 2: sub badge
                 if let subId = session.subTutorId,
                    let tutor = tutors.first(where: { $0.id == subId }) {
                     Text("Sub: \(tutor.fullName.split(separator: " ").first.map(String.init) ?? tutor.fullName)")
@@ -214,8 +319,15 @@ struct SessionListView: View {
                         .clipShape(Capsule())
                 }
             }
-            if let topic = session.topic, !topic.isEmpty {
-                Text(topic).font(.subheadline).foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                if let startedAt = session.startedAt {
+                    Label(timeFormatter.string(from: startedAt), systemImage: "clock")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let topic = session.topic, !topic.isEmpty {
+                    Text(topic).font(.caption).foregroundStyle(.secondary)
+                }
             }
         }
         .padding(.vertical, 2)
@@ -226,7 +338,83 @@ struct SessionListView: View {
     private func loadSessions() async {
         isLoading = true
         defer { isLoading = false }
-        do { sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id) } catch {}
+        do {
+            sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
+        } catch {}
+        await autoEndIfExpired()
+    }
+
+    /// Auto-end the session when scheduled end time has passed, but only if the session
+    /// started before the scheduled end (guards against off-schedule/makeup classes).
+    private func autoEndIfExpired() async {
+        guard let session = sessions.first(where: { $0.sessionDate == todayDateString() }),
+              let startedAt = session.startedAt,
+              session.endedAt == nil,
+              let endTime = computeScheduledEndTime(),
+              startedAt < endTime,          // session started before scheduled end
+              Date() > endTime else { return }
+        try? await AttendanceService.shared.endSession(id: session.id)
+        do {
+            sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
+        } catch {}
+    }
+
+    /// Returns today's scheduled end time as a wall-clock Date, or nil if not configured.
+    private func computeScheduledEndTime() -> Date? {
+        guard let timeStr = tavClass.scheduleTime else { return nil }
+        let parts = timeStr.split(separator: ":").map(String.init)
+        guard parts.count >= 2,
+              let hour = Int(parts[0]),
+              let minute = Int(parts[1]) else { return nil }
+        var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = hour
+        comps.minute = minute
+        comps.second = 0
+        guard let start = Calendar.current.date(from: comps) else { return nil }
+        return start.addingTimeInterval(TimeInterval(tavClass.durationMinutes * 60))
+    }
+
+    private func startTodayClass() async {
+        isStartingClass = true
+        defer { isStartingClass = false }
+        do {
+            let session = try await AttendanceService.shared.getOrCreateSession(
+                classId: tavClass.id, date: todayDateString())
+            if session.startedAt == nil {
+                try? await AttendanceService.shared.startSession(id: session.id)
+            }
+            await loadSessions()
+            let fresh = sessions.first(where: { $0.id == session.id }) ?? session
+            route = .live(fresh)
+        } catch {}
+    }
+
+    private func resumeTodayClass(session: Session) async {
+        isStartingClass = true
+        defer { isStartingClass = false }
+        do {
+            // If the session was explicitly ended, reopen it
+            if session.endedAt != nil {
+                try await AttendanceService.shared.resumeSession(id: session.id)
+            }
+            // Reload to get updated session state before navigating
+            do {
+                sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
+            } catch {}
+            let fresh = sessions.first(where: { $0.id == session.id }) ?? session
+            route = .live(fresh)
+        } catch {}
+    }
+
+    private func endTodayClass(session: Session) async {
+        isEndingClass = true
+        defer { isEndingClass = false }
+        do {
+            try await AttendanceService.shared.endSession(id: session.id)
+            do {
+                sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
+            } catch {}
+        } catch {}
     }
 
     private func loadPunctuality() async {
@@ -242,22 +430,6 @@ struct SessionListView: View {
         do { tutors = try await AttendanceService.shared.fetchTutors() } catch {}
     }
 
-    private func startTodayClass() async {
-        isStartingClass = true
-        defer { isStartingClass = false }
-        do {
-            let session = try await AttendanceService.shared.getOrCreateSession(
-                classId: tavClass.id, date: todayDateString())
-            try? await AttendanceService.shared.startSession(id: session.id)
-            if !sessions.contains(where: { $0.id == session.id }) {
-                sessions.insert(session, at: 0)
-            } else {
-                await loadSessions()
-            }
-            navigationDestination = session
-        } catch {}
-    }
-
     private func todayDateString() -> String { dateFormatter.string(from: Date()) }
 
     private func formattedDate(_ isoDate: String) -> String {
@@ -266,7 +438,7 @@ struct SessionListView: View {
     }
 }
 
-// MARK: - SubstituteTutorSheet (Task 2)
+// MARK: - SubstituteTutorSheet
 
 private struct SubstituteTutorSheet: View {
     let session: Session

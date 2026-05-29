@@ -13,11 +13,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.data.models.Session
+import com.example.tavattendance.data.models.TAVClass
 import com.example.tavattendance.data.service.AttendanceService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,22 +39,59 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     private val _isStarting = MutableStateFlow(false)
     val isStarting = _isStarting.asStateFlow()
 
-    private val _startedSession = MutableStateFlow<Session?>(null)
-    val startedSession = _startedSession.asStateFlow()
+    private val _isEnding = MutableStateFlow(false)
+    val isEnding = _isEnding.asStateFlow()
 
     private var classId: String = ""
+    private var tavClass: TAVClass? = null
 
     fun init(classId: String) {
         this.classId = classId
-        loadSessions()
+        viewModelScope.launch {
+            tavClass = AttendanceService.fetchClass(classId)
+            loadSessions()
+        }
     }
 
     fun loadSessions() {
         viewModelScope.launch {
             _isLoading.value = true
             runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
+            autoEndIfExpired()
             _isLoading.value = false
         }
+    }
+
+    private fun autoEndIfExpired() {
+        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val session = _sessions.value.firstOrNull { it.sessionDate == today } ?: return
+        if (session.startedAt == null || session.endedAt != null) return
+        val endTime = computeScheduledEndTime() ?: return
+
+        val startedAt = runCatching {
+            java.time.Instant.parse(session.startedAt).let { Date(it.toEpochMilli()) }
+        }.getOrNull() ?: return
+
+        if (startedAt >= endTime || Date() <= endTime) return
+
+        viewModelScope.launch {
+            runCatching { AttendanceService.endSession(session.id) }
+            runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
+        }
+    }
+
+    private fun computeScheduledEndTime(): Date? {
+        val cls = tavClass ?: return null
+        val timeStr = cls.scheduleTime ?: return null
+        val parts = timeStr.split(":").mapNotNull { it.toIntOrNull() }
+        if (parts.size < 2) return null
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.HOUR_OF_DAY, parts[0])
+        cal.set(Calendar.MINUTE, parts[1])
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.add(Calendar.MINUTE, cls.durationMinutes)
+        return cal.time
     }
 
     fun startTodayClass(onSessionReady: (Session) -> Unit) {
@@ -59,13 +100,46 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
                 val session = AttendanceService.getOrCreateSession(classId = classId, date = today)
-                AttendanceService.startSession(id = session.id)
-                loadSessions()
-                onSessionReady(session)
+                if (session.startedAt == null) {
+                    AttendanceService.startSession(id = session.id)
+                }
+                runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
+                val fresh = _sessions.value.firstOrNull { it.id == session.id } ?: session
+                onSessionReady(fresh)
             }.onFailure { e ->
                 android.util.Log.e("SessionList", "startTodayClass failed: ${e.message}", e)
             }
             _isStarting.value = false
+        }
+    }
+
+    fun resumeTodayClass(session: Session, onSessionReady: (Session) -> Unit) {
+        viewModelScope.launch {
+            _isStarting.value = true
+            runCatching {
+                if (session.endedAt != null) {
+                    AttendanceService.resumeSession(id = session.id)
+                }
+                runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
+                val fresh = _sessions.value.firstOrNull { it.id == session.id } ?: session
+                onSessionReady(fresh)
+            }.onFailure { e ->
+                android.util.Log.e("SessionList", "resumeTodayClass failed: ${e.message}", e)
+            }
+            _isStarting.value = false
+        }
+    }
+
+    fun endTodayClass(session: Session) {
+        viewModelScope.launch {
+            _isEnding.value = true
+            runCatching {
+                AttendanceService.endSession(id = session.id)
+                runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
+            }.onFailure { e ->
+                android.util.Log.e("SessionList", "endTodayClass failed: ${e.message}", e)
+            }
+            _isEnding.value = false
         }
     }
 }
@@ -84,9 +158,24 @@ fun SessionListScreen(
 ) {
     LaunchedEffect(classId) { vm.init(classId) }
 
+    // Reload when returning from RosterScreen; skip the first ON_RESUME which fires
+    // immediately on observer registration (lifecycle catch-up) since init() already loads.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        var isFirst = true
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (isFirst) { isFirst = false } else { vm.loadSessions() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val sessions by vm.sessions.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val isStarting by vm.isStarting.collectAsState()
+    val isEnding by vm.isEnding.collectAsState()
 
     val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     val todaySession = sessions.firstOrNull { it.sessionDate == todayStr }
@@ -127,58 +216,20 @@ fun SessionListScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
-                // Start Today's Class button
                 item {
-                    val inProgress = todaySession?.startedAt != null
-                    val btnColor = when {
-                        isStarting -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                        inProgress -> Color(0xFF34C759)
-                        else -> MaterialTheme.colorScheme.primary
-                    }
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = btnColor),
-                        onClick = {
-                            if (!isStarting) vm.startTodayClass(onSessionClick)
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = if (inProgress) "Class In Progress" else "Start Today's Class",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White
-                                )
-                                if (inProgress && todaySession?.startedAt != null) {
-                                    val startedDate = runCatching {
-                                        java.time.Instant.parse(todaySession.startedAt).let {
-                                            Date(it.toEpochMilli())
-                                        }
-                                    }.getOrNull()
-                                    if (startedDate != null) {
-                                        Text(
-                                            text = "Started ${timeFmt.format(startedDate)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                }
-                            }
-                            if (isStarting) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                            }
-                        }
-                    }
+                    TodayClassControls(
+                        session = todaySession,
+                        isStarting = isStarting,
+                        isEnding = isEnding,
+                        timeFmt = timeFmt,
+                        onStart = { vm.startTodayClass(onSessionClick) },
+                        onResume = { session -> vm.resumeTodayClass(session, onSessionClick) },
+                        onEnd = { session -> vm.endTodayClass(session) }
+                    )
                 }
 
-                if (sessions.isEmpty()) {
+                val pastSessions = sessions.filter { it.sessionDate != todayStr }
+                if (pastSessions.isEmpty()) {
                     item {
                         Text(
                             text = "No past sessions yet.",
@@ -195,7 +246,7 @@ fun SessionListScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    items(sessions, key = { it.id }) { session ->
+                    items(pastSessions, key = { it.id }) { session ->
                         ListItem(
                             headlineContent = { Text(formatDate(session.sessionDate)) },
                             supportingContent = {
@@ -208,5 +259,146 @@ fun SessionListScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TodayClassControls(
+    session: Session?,
+    isStarting: Boolean,
+    isEnding: Boolean,
+    timeFmt: SimpleDateFormat,
+    onStart: () -> Unit,
+    onResume: (Session) -> Unit,
+    onEnd: (Session) -> Unit
+) {
+    val busy = isStarting || isEnding
+
+    when {
+        session == null || session.startedAt == null -> {
+            // Not yet started
+            TodayActionCard(
+                title = "Start Today's Class",
+                subtitle = null,
+                color = if (busy) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        else MaterialTheme.colorScheme.primary,
+                showSpinner = isStarting,
+                enabled = !busy,
+                onClick = onStart
+            )
+        }
+        session.endedAt != null -> {
+            // Ended — allow resume
+            val endedDate = runCatching {
+                java.time.Instant.parse(session.endedAt).let { Date(it.toEpochMilli()) }
+            }.getOrNull()
+            TodayActionCard(
+                title = "Resume Class",
+                subtitle = endedDate?.let { "Ended ${timeFmt.format(it)}" },
+                color = if (busy) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        else MaterialTheme.colorScheme.primary,
+                showSpinner = isStarting,
+                enabled = !busy,
+                onClick = { onResume(session) }
+            )
+        }
+        else -> {
+            // In progress — resume or end
+            val startedDate = runCatching {
+                java.time.Instant.parse(session.startedAt).let { Date(it.toEpochMilli()) }
+            }.getOrNull()
+            TodayActionCard(
+                title = "Resume Class",
+                subtitle = startedDate?.let { "Started ${timeFmt.format(it)}" },
+                color = Color(0xFF34C759),
+                showSpinner = isStarting,
+                enabled = !busy,
+                onClick = { onResume(session) }
+            )
+            Spacer(Modifier.height(4.dp))
+            EndClassRow(
+                isEnding = isEnding,
+                enabled = !busy,
+                onClick = { onEnd(session) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TodayActionCard(
+    title: String,
+    subtitle: String?,
+    color: Color,
+    showSpinner: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = color),
+        onClick = { if (enabled) onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                }
+            }
+            if (showSpinner) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EndClassRow(isEnding: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    var showConfirm by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        OutlinedButton(
+            onClick = { showConfirm = true },
+            enabled = enabled && !isEnding,
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            border = ButtonDefaults.outlinedButtonBorder.copy(
+                brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+            )
+        ) {
+            if (isEnding) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Ending…")
+            } else {
+                Text("End Class")
+            }
+        }
+    }
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("End Class") },
+            text = { Text("Students can no longer be marked after the class ends. You can resume from the class page.") },
+            confirmButton = {
+                TextButton(onClick = { showConfirm = false; onClick() }) {
+                    Text("End Class", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
+            }
+        )
     }
 }

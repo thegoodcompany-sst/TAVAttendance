@@ -32,8 +32,9 @@ brew install supabase/tap/supabase
 
 ### 1. Start local Supabase
 
+Run from the **repo root** (not `Backend/`). All migrations now live in `supabase/migrations/` at the root.
+
 ```bash
-cd Backend
 supabase start
 ```
 

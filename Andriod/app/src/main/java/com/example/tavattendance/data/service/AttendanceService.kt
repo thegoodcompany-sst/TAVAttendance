@@ -161,10 +161,36 @@ object AttendanceService {
         ) { select() }.decodeSingle<Session>()
     }
 
+    suspend fun fetchClass(id: String): TAVClass? =
+        db.from("classes").select {
+            filter { eq("id", id) }
+        }.decodeList<TAVClass>().firstOrNull()
+
     suspend fun startSession(id: String) {
         db.from("sessions").update({
             set("started_at", java.time.Instant.now().toString())
         }) {
+            filter { eq("id", id) }
+        }
+    }
+
+    suspend fun endSession(id: String) {
+        db.from("sessions").update({
+            set("ended_at", java.time.Instant.now().toString())
+        }) {
+            filter { eq("id", id) }
+        }
+    }
+
+    @Serializable
+    private data class ResumePatch(
+        // ALWAYS encode so null is sent as `"ended_at": null` even when encodeDefaults = false
+        @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.ALWAYS)
+        @SerialName("ended_at") val endedAt: String?
+    )
+
+    suspend fun resumeSession(id: String) {
+        db.from("sessions").update(ResumePatch(null)) {
             filter { eq("id", id) }
         }
     }

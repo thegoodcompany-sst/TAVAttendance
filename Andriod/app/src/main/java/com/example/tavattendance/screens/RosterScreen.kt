@@ -46,6 +46,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     private val _isSaving = MutableStateFlow(false)
     val isSaving = _isSaving.asStateFlow()
 
+    private val _isEndingClass = MutableStateFlow(false)
+    val isEndingClass = _isEndingClass.asStateFlow()
+
     // Optimistic local overrides: studentId → status
     private val _localStatus = MutableStateFlow<Map<String, AttendanceStatus>>(emptyMap())
     val localStatus = _localStatus.asStateFlow()
@@ -116,6 +119,19 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun endClass(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            _isEndingClass.value = true
+            runCatching {
+                AttendanceService.endSession(sessionId)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
+            }.onFailure { e ->
+                android.util.Log.e("Roster", "endClass failed: ${e.message}", e)
+            }
+            _isEndingClass.value = false
+        }
+    }
+
     fun syncPending() {
         viewModelScope.launch {
             val unsynced = pendingStore.allPending().filter { it.sessionId == sessionId }
@@ -170,6 +186,9 @@ fun RosterScreen(
     val localMarkedAt by vm.localMarkedAt.collectAsState()
 
     var selectedStudent by remember { mutableStateOf<RosterEntry?>(null) }
+    var showEndConfirm by remember { mutableStateOf(false) }
+
+    val isEndingClass by vm.isEndingClass.collectAsState()
 
     val prettyFmt = SimpleDateFormat("MMM d, yyyy", Locale.US)
     val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -178,6 +197,25 @@ fun RosterScreen(
     fun formatDate(iso: String): String = runCatching {
         prettyFmt.format(isoFmt.parse(iso)!!)
     }.getOrDefault(iso)
+
+    if (showEndConfirm) {
+        AlertDialog(
+            onDismissRequest = { showEndConfirm = false },
+            title = { Text("End Class") },
+            text = { Text("Students can no longer be marked after the class ends. You can resume from the class page.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showEndConfirm = false
+                    vm.endClass(onBack)
+                }) {
+                    Text("End Class", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -200,6 +238,19 @@ fun RosterScreen(
                     if (isOnline && vm.hasPendingUnsynced()) {
                         IconButton(onClick = { vm.syncPending() }, enabled = !isSaving) {
                             Icon(Icons.Default.Refresh, contentDescription = "Sync")
+                        }
+                    }
+                    if (isEndingClass) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp).padding(end = 8.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        TextButton(
+                            onClick = { showEndConfirm = true },
+                            enabled = !isEndingClass
+                        ) {
+                            Text("End Class", color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }

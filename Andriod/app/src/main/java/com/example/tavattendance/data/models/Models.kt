@@ -39,7 +39,8 @@ data class Session(
     @SerialName("session_date") val sessionDate: String,
     val topic: String? = null,
     val notes: String? = null,
-    @SerialName("started_at") val startedAt: String? = null
+    @SerialName("started_at") val startedAt: String? = null,
+    @SerialName("ended_at") val endedAt: String? = null
 )
 
 @Serializable
