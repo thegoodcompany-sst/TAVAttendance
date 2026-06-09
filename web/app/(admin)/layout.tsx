@@ -46,10 +46,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 { href: '/', label: 'Today' },
                 { href: '/overview', label: 'Overview' },
                 { href: '/students', label: 'Students' },
+                { href: '/users', label: 'Users' },
               ].map(item => (
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch
                   className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground rounded-lg hover:bg-muted transition-colors"
                 >
                   {item.label}

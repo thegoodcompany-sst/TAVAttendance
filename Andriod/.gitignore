@@ -12,4 +12,6 @@
 /captures
 .externalNativeBuild
 .cxx
-local.properties
+
+# Secrets
+app/src/main/java/com/example/tavattendance/core/SupabaseConfig.kt

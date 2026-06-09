@@ -44,3 +44,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tava.TAVAttendance
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: ""
+      configs:
+        Debug: Config.xcconfig
+        Release: Config.xcconfig

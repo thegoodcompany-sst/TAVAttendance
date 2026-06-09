@@ -1,0 +1,7 @@
+package com.example.tavattendance.core
+
+// Copy to SupabaseConfig.kt and fill in values. SupabaseConfig.kt is gitignored.
+object SupabaseConfig {
+    const val PROJECT_URL = "https://your-project.supabase.co"
+    const val ANON_KEY = "your-anon-key-here"
+}

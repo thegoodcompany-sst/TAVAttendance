@@ -24,9 +24,24 @@ struct LoginView: View {
                                 .foregroundStyle(Color.accentColor)
                         }
 
-                        Text("TAVA")
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color.accentColor)
+                        Text("thegoodcompany")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                            .tracking(1.5)
+
+                        // Tava wordmark. The logo is dark, so it sits on a
+                        // white backing to stay legible in dark mode (this
+                        // view uses the semantic systemGroupedBackground).
+                        Image("TavaLogo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 200)
+                            .frame(height: 52)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.white)
+                            .cornerRadius(12)
 
                         Text("Attendance")
                             .font(.title3)

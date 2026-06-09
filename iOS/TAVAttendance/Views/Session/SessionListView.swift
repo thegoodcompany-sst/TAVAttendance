@@ -24,6 +24,7 @@ struct SessionListView: View {
     @State private var showingEnrollment = false
     @State private var showingTutorAssignment = false
     @StateObject private var network = NetworkMonitor()
+    @State private var error: AppError? = nil
 
     // Punctuality stats
     @State private var punctuality: PunctualitySummary? = nil
@@ -171,6 +172,7 @@ struct SessionListView: View {
             await loadPunctuality()
             await loadTutors()
         }
+        .errorAlert(error: $error)
     }
 
     // MARK: - Today class controls
@@ -340,7 +342,9 @@ struct SessionListView: View {
         defer { isLoading = false }
         do {
             sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
-        } catch {}
+        } catch {
+            self.error = AppError("Failed to load sessions", underlyingError: error)
+        }
         await autoEndIfExpired()
     }
 
@@ -351,12 +355,14 @@ struct SessionListView: View {
               let startedAt = session.startedAt,
               session.endedAt == nil,
               let endTime = computeScheduledEndTime(),
-              startedAt < endTime,          // session started before scheduled end
+              startedAt < endTime,
               Date() > endTime else { return }
-        try? await AttendanceService.shared.endSession(id: session.id)
         do {
+            try await AttendanceService.shared.endSession(id: session.id)
             sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
-        } catch {}
+        } catch {
+            self.error = AppError("Failed to auto-end session", underlyingError: error)
+        }
     }
 
     /// Returns today's scheduled end time as a wall-clock Date, or nil if not configured.
@@ -381,29 +387,29 @@ struct SessionListView: View {
             let session = try await AttendanceService.shared.getOrCreateSession(
                 classId: tavClass.id, date: todayDateString())
             if session.startedAt == nil {
-                try? await AttendanceService.shared.startSession(id: session.id)
+                try await AttendanceService.shared.startSession(id: session.id)
             }
             await loadSessions()
             let fresh = sessions.first(where: { $0.id == session.id }) ?? session
             route = .live(fresh)
-        } catch {}
+        } catch {
+            self.error = AppError("Failed to start class", underlyingError: error)
+        }
     }
 
     private func resumeTodayClass(session: Session) async {
         isStartingClass = true
         defer { isStartingClass = false }
         do {
-            // If the session was explicitly ended, reopen it
             if session.endedAt != nil {
                 try await AttendanceService.shared.resumeSession(id: session.id)
             }
-            // Reload to get updated session state before navigating
-            do {
-                sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
-            } catch {}
+            sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
             let fresh = sessions.first(where: { $0.id == session.id }) ?? session
             route = .live(fresh)
-        } catch {}
+        } catch {
+            self.error = AppError("Failed to resume class", underlyingError: error)
+        }
     }
 
     private func endTodayClass(session: Session) async {
@@ -411,10 +417,10 @@ struct SessionListView: View {
         defer { isEndingClass = false }
         do {
             try await AttendanceService.shared.endSession(id: session.id)
-            do {
-                sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
-            } catch {}
-        } catch {}
+            sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
+        } catch {
+            self.error = AppError("Failed to end class", underlyingError: error)
+        }
     }
 
     private func loadPunctuality() async {
@@ -423,11 +429,17 @@ struct SessionListView: View {
         do {
             punctuality = try await AttendanceService.shared.fetchClassPunctuality(
                 classId: tavClass.id, from: from, to: to)
-        } catch {}
+        } catch {
+            self.error = AppError("Failed to load punctuality stats", underlyingError: error)
+        }
     }
 
     private func loadTutors() async {
-        do { tutors = try await AttendanceService.shared.fetchTutors() } catch {}
+        do {
+            tutors = try await AttendanceService.shared.fetchTutors()
+        } catch {
+            self.error = AppError("Failed to load tutors", underlyingError: error)
+        }
     }
 
     private func todayDateString() -> String { dateFormatter.string(from: Date()) }

@@ -7,6 +7,7 @@ struct SessionDetailView: View {
     @State private var roster: [RosterEntry] = []
     @State private var isLoading = true
     @State private var selectedStudent: RosterEntry? = nil
+    @State private var error: AppError? = nil
 
     private let displayFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -61,6 +62,7 @@ struct SessionDetailView: View {
         .navigationTitle(formattedDate(session.sessionDate))
         .navigationBarTitleDisplayMode(.large)
         .task { await loadRoster() }
+        .errorAlert(error: $error)
     }
 
     // MARK: - Summary section
@@ -193,6 +195,8 @@ struct SessionDetailView: View {
         defer { isLoading = false }
         do {
             roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
-        } catch {}
+        } catch {
+            self.error = AppError("Failed to load roster", underlyingError: error)
+        }
     }
 }

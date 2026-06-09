@@ -27,8 +27,7 @@ async function getRosterForDate(date: string): Promise<StudentTodayEntry[]> {
     .eq('enrollments.is_active', true)
 
   if (error) {
-    console.error('getRosterForDate error:', error)
-    return []
+    throw new Error(`getRosterForDate: ${error.message}`)
   }
 
   const map = new Map<string, StudentTodayEntry>()
@@ -107,8 +106,7 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
     .eq('enrollments.is_active', true)
 
   if (error) {
-    console.error('getTodaySessions error:', error)
-    return []
+    throw new Error(`getTodaySessions: ${error.message}`)
   }
 
   return (data ?? []).map((s: any) => {
@@ -144,8 +142,7 @@ export const getAllStudents = cache(async (): Promise<StudentRow[]> => {
     .order('full_name')
 
   if (error) {
-    console.error('getAllStudents error:', error)
-    return []
+    throw new Error(`getAllStudents: ${error.message}`)
   }
 
   return (data ?? []).map((s: any) => ({
@@ -176,8 +173,7 @@ export async function getStudentClassSummary(studentId: string): Promise<ClassSu
     .order('class_name')
 
   if (error) {
-    console.error('getStudentClassSummary error:', error)
-    return []
+    throw new Error(`getStudentClassSummary: ${error.message}`)
   }
 
   return (data ?? []).map((r: any) => ({
@@ -210,8 +206,7 @@ export async function getStudentRecentRecords(studentId: string): Promise<Attend
     .limit(50)
 
   if (error) {
-    console.error('getStudentRecentRecords error:', error)
-    return []
+    throw new Error(`getStudentRecentRecords: ${error.message}`)
   }
 
   return (data ?? []).map((r: any) => ({
@@ -231,7 +226,9 @@ export async function getStudent(id: string) {
     .eq('id', id)
     .single()
 
-  if (error) return null
+  if (error) {
+    throw new Error(`getStudent: ${error.message}`)
+  }
   return data
 }
 
@@ -259,8 +256,7 @@ export async function getDailyAttendance(days = 14): Promise<DailyAttendancePoin
     .lte('session_date', today)
 
   if (error) {
-    console.error('getDailyAttendance error:', error)
-    return []
+    throw new Error(`getDailyAttendance: ${error.message}`)
   }
 
   const map = new Map<string, { present: number; late: number }>()

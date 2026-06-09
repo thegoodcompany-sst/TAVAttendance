@@ -2,6 +2,41 @@ import CommonCrypto
 import SwiftUI
 import UIKit
 
+// MARK: - AppError
+
+struct AppError: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    
+    init(_ title: String, underlyingError: Error) {
+        self.title = title
+        self.message = underlyingError.localizedDescription
+    }
+}
+
+// MARK: - Error Alert Modifier
+
+extension View {
+    func errorAlert(error: Binding<AppError?>) -> some View {
+        alert(
+            error.wrappedValue?.title ?? "Error",
+            isPresented: Binding(
+                get: { error.wrappedValue != nil },
+                set: { if !$0 { error.wrappedValue = nil } }
+            ),
+            actions: {
+                Button("OK", role: .cancel) {}
+            },
+            message: {
+                if let err = error.wrappedValue {
+                    Text(err.message)
+                }
+            }
+        )
+    }
+}
+
 struct GlobalKioskView: View {
     @AppStorage("kioskPIN") private var storedPIN = ""
     @AppStorage("kioskLocked") private var isLocked = false
@@ -18,6 +53,8 @@ struct GlobalKioskView: View {
 
     @State private var isSelectionMode = false
     @State private var selectedIds: Set<UUID> = []
+
+    @State private var error: AppError? = nil
 
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16)]
 
@@ -113,6 +150,7 @@ struct GlobalKioskView: View {
         .sheet(isPresented: $showSettings) {
             KioskSettingsSheet(storedPIN: $storedPIN, isLocked: $isLocked)
         }
+        .errorAlert(error: $error)
     }
 
     // MARK: - Header
@@ -234,7 +272,9 @@ struct GlobalKioskView: View {
                     do {
                         try await AttendanceService.shared.markKioskAttendance(entry: entry, status: status)
                         await MainActor.run { updateEntry(entry.studentId, status: status) }
-                    } catch {}
+                    } catch {
+                        await MainActor.run { self.error = AppError("Failed to update attendance", underlyingError: error) }
+                    }
                     await MainActor.run { pendingIds.remove(entry.studentId) }
                 }
             }
@@ -257,7 +297,9 @@ struct GlobalKioskView: View {
                     do {
                         let dismissal = try await AttendanceService.shared.recordDismissal(sessionId: sessionId, studentId: entry.studentId)
                         await MainActor.run { updateEntry(entry.studentId, dismissedAt: dismissal.dismissedAt ?? Date()) }
-                    } catch {}
+                    } catch {
+                        await MainActor.run { self.error = AppError("Failed to mark dismissal", underlyingError: error) }
+                    }
                     await MainActor.run { pendingIds.remove(entry.studentId) }
                 }
             }
@@ -283,7 +325,9 @@ struct GlobalKioskView: View {
                     }
                 }
             }
-        } catch {}
+        } catch {
+            self.error = AppError("Failed to load kiosk data", underlyingError: error)
+        }
     }
 
     enum KioskAction {
@@ -337,7 +381,9 @@ struct GlobalKioskView: View {
                 try await AttendanceService.shared.markKioskAttendance(entry: entry, status: .late, lateReason: reason)
                 updateEntry(entry.studentId, lateReason: reason)
             }
-        } catch {}
+        } catch {
+            self.error = AppError("Action failed", underlyingError: error)
+        }
     }
 
     private func updateEntry(_ studentId: UUID, status: AttendanceStatus) {

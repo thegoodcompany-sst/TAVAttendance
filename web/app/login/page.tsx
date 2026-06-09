@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,7 +12,48 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [handlingInvite, setHandlingInvite] = useState(false)
+  const inviteHandled = useRef(false)
   const router = useRouter()
+
+  // Supabase invite/recovery links use the implicit flow: the session arrives
+  // in the URL fragment (#access_token=...&type=invite). Supabase often drops
+  // the user on the Site URL (which lands here on /login) rather than our
+  // redirect target, so we catch the fragment here, establish the session, and
+  // forward to /set-password.
+  useEffect(() => {
+    if (inviteHandled.current) return
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const access_token = hash.get('access_token')
+    const refresh_token = hash.get('refresh_token')
+    const type = hash.get('type')
+
+    if (access_token && refresh_token && (type === 'invite' || type === 'recovery' || type === 'signup')) {
+      inviteHandled.current = true
+      setHandlingInvite(true)
+      const supabase = createClient()
+      supabase.auth
+        .setSession({ access_token, refresh_token })
+        .then(({ error }) => {
+          if (error) {
+            setHandlingInvite(false)
+            setError('Your invite link is invalid or has expired. Ask your admin to resend it.')
+            return
+          }
+          // Clear the fragment so a refresh doesn't re-trigger this.
+          window.history.replaceState(null, '', '/login')
+          router.replace('/set-password')
+        })
+    }
+  }, [router])
+
+  if (handlingInvite) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <p className="text-sm text-gray-500 animate-pulse">Verifying your invite…</p>
+      </div>
+    )
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,10 +91,15 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-sm shadow-lg">
         <CardHeader className="space-y-1 pb-4">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-2xl font-bold text-blue-600">TAVA</span>
-            <span className="text-2xl font-light text-gray-400">|</span>
-            <span className="text-2xl font-semibold text-gray-700">Admin</span>
+          <div className="mb-1">
+            <Image
+              src="/tava-logo.png"
+              alt="TAVA"
+              width={140}
+              height={74}
+              priority
+              className="h-12 w-auto"
+            />
           </div>
           <CardTitle className="text-lg">Sign in</CardTitle>
           <CardDescription>Admin accounts only</CardDescription>

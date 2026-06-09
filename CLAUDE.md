@@ -62,7 +62,7 @@ When a student is enrolled in more than one class today, `KioskEntry.status` is 
 
 ## Dead code
 
-`KioskView.swift` — a single-class kiosk view — is **not wired to any navigation path** and is not used anywhere in the app. It predates the global kiosk. Do not delete it yet (it may be useful as a starting point for a per-class kiosk mode), but do not spend time on it unless explicitly asked.
+`KioskView.swift` — a single-class kiosk view — was removed (it was not wired to any navigation path and predated the global kiosk). If a per-class kiosk mode is needed later, it can be recreated from `GlobalKioskView.swift` as a reference.
 
 ---
 
@@ -206,6 +206,24 @@ Do not change any Supabase migration files — they are shared.
 ```
 
 ---
+
+## Supabase credentials configuration
+
+Credentials are no longer hardcoded in source. Each platform loads them at build/runtime:
+
+| Platform | Location | Notes |
+|---|---|---|
+| iOS | `Config.xcconfig` (gitignored) → `Info.plist` via `$(SUPABASE_PROJECT_URL)` | Copy `Config.xcconfig.example` to `Config.xcconfig` and fill in values. Read via `Bundle.main.object(forInfoDictionaryKey:)` in `SupabaseManager.swift`. |
+| Android | `app/build.gradle.kts` → `buildConfigField` | Defined in `defaultConfig` block. Accessed via `BuildConfig.SUPABASE_PROJECT_URL` in `SupabaseClient.kt`. |
+| Web | Environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Standard Next.js pattern. Set in Vercel dashboard or `.env.local`. |
+
+## Error handling improvements
+
+All three platforms now use structured error handling instead of silent catches:
+
+- **iOS**: New `AppError` type (`Core/AppError.swift`) + `View.errorAlert()` modifier. Errors surface as alerts with retry/dismiss options. Updated views: `GlobalKioskView`, `SessionListView`, `SessionDetailView`, `ExportView`.
+- **Web**: Query functions in `lib/queries.ts` now throw `Error` on failure (previously returned `[]`). Callers should use error boundaries or try/catch.
+- **Android**: Uses `runCatching` extensively; error handling is a known gap (most results are not inspected). See `SessionListScreen.kt`, `RosterScreen.kt`, `GlobalKioskScreen.kt` for patterns.
 
 ## `.claude/settings.json`
 

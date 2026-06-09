@@ -44,6 +44,7 @@ struct ExportView: View {
     @State private var exportURL: URL? = nil
     @State private var showShare = false
     @State private var errorMessage: String? = nil
+    @State private var error: AppError? = nil
 
     private let isoFmt: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
@@ -114,7 +115,9 @@ struct ExportView: View {
                     async let cls = AttendanceService.shared.fetchMyClasses()
                     async let sts = AttendanceService.shared.fetchAllStudents()
                     (classes, students) = try await (cls, sts)
-                } catch {}
+                } catch {
+                    self.error = AppError("Failed to load data", underlyingError: error)
+                }
             }
         }
         .sheet(isPresented: $showShare) {
@@ -122,6 +125,7 @@ struct ExportView: View {
                 ShareLink(item: url)
             }
         }
+        .errorAlert(error: $error)
     }
 
     // MARK: - Export logic
