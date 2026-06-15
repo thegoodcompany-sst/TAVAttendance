@@ -7,6 +7,7 @@ struct LoginView: View {
     @State private var password: String = ""
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
+    @State private var showingPrivacy: Bool = false
 
     var body: some View {
         Color(.systemGroupedBackground)
@@ -105,10 +106,17 @@ struct LoginView: View {
                     .background(Color(.systemBackground))
                     .cornerRadius(16)
                     .shadow(color: Color.black.opacity(0.08), radius: 16, x: 0, y: 4)
+
+                    Button("Privacy Notice") { showingPrivacy = true }
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: 440)
                 .padding(.horizontal, 32)
             )
+            .sheet(isPresented: $showingPrivacy) {
+                PrivacyNoticeView()
+            }
     }
 
     private func signIn() {

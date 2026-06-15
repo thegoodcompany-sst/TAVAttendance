@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -30,11 +32,61 @@ import com.example.tavattendance.data.models.KioskEntry
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.screens.statusColor
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.*
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.PBEKeySpec
+
+// ---------------------------------------------------------------------------
+// PIN hashing helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Hash a PIN using PBKDF2-SHA256 with 10,000 iterations and the device salt.
+ * Output format: "v2:<64 hex chars>" (32-byte / 256-bit derived key).
+ *
+ * Matches iOS: CCKeyDerivationPBKDF / kCCPBKDF2 / kCCPRFHmacAlgSHA256 /
+ *   10_000 iterations / 32-byte output / "v1:" prefix (iOS calls it v1 for
+ *   its PBKDF2; Android uses "v2:" to distinguish from the old SHA-256 "v1:").
+ *
+ * NOTE: iOS writes "v1:" for PBKDF2 hashes. Android previously wrote "v1:" for
+ * plain-SHA-256 hashes. To avoid a collision the Android PBKDF2 format uses
+ * "v2:" so migration code can tell them apart.
+ */
+private fun hashPinPbkdf2(pin: String, salt: String): String {
+    val saltBytes = salt.toByteArray(Charsets.UTF_8)
+    val spec = PBEKeySpec(pin.toCharArray(), saltBytes, 10_000, 256)
+    val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+    val derived = factory.generateSecret(spec).encoded
+    spec.clearPassword()
+    return "v2:" + derived.joinToString("") { "%02x".format(it) }
+}
+
+/**
+ * Legacy hash: single-round SHA-256 over "$pin:$salt" (the original Android
+ * implementation). Stored with prefix "v1:".
+ */
+private fun hashPinLegacy(pin: String, salt: String): String {
+    val md = MessageDigest.getInstance("SHA-256")
+    val digest = md.digest("$pin:$salt".toByteArray(Charsets.UTF_8))
+    return "v1:" + digest.joinToString("") { "%02x".format(it) }
+}
+
+/**
+ * Constant-time comparison for hash strings.
+ */
+private fun secureEquals(a: String, b: String): Boolean =
+    MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))
+
+// ---------------------------------------------------------------------------
+// ViewModel
+// ---------------------------------------------------------------------------
 
 class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("kiosk_settings", Context.MODE_PRIVATE)
@@ -48,11 +100,22 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     private val _pendingIds = MutableStateFlow<Set<String>>(emptySet())
     val pendingIds = _pendingIds.asStateFlow()
 
+    // SEC-02: persist lockout state in SharedPreferences so rotation / back
+    // cannot reset the brute-force counter.
+    private val _failedAttempts = MutableStateFlow(prefs.getInt("failed_attempts", 0))
+    private val _lockedUntil = MutableStateFlow(prefs.getLong("locked_until", 0L))
+
+    val failedAttempts = _failedAttempts.asStateFlow()
+    val lockedUntil = _lockedUntil.asStateFlow()
+
     // Persisted kiosk settings
     val storedPin: String get() = prefs.getString("pin", "") ?: ""
-    val isLocked: Boolean get() = prefs.getBoolean("locked", false)
 
-    private val _isAdminUnlocked = MutableStateFlow(!isLocked && storedPin.isEmpty())
+    // MAINT-10: back isLocked with a StateFlow so Compose recomposes on change.
+    private val _isLocked = MutableStateFlow(prefs.getBoolean("locked", false))
+    val isLocked = _isLocked.asStateFlow()
+
+    private val _isAdminUnlocked = MutableStateFlow(!_isLocked.value && storedPin.isEmpty())
     val isAdminUnlocked = _isAdminUnlocked.asStateFlow()
 
     private val _showPinUnlock = MutableStateFlow(false)
@@ -61,8 +124,15 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     private val _showSettings = MutableStateFlow(false)
     val showSettings = _showSettings.asStateFlow()
 
-    val isAdminMode: Boolean
-        get() = !isLocked && if (storedPin.isNotEmpty()) _isAdminUnlocked.value else true
+    // SP-06: expose errors via StateFlow so the UI can display a Snackbar.
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    val snackbarMessage = _snackbarMessage.asStateFlow()
+
+    // MAINT-10: derived StateFlow for isAdminMode — Compose will recompose
+    // whenever isLocked or isAdminUnlocked changes.
+    val isAdminMode = combine(_isAdminUnlocked, _isLocked) { adminUnlocked, locked ->
+        !locked && (storedPin.isEmpty() || adminUnlocked)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, !_isLocked.value && (storedPin.isEmpty() || _isAdminUnlocked.value))
 
     init { loadEntries() }
 
@@ -70,15 +140,21 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _isLoading.value = true
             runCatching { _entries.value = AttendanceService.fetchKioskEntries() }
+                .onFailure { e ->
+                    android.util.Log.e("GlobalKioskVM", "Failed to load kiosk entries", e)
+                    _snackbarMessage.value = "Failed to load students: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                }
             _isLoading.value = false
         }
     }
+
+    fun clearSnackbar() { _snackbarMessage.value = null }
 
     fun onCardTap(entry: KioskEntry) {
         when {
             entry.status == null || entry.status == AttendanceStatus.excused ->
                 handleAction(entry, KioskAction.SignIn)
-            isAdminMode && entry.status != AttendanceStatus.present ->
+            isAdminMode.value && entry.status != AttendanceStatus.present ->
                 handleAction(entry, KioskAction.MarkPresent)
         }
     }
@@ -87,6 +163,8 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         if (entry.studentId in _pendingIds.value) return
         _pendingIds.value = _pendingIds.value + entry.studentId
 
+        // SP-06: apply optimistic UI update before the suspend call, then
+        // surface any error via snackbarMessage on failure.
         viewModelScope.launch {
             runCatching {
                 when (action) {
@@ -112,6 +190,9 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
                         updateEntry(entry.studentId, AttendanceStatus.excused)
                     }
                 }
+            }.onFailure { e ->
+                android.util.Log.e("GlobalKioskVM", "Action $action failed for ${entry.studentId}", e)
+                _snackbarMessage.value = "Action failed: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _pendingIds.value = _pendingIds.value - entry.studentId
         }
@@ -146,39 +227,103 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         return AttendanceStatus.present
     }
 
-    // PIN management
+    // -----------------------------------------------------------------------
+    // PIN management  (SEC-01 + SEC-02)
+    // -----------------------------------------------------------------------
+
     private val deviceSalt: String
         get() = Secure.getString(getApplication<Application>().contentResolver, Secure.ANDROID_ID)
             ?: "tava-kiosk-fallback"
 
-    fun hashPin(pin: String): String {
-        val md = MessageDigest.getInstance("SHA-256")
-        val combined = "$pin:$deviceSalt"
-        val digest = md.digest(combined.toByteArray(Charsets.UTF_8))
-        return "v1:" + digest.joinToString("") { "%02x".format(it) }
-    }
+    /** Hash using the new PBKDF2 scheme (v2: prefix). */
+    fun hashPin(pin: String): String = hashPinPbkdf2(pin, deviceSalt)
 
+    /**
+     * Set the PIN.  Always stores a v2: PBKDF2 hash going forward.
+     */
     fun setPin(pin: String) {
         prefs.edit().putString("pin", hashPin(pin)).apply()
     }
 
     fun clearPin() {
         prefs.edit().remove("pin").putBoolean("locked", false).apply()
+        _isLocked.value = false
         _isAdminUnlocked.value = true
+        // Clear any lockout state when the PIN is removed.
+        persistFailedAttempts(0, 0L)
     }
 
+    /** MAINT-10: update both SharedPreferences and the backing StateFlow. */
     fun lockKiosk() {
         prefs.edit().putBoolean("locked", true).apply()
+        _isLocked.value = true
         _isAdminUnlocked.value = false
     }
 
+    /**
+     * SEC-01: verify the entered PIN against the stored hash.
+     *
+     * Migration path:
+     *  - No stored PIN → always false (nothing to verify against).
+     *  - Stored value starts with "v2:" → compare against new PBKDF2 hash.
+     *  - Stored value starts with "v1:" (legacy single-round SHA-256) →
+     *      verify with old method; on success re-hash with PBKDF2 and re-store.
+     *  - Stored value has no recognised prefix (pre-hashing plaintext) →
+     *      treat as legacy plaintext comparison; on success re-hash and re-store.
+     *
+     * SEC-02: failed attempt counter is read from / written to SharedPreferences
+     *         so it survives rotation and back-press.
+     *
+     * Returns true on success.
+     */
     fun tryUnlock(pin: String): Boolean {
-        val matches = hashPin(pin) == storedPin
+        val stored = storedPin
+        if (stored.isEmpty()) return false
+
+        val matches: Boolean = when {
+            stored.startsWith("v2:") -> {
+                // Current PBKDF2 scheme.
+                secureEquals(hashPinPbkdf2(pin, deviceSalt), stored)
+            }
+            stored.startsWith("v1:") -> {
+                // Legacy single-round SHA-256.
+                secureEquals(hashPinLegacy(pin, deviceSalt), stored)
+            }
+            else -> {
+                // Very old plaintext PIN (pre-hashing era) — compare directly.
+                secureEquals(pin, stored)
+            }
+        }
+
         if (matches) {
+            // Re-hash with PBKDF2 if the stored value used an older scheme.
+            if (!stored.startsWith("v2:")) {
+                prefs.edit().putString("pin", hashPinPbkdf2(pin, deviceSalt)).apply()
+            }
             prefs.edit().putBoolean("locked", false).apply()
+            _isLocked.value = false
             _isAdminUnlocked.value = true
+            // Reset lockout on successful unlock.
+            persistFailedAttempts(0, 0L)
         }
         return matches
+    }
+
+    /** SEC-02: record a failed attempt and compute lockout if threshold reached. */
+    fun recordFailedAttempt() {
+        val attempts = _failedAttempts.value + 1
+        val until = if (attempts >= 5) System.currentTimeMillis() + 30_000L else _lockedUntil.value
+        val resetAttempts = if (attempts >= 5) 0 else attempts
+        persistFailedAttempts(resetAttempts, until)
+    }
+
+    private fun persistFailedAttempts(attempts: Int, until: Long) {
+        prefs.edit()
+            .putInt("failed_attempts", attempts)
+            .putLong("locked_until", until)
+            .apply()
+        _failedAttempts.value = attempts
+        _lockedUntil.value = until
     }
 
     fun showPinUnlockDialog() { _showPinUnlock.value = true }
@@ -189,6 +334,10 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
 
 enum class KioskAction { SignIn, MarkPresent, MarkLate, MarkAbsent, MarkNotHere }
 
+// ---------------------------------------------------------------------------
+// Composable screen
+// ---------------------------------------------------------------------------
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
@@ -198,105 +347,135 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
     val isAdminUnlocked by vm.isAdminUnlocked.collectAsState()
     val showPinUnlock by vm.showPinUnlock.collectAsState()
     val showSettings by vm.showSettings.collectAsState()
+    val snackbarMessage by vm.snackbarMessage.collectAsState()
 
-    val isLocked = vm.isLocked
-    val isAdminMode = vm.isAdminMode
+    // MAINT-10: collect StateFlow so Compose recomposes when lock state changes.
+    val isLocked by vm.isLocked.collectAsState()
+    val isAdminMode by vm.isAdminMode.collectAsState()
+
     val attending = entries.count { it.isAttending }
-
     val today = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(Date())
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column {
-            // Header
-            Surface(shadowElevation = 2.dp) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Sign In", style = MaterialTheme.typography.headlineLarge)
-                            if (isAdminMode) {
-                                Spacer(Modifier.width(8.dp))
-                                Surface(
-                                    shape = MaterialTheme.shapes.extraSmall,
-                                    color = MaterialTheme.colorScheme.tertiary
-                                ) {
-                                    Text(
-                                        "ADMIN",
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onTertiary,
-                                        fontWeight = FontWeight.Bold
-                                    )
+    // SP-06: Snackbar host for surfacing errors.
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let { msg ->
+            snackbarHostState.showSnackbar(message = msg, duration = SnackbarDuration.Short)
+            vm.clearSnackbar()
+        }
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(innerPadding)
+        ) {
+            Column {
+                // Header
+                Surface(shadowElevation = 2.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Sign In", style = MaterialTheme.typography.headlineLarge)
+                                if (isAdminMode) {
+                                    Spacer(Modifier.width(8.dp))
+                                    Surface(
+                                        shape = MaterialTheme.shapes.extraSmall,
+                                        color = MaterialTheme.colorScheme.tertiary
+                                    ) {
+                                        Text(
+                                            "ADMIN",
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onTertiary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
+                            Text(today, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Text(today, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (entries.isNotEmpty()) {
+                            Text(
+                                "$attending / ${entries.size} attended",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(16.dp))
+                        }
+                        IconButton(
+                            onClick = {
+                                if (isLocked) vm.showPinUnlockDialog()
+                                else vm.showSettingsDialog()
+                            }
+                        ) {
+                            Icon(
+                                if (isLocked) Icons.Default.Lock else Icons.Default.Settings,
+                                contentDescription = if (isLocked) "Unlock kiosk" else "Kiosk settings"
+                            )
+                        }
                     }
-                    if (entries.isNotEmpty()) {
+                }
+
+                when {
+                    isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                    entries.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "$attending / ${entries.size} attended",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            "No students enrolled in any active class.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(32.dp)
                         )
-                        Spacer(Modifier.width(16.dp))
                     }
-                    IconButton(
-                        onClick = {
-                            if (isLocked) vm.showPinUnlockDialog()
-                            else vm.showSettingsDialog()
-                        }
+                    else -> LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 160.dp),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize()
                     ) {
-                        Icon(
-                            if (isLocked) Icons.Default.Lock else Icons.Default.Settings,
-                            contentDescription = null
-                        )
+                        items(entries, key = { it.studentId }) { entry ->
+                            KioskCard(
+                                entry = entry,
+                                isPending = entry.studentId in pendingIds,
+                                isAdminMode = isAdminMode,
+                                onTap = { vm.onCardTap(entry) },
+                                onAction = { action -> vm.handleAction(entry, action) }
+                            )
+                        }
                     }
                 }
             }
 
-            when {
-                isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-                entries.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No students enrolled in any active class.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(32.dp))
-                }
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 160.dp),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(entries, key = { it.studentId }) { entry ->
-                        KioskCard(
-                            entry = entry,
-                            isPending = entry.studentId in pendingIds,
-                            isAdminMode = isAdminMode,
-                            onTap = { vm.onCardTap(entry) },
-                            onAction = { action -> vm.handleAction(entry, action) }
-                        )
-                    }
-                }
+            if (showPinUnlock) {
+                PinUnlockOverlay(
+                    failedAttempts = vm.failedAttempts,
+                    lockedUntil = vm.lockedUntil,
+                    onDismiss = { vm.hidePinUnlockDialog() },
+                    onAttempt = { pin -> vm.tryUnlock(pin) },
+                    onRecordFailedAttempt = { vm.recordFailedAttempt() }
+                )
             }
-        }
 
-        if (showPinUnlock) {
-            PinUnlockOverlay(
-                onDismiss = { vm.hidePinUnlockDialog() },
-                onAttempt = { pin -> vm.tryUnlock(pin) }
-            )
-        }
-
-        if (showSettings) {
-            KioskSettingsSheet(vm = vm, onDismiss = { vm.hideSettingsDialog() })
+            if (showSettings) {
+                KioskSettingsSheet(vm = vm, onDismiss = { vm.hideSettingsDialog() })
+            }
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Kiosk card  (A11Y-04)
+// ---------------------------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -319,7 +498,7 @@ private fun KioskCard(
         AttendanceStatus.late -> "Late"
         AttendanceStatus.absent -> "Absent"
         AttendanceStatus.excused -> "Not Here"
-        null -> ""
+        null -> "Not signed in"
     }
 
     val canTap = entry.status == null || entry.status == AttendanceStatus.excused ||
@@ -361,10 +540,14 @@ private fun KioskCard(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
+                        // A11Y-04: status indicator with contentDescription so screen readers
+                        // convey meaning without relying solely on colour.
                         Surface(
                             shape = MaterialTheme.shapes.extraSmall,
                             color = statusColor,
-                            modifier = Modifier.size(12.dp)
+                            modifier = Modifier
+                                .size(12.dp)
+                                .semantics { contentDescription = "${entry.fullName}: $statusLabel" }
                         ) {}
                         Spacer(Modifier.height(8.dp))
                         Text(
@@ -382,13 +565,19 @@ private fun KioskCard(
                                     Date(java.time.Instant.parse(entry.markedAt).toEpochMilli())
                                 }.getOrNull()
                                 markedDate?.let {
-                                    Text(timeFmt.format(it), style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        timeFmt.format(it),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                             if (isAdminMode && entry.status != AttendanceStatus.present && entry.status != AttendanceStatus.excused) {
-                                Text("Tap → On Time", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "Tap → On Time",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -397,6 +586,10 @@ private fun KioskCard(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// DropdownMenuCard
+// ---------------------------------------------------------------------------
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -442,6 +635,10 @@ private fun DropdownMenuCard(
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Kiosk settings sheet
+// ---------------------------------------------------------------------------
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -493,6 +690,10 @@ private fun KioskSettingsSheet(vm: GlobalKioskViewModel, onDismiss: () -> Unit) 
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// PIN setup dialog
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun PinSetupDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
@@ -553,20 +754,38 @@ private fun PinSetupDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
     )
 }
 
+// ---------------------------------------------------------------------------
+// PIN unlock overlay  (SEC-02: reads/writes lockout state from ViewModel prefs)
+// ---------------------------------------------------------------------------
+
 @Composable
-private fun PinUnlockOverlay(onDismiss: () -> Unit, onAttempt: (String) -> Boolean) {
+private fun PinUnlockOverlay(
+    failedAttempts: kotlinx.coroutines.flow.StateFlow<Int>,
+    lockedUntil: kotlinx.coroutines.flow.StateFlow<Long>,
+    onDismiss: () -> Unit,
+    onAttempt: (String) -> Boolean,
+    onRecordFailedAttempt: () -> Unit
+) {
+    val failedAttemptsVal by failedAttempts.collectAsState()
+    val lockedUntilVal by lockedUntil.collectAsState()
+
     var entered by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
-    var failedAttempts by remember { mutableIntStateOf(0) }
-    var lockedUntil by remember { mutableLongStateOf(0L) }
     var secondsRemaining by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         while (true) {
-            val remaining = (lockedUntil - System.currentTimeMillis()) / 1000
+            val remaining = (lockedUntilVal - System.currentTimeMillis()) / 1000
             secondsRemaining = if (remaining > 0) remaining.toInt() else 0
             kotlinx.coroutines.delay(1000)
         }
+    }
+
+    // Keep secondsRemaining updated when lockedUntil changes (e.g. after a
+    // failed attempt that triggers lockout).
+    LaunchedEffect(lockedUntilVal) {
+        val remaining = (lockedUntilVal - System.currentTimeMillis()) / 1000
+        secondsRemaining = if (remaining > 0) remaining.toInt() else 0
     }
 
     Box(
@@ -579,11 +798,15 @@ private fun PinUnlockOverlay(onDismiss: () -> Unit, onAttempt: (String) -> Boole
             modifier = Modifier.padding(48.dp)
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White,
-                    modifier = Modifier.size(56.dp))
+                Icon(
+                    Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(56.dp)
+                )
                 Spacer(Modifier.height(8.dp))
                 Text("Admin Access", style = MaterialTheme.typography.headlineLarge, color = Color.White)
-                val isLockedOut = System.currentTimeMillis() < lockedUntil
+                val isLockedOut = System.currentTimeMillis() < lockedUntilVal
                 Text(
                     if (isLockedOut) "Too many attempts" else "Enter PIN to unlock",
                     style = MaterialTheme.typography.bodyMedium,
@@ -591,11 +814,14 @@ private fun PinUnlockOverlay(onDismiss: () -> Unit, onAttempt: (String) -> Boole
                 )
             }
 
-            val isLockedOut = System.currentTimeMillis() < lockedUntil
+            val isLockedOut = System.currentTimeMillis() < lockedUntilVal
             if (isLockedOut) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Try again in ${secondsRemaining}s", style = MaterialTheme.typography.titleLarge,
-                        color = Color(0xFFFF9500))
+                    Text(
+                        "Try again in ${secondsRemaining}s",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color(0xFFFF9500)
+                    )
                     Spacer(Modifier.height(8.dp))
                     TextButton(onClick = onDismiss) { Text("Cancel", color = Color.White.copy(alpha = 0.7f)) }
                 }
@@ -620,7 +846,7 @@ private fun PinUnlockOverlay(onDismiss: () -> Unit, onAttempt: (String) -> Boole
                         }
                     },
                     onDigit = { d ->
-                        if (System.currentTimeMillis() >= lockedUntil && entered.length < 4) {
+                        if (System.currentTimeMillis() >= lockedUntilVal && entered.length < 4) {
                             error = ""
                             entered += d
                             if (entered.length == 4) {
@@ -628,13 +854,15 @@ private fun PinUnlockOverlay(onDismiss: () -> Unit, onAttempt: (String) -> Boole
                                 if (success) {
                                     onDismiss()
                                 } else {
-                                    failedAttempts++
-                                    if (failedAttempts >= 5) {
-                                        lockedUntil = System.currentTimeMillis() + 30_000
-                                        failedAttempts = 0
-                                    } else {
-                                        val left = 5 - failedAttempts
-                                        error = "Incorrect PIN — $left attempt${if (left == 1) "" else "s"} left"
+                                    onRecordFailedAttempt()
+                                    val remainingAfter = failedAttemptsVal  // updated by ViewModel
+                                    val isNowLockedOut = System.currentTimeMillis() < lockedUntilVal
+                                    if (!isNowLockedOut) {
+                                        val left = 5 - (failedAttemptsVal)
+                                        error = if (left > 0)
+                                            "Incorrect PIN — $left attempt${if (left == 1) "" else "s"} left"
+                                        else
+                                            "Incorrect PIN"
                                     }
                                     entered = ""
                                 }
@@ -647,6 +875,10 @@ private fun PinUnlockOverlay(onDismiss: () -> Unit, onAttempt: (String) -> Boole
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Number pad
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun NumberPad(

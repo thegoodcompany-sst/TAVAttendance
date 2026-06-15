@@ -119,8 +119,10 @@ struct StudentProfileView: View {
             }
         }
         .task {
-            await loadHistory()
-            await loadSlips()
+            // Load history and slips in parallel — they are independent queries.
+            async let historyFetch: Void = loadHistory()
+            async let slipsFetch: Void = loadSlips()
+            _ = await (historyFetch, slipsFetch)
         }
     }
 

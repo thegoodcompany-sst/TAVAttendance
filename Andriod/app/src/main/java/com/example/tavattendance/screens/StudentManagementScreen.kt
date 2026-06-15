@@ -41,12 +41,23 @@ class StudentManagementViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun addStudent(student: StudentInsert) {
+    fun addStudent(student: StudentInsert, consentAttested: Boolean) {
         viewModelScope.launch {
-            runCatching { AttendanceService.createStudent(student) }.onSuccess { loadStudents() }
+            runCatching {
+                val created = AttendanceService.createStudent(student)
+                // PDPA consent gate: record parent/guardian consent attested by the admin.
+                if (consentAttested) {
+                    AttendanceService.recordConsent(
+                        studentId = created.id,
+                        status = "granted",
+                        sourceNote = "Admin attestation on create"
+                    )
+                }
+            }.onSuccess { loadStudents() }
         }
     }
 
+    // consentAttested is only meaningful when creating; on edit the existing consent stands.
     fun editStudent(id: String, student: StudentInsert) {
         viewModelScope.launch {
             runCatching { AttendanceService.updateStudent(id, student) }.onSuccess { loadStudents() }
@@ -136,7 +147,7 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
         StudentFormDialog(
             title = "New Student",
             onDismiss = { showAddDialog = false },
-            onSave = { vm.addStudent(it); showAddDialog = false }
+            onSave = { student, consent -> vm.addStudent(student, consent); showAddDialog = false }
         )
     }
 
@@ -145,7 +156,7 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
             title = "Edit Student",
             initial = s,
             onDismiss = { editingStudent = null },
-            onSave = { vm.editStudent(s.id, it); editingStudent = null }
+            onSave = { student, _ -> vm.editStudent(s.id, student); editingStudent = null }
         )
     }
 

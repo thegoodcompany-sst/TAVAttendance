@@ -117,12 +117,13 @@ final class AttendanceService {
     }
 
     func getOrCreateSession(classId: UUID, date: String) async throws -> Session {
-        let existing: [Session] = try await db.from("sessions").select()
-            .eq("class_id", value: classId).eq("session_date", value: date)
-            .execute().value
-        if let session = existing.first { return session }
+        // Use upsert to avoid the TOCTOU race: concurrent kiosk loads on the same
+        // (class_id, session_date) pair would violate the unique constraint with a
+        // plain SELECT-then-INSERT. ON CONFLICT DO UPDATE is idempotent.
         let new = Session(id: UUID(), classId: classId, sessionDate: date, topic: nil, notes: nil, startedAt: nil, endedAt: nil, subTutorId: nil)
-        return try await db.from("sessions").insert(new).select().single().execute().value
+        return try await db.from("sessions")
+            .upsert(new, onConflict: "class_id,session_date")
+            .select().single().execute().value
     }
 
     /// Sets started_at = NOW(). Call only when the session has not yet been started.
@@ -190,10 +191,19 @@ final class AttendanceService {
         let classes = try await fetchMyClasses()
         let classMap = Dictionary(uniqueKeysWithValues: classes.map { ($0.id, $0) })
 
+        // Parallelize session creation — the upsert on (class_id, session_date) makes
+        // concurrent calls safe; no TOCTOU race even if two tasks hit the DB at once.
         var sessionTuples: [(classId: UUID, session: Session)] = []
-        for cls in classes {
-            let session = try await getOrCreateSession(classId: cls.id, date: today)
-            sessionTuples.append((cls.id, session))
+        try await withThrowingTaskGroup(of: (UUID, Session).self) { group in
+            for cls in classes {
+                group.addTask {
+                    let session = try await self.getOrCreateSession(classId: cls.id, date: today)
+                    return (cls.id, session)
+                }
+            }
+            for try await tuple in group {
+                sessionTuples.append(tuple)
+            }
         }
 
         var entryMap: [UUID: KioskEntry] = [:]
@@ -308,8 +318,11 @@ final class AttendanceService {
                 case sessionId = "session_id"; case studentId = "student_id"; case dismissedAt = "dismissed_at"
             }
         }
+        // Upsert on (session_id, student_id) unique constraint to avoid duplicate rows
+        // that would crash Dictionary(uniqueKeysWithValues:) in fetchTodaysDismissals.
         return try await db.from("dismissals")
-            .insert(DismissalInsert(sessionId: sessionId, studentId: studentId, dismissedAt: Date()))
+            .upsert(DismissalInsert(sessionId: sessionId, studentId: studentId, dismissedAt: Date()),
+                    onConflict: "session_id,student_id")
             .select().single().execute().value
     }
 
@@ -447,6 +460,180 @@ final class AttendanceService {
             "p_parent": parentId.uuidString,
             "p_student": studentId.uuidString
         ]).execute()
+    }
+
+    // MARK: - PDPA: privacy notice (#N1)
+
+    /// Fetches the current Data Protection Notice. Any authenticated user may read it.
+    func fetchPrivacyNotice() async throws -> PolicyDocument? {
+        let rows: [PolicyDocument] = try await db.from("policy_documents")
+            .select()
+            .eq("doc_type", value: "data_protection_notice")
+            .eq("is_current", value: true)
+            .order("published_at", ascending: false)
+            .limit(1)
+            .execute().value
+        return rows.first
+    }
+
+    // MARK: - PDPA: consent ledger (#C1/#C2)
+
+    private struct ConsentInsert: Encodable {
+        let studentId: UUID
+        let consentType: String
+        let status: String
+        let method: String
+        let noticeVersion: String?
+        let sourceNote: String?
+
+        enum CodingKeys: String, CodingKey {
+            case status, method
+            case studentId     = "student_id"
+            case consentType   = "consent_type"
+            case noticeVersion = "notice_version"
+            case sourceNote    = "source_note"
+        }
+    }
+
+    /// Appends a consent row for a single student. `granted_by` is stamped server-side
+    /// from auth.uid() defaults are not set, so we rely on RLS + the column being nullable;
+    /// the DB records the acting admin via the row's RLS context where available.
+    func recordConsent(
+        studentId: UUID,
+        consentType: String = "data_collection",
+        status: ConsentStatus = .granted,
+        method: String = "admin_attestation",
+        noticeVersion: String?,
+        sourceNote: String? = nil
+    ) async throws {
+        try await db.from("consent_records")
+            .insert(ConsentInsert(
+                studentId: studentId,
+                consentType: consentType,
+                status: status.rawValue,
+                method: method,
+                noticeVersion: noticeVersion,
+                sourceNote: sourceNote))
+            .execute()
+    }
+
+    /// Bulk-inserts consent rows (used by CSV import after students are created).
+    func recordConsentBulk(
+        studentIds: [UUID],
+        consentType: String = "data_collection",
+        method: String = "admin_attestation",
+        noticeVersion: String?
+    ) async throws {
+        guard !studentIds.isEmpty else { return }
+        let rows = studentIds.map {
+            ConsentInsert(studentId: $0, consentType: consentType,
+                          status: ConsentStatus.granted.rawValue, method: method,
+                          noticeVersion: noticeVersion, sourceNote: "Bulk CSV import attestation")
+        }
+        try await db.from("consent_records").insert(rows).execute()
+    }
+
+    /// Returns the latest consent row per (student, type) for one student, from `current_consent`.
+    func fetchCurrentConsent(studentId: UUID) async throws -> [ConsentRecord] {
+        return try await db.from("current_consent")
+            .select()
+            .eq("student_id", value: studentId)
+            .execute().value
+    }
+
+    /// Withdraws consent by appending a `withdrawn` row (append-only ledger).
+    func withdrawConsent(studentId: UUID, consentType: String = "data_collection",
+                         noticeVersion: String? = nil) async throws {
+        try await recordConsent(studentId: studentId, consentType: consentType,
+                                status: .withdrawn, method: "admin_attestation",
+                                noticeVersion: noticeVersion,
+                                sourceNote: "Withdrawn by admin")
+    }
+
+    // MARK: - PDPA: erase / anonymise (#R1/#R2)
+
+    func anonymiseStudent(id: UUID) async throws {
+        try await db.rpc("anonymise_student", params: ["p_student_id": id.uuidString]).execute()
+    }
+
+    func eraseStudent(id: UUID) async throws {
+        try await db.rpc("erase_student", params: ["p_student_id": id.uuidString]).execute()
+    }
+
+    // MARK: - PDPA: subject-access export (#A2)
+
+    /// Calls the admin-guarded RPC and returns the raw JSON bytes of the personal-data bundle.
+    /// The RPC also logs a `data_disclosures` row server-side.
+    func exportStudentPersonalData(id: UUID) async throws -> Data {
+        // The RPC returns a JSONB value; capture it as raw Data so we can write it to disk verbatim.
+        let response = try await db
+            .rpc("export_student_personal_data", params: ["p_student_id": id.uuidString])
+            .execute()
+        return response.data
+    }
+
+    // MARK: - PDPA: correction requests (#A1)
+
+    func fetchCorrectionRequests(status: CorrectionStatus = .pending) async throws -> [CorrectionRequest] {
+        return try await db.from("correction_requests")
+            .select()
+            .eq("status", value: status.rawValue)
+            .order("created_at", ascending: false)
+            .execute().value
+    }
+
+    /// Applies a correction: writes the new value onto the student row, then marks the
+    /// request `applied` and logs a `correction_response` disclosure.
+    func applyCorrection(_ request: CorrectionRequest) async throws {
+        // Whitelist of correctable student columns to avoid arbitrary column writes.
+        let allowed: Set<String> = ["full_name", "school", "year_of_study", "date_of_birth"]
+        guard allowed.contains(request.fieldName) else {
+            throw NSError(domain: "TAVA.Correction", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Field '\(request.fieldName)' cannot be auto-applied. Correct it manually, then mark this request applied."
+            ])
+        }
+        let newValue = request.requestedValue
+        try await db.from("students")
+            .update([request.fieldName: newValue])
+            .eq("id", value: request.studentId)
+            .execute()
+
+        try await markCorrection(id: request.id, status: .applied, note: nil)
+
+        struct DisclosureInsert: Encodable {
+            let studentId: UUID; let disclosureType: String; let detail: [String: String]?
+            enum CodingKeys: String, CodingKey {
+                case studentId = "student_id"; case disclosureType = "disclosure_type"; case detail
+            }
+        }
+        try await db.from("data_disclosures")
+            .insert(DisclosureInsert(
+                studentId: request.studentId,
+                disclosureType: "correction_response",
+                detail: ["field": request.fieldName,
+                         "new_value": request.requestedValue ?? ""]))
+            .execute()
+    }
+
+    func rejectCorrection(id: UUID, note: String?) async throws {
+        try await markCorrection(id: id, status: .rejected, note: note)
+    }
+
+    private func markCorrection(id: UUID, status: CorrectionStatus, note: String?) async throws {
+        struct Patch: Encodable {
+            let status: String
+            let reviewedAt: Date
+            let reviewNote: String?
+            enum CodingKeys: String, CodingKey {
+                case status
+                case reviewedAt = "reviewed_at"
+                case reviewNote = "review_note"
+            }
+        }
+        try await db.from("correction_requests")
+            .update(Patch(status: status.rawValue, reviewedAt: Date(), reviewNote: note))
+            .eq("id", value: id)
+            .execute()
     }
 
     // MARK: - Export helpers (#7)

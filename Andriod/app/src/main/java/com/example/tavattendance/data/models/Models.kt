@@ -128,6 +128,55 @@ data class KioskEntry(
     val isAttending: Boolean get() = status == AttendanceStatus.present || status == AttendanceStatus.late
 }
 
+// ---- PDPA models ----
+
+@Serializable
+data class PolicyDocument(
+    val id: String,
+    @SerialName("doc_type") val docType: String,
+    val version: String,
+    val title: String,
+    val body: String,
+    @SerialName("is_current") val isCurrent: Boolean = true,
+    @SerialName("published_at") val publishedAt: String? = null
+)
+
+@Serializable
+data class ConsentRecord(
+    @SerialName("student_id") val studentId: String,
+    @SerialName("consent_type") val consentType: String,
+    val status: String,
+    val method: String,
+    @SerialName("notice_version") val noticeVersion: String? = null,
+    @SerialName("granted_by") val grantedBy: String? = null,
+    @SerialName("parent_id") val parentId: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+data class ConsentInsert(
+    @SerialName("student_id") val studentId: String,
+    @SerialName("consent_type") val consentType: String = "data_collection",
+    val status: String,
+    val method: String = "admin_attestation",
+    @SerialName("notice_version") val noticeVersion: String? = null,
+    @SerialName("granted_by") val grantedBy: String? = null,
+    @SerialName("source_note") val sourceNote: String? = null
+)
+
+@Serializable
+data class CorrectionRequest(
+    val id: String,
+    @SerialName("student_id") val studentId: String,
+    @SerialName("requested_by") val requestedBy: String? = null,
+    @SerialName("field_name") val fieldName: String,
+    @SerialName("current_value") val currentValue: String? = null,
+    @SerialName("requested_value") val requestedValue: String? = null,
+    val status: String,
+    @SerialName("review_note") val reviewNote: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
 @Serializable
 data class AttendanceHistoryRecord(
     val id: String,

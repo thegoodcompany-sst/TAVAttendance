@@ -3,11 +3,16 @@ package com.example.tavattendance.data.service
 import com.example.tavattendance.core.SupabaseClient
 import com.example.tavattendance.data.models.*
 import com.example.tavattendance.data.store.PendingAttendanceRecord
+import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
+import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -221,15 +226,25 @@ object AttendanceService {
             cls.id to getOrCreateSession(classId = cls.id, date = today)
         }
 
+        // PERF-02: fetch rosters in parallel instead of sequentially.
+        // Each async block runs concurrently; awaitAll collects in declaration order,
+        // preserving the (classId, session) association via the paired result.
+        val rosterResults: List<Pair<Pair<String, Session>, List<RosterEntry>>> =
+            coroutineScope {
+                sessionTuples
+                    .map { pair -> async { pair to fetchRoster(pair.second.id) } }
+                    .awaitAll()
+            }
+
         val entryMap = mutableMapOf<String, KioskEntry>()
-        for ((classId, session) in sessionTuples) {
+        for ((classPair, roster) in rosterResults) {
+            val (classId, session) = classPair
             val scheduleTime = classMap[classId]?.scheduleTime
             val slot = KioskSession(
                 id = session.id,
                 scheduleTime = scheduleTime,
                 startedAt = session.startedAt
             )
-            val roster = fetchRoster(session.id)
             for (r in roster) {
                 val existing = entryMap[r.studentId]
                 val rMarkedAt = r.markedAt
@@ -319,6 +334,135 @@ object AttendanceService {
                 order("marked_at", Order.DESCENDING)
                 limit(limit.toLong())
             }.decodeList<AttendanceHistoryRecord>()
+
+    // ---- PDPA: privacy notice ----
+
+    suspend fun fetchPrivacyNotice(): PolicyDocument? =
+        db.from("policy_documents").select {
+            filter {
+                eq("doc_type", "data_protection_notice")
+                eq("is_current", true)
+            }
+            limit(1)
+        }.decodeList<PolicyDocument>().firstOrNull()
+
+    // ---- PDPA: consent ----
+
+    /** Insert an admin-attestation consent row for a student. notice_version is filled from the
+     * current privacy notice when not supplied. */
+    suspend fun recordConsent(
+        studentId: String,
+        status: String,
+        noticeVersion: String? = null,
+        sourceNote: String? = null
+    ) {
+        val version = noticeVersion ?: runCatching { fetchPrivacyNotice()?.version }.getOrNull()
+        val grantedBy = SupabaseClient.client.auth.currentUserOrNull()?.id
+        db.from("consent_records").insert(
+            ConsentInsert(
+                studentId = studentId,
+                status = status,
+                noticeVersion = version,
+                grantedBy = grantedBy,
+                sourceNote = sourceNote
+            )
+        )
+    }
+
+    /** Latest consent row per (student_id, consent_type) for one student. */
+    suspend fun fetchCurrentConsent(studentId: String): List<ConsentRecord> =
+        db.from("current_consent").select {
+            filter { eq("student_id", studentId) }
+        }.decodeList<ConsentRecord>()
+
+    /** Full append-only consent ledger for one student (most recent first). */
+    suspend fun fetchConsentHistory(studentId: String): List<ConsentRecord> =
+        db.from("consent_records").select {
+            filter { eq("student_id", studentId) }
+            order("created_at", Order.DESCENDING)
+        }.decodeList<ConsentRecord>()
+
+    // ---- PDPA: erase / anonymise ----
+
+    suspend fun anonymiseStudent(studentId: String) {
+        db.postgrest.rpc("anonymise_student", buildJsonObject { put("p_student_id", studentId) })
+    }
+
+    suspend fun eraseStudent(studentId: String) {
+        db.postgrest.rpc("erase_student", buildJsonObject { put("p_student_id", studentId) })
+    }
+
+    // ---- PDPA: subject-access export ----
+
+    /** Returns the full personal-data bundle for a student as a JSON string. Auto-logs a
+     * data_disclosures row server-side. */
+    suspend fun exportStudentPersonalData(studentId: String): String {
+        val result = db.postgrest.rpc(
+            "export_student_personal_data",
+            buildJsonObject { put("p_student_id", studentId) }
+        )
+        return result.data
+    }
+
+    // ---- PDPA: correction-request review queue ----
+
+    suspend fun fetchPendingCorrectionRequests(): List<CorrectionRequest> =
+        db.from("correction_requests").select {
+            filter { eq("status", "pending") }
+            order("created_at", Order.ASCENDING)
+        }.decodeList<CorrectionRequest>()
+
+    /** Apply a correction: write the new value onto the student row, mark the request applied,
+     * and log a correction_response disclosure. */
+    suspend fun applyCorrectionRequest(request: CorrectionRequest) {
+        // Only a known, safe allowlist of student columns may be corrected this way.
+        val allowed = setOf("full_name", "school", "year_of_study")
+        require(request.fieldName in allowed) {
+            "Field '${request.fieldName}' cannot be auto-applied; correct it manually."
+        }
+        val newValue = request.requestedValue
+        db.from("students").update({
+            set(request.fieldName, newValue)
+        }) { filter { eq("id", request.studentId) } }
+
+        val reviewerId = SupabaseClient.client.auth.currentUserOrNull()?.id
+        db.from("correction_requests").update({
+            set("status", "applied")
+            set("reviewed_by", reviewerId)
+            set("reviewed_at", java.time.Instant.now().toString())
+        }) { filter { eq("id", request.id) } }
+
+        db.from("data_disclosures").insert(
+            buildJsonObject {
+                put("student_id", request.studentId)
+                put("disclosure_type", "correction_response")
+                put("disclosed_by", reviewerId)
+            }
+        )
+    }
+
+    suspend fun rejectCorrectionRequest(request: CorrectionRequest, reviewNote: String?) {
+        val reviewerId = SupabaseClient.client.auth.currentUserOrNull()?.id
+        db.from("correction_requests").update({
+            set("status", "rejected")
+            set("reviewed_by", reviewerId)
+            set("reviewed_at", java.time.Instant.now().toString())
+            set("review_note", reviewNote)
+        }) { filter { eq("id", request.id) } }
+    }
+
+    // ---- PDPA: result-slip uploads (private bucket, "<student_id>/<filename>" path) ----
+
+    /**
+     * Upload an exam result slip to the private `result-slips` Storage bucket. The object is
+     * always stored under "<student_id>/<filename>" so the parent-read Storage policy resolves.
+     * Returns the storage path used.
+     */
+    suspend fun uploadResultSlip(studentId: String, fileName: String, bytes: ByteArray): String {
+        val path = "$studentId/$fileName"
+        SupabaseClient.client.storage.from("result-slips").upload(path, bytes) { upsert = true }
+        return path
+    }
 
     @Serializable
     private data class SyncRecord(

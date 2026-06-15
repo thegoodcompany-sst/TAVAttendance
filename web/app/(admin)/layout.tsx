@@ -63,10 +63,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </header>
 
         {/* Desktop top bar */}
-        <header className="hidden md:flex bg-white border-b border-border h-14 items-center justify-between px-6 sticky top-0 z-10 flex-shrink-0">
-          <div className="pl-9 pr-4 py-2 bg-muted rounded-full text-sm text-muted-foreground w-60 cursor-default select-none">
-            Search…
-          </div>
+        <header className="hidden md:flex bg-white border-b border-border h-14 items-center justify-end px-6 sticky top-0 z-10 flex-shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{userName}</span>
             <SignOutButton />
@@ -77,6 +74,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <main className="flex-1 bg-surface px-4 sm:px-6 lg:px-8 py-8">
           {children}
         </main>
+
+        {/* Footer */}
+        <footer className="bg-surface border-t border-border px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>TAVA Attendance</span>
+          <span className="text-border">·</span>
+          <Link href="/privacy" prefetch className="hover:text-foreground transition-colors">
+            Data Protection Notice
+          </Link>
+          <span className="text-border">·</span>
+          <Link href="/corrections" prefetch className="hover:text-foreground transition-colors">
+            Correction requests
+          </Link>
+        </footer>
       </div>
     </div>
   )

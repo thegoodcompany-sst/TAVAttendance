@@ -2,41 +2,6 @@ import CommonCrypto
 import SwiftUI
 import UIKit
 
-// MARK: - AppError
-
-struct AppError: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
-    
-    init(_ title: String, underlyingError: Error) {
-        self.title = title
-        self.message = underlyingError.localizedDescription
-    }
-}
-
-// MARK: - Error Alert Modifier
-
-extension View {
-    func errorAlert(error: Binding<AppError?>) -> some View {
-        alert(
-            error.wrappedValue?.title ?? "Error",
-            isPresented: Binding(
-                get: { error.wrappedValue != nil },
-                set: { if !$0 { error.wrappedValue = nil } }
-            ),
-            actions: {
-                Button("OK", role: .cancel) {}
-            },
-            message: {
-                if let err = error.wrappedValue {
-                    Text(err.message)
-                }
-            }
-        )
-    }
-}
-
 struct GlobalKioskView: View {
     @AppStorage("kioskPIN") private var storedPIN = ""
     @AppStorage("kioskLocked") private var isLocked = false
@@ -291,12 +256,18 @@ struct GlobalKioskView: View {
         }
         await withTaskGroup(of: Void.self) { group in
             for entry in targets {
-                guard let sessionId = entry.sessions.first?.id else { continue }
+                // Record a dismissal for every session the student is in today,
+                // mirroring how markKioskAttendance iterates all sessions.
+                guard !entry.sessions.isEmpty else { continue }
                 group.addTask {
                     await MainActor.run { pendingIds.insert(entry.studentId) }
                     do {
-                        let dismissal = try await AttendanceService.shared.recordDismissal(sessionId: sessionId, studentId: entry.studentId)
-                        await MainActor.run { updateEntry(entry.studentId, dismissedAt: dismissal.dismissedAt ?? Date()) }
+                        var lastDismissal: Dismissal? = nil
+                        for session in entry.sessions {
+                            lastDismissal = try await AttendanceService.shared.recordDismissal(sessionId: session.id, studentId: entry.studentId)
+                        }
+                        let dismissedAt = lastDismissal?.dismissedAt ?? Date()
+                        await MainActor.run { updateEntry(entry.studentId, dismissedAt: dismissedAt) }
                     } catch {
                         await MainActor.run { self.error = AppError("Failed to mark dismissal", underlyingError: error) }
                     }
@@ -367,9 +338,14 @@ struct GlobalKioskView: View {
                 updateEntry(entry.studentId, status: .excused)
 
             case .markDismissed:
-                guard let sessionId = entry.sessions.first?.id else { return }
-                let dismissal = try await AttendanceService.shared.recordDismissal(sessionId: sessionId, studentId: entry.studentId)
-                updateEntry(entry.studentId, dismissedAt: dismissal.dismissedAt ?? Date())
+                // Record a dismissal for every session the student is in today,
+                // mirroring how markKioskAttendance iterates all sessions.
+                guard !entry.sessions.isEmpty else { return }
+                var lastDismissal: Dismissal? = nil
+                for session in entry.sessions {
+                    lastDismissal = try await AttendanceService.shared.recordDismissal(sessionId: session.id, studentId: entry.studentId)
+                }
+                updateEntry(entry.studentId, dismissedAt: lastDismissal?.dismissedAt ?? Date())
 
             case .undoDismissal:
                 for session in entry.sessions {
@@ -564,6 +540,7 @@ private struct KioskCard: View {
                         Image(systemName: statusIcon)
                             .font(.system(size: 32, weight: .medium))
                             .foregroundStyle(statusColor)
+                            .accessibilityLabel(statusLabel)
 
                         Text(entry.fullName)
                             .font(.system(size: 15, weight: .semibold))
@@ -587,6 +564,7 @@ private struct KioskCard: View {
                                         Text(Self.timeFormatter.string(from: t))
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
+                                            .accessibilityHidden(true)
                                     }
                                     if isAdminMode && status != .present && status != .excused {
                                         Text("Tap to change…")
@@ -1053,6 +1031,7 @@ private func numPad(
                     .foregroundStyle(tint)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Delete")
         }
     }
 }

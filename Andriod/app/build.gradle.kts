@@ -1,9 +1,26 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// Supabase credentials live in Andriod/secrets.properties (gitignored).
+// Copy secrets.properties.example and fill in the values, or set the
+// same names as environment variables (CI).
+val secrets = Properties().apply {
+    val file = rootProject.file("secrets.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun secret(name: String): String =
+    secrets.getProperty(name)
+        ?: System.getenv(name)
+        ?: throw GradleException(
+            "Missing $name — copy secrets.properties.example to secrets.properties and fill it in."
+        )
 
 android {
     namespace = "com.example.tavattendance"
@@ -20,8 +37,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        buildConfigField("String", "SUPABASE_PROJECT_URL", "\"https://zgikcbsxzjgbigywxbbj.supabase.co\"")
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpnaWtjYnN4empnYmlneXd4YmJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwODc4MjcsImV4cCI6MjA5NDY2MzgyN30.Qc6aN2qsA9G1GxXUDduXlDXp08qADPcvB_W1ucD0dE0\"")
+        buildConfigField("String", "SUPABASE_PROJECT_URL", "\"${secret("SUPABASE_PROJECT_URL")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${secret("SUPABASE_ANON_KEY")}\"")
     }
 
     buildTypes {
@@ -39,6 +56,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -67,6 +85,7 @@ dependencies {
     implementation(platform(libs.supabase.bom))
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.auth)
+    implementation(libs.supabase.storage)
     implementation(libs.ktor.client.okhttp)
 
     testImplementation(libs.junit)

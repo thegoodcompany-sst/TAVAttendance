@@ -112,7 +112,7 @@ struct RosterView: View {
     // MARK: - Roster List
 
     private var rosterList: some View {
-        List(displayedRoster) { entry in
+        List(roster) { entry in
             rosterRow(entry)
                 .listRowSeparator(.visible)
                 .onTapGesture { selectedStudent = entry }
@@ -183,14 +183,10 @@ struct RosterView: View {
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Mark as \(fullLabel(for: status))")
     }
 
     // MARK: - Computed helpers
-
-    private var displayedRoster: [RosterEntry] {
-        // Overlay pending statuses on top of server-fetched roster
-        roster
-    }
 
     private var hasPendingUnsynced: Bool {
         pendingStore.allPending().contains { $0.sessionId == session.id }
@@ -333,6 +329,15 @@ struct RosterView: View {
         case .absent:  return "A"
         case .late:    return "L"
         case .excused: return "E"
+        }
+    }
+
+    private func fullLabel(for status: AttendanceStatus) -> String {
+        switch status {
+        case .present: return "Present"
+        case .absent:  return "Absent"
+        case .late:    return "Late"
+        case .excused: return "Excused"
         }
     }
 }

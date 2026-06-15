@@ -214,7 +214,7 @@ Credentials are no longer hardcoded in source. Each platform loads them at build
 | Platform | Location | Notes |
 |---|---|---|
 | iOS | `Config.xcconfig` (gitignored) → `Info.plist` via `$(SUPABASE_PROJECT_URL)` | Copy `Config.xcconfig.example` to `Config.xcconfig` and fill in values. Read via `Bundle.main.object(forInfoDictionaryKey:)` in `SupabaseManager.swift`. |
-| Android | `app/build.gradle.kts` → `buildConfigField` | Defined in `defaultConfig` block. Accessed via `BuildConfig.SUPABASE_PROJECT_URL` in `SupabaseClient.kt`. |
+| Android | `Andriod/secrets.properties` (gitignored) → `buildConfigField` | Copy `secrets.properties.example` to `secrets.properties` and fill in values (or set env vars in CI). `build.gradle.kts` reads it at configure time; accessed via `BuildConfig.SUPABASE_PROJECT_URL` in `SupabaseClient.kt`. |
 | Web | Environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Standard Next.js pattern. Set in Vercel dashboard or `.env.local`. |
 
 ## Error handling improvements

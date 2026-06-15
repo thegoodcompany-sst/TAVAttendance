@@ -35,9 +35,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>SUPABASE_PROJECT_URL</key>
-	<string>$(SUPABASE_PROJECT_URL)</string>
-	<key>SUPABASE_ANON_KEY</key>
-	<string>$(SUPABASE_ANON_KEY)</string>
 </dict>
 </plist>

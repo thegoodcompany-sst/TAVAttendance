@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { todayInTz, yesterdayInTz } from '@/lib/date'
+import { todayInTz, yesterdayInTz, dateOffsetInTz } from '@/lib/date'
 import { worstStatus, type AttendanceStatus } from '@/lib/status'
 
 export type StudentTodayEntry = {
@@ -21,7 +21,7 @@ async function getRosterForDate(date: string): Promise<StudentTodayEntry[]> {
       id,
       class:classes(name, schedule_time),
       attendance_records(student_id, status, marked_at),
-      enrollments!inner(student_id, is_active, student:students(id, full_name))
+      enrollments!inner(student_id, is_active, student:students(id, full_name, is_active))
     `)
     .eq('session_date', date)
     .eq('enrollments.is_active', true)
@@ -39,6 +39,9 @@ async function getRosterForDate(date: string): Promise<StudentTodayEntry[]> {
     for (const enr of enrollments) {
       const student = enr.student
       if (!student) continue
+      // QA-02: skip students who have been deactivated even if enrollment is
+      // still active — mirrors the iOS kiosk behaviour.
+      if (student.is_active === false) continue
       const sid = student.id
       const rec = (session.attendance_records as any[])?.find(
         (r: any) => r.student_id === sid
@@ -232,6 +235,109 @@ export async function getStudent(id: string) {
   return data
 }
 
+// ── PDPA ────────────────────────────────────────────────────────────────
+
+export type PolicyDocument = {
+  title: string
+  body: string
+  version: string
+  publishedAt: string
+}
+
+/**
+ * The current Data Protection Notice (PDPA s20). Any authenticated user can
+ * read `policy_documents`. Returns null if none is published yet.
+ */
+export async function getPrivacyNotice(): Promise<PolicyDocument | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('policy_documents')
+    .select('title, body, version, published_at')
+    .eq('doc_type', 'data_protection_notice')
+    .eq('is_current', true)
+    .order('published_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(`getPrivacyNotice: ${error.message}`)
+  }
+  if (!data) return null
+  return {
+    title: data.title,
+    body: data.body,
+    version: data.version,
+    publishedAt: data.published_at,
+  }
+}
+
+export type ConsentRecord = {
+  consentType: string
+  status: 'granted' | 'withdrawn'
+  method: string
+  noticeVersion: string | null
+  createdAt: string
+}
+
+/**
+ * Current consent state per consent_type for a student (PDPA s13–17).
+ * Reads the `current_consent` view (latest row per (student, type)).
+ */
+export async function getStudentConsent(studentId: string): Promise<ConsentRecord[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('current_consent')
+    .select('consent_type, status, method, notice_version, created_at')
+    .eq('student_id', studentId)
+    .order('consent_type')
+
+  if (error) {
+    throw new Error(`getStudentConsent: ${error.message}`)
+  }
+  return (data ?? []).map((r: any) => ({
+    consentType: r.consent_type,
+    status: r.status,
+    method: r.method,
+    noticeVersion: r.notice_version,
+    createdAt: r.created_at,
+  }))
+}
+
+export type PendingCorrection = {
+  id: string
+  studentId: string
+  studentName: string
+  fieldName: string
+  currentValue: string | null
+  requestedValue: string | null
+  createdAt: string
+}
+
+/**
+ * Admin review queue: correction requests still awaiting a decision (PDPA s22).
+ */
+export async function getPendingCorrections(): Promise<PendingCorrection[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('correction_requests')
+    .select('id, student_id, field_name, current_value, requested_value, created_at, student:students(full_name)')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`getPendingCorrections: ${error.message}`)
+  }
+  return (data ?? []).map((r: any) => ({
+    id: r.id,
+    studentId: r.student_id,
+    studentName: r.student?.full_name ?? 'Unknown',
+    fieldName: r.field_name,
+    currentValue: r.current_value,
+    requestedValue: r.requested_value,
+    createdAt: r.created_at,
+  }))
+}
+
 export type DailyAttendancePoint = {
   date: string
   present: number
@@ -242,12 +348,10 @@ export async function getDailyAttendance(days = 14): Promise<DailyAttendancePoin
   const supabase = await createClient()
   const today = todayInTz()
 
-  const startDate = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Singapore',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(Date.now() - (days - 1) * 86400000))
+  // QA-07 / SP-03: derive the start date using calendar arithmetic in the
+  // Singapore timezone so that near-midnight the window is never off by a day.
+  // dateOffsetInTz(-(days-1)) gives the SGT calendar date (days-1) days ago.
+  const startDate = dateOffsetInTz(-(days - 1))
 
   const { data, error } = await supabase
     .from('sessions')
@@ -259,16 +363,11 @@ export async function getDailyAttendance(days = 14): Promise<DailyAttendancePoin
     throw new Error(`getDailyAttendance: ${error.message}`)
   }
 
+  // Pre-populate the map with every SGT calendar date in the window so days
+  // with no sessions still appear in the output with zero counts.
   const map = new Map<string, { present: number; late: number }>()
-
   for (let i = 0; i < days; i++) {
-    const d = new Date(Date.now() - (days - 1 - i) * 86400000)
-    const dateStr = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Singapore',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(d)
+    const dateStr = dateOffsetInTz(-(days - 1 - i))
     map.set(dateStr, { present: 0, late: 0 })
   }
 

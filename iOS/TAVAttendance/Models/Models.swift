@@ -305,6 +305,90 @@ struct ResultSlip: Codable, Identifiable {
     }
 }
 
+// MARK: - PDPA: policy documents (privacy notice)
+
+struct PolicyDocument: Codable, Identifiable {
+    let id: UUID
+    let docType: String
+    let version: String
+    let title: String
+    let body: String
+    let isCurrent: Bool
+    let publishedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, version, title, body
+        case docType     = "doc_type"
+        case isCurrent   = "is_current"
+        case publishedAt = "published_at"
+    }
+}
+
+// MARK: - PDPA: consent ledger
+
+enum ConsentStatus: String, Codable {
+    case granted
+    case withdrawn
+}
+
+/// Latest consent row per (student_id, consent_type) — decoded from `current_consent` view.
+struct ConsentRecord: Codable, Identifiable {
+    let studentId: UUID
+    let consentType: String
+    let status: ConsentStatus
+    let method: String
+    let noticeVersion: String?
+    let grantedBy: UUID?
+    let parentId: UUID?
+    let createdAt: Date?
+
+    // current_consent has no id column; use the (student, type) pair as identity.
+    var id: String { "\(studentId.uuidString)-\(consentType)" }
+
+    enum CodingKeys: String, CodingKey {
+        case status, method
+        case studentId     = "student_id"
+        case consentType   = "consent_type"
+        case noticeVersion = "notice_version"
+        case grantedBy     = "granted_by"
+        case parentId      = "parent_id"
+        case createdAt     = "created_at"
+    }
+}
+
+// MARK: - PDPA: correction requests
+
+enum CorrectionStatus: String, Codable {
+    case pending, applied, rejected
+}
+
+struct CorrectionRequest: Codable, Identifiable {
+    let id: UUID
+    let studentId: UUID
+    let requestedBy: UUID?
+    let fieldName: String
+    let currentValue: String?
+    let requestedValue: String?
+    let status: CorrectionStatus
+    let reviewedBy: UUID?
+    let reviewedAt: Date?
+    let reviewNote: String?
+    let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, status
+        case studentId      = "student_id"
+        case requestedBy    = "requested_by"
+        case fieldName      = "field_name"
+        case currentValue   = "current_value"
+        case requestedValue = "requested_value"
+        case reviewedBy     = "reviewed_by"
+        case reviewedAt     = "reviewed_at"
+        case reviewNote     = "review_note"
+        case createdAt      = "created_at"
+    }
+}
+
 // Fetched with a PostgREST join for the student profile history sheet
 struct AttendanceHistoryRecord: Codable, Identifiable {
     let id: UUID

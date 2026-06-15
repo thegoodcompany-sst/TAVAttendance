@@ -10,6 +10,10 @@ struct StudentImportView: View {
     @State private var isImporting = false
     @State private var importResult: String? = nil
 
+    // PDPA consent attestation
+    @State private var consentObtained = false
+    @State private var noticeVersion: String?
+
     var body: some View {
         NavigationStack {
             Form {
@@ -35,6 +39,14 @@ struct StudentImportView: View {
                         }
                     }
                     Section {
+                        Toggle(isOn: $consentObtained) {
+                            Text("Parent/guardian consent obtained for all \(parsedRows.count) children")
+                        }
+                    } footer: {
+                        Text("Required (PDPA). Confirm consent was obtained offline for every student in this file. A consent record is logged for each on import.")
+                    }
+
+                    Section {
                         Button {
                             Task { await doImport() }
                         } label: {
@@ -48,7 +60,7 @@ struct StudentImportView: View {
                                 Spacer()
                             }
                         }
-                        .disabled(isImporting)
+                        .disabled(isImporting || !consentObtained)
                     }
                 }
 
@@ -80,6 +92,9 @@ struct StudentImportView: View {
                 if case .success(let url) = result {
                     parseCSV(url: url)
                 }
+            }
+            .task {
+                noticeVersion = try? await AttendanceService.shared.fetchPrivacyNotice()?.version
             }
         }
     }
@@ -119,19 +134,30 @@ struct StudentImportView: View {
         importResult = nil
     }
 
-    /// Minimal RFC-4180–aware CSV line splitter (handles quoted fields with embedded commas/newlines).
+    /// Minimal RFC-4180–aware CSV line splitter (handles quoted fields with embedded commas
+    /// and escaped double-quotes: "" inside a quoted field represents a literal ").
     private func parseCSVLine(_ line: String) -> [String] {
         var fields: [String] = []
         var current = ""
         var inQuotes = false
-        var iter = line.unicodeScalars.makeIterator()
+        var scalars = Array(line.unicodeScalars)
+        var i = scalars.startIndex
 
-        while let ch = iter.next() {
+        while i < scalars.endIndex {
+            let ch = scalars[i]
             switch ch {
             case "\"":
                 if inQuotes {
-                    // peek for escaped quote
-                    inQuotes = false
+                    // Peek at the next character — if it is also a quote this is an
+                    // RFC-4180 escaped quote ("" → literal "); otherwise it closes the field.
+                    let next = scalars.index(after: i)
+                    if next < scalars.endIndex && scalars[next] == "\"" {
+                        current.unicodeScalars.append("\"")
+                        i = scalars.index(after: next)  // skip both quotes
+                        continue
+                    } else {
+                        inQuotes = false
+                    }
                 } else {
                     inQuotes = true
                 }
@@ -145,6 +171,7 @@ struct StudentImportView: View {
             default:
                 current.unicodeScalars.append(ch)
             }
+            i = scalars.index(after: i)
         }
         fields.append(current)
         return fields
@@ -158,12 +185,21 @@ struct StudentImportView: View {
     // MARK: - Import action
 
     private func doImport() async {
+        // PDPA: hard guard — never import without attested consent.
+        guard consentObtained else {
+            importErrors.append("Confirm parental/guardian consent before importing.")
+            return
+        }
         isImporting = true
         defer { isImporting = false }
         do {
             let created = try await AttendanceService.shared.bulkCreateStudents(parsedRows)
-            importResult = "Successfully imported \(created.count) student(s)."
+            // Log a consent record for each newly-created student.
+            try await AttendanceService.shared.recordConsentBulk(
+                studentIds: created.map(\.id), noticeVersion: noticeVersion)
+            importResult = "Successfully imported \(created.count) student(s) and logged consent."
             parsedRows = []
+            consentObtained = false
         } catch {
             importErrors.append("Import failed: \(error.localizedDescription)")
         }

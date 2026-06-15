@@ -11,6 +11,8 @@ struct StudentManagementView: View {
     @State private var studentToDelete: Student?
     @State private var showingDeleteConfirm = false
     @State private var showingImport = false
+    @State private var privacyStudent: Student?
+    @State private var showingCorrections = false
 
     var body: some View {
         NavigationStack {
@@ -55,6 +57,18 @@ struct StudentManagementView: View {
                                     }
                                     .tint(.blue)
                                 }
+                                .contextMenu {
+                                    Button {
+                                        editingStudent = student
+                                    } label: {
+                                        Label("Edit", systemImage: "pencil")
+                                    }
+                                    Button {
+                                        privacyStudent = student
+                                    } label: {
+                                        Label("Privacy & Data (PDPA)", systemImage: "hand.raised")
+                                    }
+                                }
                         }
                     }
                 }
@@ -62,10 +76,19 @@ struct StudentManagementView: View {
             .navigationTitle("Students")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button {
-                        showingImport = true
+                    Menu {
+                        Button {
+                            showingImport = true
+                        } label: {
+                            Label("Import from CSV", systemImage: "square.and.arrow.down")
+                        }
+                        Button {
+                            showingCorrections = true
+                        } label: {
+                            Label("Correction Requests", systemImage: "pencil.and.list.clipboard")
+                        }
                     } label: {
-                        Label("Import from CSV", systemImage: "square.and.arrow.down")
+                        Image(systemName: "ellipsis.circle")
                     }
                     Button {
                         showingAddStudent = true
@@ -83,6 +106,12 @@ struct StudentManagementView: View {
             }
             .sheet(isPresented: $showingImport) {
                 StudentImportView()
+            }
+            .sheet(item: $privacyStudent) { student in
+                StudentPrivacyView(student: student) { Task { await load() } }
+            }
+            .sheet(isPresented: $showingCorrections) {
+                CorrectionRequestsView()
             }
             .confirmationDialog(
                 "Remove \(studentToDelete?.fullName ?? "student")?",
