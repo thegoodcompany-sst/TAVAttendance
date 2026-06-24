@@ -18,7 +18,10 @@ struct TAVAShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: MarkAttendanceIntent(),
             phrases: [
-                "Mark \(\.$student) as \(\.$status) in \(.applicationName)",
+                // App Shortcut phrases allow at most one parameter each; Siri prompts
+                // for the status after resolving the student.
+                "Mark \(\.$student)'s attendance in \(.applicationName)",
+                "Set \(\.$student)'s attendance in \(.applicationName)",
                 "Mark attendance with \(.applicationName)",
             ],
             shortTitle: "Mark Attendance",
