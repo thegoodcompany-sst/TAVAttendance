@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct StudentFormView: View {
     enum Mode {
@@ -10,12 +11,18 @@ struct StudentFormView: View {
     var onSave: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var featureFlags: FeatureFlagStore
 
     @State private var fullName = ""
     @State private var school = ""
     @State private var yearOfStudy = ""
     @State private var isSaving = false
     @State private var errorMessage: String?
+
+    // PROD-04 photo upload (edit mode only; gated by the student_photos flag).
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isUploadingPhoto = false
+    @State private var photoUploaded = false
 
     // PDPA consent attestation (create mode only)
     @State private var consentObtained = false
@@ -38,6 +45,25 @@ struct StudentFormView: View {
                     TextField("Full name *", text: $fullName)
                     TextField("School", text: $school)
                     TextField("Year of study (e.g. Sec 2, JC1)", text: $yearOfStudy)
+                }
+
+                if case .edit(let student) = mode, featureFlags.isEnabled(.studentPhotos) {
+                    Section("Photo") {
+                        PhotosPicker(selection: $photoItem, matching: .images) {
+                            HStack {
+                                Label(photoUploaded || student.avatarUrl != nil ? "Change Photo" : "Add Photo",
+                                      systemImage: "person.crop.circle.badge.plus")
+                                Spacer()
+                                if isUploadingPhoto { ProgressView() }
+                                else if photoUploaded { Image(systemName: "checkmark").foregroundStyle(.green) }
+                            }
+                        }
+                        .disabled(isUploadingPhoto)
+                        .onChange(of: photoItem) { _, item in
+                            guard let item else { return }
+                            Task { await uploadPhoto(item, studentId: student.id) }
+                        }
+                    }
                 }
 
                 if !isEditing {
@@ -84,6 +110,19 @@ struct StudentFormView: View {
     private var isEditing: Bool {
         if case .edit = mode { return true }
         return false
+    }
+
+    private func uploadPhoto(_ item: PhotosPickerItem, studentId: UUID) async {
+        isUploadingPhoto = true
+        defer { isUploadingPhoto = false }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else { return }
+            _ = try await AttendanceService.shared.uploadStudentPhoto(
+                studentId: studentId, fileData: data, fileName: "photo.jpg", mime: "image/jpeg")
+            photoUploaded = true
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private var saveDisabled: Bool {

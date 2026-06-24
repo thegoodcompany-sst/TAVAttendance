@@ -53,6 +53,8 @@ final class AuthManager: ObservableObject {
                 .execute()
                 .value
             currentProfile = profile
+            // Refresh feature flags once we have an authenticated session.
+            await FeatureFlagStore.shared.load()
         } catch {
             print("AuthManager: failed to fetch profile — \(error)")
         }

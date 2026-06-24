@@ -43,7 +43,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // DEVOPS-02: shrink + obfuscate release builds. The keep rules in
+            // proguard-rules.pro preserve the kotlinx-serialization / Supabase
+            // metadata that runtime decoding relies on.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

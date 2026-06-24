@@ -24,7 +24,10 @@ If either FK is ever renamed or the column renamed, update the select string in 
 Every time the kiosk tab loads, `getOrCreateSession` is called for every active class. This means today's session rows exist in Postgres from the moment the kiosk is first opened, even if no one has attended yet. This is intentional (so the roster is ready before class starts) but be aware when querying session counts.
 
 ### Offline sync idempotency
-`PendingAttendanceStore` persists pending records in UserDefaults. The `sync_attendance` Postgres function uses `ON CONFLICT ... WHERE marked_at <= EXCLUDED.marked_at` — a more recent server record will NOT be overwritten by an older offline record. Device clock accuracy matters; if a device's clock is badly wrong, sync may silently skip its records.
+`PendingAttendanceStore` persists pending records in UserDefaults. The `sync_attendance` Postgres function uses `ON CONFLICT ... WHERE marked_at <= EXCLUDED.marked_at` — a more recent server record will NOT be overwritten by an older offline record. Device clock accuracy matters; if a device's clock is badly wrong, sync may silently skip its records. As of migration 013 the function returns `{synced, skipped, blocked_ended_session}` — `blocked_ended_session` counts records rejected because their session had already ended (distinct from `skipped`, which means a newer server record won), and a second `ON CONFLICT (client_mutation_id) DO NOTHING` path prevents an unhandled unique-violation.
+
+### Feature flags
+The `feature_flags` table (migration 012) gates in-progress features; flags ship OFF. Read it via `FeatureFlagStore` (iOS, `Services/FeatureFlags.swift`), `FeatureFlags` (Android), or `getFeatureFlags()` (web, `lib/feature-flags.ts`). Current keys: `parent_portal` (PROD-01), `push_notifications` (PROD-02), `student_photos` (PROD-04). Flipping a flag is admin-only (RLS). The parent portal needs no new RLS — parent read policies for `students`/`attendance_records` already exist in `002_rls.sql`.
 
 ---
 
@@ -143,8 +146,8 @@ There is no automated test suite. Manual testing checklist:
 | Platform | Command | Working directory |
 |---|---|---|
 | iOS | `bash scripts/test_ios.sh` | `iOS/` |
-| Android | `./gradlew test` | `Andriod/` (note: directory name is misspelled in repo) |
-| Web | `pnpm test` | `web/` |
+| Android | `./gradlew test` | `Android/` |
+| Web | `npm run build` / `npm run lint` | `web/` |
 
 ---
 
@@ -156,35 +159,34 @@ After implementing any iOS feature, before declaring the task done:
 2. Output a **paste-ready prompt block** (see template below) under a heading **"📋 Android port handoff"** containing:
    - One-paragraph feature summary (what was built and why).
    - Bulleted list of iOS files changed with a one-line purpose each.
-   - Equivalent Android file targets (see `Andriod/PORTING_NOTES.md` for the mapping once it exists; until then, use the mapping table at the bottom of this section).
+   - Equivalent Android file targets (see `Android/PORTING_NOTES.md` for the mapping).
    - Any new Supabase columns, RPCs, or Storage buckets the Android code must call.
    - A sample unit test the Android agent should write (mirroring the corresponding iOS XCTest).
 3. Output the same block under **"📋 Web port handoff"** for the `web/` package.
 
 > **The user pastes each block into a fresh agent invocation — do NOT spawn the porting agent automatically.** Each port is a separate review cycle.
 
-### iOS → Android file mapping (until PORTING_NOTES.md exists)
+### iOS → Android file mapping
+
+The authoritative mapping now lives in `Android/PORTING_NOTES.md`. Quick reference:
 
 | iOS file | Android equivalent |
 |---|---|
 | `Models/Models.swift` | `data/models/Models.kt` |
 | `Services/AttendanceService.swift` | `data/service/AttendanceService.kt` |
+| `Services/FeatureFlags.swift` | `data/service/FeatureFlags.kt` |
 | `Views/Kiosk/GlobalKioskView.swift` | `screens/kiosk/GlobalKioskScreen.kt` |
+| `Views/Parent/ParentDashboardView.swift` | `screens/ParentDashboardScreen.kt` *(UI pending)* |
 | `Views/Session/StudentProfileView.swift` | `screens/StudentProfileSheet.kt` |
 | `Views/Session/RosterView.swift` | `screens/RosterScreen.kt` |
-| `Views/Session/SessionListView.swift` | `screens/SessionListScreen.kt` |
 | `Views/Admin/ClassFormView.swift` | `screens/ClassFormDialog.kt` |
 | `Views/Admin/StudentManagementView.swift` | `screens/StudentManagementScreen.kt` |
-| `Views/Admin/ExportView.swift` | *(new)* `screens/ExportScreen.kt` |
-| `Views/Admin/StudentImportView.swift` | *(new)* `screens/StudentImportScreen.kt` |
-| `Views/Admin/ParentLinkView.swift` | *(new)* `screens/ParentLinkScreen.kt` |
 
 ### Paste-ready prompt template
 
 ```
 You are porting iOS feature changes to the Android app at
-/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Andriod/
-(note: directory name is misspelled — "Andriod" not "Android").
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Android/
 
 ## Feature summary
 [one paragraph]
@@ -193,7 +195,7 @@ You are porting iOS feature changes to the Android app at
 - `iOS/TAVAttendance/[path]` — [purpose]
 
 ## Android targets
-- `Andriod/app/src/main/java/com/example/tavattendance/[path]` — [purpose]
+- `Android/app/src/main/java/com/example/tavattendance/[path]` — [purpose]
 
 ## New Supabase schema (must be consumed by Android)
 - [list new columns, RPCs, buckets]
@@ -214,7 +216,7 @@ Credentials are no longer hardcoded in source. Each platform loads them at build
 | Platform | Location | Notes |
 |---|---|---|
 | iOS | `Config.xcconfig` (gitignored) → `Info.plist` via `$(SUPABASE_PROJECT_URL)` | Copy `Config.xcconfig.example` to `Config.xcconfig` and fill in values. Read via `Bundle.main.object(forInfoDictionaryKey:)` in `SupabaseManager.swift`. |
-| Android | `Andriod/secrets.properties` (gitignored) → `buildConfigField` | Copy `secrets.properties.example` to `secrets.properties` and fill in values (or set env vars in CI). `build.gradle.kts` reads it at configure time; accessed via `BuildConfig.SUPABASE_PROJECT_URL` in `SupabaseClient.kt`. |
+| Android | `Android/secrets.properties` (gitignored) → `buildConfigField` | Copy `secrets.properties.example` to `secrets.properties` and fill in values (or set env vars in CI). `build.gradle.kts` reads it at configure time; accessed via `BuildConfig.SUPABASE_PROJECT_URL` in `SupabaseClient.kt`. |
 | Web | Environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Standard Next.js pattern. Set in Vercel dashboard or `.env.local`. |
 
 ## Error handling improvements

@@ -18,6 +18,9 @@
 		313617761ED161A0A3D09850 /* ClassEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA18DB9555C7936A4D227EC /* ClassEntity.swift */; };
 		444135573C1FE2B662F582F6 /* TodayAttendanceSummaryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEC7D4C66DA385710F81DC6 /* TodayAttendanceSummaryIntent.swift */; };
 		45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64ADFF510704F740AA4F9A37 /* AttendanceService.swift */; };
+		FF11000000000000000000A1 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF11000000000000000000A2 /* FeatureFlags.swift */; };
+		FF11000000000000000000B1 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF11000000000000000000B2 /* PushManager.swift */; };
+		FF11000000000000000000C1 /* ParentDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF11000000000000000000C2 /* ParentDashboardView.swift */; };
 		48407CE22BE54FB050C3242C /* StudentProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */; };
 		48D38D79344B863C708969C2 /* PrivacyNoticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01FF2DBA483058541024A0D /* PrivacyNoticeView.swift */; };
 		4A5DA3CF97AEE047612EA4B8 /* StudentManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27779637419CBFBFEA14E32A /* StudentManagementView.swift */; };
@@ -74,6 +77,9 @@
 		5CAA9B963B7BEE4160883812 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		626807EE6AA6433E29B7EEF5 /* TAVAShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TAVAShortcuts.swift; sourceTree = "<group>"; };
 		64ADFF510704F740AA4F9A37 /* AttendanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceService.swift; sourceTree = "<group>"; };
+		FF11000000000000000000A2 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
+		FF11000000000000000000B2 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
+		FF11000000000000000000C2 /* ParentDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentDashboardView.swift; sourceTree = "<group>"; };
 		76DF1807148A196AA37C1204 /* ParentLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentLinkView.swift; sourceTree = "<group>"; };
 		79BF5AC4077D5D181F5C1813 /* MarkAttendanceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkAttendanceIntent.swift; sourceTree = "<group>"; };
 		81CC1BD809880605E561BC0F /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
@@ -175,6 +181,7 @@
 			isa = PBXGroup;
 			children = (
 				64ADFF510704F740AA4F9A37 /* AttendanceService.swift */,
+				FF11000000000000000000A2 /* FeatureFlags.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -183,6 +190,7 @@
 			isa = PBXGroup;
 			children = (
 				81CC1BD809880605E561BC0F /* AppError.swift */,
+				FF11000000000000000000B2 /* PushManager.swift */,
 				24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */,
 				543023F8203B0054936C6A20 /* NetworkMonitor.swift */,
 				C1DE5F56BB1FCDC540A6E5A6 /* PDPAValidation.swift */,
@@ -209,9 +217,18 @@
 				D392CAF894665DE241C00943 /* Auth */,
 				F6109F62D7656F7E3193D086 /* Classes */,
 				1B55B3E13467DB71518CC4F2 /* Kiosk */,
+				FF11000000000000000000D1 /* Parent */,
 				44A6EFC23E15DF3807ED8E4B /* Session */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		FF11000000000000000000D1 /* Parent */ = {
+			isa = PBXGroup;
+			children = (
+				FF11000000000000000000C2 /* ParentDashboardView.swift */,
+			);
+			path = Parent;
 			sourceTree = "<group>";
 		};
 		D1EEFEA62629B5D8271E1429 /* Admin */ = {
@@ -355,6 +372,9 @@
 			files = (
 				135C5B0F8A62B43146F4B8C3 /* AppError.swift in Sources */,
 				45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */,
+				FF11000000000000000000A1 /* FeatureFlags.swift in Sources */,
+				FF11000000000000000000B1 /* PushManager.swift in Sources */,
+				FF11000000000000000000C1 /* ParentDashboardView.swift in Sources */,
 				7A8E8AB674B8766A7D6C91C6 /* AttendanceStatusAppEnum.swift in Sources */,
 				6E41513F3BD4A9FB3BBC2722 /* AuthManager.swift in Sources */,
 				AD5545A3F3C8DFC0847B191E /* CheckStudentStatusIntent.swift in Sources */,

@@ -48,12 +48,16 @@ struct Student: Codable, Identifiable {
     let school: String?
     let yearOfStudy: String?
     let isActive: Bool
+    // PROD-04: storage path to the student's photo in the `student-photos` bucket.
+    // nil until uploaded; only shown when the `student_photos` feature flag is on.
+    let avatarUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case id, school
         case fullName    = "full_name"
         case yearOfStudy = "year_of_study"
         case isActive    = "is_active"
+        case avatarUrl   = "avatar_url"
     }
 }
 
@@ -128,6 +132,7 @@ struct RosterEntry: Codable, Identifiable {
     let markedAt: Date?
     var notes: String?
     var lateReason: String?
+    let avatarUrl: String?   // PROD-04; nil unless a photo was uploaded
 
     var id: UUID { studentId }
 
@@ -138,6 +143,7 @@ struct RosterEntry: Codable, Identifiable {
         case attendanceId = "attendance_id"
         case markedAt     = "marked_at"
         case lateReason   = "late_reason"
+        case avatarUrl    = "avatar_url"
     }
 }
 
@@ -219,6 +225,7 @@ struct KioskEntry: Identifiable {
     var markedAt: Date?             // device-local time of the most recent marking this session
     var dismissedAt: Date?          // set when admin marks student as dismissed; attendance status unchanged
     var lateReason: String?         // admin-entered reason for late arrival
+    var avatarUrl: String?          // PROD-04; storage path, shown when student_photos flag is on
     var id: UUID { studentId }
 
     // Attending = physically present, whether on time or late (excludes absent/excused)

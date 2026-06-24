@@ -3,6 +3,8 @@ import SwiftUI
 import UIKit
 
 struct GlobalKioskView: View {
+    @EnvironmentObject private var featureFlags: FeatureFlagStore
+
     @AppStorage("kioskPIN") private var storedPIN = ""
     @AppStorage("kioskLocked") private var isLocked = false
 
@@ -21,9 +23,41 @@ struct GlobalKioskView: View {
 
     @State private var error: AppError? = nil
 
+    // UX-02 search; QA-06 PIN-reset alert; UX-03 bulk confirm; UX-07 status info.
+    @State private var searchText = ""
+    @State private var showPINResetAlert = false
+    @State private var pendingBulk: PendingBulkAction? = nil
+    @State private var showStatusInfo = false
+
+    // 30s kiosk auto-refresh (UX-01).
+    private let autoRefresh = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16)]
 
     private var isAdminMode: Bool { !isLocked && (!storedPIN.isEmpty ? isAdminUnlocked : true) }
+
+    enum PendingBulkAction: Equatable {
+        case status(AttendanceStatus)
+        case dismiss
+
+        var title: String {
+            switch self {
+            case .status(.late):    return "Late"
+            case .status(.present): return "On Time"
+            case .status(.excused): return "Not Here"
+            case .status(.absent):  return "Absent"
+            case .status:           return "Update"
+            case .dismiss:          return "Dismissed"
+            }
+        }
+    }
+
+    // UX-02: filter the grid by name.
+    private var filteredEntries: [KioskEntry] {
+        let q = searchText.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return entries }
+        return entries.filter { $0.fullName.localizedCaseInsensitiveContains(q) }
+    }
 
     var body: some View {
         ZStack {
@@ -45,28 +79,35 @@ struct GlobalKioskView: View {
                     )
                     Spacer()
                 } else {
+                    if !isSelectionMode { kioskSearchBar }
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(entries) { entry in
-                                KioskCard(
-                                    entry: entry,
-                                    isPending: pendingIds.contains(entry.studentId),
-                                    isAdminMode: isAdminMode,
-                                    isSelectionMode: isSelectionMode,
-                                    isSelected: selectedIds.contains(entry.studentId)
-                                ) { action in
-                                    Task { await handle(action, for: entry) }
-                                } onToggleSelection: {
-                                    if selectedIds.contains(entry.studentId) {
-                                        selectedIds.remove(entry.studentId)
-                                    } else {
-                                        selectedIds.insert(entry.studentId)
+                        if filteredEntries.isEmpty {
+                            ContentUnavailableView.search(text: searchText)
+                                .padding(.top, 60)
+                        } else {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(filteredEntries) { entry in
+                                    KioskCard(
+                                        entry: entry,
+                                        isPending: pendingIds.contains(entry.studentId),
+                                        isAdminMode: isAdminMode,
+                                        isSelectionMode: isSelectionMode,
+                                        isSelected: selectedIds.contains(entry.studentId),
+                                        showPhoto: featureFlags.isEnabled(.studentPhotos)
+                                    ) { action in
+                                        Task { await handle(action, for: entry) }
+                                    } onToggleSelection: {
+                                        if selectedIds.contains(entry.studentId) {
+                                            selectedIds.remove(entry.studentId)
+                                        } else {
+                                            selectedIds.insert(entry.studentId)
+                                        }
                                     }
                                 }
                             }
+                            .padding(24)
+                            .padding(.bottom, isSelectionMode ? 88 : 0)
                         }
-                        .padding(24)
-                        .padding(.bottom, isSelectionMode ? 88 : 0)
                     }
                     .refreshable { await load() }
                 }
@@ -100,10 +141,45 @@ struct GlobalKioskView: View {
                 if storedPIN.count == 4 && storedPIN.allSatisfy(\.isNumber) {
                     storedPIN = hashPIN(storedPIN)
                 } else {
-                    storedPIN = ""  // unrecognised format — require PIN reset
+                    // QA-06: an unrecognised PIN format is cleared (so the admin isn't
+                    // locked out), but warn them so the kiosk isn't silently left open.
+                    storedPIN = ""
+                    showPINResetAlert = true
                 }
             }
             await load()
+        }
+        .onReceive(autoRefresh) { _ in
+            // UX-01: keep the kiosk fresh when other devices mark students. Skip
+            // while the admin is mid-interaction (selection / PIN entry / loading).
+            guard !isSelectionMode, !showPINEntry, !isLoading else { return }
+            Task { await load() }
+        }
+        .alert("Kiosk PIN Reset", isPresented: $showPINResetAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The saved kiosk PIN was in an unrecognised format and has been cleared. The kiosk is currently unlocked — please set a new PIN in Kiosk Settings.")
+        }
+        .confirmationDialog(
+            bulkConfirmTitle,
+            isPresented: Binding(get: { pendingBulk != nil }, set: { if !$0 { pendingBulk = nil } }),
+            titleVisibility: .visible
+        ) {
+            // UX-03: confirm bulk actions, naming the action + count.
+            if let bulk = pendingBulk {
+                Button("\(bulk.title) · \(selectedIds.count) student\(selectedIds.count == 1 ? "" : "s")",
+                       role: bulk == .status(.absent) ? .destructive : nil) {
+                    runBulk(bulk)
+                }
+            }
+            Button("Cancel", role: .cancel) { pendingBulk = nil }
+        } message: {
+            Text("Apply “\(pendingBulk?.title ?? "")” to \(selectedIds.count) selected student\(selectedIds.count == 1 ? "" : "s")?")
+        }
+        .alert("Not Here vs Absent", isPresented: $showStatusInfo) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("“Not Here” (excused) is a soft mark — the student can still tap their card to sign in. “Absent” is a firm admin mark — only an admin can undo it.")
         }
         .onChange(of: isLocked) { _, locked in
             if locked {
@@ -202,22 +278,36 @@ struct GlobalKioskView: View {
     private var selectionActionBar: some View {
         VStack(spacing: 0) {
             Divider()
+            HStack {
+                Spacer()
+                // UX-07: explain the "Not Here" vs "Absent" distinction.
+                Button {
+                    showStatusInfo = true
+                } label: {
+                    Label("What's the difference?", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 8)
             HStack(spacing: 12) {
                 SelectionActionButton(title: "Late", icon: "clock.badge.exclamationmark.fill", color: .orange, disabled: selectedIds.isEmpty) {
-                    Task { await applyBulkAction(.late) }
+                    pendingBulk = .status(.late)
                 }
                 SelectionActionButton(title: "On Time", icon: "checkmark.circle.fill", color: .green, disabled: selectedIds.isEmpty) {
-                    Task { await applyBulkAction(.present) }
+                    pendingBulk = .status(.present)
                 }
                 SelectionActionButton(title: "Not Here", icon: "person.badge.minus", color: Color(.secondaryLabel), disabled: selectedIds.isEmpty) {
-                    Task { await applyBulkAction(.excused) }
+                    pendingBulk = .status(.excused)
                 }
                 if isAdminMode {
                     SelectionActionButton(title: "Absent", icon: "person.slash.fill", color: .red, disabled: selectedIds.isEmpty) {
-                        Task { await applyBulkAction(.absent) }
+                        pendingBulk = .status(.absent)
                     }
                     SelectionActionButton(title: "Dismiss", icon: "figure.walk.departure", color: .purple, disabled: selectedIds.isEmpty) {
-                        Task { await applyBulkDismiss() }
+                        pendingBulk = .dismiss
                     }
                 }
             }
@@ -226,6 +316,40 @@ struct GlobalKioskView: View {
             .padding(.bottom, 24)
             .background(.bar)
         }
+    }
+
+    private var bulkConfirmTitle: String {
+        guard let bulk = pendingBulk else { return "" }
+        return "Mark \(selectedIds.count) as \(bulk.title)?"
+    }
+
+    private func runBulk(_ bulk: PendingBulkAction) {
+        pendingBulk = nil
+        switch bulk {
+        case .status(let status): Task { await applyBulkAction(status) }
+        case .dismiss:            Task { await applyBulkDismiss() }
+        }
+    }
+
+    // UX-02: search bar (the kiosk isn't inside a NavigationStack, so .searchable
+    // isn't available — a plain field keeps it self-contained).
+    private var kioskSearchBar: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("Search students…", text: $searchText)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled()
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(10)
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
     }
 
     private func applyBulkAction(_ status: AttendanceStatus) async {
@@ -440,12 +564,15 @@ private struct KioskCard: View {
     let isAdminMode: Bool
     let isSelectionMode: Bool
     let isSelected: Bool
+    let showPhoto: Bool
     let onAction: (GlobalKioskView.KioskAction) -> Void
     let onToggleSelection: () -> Void
 
     @State private var showLateReason = false
     @State private var showLateReasonAlert = false
     @State private var showMarkPresentConfirm = false
+    @State private var showAbsentSignInConfirm = false   // UX-04
+    @State private var photoURL: URL? = nil               // PROD-04
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none; return f
@@ -484,7 +611,9 @@ private struct KioskCard: View {
         case .late:    return "Late"
         case .absent:  return "Absent"
         case .excused: return "Not Here"
-        case nil:      return ""
+        // A11Y-02: give the unsigned state a text label too, so it doesn't rely on
+        // a grey icon alone to be distinguished from "Not Here".
+        case nil:      return "Not Signed In"
         }
     }
 
@@ -500,8 +629,10 @@ private struct KioskCard: View {
     private var canTap: Bool {
         if isSelectionMode { return true }
         guard !entry.isDismissed else { return false }
-        return entry.status == nil || entry.status == .excused ||
-            (isAdminMode && (entry.status == .late || entry.status == .absent))
+        // UX-04: absent cards are tappable for students too, to raise an "Are you
+        // here?" confirmation (an escape hatch from an accidental absent mark).
+        return entry.status == nil || entry.status == .excused || entry.status == .absent ||
+            (isAdminMode && entry.status == .late)
     }
 
     var body: some View {
@@ -512,6 +643,8 @@ private struct KioskCard: View {
             }
             if entry.status == nil || entry.status == .excused {
                 onAction(.signIn)
+            } else if entry.status == .absent && !isAdminMode {
+                showAbsentSignInConfirm = true   // UX-04
             } else if isAdminMode && entry.status != .present {
                 showMarkPresentConfirm = true
             }
@@ -537,10 +670,14 @@ private struct KioskCard: View {
                     ProgressView().controlSize(.large)
                 } else {
                     VStack(spacing: 8) {
-                        Image(systemName: statusIcon)
-                            .font(.system(size: 32, weight: .medium))
-                            .foregroundStyle(statusColor)
-                            .accessibilityLabel(statusLabel)
+                        if showPhoto, entry.avatarUrl != nil {
+                            avatarView   // PROD-04
+                        } else {
+                            Image(systemName: statusIcon)
+                                .font(.system(size: 32, weight: .medium))
+                                .foregroundStyle(statusColor)
+                                .accessibilityLabel(statusLabel)
+                        }
 
                         Text(entry.fullName)
                             .font(.system(size: 15, weight: .semibold))
@@ -549,8 +686,9 @@ private struct KioskCard: View {
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
 
-                        if entry.isDismissed || entry.status != nil {
-                            VStack(spacing: 2) {
+                        // A11Y-02: always show a text status label (including the
+                        // unsigned state) so colour/icon isn't the only signal.
+                        VStack(spacing: 2) {
                                 Text(statusLabel)
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(statusColor)
@@ -589,7 +727,6 @@ private struct KioskCard: View {
                                         Text(reason)
                                     }
                                 }
-                            }
                         }
                     }
                     .padding(.horizontal, 10)
@@ -622,6 +759,48 @@ private struct KioskCard: View {
                 showLateReason = false
             } onCancel: {
                 showLateReason = false
+            }
+        }
+        .confirmationDialog(
+            "Are you here?",
+            isPresented: $showAbsentSignInConfirm,
+            titleVisibility: .visible
+        ) {
+            // UX-04: student escape hatch from an accidental absent mark.
+            Button("Yes, sign me in") { onAction(.signIn) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\(entry.fullName) is marked Absent. Tap to sign in if you're here.")
+        }
+    }
+
+    // PROD-04: student photo with a small status badge, loaded via a signed URL.
+    private var avatarView: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let url = photoURL {
+                    AsyncImage(url: url) { img in
+                        img.resizable().scaledToFill()
+                    } placeholder: {
+                        Color(.systemGray5)
+                    }
+                } else {
+                    Color(.systemGray5)
+                }
+            }
+            .frame(width: 48, height: 48)
+            .clipShape(Circle())
+
+            Image(systemName: statusIcon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(statusColor)
+                .padding(3)
+                .background(Circle().fill(Color(.secondarySystemGroupedBackground)))
+        }
+        .accessibilityLabel(statusLabel)
+        .task {
+            if photoURL == nil, let path = entry.avatarUrl {
+                photoURL = try? await AttendanceService.shared.signedStudentPhotoURL(path: path)
             }
         }
     }

@@ -1,0 +1,15 @@
+#!/bin/sh
+# DEVOPS-03: refuse to commit files containing Supabase secret keys.
+# Enable once per clone:  git config core.hooksPath .githooks
+
+# Scan staged content (added/changed lines) for secret assignments.
+matches=$(git diff --cached -U0 | grep -nE '^\+.*SUPABASE_(ANON|SERVICE_ROLE)_KEY=.+' )
+
+if [ -n "$matches" ]; then
+  echo "✖ pre-commit blocked: a staged change assigns a Supabase key."
+  echo "  Keep keys in gitignored config (Config.xcconfig / secrets.properties / .env.local)."
+  echo "$matches"
+  exit 1
+fi
+
+exit 0

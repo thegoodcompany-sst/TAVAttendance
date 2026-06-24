@@ -12,6 +12,10 @@ struct TutorAssignmentView: View {
     @State private var showingAddSheet = false
     @State private var searchText = ""
 
+    // MAINT-05: optional end date for new assignments (NULL = open-ended).
+    @State private var limitAssignment = false
+    @State private var assignedUntil = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
+
     private var assignedIds: Set<UUID> {
         Set(assignments.map(\.tutorId))
     }
@@ -117,6 +121,15 @@ struct TutorAssignmentView: View {
     private var addTutorSheet: some View {
         NavigationStack {
             List {
+                Section {
+                    Toggle("Set an end date", isOn: $limitAssignment)
+                    if limitAssignment {
+                        DatePicker("Assigned until", selection: $assignedUntil, displayedComponents: .date)
+                    }
+                } footer: {
+                    Text("Leave off for an open-ended assignment. After the end date the teacher loses access to this class.")
+                }
+
                 if allTutors.isEmpty {
                     ContentUnavailableView(
                         "No Teachers",
@@ -181,7 +194,9 @@ struct TutorAssignmentView: View {
 
     private func assign(_ tutor: Profile) async {
         do {
-            try await AttendanceService.shared.assignTutor(tutorId: tutor.id, classId: tavClass.id)
+            try await AttendanceService.shared.assignTutor(
+                tutorId: tutor.id, classId: tavClass.id,
+                assignedUntil: limitAssignment ? assignedUntil : nil)
             assignments = try await AttendanceService.shared.fetchTutorAssignments(classId: tavClass.id)
         } catch {
             self.error = error.localizedDescription

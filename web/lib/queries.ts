@@ -2,7 +2,7 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { todayInTz, yesterdayInTz, dateOffsetInTz } from '@/lib/date'
-import { worstStatus, type AttendanceStatus } from '@/lib/status'
+import { type AttendanceStatus } from '@/lib/status'
 
 export type StudentTodayEntry = {
   studentId: string
@@ -15,66 +15,24 @@ export type StudentTodayEntry = {
 async function getRosterForDate(date: string): Promise<StudentTodayEntry[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('sessions')
-    .select(`
-      id,
-      class:classes(name, schedule_time),
-      attendance_records(student_id, status, marked_at),
-      enrollments!inner(student_id, is_active, student:students(id, full_name, is_active))
-    `)
-    .eq('session_date', date)
-    .eq('enrollments.is_active', true)
+  // PERF-06: use the pre-aggregated `get_roster_for_date` RPC (migration 014)
+  // instead of selecting the full nested sessions→enrollments→records tree, which
+  // PostgREST's max_rows cap does not bound for nested relations. The RPC does the
+  // worst-status merge and class-name aggregation in SQL and returns one row per
+  // student (already deactivation-filtered, matching the former QA-02 behaviour).
+  const { data, error } = await supabase.rpc('get_roster_for_date', { p_date: date })
 
   if (error) {
     throw new Error(`getRosterForDate: ${error.message}`)
   }
 
-  const map = new Map<string, StudentTodayEntry>()
-
-  for (const session of data ?? []) {
-    const className = (session.class as any)?.name ?? 'Unknown'
-    const enrollments = (session.enrollments as any[]) ?? []
-
-    for (const enr of enrollments) {
-      const student = enr.student
-      if (!student) continue
-      // QA-02: skip students who have been deactivated even if enrollment is
-      // still active — mirrors the iOS kiosk behaviour.
-      if (student.is_active === false) continue
-      const sid = student.id
-      const rec = (session.attendance_records as any[])?.find(
-        (r: any) => r.student_id === sid
-      )
-      const recordStatus: AttendanceStatus = rec?.status ?? null
-      const markedAt: string | null = rec?.marked_at ?? null
-
-      const existing = map.get(sid)
-      if (!existing) {
-        map.set(sid, {
-          studentId: sid,
-          fullName: student.full_name,
-          classNames: [className],
-          status: recordStatus,
-          markedAt,
-        })
-      } else {
-        const merged = worstStatus(existing.status, recordStatus)
-        map.set(sid, {
-          ...existing,
-          classNames: existing.classNames.includes(className)
-            ? existing.classNames
-            : [...existing.classNames, className],
-          status: merged,
-          markedAt: merged === recordStatus ? markedAt : existing.markedAt,
-        })
-      }
-    }
-  }
-
-  return Array.from(map.values()).sort((a, b) =>
-    a.fullName.localeCompare(b.fullName)
-  )
+  return (data ?? []).map((r: any) => ({
+    studentId: r.student_id,
+    fullName: r.full_name,
+    classNames: (r.class_names as string[]) ?? [],
+    status: (r.status ?? null) as AttendanceStatus,
+    markedAt: r.marked_at ?? null,
+  }))
 }
 
 export const getTodayRoster = cache((): Promise<StudentTodayEntry[]> => getRosterForDate(todayInTz()))

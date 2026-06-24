@@ -38,7 +38,11 @@ struct StudentProfileView: View {
     private var excusedCount: Int { history.filter { $0.status == .excused }.count }
     private var attendanceRate: Double {
         guard !history.isEmpty else { return 0 }
-        return Double(presentCount + lateCount) / Double(history.count)
+        // QA-08 / PROD-05: match the Postgres `attendance_summary` view, which
+        // counts present + late + excused toward attendance. An excused absence
+        // has a valid reason and should not be penalised; keeping this in sync
+        // means the iOS profile and the web dashboard show the same rate.
+        return Double(presentCount + lateCount + excusedCount) / Double(history.count)
     }
 
     var body: some View {

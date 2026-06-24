@@ -22,6 +22,7 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.time.Duration.Companion.seconds
 
 object AttendanceService {
     private val db get() = SupabaseClient.client
@@ -102,7 +103,10 @@ object AttendanceService {
     }
 
     suspend fun unenrollStudent(studentId: String, classId: String) {
-        db.from("enrollments").update({ set("is_active", false) }) {
+        db.from("enrollments").update({
+            set("is_active", false)
+            set("unenrolled_at", java.time.Instant.now().toString())  // MAINT-04
+        }) {
             filter {
                 eq("student_id", studentId)
                 eq("class_id", classId)
@@ -125,12 +129,14 @@ object AttendanceService {
     @Serializable
     private data class AssignInsert(
         @SerialName("class_id") val classId: String,
-        @SerialName("tutor_id") val tutorId: String
+        @SerialName("tutor_id") val tutorId: String,
+        // MAINT-05: optional end date (NULL = open-ended). Omitted when null.
+        @SerialName("assigned_until") val assignedUntil: String? = null
     )
 
-    suspend fun assignTutor(tutorId: String, classId: String) {
+    suspend fun assignTutor(tutorId: String, classId: String, assignedUntil: String? = null) {
         db.from("class_tutor_assignments").upsert(
-            AssignInsert(classId = classId, tutorId = tutorId)
+            AssignInsert(classId = classId, tutorId = tutorId, assignedUntil = assignedUntil)
         ) { onConflict = "class_id,tutor_id" }
     }
 
@@ -261,7 +267,8 @@ object AttendanceService {
                         fullName = r.fullName,
                         status = r.status,
                         sessions = listOf(slot),
-                        markedAt = rMarkedAt
+                        markedAt = rMarkedAt,
+                        avatarUrl = r.avatarUrl  // PROD-04
                     )
                 }
             }
@@ -326,10 +333,12 @@ object AttendanceService {
         since: String? = null
     ): List<AttendanceHistoryRecord> =
         db.from("attendance_records")
-            .select(Columns.raw("id, status, marked_at, session:sessions(session_date, class:classes(name))")) {
+            // QA-05: filter the window by session_date (the real class date), not
+            // marked_at; `!inner` makes the embedded filter apply to the top-level rows.
+            .select(Columns.raw("id, status, marked_at, session:sessions!inner(session_date, class:classes(name))")) {
                 filter {
                     eq("student_id", studentId)
-                    if (since != null) gte("marked_at", since)
+                    if (since != null) gte("session.session_date", since)
                 }
                 order("marked_at", Order.DESCENDING)
                 limit(limit.toLong())
@@ -459,9 +468,56 @@ object AttendanceService {
      * Returns the storage path used.
      */
     suspend fun uploadResultSlip(studentId: String, fileName: String, bytes: ByteArray): String {
+        // SP-09: reject oversized uploads before hitting Storage (limit 10 MB).
+        require(bytes.size <= 10 * 1024 * 1024) {
+            "This file is too large. Please choose a result slip under 10 MB."
+        }
         val path = "$studentId/$fileName"
         SupabaseClient.client.storage.from("result-slips").upload(path, bytes) { upsert = true }
         return path
+    }
+
+    // ---- Feature flags (012) ----
+
+    suspend fun fetchFeatureFlags(): Map<String, Boolean> =
+        runCatching {
+            db.from("feature_flags").select(Columns.list("key", "enabled"))
+                .decodeList<FeatureFlag>()
+                .associate { it.key to it.enabled }
+        }.getOrDefault(emptyMap())  // fail closed → everything off
+
+    // ---- Student photos (PROD-04, flag: student_photos) ----
+
+    suspend fun uploadStudentPhoto(studentId: String, fileName: String, bytes: ByteArray): String {
+        require(bytes.size <= 5 * 1024 * 1024) {
+            "This photo is too large. Please choose an image under 5 MB."
+        }
+        val path = "$studentId/$fileName"
+        SupabaseClient.client.storage.from("student-photos").upload(path, bytes) { upsert = true }
+        db.from("students").update({ set("avatar_url", path) }) {
+            filter { eq("id", studentId) }
+        }
+        return path
+    }
+
+    suspend fun signedStudentPhotoUrl(path: String): String =
+        SupabaseClient.client.storage.from("student-photos")
+            .createSignedUrl(path, 3600.seconds)
+
+    // ---- Device tokens (PROD-02, flag: push_notifications) ----
+
+    @Serializable
+    private data class TokenInsert(
+        @SerialName("user_id") val userId: String,
+        val token: String,
+        val platform: String
+    )
+
+    suspend fun registerDeviceToken(token: String, platform: String = "android") {
+        val userId = db.auth.currentUserOrNull()?.id ?: return
+        db.from("device_tokens").upsert(
+            TokenInsert(userId = userId, token = token, platform = platform)
+        ) { onConflict = "token" }
     }
 
     @Serializable

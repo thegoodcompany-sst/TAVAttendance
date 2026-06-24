@@ -10,6 +10,7 @@ struct RosterView: View {
     @State private var isSaving = false
     @State private var isEndingClass = false
     @State private var showEndClassConfirm = false
+    @State private var showMarkAbsentConfirm = false
     @State private var endClassError: String? = nil
     @StateObject private var network = NetworkMonitor()
     @StateObject private var pendingStore = PendingAttendanceStore()
@@ -72,6 +73,14 @@ struct RosterView: View {
                     }
                     .disabled(isSaving)
                 }
+                if !unmarkedEntries.isEmpty {
+                    Button {
+                        showMarkAbsentConfirm = true
+                    } label: {
+                        Label("Mark Rest Absent", systemImage: "person.fill.xmark")
+                    }
+                    .disabled(isSaving)
+                }
                 if isEndingClass {
                     ProgressView()
                 } else {
@@ -82,6 +91,18 @@ struct RosterView: View {
                     .disabled(isEndingClass)
                 }
             }
+        }
+        .confirmationDialog(
+            "Mark Remaining as Absent",
+            isPresented: $showMarkAbsentConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Mark \(unmarkedEntries.count) Absent", role: .destructive) {
+                Task { await markAllUnmarkedAbsent() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\(unmarkedEntries.count) student\(unmarkedEntries.count == 1 ? "" : "s") have no status yet. Mark them all as Absent?")
         }
         .confirmationDialog("End Class", isPresented: $showEndClassConfirm, titleVisibility: .visible) {
             Button("End Class", role: .destructive) {
@@ -118,6 +139,7 @@ struct RosterView: View {
                 .onTapGesture { selectedStudent = entry }
         }
         .listStyle(.plain)
+        .refreshable { await refreshRoster() }
         .sheet(item: $selectedStudent) { entry in
             StudentProfileView(studentId: entry.studentId, fullName: entry.fullName)
         }
@@ -192,6 +214,11 @@ struct RosterView: View {
         pendingStore.allPending().contains { $0.sessionId == session.id }
     }
 
+    // PROD-03: students with no status yet (server, pending, or local override).
+    private var unmarkedEntries: [RosterEntry] {
+        roster.filter { effectiveStatus(for: $0) == nil }
+    }
+
     private var navigationTitle: String {
         let dateStr = formattedDate(session.sessionDate)
         return "\(dateStr) · \(tavClass.name)"
@@ -247,6 +274,24 @@ struct RosterView: View {
         }
     }
 
+    // Pull-to-refresh: pull server truth and drop optimistic overrides for rows
+    // that are now reflected server-side. Pending (offline) rows still show via
+    // effectiveStatus's pendingStore fallback. Does not toggle isLoading so the
+    // refresh spinner (not the full-screen ProgressView) is shown.
+    private func refreshRoster() async {
+        if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
+            roster = updated
+            localStatus.removeAll()
+            localMarkedAt.removeAll()
+        }
+    }
+
+    private func markAllUnmarkedAbsent() async {
+        for entry in unmarkedEntries {
+            await markAttendance(entry: entry, status: .absent)
+        }
+    }
+
     private func markAttendance(entry: RosterEntry, status: AttendanceStatus) async {
         // Optimistic update
         localStatus[entry.studentId] = status
@@ -260,14 +305,10 @@ struct RosterView: View {
                     status: status,
                     notes: nil
                 )
-                // Refresh first, then clear local override — clearing before the roster
-                // arrives causes a flicker as SwiftUI briefly falls back to the stale
-                // server value.
-                if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
-                    roster = updated
-                }
-                localStatus.removeValue(forKey: entry.studentId)
-                localMarkedAt.removeValue(forKey: entry.studentId)
+                // PERF-04: trust the optimistic localStatus instead of re-fetching
+                // the whole roster on every tap (a full round-trip + list rebuild for
+                // each button press). The override stays correct until the view is
+                // reloaded via pull-to-refresh or reopen.
             } catch {
                 // Keep local override; fall through to pending store as backup
                 pendingStore.add(

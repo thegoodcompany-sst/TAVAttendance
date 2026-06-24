@@ -6,36 +6,10 @@ private enum ExportFormat: String, CaseIterable {
     case pdf = "PDF"
 }
 
-// A local struct to decode attendance + session date together.
-// PostgREST joins the session row via the FK; we decode only what we need.
-private struct ExportRecord: Codable {
-    let id: UUID?
-    let sessionId: UUID
-    let studentId: UUID
-    let status: AttendanceStatus
-    let markedAt: Date?
-    let lateReason: String?
-    let session: ExportSession?
-
-    struct ExportSession: Codable {
-        let sessionDate: String
-        enum CodingKeys: String, CodingKey { case sessionDate = "session_date" }
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, status, session
-        case sessionId  = "session_id"
-        case studentId  = "student_id"
-        case markedAt   = "marked_at"
-        case lateReason = "late_reason"
-    }
-}
-
 struct ExportView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var classes: [TAVClass] = []
-    @State private var students: [Student] = []
     @State private var selectedClassId: UUID? = nil
     @State private var fromDate: Date = Calendar.current.date(byAdding: .month, value: -1, to: Date()) ?? Date()
     @State private var toDate: Date = Date()
@@ -43,7 +17,7 @@ struct ExportView: View {
     @State private var isExporting = false
     @State private var exportURL: URL? = nil
     @State private var showShare = false
-    @State private var errorMessage: String? = nil
+    // MAINT-07: a single error channel surfaced via `.errorAlert`.
     @State private var error: AppError? = nil
 
     private let isoFmt: DateFormatter = {
@@ -97,11 +71,6 @@ struct ExportView: View {
                     .disabled(selectedClassId == nil || isExporting)
                 }
 
-                if let err = errorMessage {
-                    Section {
-                        Text(err).foregroundStyle(.red).font(.caption)
-                    }
-                }
             }
             .navigationTitle("Export Attendance")
             .navigationBarTitleDisplayMode(.inline)
@@ -111,12 +80,12 @@ struct ExportView: View {
                 }
             }
             .task {
+                // PERF-07: only the class list is needed to render the form;
+                // students are fetched lazily inside export().
                 do {
-                    async let cls = AttendanceService.shared.fetchMyClasses()
-                    async let sts = AttendanceService.shared.fetchAllStudents()
-                    (classes, students) = try await (cls, sts)
+                    classes = try await AttendanceService.shared.fetchMyClasses()
                 } catch {
-                    self.error = AppError("Failed to load data", underlyingError: error)
+                    self.error = AppError("Failed to load classes", underlyingError: error)
                 }
             }
         }
@@ -133,12 +102,14 @@ struct ExportView: View {
     private func export() async {
         guard let classId = selectedClassId else { return }
         isExporting = true
-        errorMessage = nil
         defer { isExporting = false }
 
         do {
-            let records = try await AttendanceService.shared.fetchAttendanceForExport(
+            // PERF-07: fetch students only now, when an export is actually requested.
+            async let recordsFetch = AttendanceService.shared.fetchAttendanceForExport(
                 classId: classId, from: fromDate, to: toDate)
+            async let studentsFetch = AttendanceService.shared.fetchAllStudents()
+            let (records, students) = try await (recordsFetch, studentsFetch)
 
             let studentMap: [UUID: String] = Dictionary(
                 uniqueKeysWithValues: students.map { ($0.id, $0.fullName) })
@@ -154,25 +125,19 @@ struct ExportView: View {
             exportURL = url
             showShare = true
         } catch {
-            errorMessage = error.localizedDescription
+            self.error = AppError("Export failed", underlyingError: error)
         }
     }
 
     private func buildCSV(
-        records: [AttendanceRecord],
+        records: [AttendanceExportRecord],
         studentMap: [UUID: String],
         className: String
     ) throws -> URL {
         var lines = ["Date,Class,Student,Status,Late Reason,Marked At,Dismissed At"]
         for r in records {
-            // markedAt used as proxy for session date (dedicated export query joins sessions but
-            // AttendanceRecord model doesn't carry sessionDate — using markedAt date portion)
-            let dateStr: String
-            if let ma = r.markedAt {
-                dateStr = isoFmt.string(from: ma)
-            } else {
-                dateStr = ""
-            }
+            // QA-04: use the true session date from the joined session, not markedAt.
+            let dateStr = r.sessionDate
             let studentName = studentMap[r.studentId] ?? r.studentId.uuidString
             let markedAtStr: String
             if let ma = r.markedAt {
@@ -207,7 +172,7 @@ struct ExportView: View {
     }
 
     private func buildPDF(
-        records: [AttendanceRecord],
+        records: [AttendanceExportRecord],
         studentMap: [UUID: String],
         className: String
     ) throws -> URL {
@@ -248,8 +213,7 @@ struct ExportView: View {
                     ctx.beginPage()
                     y = 36
                 }
-                let dateStr: String
-                if let ma = r.markedAt { dateStr = isoFmt.string(from: ma) } else { dateStr = "—" }
+                let dateStr = r.sessionDate.isEmpty ? "—" : r.sessionDate
                 let student = studentMap[r.studentId] ?? r.studentId.uuidString
                 let cols = [dateStr, student, className, r.status.rawValue]
                 for (i, col) in cols.enumerated() {

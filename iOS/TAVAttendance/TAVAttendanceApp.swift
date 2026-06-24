@@ -2,7 +2,9 @@ import SwiftUI
 
 @main
 struct TAVAttendanceApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var authManager = AuthManager()
+    @StateObject private var featureFlags = FeatureFlagStore.shared
 
     var body: some Scene {
         WindowGroup {
@@ -10,12 +12,21 @@ struct TAVAttendanceApp: App {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if authManager.isAuthenticated {
-                if authManager.currentProfile?.role == "admin" {
-                    AdminTabView()
-                        .environmentObject(authManager)
-                } else {
-                    ClassListView()
-                        .environmentObject(authManager)
+                Group {
+                    switch authManager.currentProfile?.role {
+                    case "admin":
+                        AdminTabView()
+                    case "parent":
+                        ParentDashboardView()
+                    default:
+                        ClassListView()
+                    }
+                }
+                .environmentObject(authManager)
+                .environmentObject(featureFlags)
+                .task {
+                    // PROD-02: register for push once flags are loaded (no-op while off).
+                    await PushManager.registerIfEnabled()
                 }
             } else {
                 LoginView()

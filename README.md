@@ -1,6 +1,10 @@
 # TAVA Attendance
 
-iPad-native attendance system for TAVA tutoring centre. Built with SwiftUI and Supabase.
+Attendance system for TAVA tutoring centre. An iPad-native kiosk (SwiftUI), an
+Android app (Jetpack Compose), and a web admin dashboard (Next.js), all backed by
+the same Supabase project.
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for full local setup of every platform.
 
 ## What it does today
 
@@ -20,9 +24,23 @@ iPad-native attendance system for TAVA tutoring centre. Built with SwiftUI and S
 
 ## Stack
 
-- **iOS**: SwiftUI, targeting iPad (iPadOS 17+)
-- **Backend**: Supabase (Postgres + PostgREST + Auth)
-- **Offline**: `PendingAttendanceStore` (UserDefaults) → `sync_attendance` RPC on reconnect
+- **iOS**: SwiftUI, targeting iPad (iPadOS 17+) — `iOS/`
+- **Android**: Kotlin + Jetpack Compose — `Android/`
+- **Web**: Next.js admin dashboard — `web/`
+- **Backend**: Supabase (Postgres + PostgREST + Auth + Storage) — `supabase/`
+- **Offline (iOS/Android)**: pending store → `sync_attendance` RPC on reconnect
+
+### Platforms
+
+| Platform | Directory | Run |
+|---|---|---|
+| iOS (kiosk + teacher) | `iOS/` | `open iOS/TAVAttendance.xcodeproj` |
+| Android | `Android/` | `cd Android && ./gradlew installDebug` |
+| Web (admin dashboard) | `web/` | `cd web && npm install && npm run dev` |
+
+Each platform reads Supabase credentials from a gitignored config file — see
+[CONTRIBUTING.md](CONTRIBUTING.md). Feature flags in the `feature_flags` table gate
+in-progress features (parent portal, push notifications, student photos); they ship OFF.
 
 ## Project layout
 
@@ -35,14 +53,15 @@ iOS/TAVAttendance/
     Admin/        Class, student, enrolment, tutor-assignment management
     Auth/         LoginView
     Classes/      ClassListView (teacher entry point)
-    Kiosk/        GlobalKioskView (main kiosk), KioskView (unused stub)
+    Kiosk/        GlobalKioskView (main kiosk)
+    Parent/       ParentDashboardView (flag-gated parent portal)
     Session/      SessionListView, RosterView, StudentProfileView
 
+Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
+web/              Next.js admin dashboard
 supabase/
-  migrations/
-    001_schema.sql   Core tables + Phase 2/3 stubs
-    002_rls.sql      Row-level security for all tables
-    003_functions_triggers.sql  RPCs, audit triggers, attendance_summary view
+  migrations/     001…014 (see supabase/migrations/README.md for the down-migration convention)
+  functions/      notify-parent edge function (PROD-02, flag-gated)
   seed.sql
 ```
 
@@ -55,11 +74,19 @@ supabase start
 # 2. Apply migrations
 supabase db reset
 
-# 3. Open iOS project
+# 3. Configure iOS credentials (NOT by editing source)
+cp iOS/Config.xcconfig.example iOS/Config.xcconfig
+# Fill in SUPABASE_PROJECT_URL + SUPABASE_ANON_KEY. These are read from Info.plist
+# via $(SUPABASE_PROJECT_URL) in SupabaseManager.swift — do not hardcode them in code.
+
+# 4. Open and run the iOS project
 open iOS/TAVAttendance.xcodeproj
-# Edit Core/SupabaseManager.swift with your Supabase URL + anon key
 # Run on an iPad simulator or connected iPad
 ```
+
+For Android (`Android/secrets.properties`) and Web (`web/.env.local`) credential
+setup, plus the Supabase Storage buckets and the local test checklist, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## User accounts
 
@@ -99,8 +126,9 @@ Tables already exist in the schema (`result_slips`, `messages`). RLS is admin-on
 - Admin sees aggregated order, no manual WhatsApp collection
 
 ### Near-term improvements (no new tables needed)
-- **Student photo** on the kiosk card (add `avatar_url` to students, store in Supabase Storage)
-- **Push notifications** via APNs: notify parent when child is marked late or absent
+- **Student photo** on the kiosk card — *built, behind the `student_photos` flag* (`avatar_url` + `student-photos` bucket)
+- **Push notifications** via APNs/FCM — *scaffolded, behind the `push_notifications` flag* (`device_tokens` + `notify-parent` edge function; needs real APNs/FCM keys)
+- **Parent portal** — *built, behind the `parent_portal` flag* (iOS `ParentDashboardView`, web `/parent`)
+- **Bulk absent marking** — *shipped*: "Mark rest absent" in the roster
 - **Teacher notes per session**: the `sessions.notes` column exists, just needs a UI field in RosterView
-- **Bulk absent marking**: "Mark all unmarked as absent" button for end-of-class cleanup
 - **QR / NFC sign-in**: student scans a QR on entry instead of tapping their name card

@@ -105,17 +105,24 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                         studentId = entry.studentId,
                         status = status
                     )
-                    // Remove optimistic override — server confirmed
-                    _localStatus.value = _localStatus.value - entry.studentId
-                    _localMarkedAt.value = _localMarkedAt.value - entry.studentId
-                    // Refresh roster
-                    _roster.value = AttendanceService.fetchRoster(sessionId)
+                    // PERF-04: trust the optimistic override instead of re-fetching the
+                    // whole roster on every tap. The override stays until loadRoster()
+                    // is called again (reopen / pull-to-refresh).
                 }.onFailure {
                     pendingStore.add(sessionId, entry.studentId, status, null)
                 }
             } else {
                 pendingStore.add(sessionId, entry.studentId, status, null)
             }
+        }
+    }
+
+    // PROD-03: students with no status yet (server, pending, or local override).
+    fun unmarkedEntries(): List<RosterEntry> = _roster.value.filter { effectiveStatus(it) == null }
+
+    fun markAllUnmarkedAbsent() {
+        for (entry in unmarkedEntries()) {
+            markAttendance(entry, AttendanceStatus.absent)
         }
     }
 
@@ -187,6 +194,7 @@ fun RosterScreen(
 
     var selectedStudent by remember { mutableStateOf<RosterEntry?>(null) }
     var showEndConfirm by remember { mutableStateOf(false) }
+    var showMarkAbsentConfirm by remember { mutableStateOf(false) }  // PROD-03
 
     val isEndingClass by vm.isEndingClass.collectAsState()
 
@@ -197,6 +205,28 @@ fun RosterScreen(
     fun formatDate(iso: String): String = runCatching {
         prettyFmt.format(isoFmt.parse(iso)!!)
     }.getOrDefault(iso)
+
+    // PROD-03: count students still without a status (reads roster + local overrides).
+    val unmarkedCount = roster.count { vm.effectiveStatus(it) == null }
+
+    if (showMarkAbsentConfirm) {
+        AlertDialog(
+            onDismissRequest = { showMarkAbsentConfirm = false },
+            title = { Text("Mark Remaining as Absent") },
+            text = { Text("$unmarkedCount student${if (unmarkedCount == 1) "" else "s"} have no status yet. Mark them all as Absent?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMarkAbsentConfirm = false
+                    vm.markAllUnmarkedAbsent()
+                }) {
+                    Text("Mark $unmarkedCount Absent", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMarkAbsentConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     if (showEndConfirm) {
         AlertDialog(
@@ -238,6 +268,11 @@ fun RosterScreen(
                     if (isOnline && vm.hasPendingUnsynced()) {
                         IconButton(onClick = { vm.syncPending() }, enabled = !isSaving) {
                             Icon(Icons.Default.Refresh, contentDescription = "Sync")
+                        }
+                    }
+                    if (unmarkedCount > 0 && !isEndingClass) {
+                        TextButton(onClick = { showMarkAbsentConfirm = true }, enabled = !isSaving) {
+                            Text("Absent rest")
                         }
                     }
                     if (isEndingClass) {

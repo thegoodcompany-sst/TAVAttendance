@@ -16,6 +16,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     .eq('id', user.id)
     .single()
 
+  // PROD-01: send parents to their own area instead of a dead-end "Access denied".
+  if (profile?.role === 'parent') redirect('/parent')
+
   if (profile?.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">

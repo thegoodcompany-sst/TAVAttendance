@@ -58,7 +58,9 @@ export default async function OverviewPage() {
   const present = roster.filter(s => s.status === 'present')
   const late    = roster.filter(s => s.status === 'late')
   const notHere = roster.filter(s => !s.status)
-  const other   = roster.filter(s => s.status === 'absent' || s.status === 'excused')
+  // SP-08: separate Absent from Excused so each has its own count and section.
+  const absent  = roster.filter(s => s.status === 'absent')
+  const excused = roster.filter(s => s.status === 'excused')
 
   const dayLabel = new Intl.DateTimeFormat('en-SG', {
     timeZone: 'Asia/Singapore',
@@ -109,29 +111,47 @@ export default async function OverviewPage() {
           </div>
         )}
 
-        {other.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Absent / Excused
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {other.map(s => (
-                <div
-                  key={s.studentId}
-                  className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]"
-                >
-                  <Avatar name={s.fullName} size="sm" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{s.fullName}</p>
-                    <p className="text-xs text-muted-foreground truncate">{s.classNames.join(', ')}</p>
-                  </div>
-                  <StatusBadge status={s.status} />
-                </div>
-              ))}
-            </div>
+        {(absent.length > 0 || excused.length > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <OtherSection title="Absent" students={absent} accent="text-rose-600" />
+            <OtherSection title="Excused" students={excused} accent="text-slate-500" />
           </div>
         )}
       </div>
     </>
+  )
+}
+
+function OtherSection({
+  title,
+  students,
+  accent,
+}: {
+  title: string
+  students: StudentTodayEntry[]
+  accent: string
+}) {
+  if (students.length === 0) return null
+  return (
+    <div>
+      <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${accent}`}>
+        {title} · {students.length}
+      </p>
+      <div className="space-y-3">
+        {students.map(s => (
+          <div
+            key={s.studentId}
+            className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]"
+          >
+            <Avatar name={s.fullName} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{s.fullName}</p>
+              <p className="text-xs text-muted-foreground truncate">{s.classNames.join(', ')}</p>
+            </div>
+            <StatusBadge status={s.status} />
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }

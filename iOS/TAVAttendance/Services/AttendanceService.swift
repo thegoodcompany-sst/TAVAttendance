@@ -68,8 +68,18 @@ final class AttendanceService {
     }
 
     func unenrollStudent(studentId: UUID, classId: UUID) async throws {
+        // MAINT-04: record when the unenrolment happened, not just is_active=false.
+        struct Unenroll: Encodable {
+            let isActive: Bool
+            let unenrolledAt: String
+            enum CodingKeys: String, CodingKey {
+                case isActive = "is_active"
+                case unenrolledAt = "unenrolled_at"
+            }
+        }
+        let now = ISO8601DateFormatter().string(from: Date())
         try await db.from("enrollments")
-            .update(["is_active": false])
+            .update(Unenroll(isActive: false, unenrolledAt: now))
             .eq("student_id", value: studentId).eq("class_id", value: classId)
             .execute()
     }
@@ -89,15 +99,21 @@ final class AttendanceService {
             .execute().value
     }
 
-    func assignTutor(tutorId: UUID, classId: UUID) async throws {
+    func assignTutor(tutorId: UUID, classId: UUID, assignedUntil: Date? = nil) async throws {
+        // MAINT-05: assigned_until can now be set (an end date for the assignment);
+        // tutor_owns_class() honours it (NULL = open-ended). nil omits the column.
         struct AssignInsert: Encodable {
-            let classId: UUID; let tutorId: UUID
+            let classId: UUID; let tutorId: UUID; let assignedUntil: String?
             enum CodingKeys: String, CodingKey {
-                case classId = "class_id"; case tutorId = "tutor_id"
+                case classId = "class_id"; case tutorId = "tutor_id"; case assignedUntil = "assigned_until"
             }
         }
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        let untilStr = assignedUntil.map { fmt.string(from: $0) }
         try await db.from("class_tutor_assignments")
-            .upsert(AssignInsert(classId: classId, tutorId: tutorId), onConflict: "class_id,tutor_id")
+            .upsert(AssignInsert(classId: classId, tutorId: tutorId, assignedUntil: untilStr), onConflict: "class_id,tutor_id")
             .execute()
     }
 
@@ -152,15 +168,12 @@ final class AttendanceService {
 
     /// Clears ended_at, reopening the session for attendance marking.
     func resumeSession(id: UUID) async throws {
-        struct Patch: Encodable {
-            enum CodingKeys: String, CodingKey { case endedAt = "ended_at" }
-            func encode(to encoder: Encoder) throws {
-                var c = encoder.container(keyedBy: CodingKeys.self)
-                try c.encodeNil(forKey: .endedAt)
-            }
-        }
+        // SP-10: send an explicit JSON null for ended_at. The SDK omits nil-valued
+        // Encodable properties (which would leave ended_at unchanged), so use
+        // AnyJSON.null instead of a hand-rolled encoder that future SDK changes
+        // could silently break.
         try await db.from("sessions")
-            .update(Patch())
+            .update(["ended_at": AnyJSON.null])
             .eq("id", value: id)
             .execute()
     }
@@ -225,7 +238,8 @@ final class AttendanceService {
                     } else {
                         entryMap[r.studentId] = KioskEntry(
                             studentId: r.studentId, fullName: r.fullName,
-                            status: r.status, sessions: [slot], markedAt: r.markedAt)
+                            status: r.status, sessions: [slot], markedAt: r.markedAt,
+                            avatarUrl: r.avatarUrl)
                     }
                 }
             }
@@ -279,15 +293,20 @@ final class AttendanceService {
 
     /// Fetches a student's recent attendance history with class name, for the profile sheet.
     func fetchStudentAttendanceHistory(studentId: UUID, limit: Int = 100, since: Date? = nil) async throws -> [AttendanceHistoryRecord] {
+        // QA-05: the `since` window must filter on the session date (the real class
+        // date), not marked_at. An offline record marked weeks ago but synced today
+        // belongs in the window for its session date. `!inner` makes session an INNER
+        // join so the embedded `session_date` filter applies to the top-level rows.
         var filterBuilder = db
             .from("attendance_records")
-            .select("id, status, marked_at, session:sessions(session_date, class:classes(name))")
+            .select("id, status, marked_at, session:sessions!inner(session_date, class:classes(name))")
             .eq("student_id", value: studentId)
 
         if let since {
-            let iso = ISO8601DateFormatter()
-            iso.formatOptions = [.withInternetDateTime]
-            filterBuilder = filterBuilder.gte("marked_at", value: iso.string(from: since))
+            let fmt = DateFormatter()
+            fmt.dateFormat = "yyyy-MM-dd"
+            fmt.locale = Locale(identifier: "en_US_POSIX")
+            filterBuilder = filterBuilder.gte("session.session_date", value: fmt.string(from: since))
         }
 
         return try await filterBuilder
@@ -393,6 +412,12 @@ final class AttendanceService {
         score: Double?,
         maxScore: Double?
     ) async throws -> ResultSlip {
+        // SP-09: reject oversized uploads client-side before hitting Storage, with a
+        // clear message rather than an opaque server error. Limit: 10 MB.
+        let maxBytes = 10 * 1024 * 1024
+        guard fileData.count <= maxBytes else {
+            throw AppError("This file is too large. Please choose a result slip under 10 MB.")
+        }
         let path = "\(studentId.uuidString)/\(UUID().uuidString)-\(fileName)"
         try await db.storage.from("result-slips")
             .upload(path: path, file: fileData, options: .init(contentType: mime, upsert: false))
@@ -636,17 +661,94 @@ final class AttendanceService {
             .execute()
     }
 
+    // MARK: - Student photos (PROD-04, flag: student_photos)
+
+    /// Uploads a student photo to the `student-photos` bucket and stores its path
+    /// on the student row. Returns the storage path.
+    func uploadStudentPhoto(studentId: UUID, fileData: Data, fileName: String, mime: String) async throws -> String {
+        let maxBytes = 5 * 1024 * 1024
+        guard fileData.count <= maxBytes else {
+            throw AppError("This photo is too large. Please choose an image under 5 MB.")
+        }
+        let path = "\(studentId.uuidString)/\(UUID().uuidString)-\(fileName)"
+        try await db.storage.from("student-photos")
+            .upload(path: path, file: fileData, options: .init(contentType: mime, upsert: true))
+        try await db.from("students")
+            .update(["avatar_url": path])
+            .eq("id", value: studentId)
+            .execute()
+        return path
+    }
+
+    /// A short-lived signed URL for a private student photo path.
+    func signedStudentPhotoURL(path: String) async throws -> URL {
+        try await db.storage.from("student-photos").createSignedURL(path: path, expiresIn: 3600)
+    }
+
+    // MARK: - Device tokens (PROD-02, flag: push_notifications)
+
+    /// Registers this device's push token for the signed-in user so the
+    /// notify-parent edge function can reach them. Idempotent on the token.
+    func registerDeviceToken(_ token: String, platform: String = "ios") async throws {
+        struct TokenInsert: Encodable {
+            let userId: UUID; let token: String; let platform: String
+            enum CodingKeys: String, CodingKey {
+                case userId = "user_id"; case token; case platform
+            }
+        }
+        let userId = try await db.auth.session.user.id
+        try await db.from("device_tokens")
+            .upsert(TokenInsert(userId: userId, token: token, platform: platform), onConflict: "token")
+            .execute()
+    }
+
     // MARK: - Export helpers (#7)
 
     /// Fetches all attendance records for a class within a date range, for export.
-    func fetchAttendanceForExport(classId: UUID, from: Date, to: Date) async throws -> [AttendanceRecord] {
+    ///
+    /// DOC-05: the `session:sessions!inner(...)` modifier is an INNER join — the
+    /// `!inner` is required so that records whose session falls outside the date
+    /// filter are excluded. Dropping `!inner` would turn this into a LEFT join and
+    /// pull in every attendance row regardless of `session.session_date`. See
+    /// PostgREST resource embedding docs ("!inner").
+    ///
+    /// QA-04 / MAINT-06: returns the joined `session_date` so the export uses the
+    /// true session date (not `marked_at`, which is wrong for offline-synced rows).
+    func fetchAttendanceForExport(classId: UUID, from: Date, to: Date) async throws -> [AttendanceExportRecord] {
         let fmt = DateFormatter(); fmt.dateFormat = "yyyy-MM-dd"
         return try await db.from("attendance_records")
-            .select("*, session:sessions!inner(session_date, class_id)")
+            .select("student_id, status, marked_at, late_reason, session:sessions!inner(session_date, class_id)")
             .eq("session.class_id", value: classId.uuidString)
             .gte("session.session_date", value: fmt.string(from: from))
             .lte("session.session_date", value: fmt.string(from: to))
             .order("session.session_date", ascending: true)
             .execute().value
+    }
+}
+
+/// Attendance row joined with its session date, used by the export screen.
+/// QA-04: carries the authoritative `session_date` so the CSV/PDF "Date" column
+/// is correct even for records that were marked offline and synced on a later day.
+struct AttendanceExportRecord: Codable {
+    let studentId: UUID
+    let status: AttendanceStatus
+    let markedAt: Date?
+    let lateReason: String?
+    let session: SessionDate
+
+    /// The session date is the true class date; `sessionDate` is "yyyy-MM-dd".
+    var sessionDate: String { session.sessionDate }
+
+    struct SessionDate: Codable {
+        let sessionDate: String
+        enum CodingKeys: String, CodingKey { case sessionDate = "session_date" }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case studentId  = "student_id"
+        case status
+        case markedAt   = "marked_at"
+        case lateReason = "late_reason"
+        case session
     }
 }

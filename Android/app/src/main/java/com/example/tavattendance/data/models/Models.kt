@@ -29,7 +29,10 @@ data class Student(
     @SerialName("full_name") val fullName: String,
     val school: String? = null,
     @SerialName("year_of_study") val yearOfStudy: String? = null,
-    @SerialName("is_active") val isActive: Boolean = true
+    @SerialName("is_active") val isActive: Boolean = true,
+    // PROD-04: storage path to the student's photo; shown only when the
+    // student_photos feature flag is on.
+    @SerialName("avatar_url") val avatarUrl: String? = null
 )
 
 @Serializable
@@ -74,7 +77,8 @@ data class RosterEntry(
     @SerialName("attendance_id") val attendanceId: String? = null,
     val status: AttendanceStatus? = null,
     @SerialName("marked_at") val markedAt: String? = null,
-    val notes: String? = null
+    val notes: String? = null,
+    @SerialName("avatar_url") val avatarUrl: String? = null  // PROD-04
 )
 
 @Serializable
@@ -123,10 +127,17 @@ data class KioskEntry(
     val fullName: String,
     var status: AttendanceStatus?,
     var sessions: List<KioskSession>,
-    var markedAt: String? = null
+    var markedAt: String? = null,
+    var avatarUrl: String? = null  // PROD-04
 ) {
     val isAttending: Boolean get() = status == AttendanceStatus.present || status == AttendanceStatus.late
 }
+
+@Serializable
+data class FeatureFlag(
+    val key: String,
+    val enabled: Boolean
+)
 
 // ---- PDPA models ----
 

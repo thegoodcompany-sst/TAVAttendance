@@ -35,6 +35,9 @@ export function Avatar({ name, size = 'md', className }: AvatarProps) {
 
   return (
     <div
+      // A11Y-05: announce the full name to screen readers, not the initials.
+      role="img"
+      aria-label={name}
       className={cn(
         'rounded-full flex items-center justify-center font-semibold flex-shrink-0',
         colorFor(name),
@@ -42,7 +45,7 @@ export function Avatar({ name, size = 'md', className }: AvatarProps) {
         className
       )}
     >
-      {initials}
+      <span aria-hidden="true">{initials}</span>
     </div>
   )
 }

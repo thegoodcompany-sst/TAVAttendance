@@ -37,7 +37,8 @@ class StudentProfileViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            val since30Days = Instant.now().minusSeconds(30L * 24 * 3600).toString()
+            // QA-05: filter by session_date, so pass a yyyy-MM-dd date (not a timestamp).
+            val since30Days = java.time.LocalDate.now().minusDays(30).toString()
             runCatching {
                 _history.value = AttendanceService.fetchStudentAttendanceHistory(
                     studentId = studentId, limit = 100, since = since30Days
@@ -66,8 +67,10 @@ fun StudentProfileSheet(
     val lateCount = history.count { it.status == AttendanceStatus.late }
     val absentCount = history.count { it.status == AttendanceStatus.absent }
     val excusedCount = history.count { it.status == AttendanceStatus.excused }
+    // QA-08 / PROD-05: count present + late + excused toward attendance, matching
+    // the Postgres attendance_summary view and the iOS profile.
     val attendanceRate = if (history.isNotEmpty())
-        (presentCount + lateCount).toFloat() / history.size else 0f
+        (presentCount + lateCount + excusedCount).toFloat() / history.size else 0f
 
     val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val prettyFmt = SimpleDateFormat("MMM d, yyyy", Locale.US)
