@@ -5,16 +5,18 @@ import { FlagsList, type FlagRow } from './flags-list'
 
 export default async function FeatureFlagsPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError) throw authError
 
   // Hide the route's existence from ordinary admins (the (admin) layout already
   // guarantees user is a signed-in admin).
   if (!isSuperadmin(user)) notFound()
 
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from('feature_flags')
     .select('key, enabled, description, updated_at')
     .order('key', { ascending: true })
+  if (queryError) throw queryError
 
   const flags = (data ?? []) as FlagRow[]
 
