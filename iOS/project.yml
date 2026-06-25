@@ -30,6 +30,11 @@ targets:
         CFBundleDisplayName: TAVAttendance
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        # Supabase credentials: values live in the gitignored Config.xcconfig;
+        # Info.plist only references the build settings (so secrets stay out of source).
+        # Read at runtime via Bundle.main.object(forInfoDictionaryKey:) in SupabaseManager.
+        SUPABASE_PROJECT_URL: "$(SUPABASE_PROJECT_URL)"
+        SUPABASE_ANON_KEY: "$(SUPABASE_ANON_KEY)"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

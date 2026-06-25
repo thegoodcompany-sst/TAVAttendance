@@ -1,4 +1,7 @@
 // Config.xcconfig.example — Copy to Config.xcconfig and fill in values
 // Config.xcconfig is gitignored
-SUPABASE_PROJECT_URL = https://your-project.supabase.co
+// NOTE: `//` starts a comment in .xcconfig, so the URL's slashes must be split
+// with an empty `$()` reference (it expands to nothing); do NOT wrap the value
+// in quotes. Result resolves to https://your-project.supabase.co
+SUPABASE_PROJECT_URL = https:/$()/your-project.supabase.co
 SUPABASE_ANON_KEY = your-anon-key-here
