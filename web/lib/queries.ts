@@ -55,16 +55,20 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
   const supabase = await createClient()
   const today = todayInTz()
 
+  // There is no direct FK between `sessions` and `enrollments` — both reference
+  // `classes` (sessions.class_id, enrollments.class_id). PostgREST cannot infer an
+  // indirect relationship, so enrollments must be embedded through the class:
+  // sessions → classes → enrollments. Embedding it directly on `sessions` 500s the
+  // whole dashboard with PGRST200 ("Could not find a relationship").
   const { data, error } = await supabase
     .from('sessions')
     .select(`
       id,
-      class:classes(name, schedule_time),
-      attendance_records(status),
-      enrollments:enrollments!inner(is_active)
+      class:classes!inner(name, schedule_time, enrollments:enrollments!inner(is_active)),
+      attendance_records(status)
     `)
     .eq('session_date', today)
-    .eq('enrollments.is_active', true)
+    .eq('class.enrollments.is_active', true)
 
   if (error) {
     throw new Error(`getTodaySessions: ${error.message}`)
@@ -72,7 +76,7 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
 
   return (data ?? []).map((s: any) => {
     const records: Array<{ status: string }> = s.attendance_records ?? []
-    const total = (s.enrollments as any[])?.length ?? 0
+    const total = (s.class?.enrollments as any[])?.length ?? 0
     return {
       sessionId: s.id,
       className: s.class?.name ?? 'Unknown',
