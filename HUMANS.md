@@ -146,6 +146,30 @@ Supabase status subscription described in `CONTRIBUTING.md` §6.
 
 ---
 
+## E. Superadmin feature-flags web section (2026-06-25)
+
+A `/feature-flags` admin page now lets the superadmin toggle the `feature_flags`
+rows from the web dashboard (an alternative to the SQL in §16). Access is gated
+**app-layer only** to one email — the DB RLS write policy stays at `is_admin()`
+(intentional; documented in `web/lib/superadmin.ts` and the design spec).
+
+### ☐ 21. (Optional) Set `SUPERADMIN_EMAIL` in Vercel
+The gate defaults to `edmund@thegoodcompanysg.dev` if unset, so nothing is required
+to keep current behaviour. To change who can access the section, set the
+`SUPERADMIN_EMAIL` env var (no `NEXT_PUBLIC_` prefix — it must stay server-side) in
+the Vercel project and redeploy.
+
+### ☐ 22. Manual sign-in verification (needs the running app + real accounts)
+Cannot be automated (requires Supabase auth + accounts). With the web app running:
+- Sign in as `edmund@thegoodcompanysg.dev`: a **"Feature Flags"** link appears in the
+  sidebar (and mobile nav); `/feature-flags` lists the seeded flags
+  (`parent_portal`, `push_notifications`, `student_photos`); toggling a flag persists
+  across a page reload.
+- Sign in as a **different admin**: no "Feature Flags" link, and visiting
+  `/feature-flags` directly returns a **404**.
+
+---
+
 ## Notes
 - Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the new
   `anonymise_student/erase_student/export_student_personal_data` SECURITY DEFINER functions are
