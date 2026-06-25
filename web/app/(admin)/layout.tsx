@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SignOutButton } from '@/components/sign-out-button'
 import { Sidebar } from '@/components/dashboard/sidebar'
+import { isSuperadmin } from '@/lib/superadmin'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -34,10 +35,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const userName = profile.full_name ?? 'Admin'
+  const superadmin = isSuperadmin(user)
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar userName={userName} />
+      <Sidebar userName={userName} isSuperadmin={superadmin} />
 
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile top nav */}
@@ -50,6 +52,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 { href: '/overview', label: 'Overview' },
                 { href: '/students', label: 'Students' },
                 { href: '/users', label: 'Users' },
+                ...(superadmin ? [{ href: '/feature-flags', label: 'Flags' }] : []),
               ].map(item => (
                 <Link
                   key={item.href}

@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, BarChart3, Users, UserPlus } from 'lucide-react'
+import { CalendarDays, BarChart3, Users, UserPlus, Flag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from './avatar'
 
@@ -14,8 +14,11 @@ const NAV = [
   { href: '/users', label: 'Users', Icon: UserPlus },
 ]
 
-export function Sidebar({ userName }: { userName: string }) {
+export function Sidebar({ userName, isSuperadmin = false }: { userName: string; isSuperadmin?: boolean }) {
   const pathname = usePathname()
+  const nav = isSuperadmin
+    ? [...NAV, { href: '/feature-flags', label: 'Feature Flags', Icon: Flag }]
+    : NAV
 
   return (
     <aside className="group hidden md:flex flex-col w-[92px] hover:w-[216px] transition-[width] duration-200 ease-in-out min-h-screen bg-white border-r border-border py-5 gap-1 sticky top-0 h-screen flex-shrink-0 overflow-hidden z-20">
@@ -34,7 +37,7 @@ export function Sidebar({ userName }: { userName: string }) {
 
       {/* Nav */}
       <nav className="flex flex-col gap-1 flex-1 w-full px-2">
-        {NAV.map(({ href, label, Icon }) => {
+        {nav.map(({ href, label, Icon }) => {
           const active = pathname === href
           return (
             <Link
