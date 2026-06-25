@@ -31,6 +31,8 @@ DROP TABLE IF EXISTS device_tokens;
 
 DROP POLICY IF EXISTS "student-photos: admin all" ON storage.objects;
 DROP POLICY IF EXISTS "student-photos: auth read" ON storage.objects;
+DROP POLICY IF EXISTS "student-photos: tutor read" ON storage.objects;
+DROP POLICY IF EXISTS "student-photos: parent read" ON storage.objects;
 DELETE FROM storage.buckets WHERE id = 'student-photos';
 
 ALTER TABLE students DROP COLUMN IF EXISTS avatar_url;

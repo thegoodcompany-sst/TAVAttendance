@@ -19,10 +19,18 @@ interface Payload {
 
 Deno.serve(async (req: Request) => {
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    )
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+    // This function is server-to-server only: it is invoked by the DB trigger
+    // (pg_net) with the service-role key, and it exposes which students have
+    // linked parents / device tokens. Reject any other caller so an ordinary
+    // authenticated user cannot enumerate that via the bearer token.
+    const auth = req.headers.get('Authorization') ?? ''
+    if (auth !== `Bearer ${serviceKey}`) {
+      return Response.json({ error: 'forbidden' }, { status: 403 })
+    }
+
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey)
 
     // Gate: do nothing unless the feature flag is on.
     const { data: flag } = await supabase.rpc('is_feature_enabled', {

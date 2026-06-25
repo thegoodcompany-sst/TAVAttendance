@@ -13,24 +13,50 @@
 -- ════════════════════════════════════════════════════════════════
 ALTER TABLE students ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
--- Private bucket; admins upload, any authenticated user may read (tutors on
--- the roster, parents on the portal). Path convention mirrors result-slips:
--- "<student_id>/<file>".
+-- Private bucket. Read access is scoped to who may already see the student
+-- (mirrors the `students` table RLS) — a student photo is personal data of a
+-- minor, so it must NOT be world-readable to every authenticated account.
+-- Path convention mirrors result-slips: "<student_id>/<file>" — the first folder
+-- segment is the student_id.
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('student-photos', 'student-photos', FALSE)
 ON CONFLICT (id) DO UPDATE SET public = FALSE;
 
-DROP POLICY IF EXISTS "student-photos: admin all"   ON storage.objects;
-DROP POLICY IF EXISTS "student-photos: auth read"   ON storage.objects;
+DROP POLICY IF EXISTS "student-photos: admin all"     ON storage.objects;
+DROP POLICY IF EXISTS "student-photos: auth read"     ON storage.objects;
+DROP POLICY IF EXISTS "student-photos: tutor read"    ON storage.objects;
+DROP POLICY IF EXISTS "student-photos: parent read"   ON storage.objects;
 
 CREATE POLICY "student-photos: admin all"
     ON storage.objects FOR ALL TO authenticated
     USING (bucket_id = 'student-photos' AND is_admin())
     WITH CHECK (bucket_id = 'student-photos' AND is_admin());
 
-CREATE POLICY "student-photos: auth read"
+-- Tutors may read photos of students enrolled in the classes they are assigned to.
+CREATE POLICY "student-photos: tutor read"
     ON storage.objects FOR SELECT TO authenticated
-    USING (bucket_id = 'student-photos');
+    USING (
+        bucket_id = 'student-photos'
+        AND is_tutor()
+        AND EXISTS (
+            SELECT 1
+            FROM enrollments e
+            JOIN class_tutor_assignments cta ON cta.class_id = e.class_id
+            WHERE e.student_id = ((storage.foldername(name))[1])::uuid
+              AND e.is_active  = TRUE
+              AND cta.tutor_id = auth.uid()
+              AND (cta.assigned_until IS NULL OR cta.assigned_until >= CURRENT_DATE)
+        )
+    );
+
+-- Parents may read photos of their own children only.
+CREATE POLICY "student-photos: parent read"
+    ON storage.objects FOR SELECT TO authenticated
+    USING (
+        bucket_id = 'student-photos'
+        AND is_parent()
+        AND parent_owns_student(((storage.foldername(name))[1])::uuid)
+    );
 
 -- ════════════════════════════════════════════════════════════════
 -- PROD-02 — device tokens for parent push notifications

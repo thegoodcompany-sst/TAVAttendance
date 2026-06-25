@@ -18,9 +18,19 @@ DECLARE
     is_bootstrap   BOOLEAN := NOT EXISTS (SELECT 1 FROM profiles);
     final_role     TEXT;
 BEGIN
-    -- Default privilege: 'tutor'. Elevated/other roles require an admin
-    -- caller, except during first-run bootstrap when there is no admin yet.
-    IF requested_role = 'tutor' OR is_bootstrap OR is_admin() THEN
+    -- Default privilege is 'tutor'. A non-default role is honoured only on a
+    -- trusted path:
+    --   • first-run bootstrap (no profiles yet), or
+    --   • a server-side invite — GoTrue's admin invite runs with no end-user JWT,
+    --     so auth.uid() IS NULL; that path is already gated by the admin check in
+    --     web/app/actions/invite.ts, or
+    --   • the caller is itself an admin.
+    -- Otherwise (an authenticated non-admin somehow triggering profile creation
+    -- with an elevated role) the role is forced down to 'tutor'.
+    IF requested_role = 'tutor'
+       OR is_bootstrap
+       OR auth.uid() IS NULL
+       OR is_admin() THEN
         final_role := requested_role;
     ELSE
         final_role := 'tutor';

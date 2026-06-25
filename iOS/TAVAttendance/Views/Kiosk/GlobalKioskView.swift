@@ -761,16 +761,14 @@ private struct KioskCard: View {
                 showLateReason = false
             }
         }
-        .confirmationDialog(
-            "Are you here?",
-            isPresented: $showAbsentSignInConfirm,
-            titleVisibility: .visible
-        ) {
-            // UX-04: student escape hatch from an accidental absent mark.
-            Button("Yes, sign me in") { onAction(.signIn) }
-            Button("Cancel", role: .cancel) {}
+        .alert("Marked Absent", isPresented: $showAbsentSignInConfirm) {
+            // UX-04 escape hatch — but "Absent" is a hard admin mark that a student
+            // must NOT be able to undo themselves (see CLAUDE.md). So this is purely
+            // informational: it explains the state and routes the student to a teacher,
+            // who can override via admin mode. No attendance change happens here.
+            Button("OK", role: .cancel) {}
         } message: {
-            Text("\(entry.fullName) is marked Absent. Tap to sign in if you're here.")
+            Text("\(entry.fullName) is marked Absent. Please ask a teacher to sign you in.")
         }
     }
 
