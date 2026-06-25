@@ -104,13 +104,25 @@ wiring / security setup. This affects `main` regardless of PR #1.
 
 ## D. IMPROVEMENTS.md second wave (2026-06-24)
 
-### ☐ 14. Apply migrations 012–014 to the live project
-`012_feature_flags.sql`, `013_audit_fixes.sql`, `014_feature_tables.sql` add the
-`feature_flags` table, fix the `handle_new_user` admin guard (SEC-05), change the
-`sync_attendance` return shape (`blocked_ended_session`), drop the `result_slips`
-subject CHECK, add the `student-photos` bucket + `avatar_url` + `device_tokens`, and
-the `get_roster_for_date` RPC. Apply to a **dev branch first**, verify, then prod.
-Each has a paired `.down.sql`.
+### ◐ 14. Apply migrations 012–014 to the live project — PARTIALLY DONE 2026-06-25
+**Done (applied to prod via MCP, 2026-06-25):**
+- `012_feature_flags` — full migration: `feature_flags` table + `is_feature_enabled()` + RLS + 3 seeded OFF flags. (Recorded in `schema_migrations`.)
+- `014a_get_roster_for_date` — *partial 014*: only the `get_roster_for_date(DATE)` RPC, applied to fix a production login crash (`Could not find the function public.get_roster_for_date(p_date)`). PostgREST schema cache reloaded.
+
+**Still to do (BLOCKED by live-schema drift — needs a dev-branch reconciliation, do NOT apply verbatim to prod):**
+The live DB has drifted from the migration sequence — several columns the later
+migrations assume are **missing in prod**:
+- `classes.recurrence_rule` — absent → **`013_audit_fixes.sql` fails** (its `classes_recurrence_rule_check` CHECK targets this column).
+- `attendance_records.late_reason` — absent → the `014` rebuild of `get_session_roster` (adds `avatar_url`, references `late_reason`) fails.
+- live `get_session_roster(uuid)` returns 6 cols (no `avatar_url`); `CREATE OR REPLACE` can't change return type (needs `DROP FUNCTION` first).
+
+Remaining un-applied pieces: all of **013** (handle_new_user SEC-05 guard, sync_attendance
+`blocked_ended_session` return shape, result_slips subject-CHECK drop, recurrence_rule CHECK)
+and the **rest of 014** (student-photos bucket + policies, `students.avatar_url`,
+`device_tokens`, `get_session_roster` avatar_url). These back features that are flag-gated
+OFF, so prod is functional without them. Recommended: spin up a Supabase **dev branch**,
+add the missing columns (`classes.recurrence_rule`, `attendance_records.late_reason`) so the
+migrations apply cleanly, verify, then promote. Each migration has a paired `.down.sql`.
 
 ### ☐ 15. Decide whether to keep `iOS/TAVAttendance 2.xcodeproj/` (CONTRIB-06)
 This untracked directory looks like a Finder duplicate of the real project. Confirm
