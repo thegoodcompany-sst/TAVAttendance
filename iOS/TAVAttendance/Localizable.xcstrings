@@ -1,0 +1,94 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Done" : {
+      "comment" : "Toolbar button that dismisses the privacy notice sheet.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
+    "Failed to load privacy notice." : {
+      "comment" : "Error message shown when the privacy notice cannot be fetched.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载数据保护声明失败。"
+          }
+        }
+      }
+    },
+    "Loading…" : {
+      "comment" : "Progress indicator label while the privacy notice loads.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载中…"
+          }
+        }
+      }
+    },
+    "Notice Unavailable" : {
+      "comment" : "Title shown when the privacy notice could not be loaded.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "声明不可用"
+          }
+        }
+      }
+    },
+    "Privacy" : {
+      "comment" : "Navigation title of the privacy notice screen.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私"
+          }
+        }
+      }
+    },
+    "Privacy Notice" : {
+      "comment" : "Label for the button that opens the privacy notice.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据保护声明"
+          }
+        }
+      }
+    },
+    "Version %@" : {
+      "comment" : "Caption showing the version of the displayed privacy notice. %@ is the version string.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本 %@"
+          }
+        }
+      }
+    },
+    "We couldn't load the privacy notice. Please try again." : {
+      "comment" : "Description shown in the unavailable state of the privacy notice screen.",
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法加载数据保护声明，请重试。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

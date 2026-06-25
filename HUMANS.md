@@ -180,6 +180,15 @@ Cannot be automated (requires Supabase auth + accounts). With the web app runnin
 - Sign in as a **different admin**: no "Feature Flags" link, and visiting
   `/feature-flags` directly returns a **404**.
 
+### ☐ 23. Review the Chinese (Simplified) UI translations
+iOS localization now uses a String Catalog (`iOS/TAVAttendance/Localizable.xcstrings`) with
+**English source + best-effort `zh-Hans` translations** for the Privacy Notice screen. The
+notice term has been set to **"数据保护声明"** (data protection notice) to match
+`docs/pdpa/DATA_PROTECTION_NOTICE.md`. A native speaker should still review overall wording
+before shipping. Edit translations in Xcode's String Catalog editor (open `Localizable.xcstrings`).
+Strings covered: Loading…, Version %@, Notice Unavailable, Privacy, Done, Privacy Notice, and the
+two load-failure messages. Other app screens are not yet localized — adding them is the next step.
+
 ---
 
 ## Notes

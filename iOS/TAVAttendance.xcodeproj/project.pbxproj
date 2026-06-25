@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		065119F939DA1316C08031A7 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E65CF322BFF554E531CA30 /* FeatureFlags.swift */; };
 		0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F44A35FCED4364A1434BFDC /* RosterView.swift */; };
 		10BC5C64E7AD432622E17329 /* TAVAttendanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */; };
 		135C5B0F8A62B43146F4B8C3 /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CC1BD809880605E561BC0F /* AppError.swift */; };
@@ -18,9 +19,6 @@
 		313617761ED161A0A3D09850 /* ClassEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA18DB9555C7936A4D227EC /* ClassEntity.swift */; };
 		444135573C1FE2B662F582F6 /* TodayAttendanceSummaryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEC7D4C66DA385710F81DC6 /* TodayAttendanceSummaryIntent.swift */; };
 		45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64ADFF510704F740AA4F9A37 /* AttendanceService.swift */; };
-		FF11000000000000000000A1 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF11000000000000000000A2 /* FeatureFlags.swift */; };
-		FF11000000000000000000B1 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF11000000000000000000B2 /* PushManager.swift */; };
-		FF11000000000000000000C1 /* ParentDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF11000000000000000000C2 /* ParentDashboardView.swift */; };
 		48407CE22BE54FB050C3242C /* StudentProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */; };
 		48D38D79344B863C708969C2 /* PrivacyNoticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01FF2DBA483058541024A0D /* PrivacyNoticeView.swift */; };
 		4A5DA3CF97AEE047612EA4B8 /* StudentManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27779637419CBFBFEA14E32A /* StudentManagementView.swift */; };
@@ -34,6 +32,7 @@
 		7B82E654CF7767F1DDC560CD /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 385F3C087DCCACB84D814052 /* SupabaseManager.swift */; };
 		7D3C850879FD3125ACFD677F /* ClassFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1598BFBB09802266CB1F424 /* ClassFormView.swift */; };
 		7FAAC67F3797907FBD7559E2 /* StudentImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D673875F41EE45E065B47053 /* StudentImportView.swift */; };
+		80AE796DDE099DC594738E3D /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 96716DCA08CE8D202CCB479C /* Localizable.xcstrings */; };
 		83BFCAAD82E7EEB250A165E7 /* PendingAttendanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */; };
 		88A9F854E30944841383A5A5 /* SignInStudentIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5203C5DAD18245C177E027F0 /* SignInStudentIntent.swift */; };
 		8AC4398B1FEDFE3BBD4F5284 /* TutorAssignmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */; };
@@ -43,9 +42,11 @@
 		A35FBA2E321411D997079B12 /* KioskRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3063799091ACD1EB194B57C /* KioskRouter.swift */; };
 		A41E633F997D792C597FEF1E /* ClassPunctualityIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B27337B14AAF2CF27A31982 /* ClassPunctualityIntent.swift */; };
 		A5D7840C9988F794C2CE2D2B /* IntentSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E118AE1693C05946C87E9552 /* IntentSupport.swift */; };
+		A6862F092CFF4AD3246EDF9E /* ParentDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391868E2E92497E6CDFA922C /* ParentDashboardView.swift */; };
 		A8EC3E2E6880A74FA9E4F19A /* ClassListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 942348981E4DF7666AF12F79 /* ClassListView.swift */; };
 		AD5545A3F3C8DFC0847B191E /* CheckStudentStatusIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9545022B35ECF9F7DF0E84D /* CheckStudentStatusIntent.swift */; };
 		AF57EBBF290621198727D3D9 /* ParentLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DF1807148A196AA37C1204 /* ParentLinkView.swift */; };
+		BA86F67649226E9C79AA8C4C /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A44B53697EDDA16EB00544 /* PushManager.swift */; };
 		BAFF49E2F26D7AC1DD4937BB /* StudentAttendanceRateIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00D13ADBA1A88996D74858B4 /* StudentAttendanceRateIntent.swift */; };
 		C2DCEC585CCBC4BDAD601D61 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB273005930FAD09CC8AD1F7 /* Models.swift */; };
 		D693F8B311CB2B7F6D73D158 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85DEA9F263B167CCEC35BFC /* LoginView.swift */; };
@@ -69,6 +70,8 @@
 		309D5646A5E18F3D281FEABD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		374D50CD7AD19737B0A39486 /* OpenKioskIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenKioskIntent.swift; sourceTree = "<group>"; };
 		385F3C087DCCACB84D814052 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		391868E2E92497E6CDFA922C /* ParentDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentDashboardView.swift; sourceTree = "<group>"; };
+		42E65CF322BFF554E531CA30 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
 		4EC7DC93588149D2B2912D0C /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
 		4F44A35FCED4364A1434BFDC /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
 		5203C5DAD18245C177E027F0 /* SignInStudentIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInStudentIntent.swift; sourceTree = "<group>"; };
@@ -77,13 +80,12 @@
 		5CAA9B963B7BEE4160883812 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		626807EE6AA6433E29B7EEF5 /* TAVAShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TAVAShortcuts.swift; sourceTree = "<group>"; };
 		64ADFF510704F740AA4F9A37 /* AttendanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceService.swift; sourceTree = "<group>"; };
-		FF11000000000000000000A2 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
-		FF11000000000000000000B2 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
-		FF11000000000000000000C2 /* ParentDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentDashboardView.swift; sourceTree = "<group>"; };
 		76DF1807148A196AA37C1204 /* ParentLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentLinkView.swift; sourceTree = "<group>"; };
 		79BF5AC4077D5D181F5C1813 /* MarkAttendanceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkAttendanceIntent.swift; sourceTree = "<group>"; };
 		81CC1BD809880605E561BC0F /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		90A44B53697EDDA16EB00544 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
 		942348981E4DF7666AF12F79 /* ClassListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassListView.swift; sourceTree = "<group>"; };
+		96716DCA08CE8D202CCB479C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		9A9752006163424A558ECFE6 /* ResultSlipUploadSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultSlipUploadSheet.swift; sourceTree = "<group>"; };
 		A296E59FB31DDA29EF190F3F /* SessionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionListView.swift; sourceTree = "<group>"; };
 		B01FF2DBA483058541024A0D /* PrivacyNoticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyNoticeView.swift; sourceTree = "<group>"; };
@@ -91,7 +93,7 @@
 		BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProfileView.swift; sourceTree = "<group>"; };
 		C1DE5F56BB1FCDC540A6E5A6 /* PDPAValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDPAValidation.swift; sourceTree = "<group>"; };
 		CB273005930FAD09CC8AD1F7 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D30A5704E0BE4968BD6157D7 /* CorrectionRequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionRequestsView.swift; sourceTree = "<group>"; };
 		D4527A7623645D63DEDC2198 /* StudentEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentEntity.swift; sourceTree = "<group>"; };
 		D56A28E4752FD6F6FA99B737 /* AttendanceStatusAppEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceStatusAppEnum.swift; sourceTree = "<group>"; };
@@ -99,13 +101,13 @@
 		E118AE1693C05946C87E9552 /* IntentSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentSupport.swift; sourceTree = "<group>"; };
 		E9545022B35ECF9F7DF0E84D /* CheckStudentStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckStudentStatusIntent.swift; sourceTree = "<group>"; };
 		EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorAssignmentView.swift; sourceTree = "<group>"; };
-		ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */ = {isa = PBXFileReference; path = SupabaseConfig.swift.example; sourceTree = "<group>"; };
+		ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */ = {isa = PBXFileReference; lastKnownFileType = text; path = SupabaseConfig.swift.example; sourceTree = "<group>"; };
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F3063799091ACD1EB194B57C /* KioskRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskRouter.swift; sourceTree = "<group>"; };
 		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_1D545633-0A3A-4A51-85A8-C8E0BF49A512" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_E8400C10-BC2D-4AC3-BA36-02D162611AA1" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +122,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		005E8B751146133CB8FCA8C5 /* Parent */ = {
+			isa = PBXGroup;
+			children = (
+				391868E2E92497E6CDFA922C /* ParentDashboardView.swift */,
+			);
+			path = Parent;
+			sourceTree = "<group>";
+		};
 		1B55B3E13467DB71518CC4F2 /* Kiosk */ = {
 			isa = PBXGroup;
 			children = (
@@ -133,6 +143,7 @@
 			children = (
 				4FF1F3FEA5695821BE4E3EFE /* TAVAttendance */,
 				F7C1A3B656D06525CBB93444 /* Products */,
+				55584E942FED683200B66238 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -167,6 +178,7 @@
 			children = (
 				309D5646A5E18F3D281FEABD /* Assets.xcassets */,
 				5CAA9B963B7BEE4160883812 /* Info.plist */,
+				96716DCA08CE8D202CCB479C /* Localizable.xcstrings */,
 				232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */,
 				3BB69713E30D1B0586407932 /* AppIntents */,
 				9E1CA679F85B258F455BB18F /* Core */,
@@ -177,11 +189,19 @@
 			path = TAVAttendance;
 			sourceTree = "<group>";
 		};
+		55584E942FED683200B66238 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_E8400C10-BC2D-4AC3-BA36-02D162611AA1" /* Config.xcconfig */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		9B2124344B144DC479818A99 /* Services */ = {
 			isa = PBXGroup;
 			children = (
 				64ADFF510704F740AA4F9A37 /* AttendanceService.swift */,
-				FF11000000000000000000A2 /* FeatureFlags.swift */,
+				42E65CF322BFF554E531CA30 /* FeatureFlags.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -190,11 +210,11 @@
 			isa = PBXGroup;
 			children = (
 				81CC1BD809880605E561BC0F /* AppError.swift */,
-				FF11000000000000000000B2 /* PushManager.swift */,
 				24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */,
 				543023F8203B0054936C6A20 /* NetworkMonitor.swift */,
 				C1DE5F56BB1FCDC540A6E5A6 /* PDPAValidation.swift */,
 				FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */,
+				90A44B53697EDDA16EB00544 /* PushManager.swift */,
 				ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */,
 				385F3C087DCCACB84D814052 /* SupabaseManager.swift */,
 			);
@@ -217,18 +237,10 @@
 				D392CAF894665DE241C00943 /* Auth */,
 				F6109F62D7656F7E3193D086 /* Classes */,
 				1B55B3E13467DB71518CC4F2 /* Kiosk */,
-				FF11000000000000000000D1 /* Parent */,
+				005E8B751146133CB8FCA8C5 /* Parent */,
 				44A6EFC23E15DF3807ED8E4B /* Session */,
 			);
 			path = Views;
-			sourceTree = "<group>";
-		};
-		FF11000000000000000000D1 /* Parent */ = {
-			isa = PBXGroup;
-			children = (
-				FF11000000000000000000C2 /* ParentDashboardView.swift */,
-			);
-			path = Parent;
 			sourceTree = "<group>";
 		};
 		D1EEFEA62629B5D8271E1429 /* Admin */ = {
@@ -286,14 +298,6 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_250D8B68-5252-4DF6-A424-44C39B8A634C" /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				"TEMP_1D545633-0A3A-4A51-85A8-C8E0BF49A512" /* Config.xcconfig */,
-			);
-			path = iOS;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -325,11 +329,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
-				TargetAttributes = {
-					B3761B335799DF70F2AAAA46 = {
-						DevelopmentTeam = "";
-					};
-				};
 			};
 			buildConfigurationList = A76FA904BD2D2EEF50075B71 /* Build configuration list for PBXProject "TAVAttendance" */;
 			developmentRegion = en;
@@ -337,6 +336,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = 28E6BCED7C8C917E0F28C5A8;
 			minimizedProjectReferenceProxies = 1;
@@ -359,6 +359,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2016432196785011366FAB4C /* Assets.xcassets in Resources */,
+				80AE796DDE099DC594738E3D /* Localizable.xcstrings in Resources */,
 				FFA3A4B7268E697901321908 /* SupabaseConfig.swift.example in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -372,9 +373,6 @@
 			files = (
 				135C5B0F8A62B43146F4B8C3 /* AppError.swift in Sources */,
 				45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */,
-				FF11000000000000000000A1 /* FeatureFlags.swift in Sources */,
-				FF11000000000000000000B1 /* PushManager.swift in Sources */,
-				FF11000000000000000000C1 /* ParentDashboardView.swift in Sources */,
 				7A8E8AB674B8766A7D6C91C6 /* AttendanceStatusAppEnum.swift in Sources */,
 				6E41513F3BD4A9FB3BBC2722 /* AuthManager.swift in Sources */,
 				AD5545A3F3C8DFC0847B191E /* CheckStudentStatusIntent.swift in Sources */,
@@ -385,6 +383,7 @@
 				EDC6B0ACAB97F385C9998282 /* CorrectionRequestsView.swift in Sources */,
 				D84A9BB30A1CE2302FA69420 /* EnrollmentView.swift in Sources */,
 				9CCF8A6E6924E4CD069CD26D /* ExportView.swift in Sources */,
+				065119F939DA1316C08031A7 /* FeatureFlags.swift in Sources */,
 				2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */,
 				A5D7840C9988F794C2CE2D2B /* IntentSupport.swift in Sources */,
 				A35FBA2E321411D997079B12 /* KioskRouter.swift in Sources */,
@@ -394,9 +393,11 @@
 				2ADC0F222562BC8827278955 /* NetworkMonitor.swift in Sources */,
 				9705677849596329C19BA395 /* OpenKioskIntent.swift in Sources */,
 				142FCD8DD18EF262C93128F6 /* PDPAValidation.swift in Sources */,
+				A6862F092CFF4AD3246EDF9E /* ParentDashboardView.swift in Sources */,
 				AF57EBBF290621198727D3D9 /* ParentLinkView.swift in Sources */,
 				83BFCAAD82E7EEB250A165E7 /* PendingAttendanceStore.swift in Sources */,
 				48D38D79344B863C708969C2 /* PrivacyNoticeView.swift in Sources */,
+				BA86F67649226E9C79AA8C4C /* PushManager.swift in Sources */,
 				746AABDC906A3C1E149B747A /* ResultSlipUploadSheet.swift in Sources */,
 				0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */,
 				5F60A9C0CC3678AEC4069EEA /* SessionDetailView.swift in Sources */,
@@ -541,11 +542,11 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_1D545633-0A3A-4A51-85A8-C8E0BF49A512" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_E8400C10-BC2D-4AC3-BA36-02D162611AA1" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -561,11 +562,11 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_1D545633-0A3A-4A51-85A8-C8E0BF49A512" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_E8400C10-BC2D-4AC3-BA36-02D162611AA1" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

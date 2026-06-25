@@ -4,8 +4,13 @@ options:
   deploymentTarget:
     iOS: "17.0"
   xcodeVersion: "16"
+  developmentLanguage: en
   createIntermediateGroups: true
   generateEmptyDirectories: true
+
+fileTypes:
+  xcstrings:
+    buildPhase: resources
 
 packages:
   Supabase:

@@ -35,7 +35,7 @@ struct PrivacyNoticeView: View {
                     ContentUnavailableView(
                         "Notice Unavailable",
                         systemImage: "doc.text.magnifyingglass",
-                        description: Text("The privacy notice could not be loaded. Pull to retry.")
+                        description: Text("We couldn't load the privacy notice. Please try again.")
                     )
                 }
             }
@@ -57,7 +57,7 @@ struct PrivacyNoticeView: View {
         do {
             document = try await AttendanceService.shared.fetchPrivacyNotice()
         } catch {
-            self.error = AppError("Could not load the privacy notice.", underlyingError: error)
+            self.error = AppError(String(localized: "Failed to load privacy notice."), underlyingError: error)
         }
     }
 }
@@ -77,3 +77,4 @@ struct PrivacyNoticeLink: View {
         }
     }
 }
+
