@@ -3,7 +3,7 @@ import { KpiTile } from '@/components/dashboard/kpi-tile'
 import { AttendanceChart } from '@/components/dashboard/attendance-chart'
 import { ScheduleList } from '@/components/dashboard/schedule-list'
 import { ClassTile } from '@/components/dashboard/class-tile'
-import { IllustrationCard } from '@/components/dashboard/illustration-card'
+import { QuickActionsCard } from '@/components/dashboard/quick-actions-card'
 import { getTodayRoster, getTodaySessions, getDailyAttendance, getYesterdayRoster } from '@/lib/queries'
 
 export const dynamic = 'force-dynamic'
@@ -107,7 +107,7 @@ export default async function TodayPage() {
 
           {/* Right: illustration + schedule */}
           <div className="lg:w-[288px] xl:w-[320px] flex flex-col gap-6 flex-shrink-0">
-            <IllustrationCard />
+            <QuickActionsCard />
 
             <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
               <h2 className="font-semibold mb-4">Today&apos;s schedule</h2>
