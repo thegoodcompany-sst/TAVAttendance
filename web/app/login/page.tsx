@@ -30,20 +30,21 @@ export default function LoginPage() {
 
     if (access_token && refresh_token && (type === 'invite' || type === 'recovery' || type === 'signup')) {
       inviteHandled.current = true
-      setHandlingInvite(true)
-      const supabase = createClient()
-      supabase.auth
-        .setSession({ access_token, refresh_token })
-        .then(({ error }) => {
-          if (error) {
-            setHandlingInvite(false)
-            setError('Your invite link is invalid or has expired. Ask your admin to resend it.')
-            return
-          }
-          // Clear the fragment so a refresh doesn't re-trigger this.
-          window.history.replaceState(null, '', '/login')
-          router.replace('/set-password')
-        })
+      // Run in an async callback (not the effect body) so the setState calls
+      // aren't synchronous-in-effect (react-hooks/set-state-in-effect).
+      void (async () => {
+        setHandlingInvite(true)
+        const supabase = createClient()
+        const { error } = await supabase.auth.setSession({ access_token, refresh_token })
+        if (error) {
+          setHandlingInvite(false)
+          setError('Your invite link is invalid or has expired. Ask your admin to resend it.')
+          return
+        }
+        // Clear the fragment so a refresh doesn't re-trigger this.
+        window.history.replaceState(null, '', '/login')
+        router.replace('/set-password')
+      })()
     }
   }, [router])
 

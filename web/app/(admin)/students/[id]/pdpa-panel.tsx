@@ -31,8 +31,6 @@ export function PdpaPanel({
   const [confirm, setConfirm] = useState<null | 'anonymise' | 'erase'>(null)
   const [isPending, startTransition] = useTransition()
 
-  const dataCollection = consent.find(c => c.consentType === 'data_collection')
-
   const handleExport = () => {
     setError(null)
     startTransition(async () => {
