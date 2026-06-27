@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 
-export type FeatureFlagKey = 'parent_portal' | 'push_notifications' | 'student_photos'
+export type FeatureFlagKey = 'parent_portal' | 'push_notifications' | 'student_photos' | 'study_space_tracking'
 
 /**
  * Reads the `feature_flags` table (migration 012). Flags ship OFF; an admin flips

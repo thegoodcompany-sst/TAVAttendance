@@ -30,7 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.KioskEntry
 import com.example.tavattendance.data.service.AttendanceService
-import com.example.tavattendance.screens.statusColor
+import com.example.tavattendance.data.service.FeatureFlags
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -353,6 +353,11 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
     val isLocked by vm.isLocked.collectAsState()
     val isAdminMode by vm.isAdminMode.collectAsState()
 
+    // Study Space (migration 015): flag-gated entry to the internal drop-in tracker.
+    val featureFlags by FeatureFlags.flags.collectAsState()
+    val studySpaceEnabled = featureFlags[FeatureFlags.STUDY_SPACE_TRACKING] == true
+    var showStudySpace by remember { mutableStateOf(false) }
+
     val attending = entries.count { it.isAttending }
     val today = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(Date())
 
@@ -410,6 +415,11 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
                             )
                             Spacer(Modifier.width(16.dp))
                         }
+                        if (isAdminMode && studySpaceEnabled) {
+                            TextButton(onClick = { showStudySpace = true }) {
+                                Text("Study Space")
+                            }
+                        }
                         IconButton(
                             onClick = {
                                 if (isLocked) vm.showPinUnlockDialog()
@@ -430,7 +440,7 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
                     }
                     entries.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            "No students enrolled in any active class.",
+                            "No classes scheduled today.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(32.dp)
@@ -468,6 +478,10 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
 
             if (showSettings) {
                 KioskSettingsSheet(vm = vm, onDismiss = { vm.hideSettingsDialog() })
+            }
+
+            if (showStudySpace) {
+                StudySpaceScreen(onDismiss = { showStudySpace = false })
             }
         }
     }
@@ -855,7 +869,6 @@ private fun PinUnlockOverlay(
                                     onDismiss()
                                 } else {
                                     onRecordFailedAttempt()
-                                    val remainingAfter = failedAttemptsVal  // updated by ViewModel
                                     val isNowLockedOut = System.currentTimeMillis() < lockedUntilVal
                                     if (!isNowLockedOut) {
                                         val left = 5 - (failedAttemptsVal)

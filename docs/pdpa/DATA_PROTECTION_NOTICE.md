@@ -1,20 +1,22 @@
 # TAVA Attendance — Data Protection Notice
 
-> **DRAFT v1.0 — requires DPO / legal sign-off before publication.** This is the full source
-> text. The in-app summary is seeded into the `policy_documents` table (v1.0); keep the two in
-> sync and bump the `version` whenever this changes.
+> **DRAFT v1.1 — requires DPO / legal sign-off before publication.** This is the full source
+> text. The in-app summary is seeded into the `policy_documents` table (v1.1, migration 015);
+> keep the two in sync and bump the `version` whenever this changes.
 
 ## Who we are
-TAVA ("the Centre", "we", "us") operates a tuition centre and uses the TAVA Attendance platform
-to administer classes. The Centre is the **organisation** responsible for the personal data
-described here under the Personal Data Protection Act 2012 (PDPA).
+TAVA is a **study centre operated by Talent Beacon**, a non-profit serving youth and residents of
+Bukit Batok. **Talent Beacon** ("we", "us", "the Centre") is the **organisation** responsible for
+the personal data described here under the Personal Data Protection Act 2012 (PDPA), and uses the
+TAVA Attendance platform to administer the Centre's programmes.
 
-**Data Protection Officer:** _[name / role]_, _[email]_, _[phone]_ — *to be completed (see HUMANS.md).*
+**Data Protection Officer:** _[name / role — to be completed, see HUMANS.md]_, admin@talentbeacon.org,
+Talent Beacon, 209 Bukit Batok Street 21, #01-182, Singapore.
 
 ## Whose data we collect
 - **Students** (most of whom are minors) — name, date of birth, school, year of study, attendance
   records, late reasons, exam result slips, dismissal/pick-up records, awards, and any notes the
-  Centre records for tuition purposes.
+  Centre records for the Centre's programmes.
 - **Parents/guardians** — name, contact number, relationship to the student, and any messages.
 - **Tutors and administrators** — name, contact number, and account/role information.
 
@@ -35,7 +37,7 @@ For students who are minors, we rely on the consent of a **parent or legal guard
 enrolment. The Centre records the fact, date and notice version of that consent. You may
 **withdraw consent** at any time by contacting the DPO; we will then stop collecting, using or
 disclosing the personal data, subject to legal retention requirements, and explain the likely
-consequences (e.g. we may be unable to continue providing tuition services).
+consequences (e.g. we may be unable to continue providing the Centre's programmes).
 
 ## Disclosure
 We disclose personal data only to:
@@ -69,4 +71,4 @@ a comparable standard of protection as required by the PDPA.
 We may update this notice. The current version is shown in the app; the version number changes
 when the notice changes.
 
-_Last updated: 2026-06-15 (draft)._
+_Last updated: 2026-06-26 (draft v1.1)._

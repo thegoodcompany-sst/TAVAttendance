@@ -191,6 +191,63 @@ two load-failure messages. Other app screens are not yet localized — adding th
 
 ---
 
+## F. Dashboard outage hotfix (2026-06-25)
+
+### ☐ 24. Push the dashboard hotfix commit to `origin/main`
+Production was down — the dashboard home page 500'd for every logged-in user
+(`ERROR 961535271` / PostgREST `PGRST200`) because `getTodaySessions` embedded
+`enrollments` directly on a `sessions` query with no FK between them. Fixed in
+`web/lib/queries.ts` by routing the embed through `sessions → classes → enrollments`.
+**Already deployed to prod** (Vercel CLI, `dpl_sftgTHzdNJbSbVyRTvbWENtDx6Mg`, verified
+live) and **committed locally** as `68fabc4`, but **not pushed**. Push it so
+`origin/main` matches prod and a future git-triggered deploy doesn't revert the fix:
+```bash
+git push origin main
+```
+
+---
+
+## G. tava.sg alignment + Study Space tracking (2026-06-26)
+
+### ☐ 25. Apply migration `015_study_space_and_notice.sql` to the live project
+Adds `classes.is_study_space` + the singleton Study Space class, seeds the
+`study_space_tracking` flag (OFF), adds `get_study_space_roster`, excludes study space from
+`attendance_summary` + `get_roster_for_date`, and publishes Data Protection Notice **v1.1**.
+The notice (§B-style) and flag parts are independent of the §14 schema drift, but verify the
+column/function changes apply cleanly against the live schema first (use a dev branch if unsure).
+Paired down migration: `015_study_space_and_notice.down.sql`.
+
+### ☐ 26. Finish DPO contact on the v1.1 notice — *ties into §1/§2*
+The v1.1 notice now names **Talent Beacon** as the controller and `admin@talentbeacon.org` /
+209 Bukit Batok Street 21, #01-182 as the contact, but the **DPO name/role** is still a
+placeholder in `docs/pdpa/DATA_PROTECTION_NOTICE.md` and the seeded `policy_documents` v1.1 body.
+Fill it in and get legal/DPO sign-off (removes "DRAFT v1.1").
+
+### ☐ 27. Flip `study_space_tracking` when the Study Space feature is ready
+Ships OFF. Enable per §16 (or via the superadmin `/feature-flags` page) **only after** the
+Android + web ports land, so study-space sessions never exist before every reporting surface
+excludes them:
+```sql
+UPDATE feature_flags SET enabled = true WHERE key = 'study_space_tracking';
+```
+
+### ☐ 28. Fix tava.sg's own copy inconsistency (website, not the app)
+The site states opening hours as both **"12–6pm"** (header) and **"1–6pm"** (registration prose),
+and lists tuition at **7:30pm** though the drop-in space closes at 6pm. Confirm the canonical
+figures and correct them on tava.sg. (No app change — the app does not hardcode these.)
+
+### ☐ 29. Unblock Android build/test verification (environment)
+`compileDebugKotlin` passes for the Study Space changes, but a full `./gradlew test` /
+`assembleDebug` can't complete in this environment for two pre-existing reasons:
+- **macOS Finder duplicates** — ~48 `… 2.kt` / `… 2.xml` / `… 2.png` files under `Android/app/src`
+  (and the `iOS/TAVAttendance 2.xcodeproj` per §15) break resource merge + cause redeclarations.
+  Delete them (they are untracked Finder copies) before building.
+- **JDK 26** is the only installed JDK; the Android Gradle Plugin's `jlink` JDK-image transform
+  fails on it. Install a **JDK 17 or 21** and point `JAVA_HOME`/Gradle toolchain at it, then run
+  `./gradlew testDebugUnitTest` (includes the new `DayAwareKioskTest`).
+
+---
+
 ## Notes
 - Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the new
   `anonymise_student/erase_student/export_student_personal_data` SECURITY DEFINER functions are

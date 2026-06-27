@@ -30,6 +30,9 @@ struct TAVClass: Codable, Identifiable {
     let isActive: Bool
     let recurrenceRule: String?      // RFC 5545 RRULE, e.g. "FREQ=WEEKLY;BYDAY=MO"
     let recurrenceEndDate: String?   // "yyyy-MM-dd", nil = open-ended
+    // Migration 015: the internal Study Space (drop-in) class. Optional for decode
+    // safety against prod schema drift; treat nil as false.
+    let isStudySpace: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, subject, level
@@ -39,6 +42,7 @@ struct TAVClass: Codable, Identifiable {
         case isActive           = "is_active"
         case recurrenceRule     = "recurrence_rule"
         case recurrenceEndDate  = "recurrence_end_date"
+        case isStudySpace       = "is_study_space"
     }
 }
 
@@ -83,28 +87,6 @@ struct Session: Codable, Identifiable, Hashable {
 
 enum AttendanceStatus: String, Codable, CaseIterable {
     case present, absent, late, excused
-}
-
-struct AttendanceRecord: Codable, Identifiable {
-    let id: UUID?
-    let sessionId: UUID
-    let studentId: UUID
-    var status: AttendanceStatus
-    let markedBy: UUID?
-    let markedAt: Date?
-    var notes: String?
-    var lateReason: String?
-    let clientMutationId: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, status, notes
-        case sessionId        = "session_id"
-        case studentId        = "student_id"
-        case markedBy         = "marked_by"
-        case markedAt         = "marked_at"
-        case lateReason       = "late_reason"
-        case clientMutationId = "client_mutation_id"
-    }
 }
 
 struct AttendanceInsert: Encodable {

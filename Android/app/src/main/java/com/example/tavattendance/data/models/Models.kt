@@ -20,7 +20,12 @@ data class TAVClass(
     @SerialName("schedule_day") val scheduleDay: String? = null,
     @SerialName("schedule_time") val scheduleTime: String? = null,
     @SerialName("duration_minutes") val durationMinutes: Int = 60,
-    @SerialName("is_active") val isActive: Boolean = true
+    @SerialName("is_active") val isActive: Boolean = true,
+    // RFC 5545 RRULE, e.g. "FREQ=WEEKLY;BYDAY=MO,TH" — used for day-aware kiosk filtering.
+    @SerialName("recurrence_rule") val recurrenceRule: String? = null,
+    // Migration 015: the internal Study Space (drop-in) class. Default false for
+    // decode safety against prod schema drift.
+    @SerialName("is_study_space") val isStudySpace: Boolean = false
 )
 
 @Serializable

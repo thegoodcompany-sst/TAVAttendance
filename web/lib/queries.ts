@@ -64,11 +64,13 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
     .from('sessions')
     .select(`
       id,
-      class:classes!inner(name, schedule_time, enrollments:enrollments!inner(is_active)),
+      class:classes!inner(name, schedule_time, is_study_space, enrollments:enrollments!inner(is_active)),
       attendance_records(status)
     `)
     .eq('session_date', today)
     .eq('class.enrollments.is_active', true)
+    // Study Space attendance is internal-only — never surface it in reports (migration 015).
+    .eq('class.is_study_space', false)
 
   if (error) {
     throw new Error(`getTodaySessions: ${error.message}`)
@@ -165,8 +167,10 @@ export async function getStudentRecentRecords(studentId: string): Promise<Attend
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('attendance_records')
-    .select('id, status, marked_at, session:sessions(session_date, class:classes(name))')
+    .select('id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name, is_study_space))')
     .eq('student_id', studentId)
+    // Exclude internal Study Space attendance from student history (migration 015).
+    .eq('session.class.is_study_space', false)
     .order('marked_at', { ascending: false })
     .limit(50)
 
@@ -317,7 +321,9 @@ export async function getDailyAttendance(days = 14): Promise<DailyAttendancePoin
 
   const { data, error } = await supabase
     .from('sessions')
-    .select('session_date, attendance_records(status)')
+    .select('session_date, class:classes!inner(is_study_space), attendance_records(status)')
+    // Exclude internal Study Space sessions from the dashboard chart (migration 015).
+    .eq('class.is_study_space', false)
     .gte('session_date', startDate)
     .lte('session_date', today)
 

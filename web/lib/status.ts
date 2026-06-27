@@ -1,18 +1,5 @@
 export type AttendanceStatus = 'present' | 'late' | 'absent' | 'excused' | null
 
-const RANK: Record<string, number> = {
-  late: 4,
-  present: 3,
-  absent: 2,
-  excused: 1,
-}
-
-export function worstStatus(a: AttendanceStatus, b: AttendanceStatus): AttendanceStatus {
-  if (!a) return b
-  if (!b) return a
-  return (RANK[a] ?? 0) >= (RANK[b] ?? 0) ? a : b
-}
-
 export function statusLabel(status: AttendanceStatus): string {
   if (!status) return 'Not here yet'
   return { present: 'Present', late: 'Late', absent: 'Absent', excused: 'Excused' }[status] ?? status

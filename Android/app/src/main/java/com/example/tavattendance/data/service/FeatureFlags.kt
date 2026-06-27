@@ -13,6 +13,7 @@ object FeatureFlags {
     const val PARENT_PORTAL = "parent_portal"
     const val PUSH_NOTIFICATIONS = "push_notifications"
     const val STUDENT_PHOTOS = "student_photos"
+    const val STUDY_SPACE_TRACKING = "study_space_tracking"
 
     private val _flags = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     val flags: StateFlow<Map<String, Boolean>> = _flags.asStateFlow()

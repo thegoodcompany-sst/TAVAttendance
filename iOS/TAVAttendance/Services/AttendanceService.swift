@@ -8,9 +8,13 @@ final class AttendanceService {
     // MARK: - Classes
 
     func fetchMyClasses() async throws -> [TAVClass] {
+        // Excludes the internal Study Space class (migration 015) so it never appears
+        // in the tutor/admin class list or the tuition kiosk grid.
         return try await db
             .from("classes").select()
-            .eq("is_active", value: true).order("name")
+            .eq("is_active", value: true)
+            .eq("is_study_space", value: false)
+            .order("name")
             .execute().value
     }
 
@@ -201,7 +205,11 @@ final class AttendanceService {
         formatter.dateFormat = "yyyy-MM-dd"
         let today = formatter.string(from: Date())
 
-        let classes = try await fetchMyClasses()
+        // Day-aware: only create/show sessions for classes scheduled today, so opening
+        // the kiosk on a non-tuition day doesn't spin up phantom sessions. Supports
+        // multiple classes on the same day (e.g. Thu English + Thu Reading).
+        let todayWeekday = Self.weekdayName(for: Date())
+        let classes = try await fetchMyClasses().filter { Self.classMeetsToday($0, weekday: todayWeekday) }
         let classMap = Dictionary(uniqueKeysWithValues: classes.map { ($0.id, $0) })
 
         // Parallelize session creation — the upsert on (class_id, session_date) makes
@@ -291,6 +299,74 @@ final class AttendanceService {
         }
     }
 
+    // MARK: - Day-of-week scheduling
+
+    /// English full weekday name ("Monday"…"Sunday") for the given date.
+    static func weekdayName(for date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "EEEE"
+        return f.string(from: date)
+    }
+
+    /// Whether a class meets on `weekday` (an English full weekday name). A class's
+    /// `recurrence_rule` BYDAY wins when present; otherwise `schedule_day` is matched;
+    /// a class with neither set is treated as ad-hoc and always shown.
+    static func classMeetsToday(_ cls: TAVClass, weekday: String) -> Bool {
+        if let rule = cls.recurrenceRule, let codes = bydayCodes(from: rule), !codes.isEmpty {
+            return codes.contains(weekdayCode(weekday))
+        }
+        if let day = cls.scheduleDay, !day.isEmpty {
+            return day.caseInsensitiveCompare(weekday) == .orderedSame
+        }
+        return true
+    }
+
+    /// Two-letter RRULE day code for an English weekday name ("Monday" → "MO").
+    private static func weekdayCode(_ weekday: String) -> String {
+        switch weekday.lowercased() {
+        case "monday":    return "MO"
+        case "tuesday":   return "TU"
+        case "wednesday": return "WE"
+        case "thursday":  return "TH"
+        case "friday":    return "FR"
+        case "saturday":  return "SA"
+        case "sunday":    return "SU"
+        default:          return ""
+        }
+    }
+
+    /// Extracts the BYDAY codes from an RRULE string, e.g. "FREQ=WEEKLY;BYDAY=MO,TH" → ["MO","TH"].
+    private static func bydayCodes(from rule: String) -> [String]? {
+        for part in rule.split(separator: ";") {
+            let kv = part.split(separator: "=", maxSplits: 1)
+            if kv.count == 2, kv[0].uppercased() == "BYDAY" {
+                return kv[1].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).uppercased() }
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Study Space (internal-only; migration 015)
+
+    /// The singleton internal Study Space (drop-in room) class. Attendance here is
+    /// Present / Not Here only and is EXCLUDED from all reports & parent views.
+    static let studySpaceClassId = UUID(uuidString: "57000000-0000-0000-0000-000000000001")!
+
+    /// Loads today's Study Space session (creating it on first use) and the roster of
+    /// ALL active students with their current Present/Not-Here status for it.
+    func loadStudySpace() async throws -> (session: Session, roster: [RosterEntry]) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let today = formatter.string(from: Date())
+
+        let session = try await getOrCreateSession(classId: Self.studySpaceClassId, date: today)
+        let roster: [RosterEntry] = try await db
+            .rpc("get_study_space_roster", params: ["p_session_id": session.id.uuidString])
+            .execute().value
+        return (session, roster)
+    }
+
     /// Fetches a student's recent attendance history with class name, for the profile sheet.
     func fetchStudentAttendanceHistory(studentId: UUID, limit: Int = 100, since: Date? = nil) async throws -> [AttendanceHistoryRecord] {
         // QA-05: the `since` window must filter on the session date (the real class
@@ -299,8 +375,10 @@ final class AttendanceService {
         // join so the embedded `session_date` filter applies to the top-level rows.
         var filterBuilder = db
             .from("attendance_records")
-            .select("id, status, marked_at, session:sessions!inner(session_date, class:classes(name))")
+            .select("id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name, is_study_space))")
             .eq("student_id", value: studentId)
+            // Study Space attendance is internal-only — never show it in student history.
+            .eq("session.class.is_study_space", value: false)
 
         if let since {
             let fmt = DateFormatter()

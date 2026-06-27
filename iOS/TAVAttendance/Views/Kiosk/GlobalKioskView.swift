@@ -13,6 +13,7 @@ struct GlobalKioskView: View {
     @State private var pendingIds: Set<UUID> = []
     @State private var showSettings = false
     @State private var showPINEntry = false
+    @State private var showStudySpace = false
 
     // True when the admin unlocked the kiosk by entering a PIN this session.
     // Grants extra controls: absent marking, late→present override, present→late override.
@@ -73,9 +74,9 @@ struct GlobalKioskView: View {
                 } else if entries.isEmpty {
                     Spacer()
                     ContentUnavailableView(
-                        "No Students",
-                        systemImage: "person.3",
-                        description: Text("No students are enrolled in any active class.")
+                        "No Classes Today",
+                        systemImage: "calendar",
+                        description: Text("No tuition classes are scheduled for today.")
                     )
                     Spacer()
                 } else {
@@ -191,6 +192,9 @@ struct GlobalKioskView: View {
         .sheet(isPresented: $showSettings) {
             KioskSettingsSheet(storedPIN: $storedPIN, isLocked: $isLocked)
         }
+        .fullScreenCover(isPresented: $showStudySpace) {
+            StudySpaceView()
+        }
         .errorAlert(error: $error)
     }
 
@@ -248,6 +252,17 @@ struct GlobalKioskView: View {
                         .padding(10)
                         .background(Color(.systemGray5), in: Circle())
                 }
+            }
+
+            if isAdminMode && !isSelectionMode && featureFlags.isEnabled(.studySpaceTracking) {
+                Button { showStudySpace = true } label: {
+                    Image(systemName: "studentdesk")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .padding(10)
+                        .background(Color(.systemGray5), in: Circle())
+                }
+                .accessibilityLabel("Study Space")
             }
 
             if isLocked {

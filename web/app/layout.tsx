@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "TAVA Attendance",
-  description: "Admin dashboard for TAVA tuition centre attendance",
+  description: "Admin dashboard for TAVA study centre attendance",
 };
 
 export default function RootLayout({
