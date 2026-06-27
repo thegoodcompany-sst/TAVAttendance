@@ -8,6 +8,17 @@ Tracking key: ☐ = to do · ☑ = done. Owner: the Centre's Data Protection Off
 
 ---
 
+## 0. Verify now (2026-06-27 prod fix)
+
+- ☐ **Log into `https://dash.thegoodcompanysg.dev` as an admin and confirm the dashboard
+  loads** (no "This page couldn't load"). Background: the deployed web filtered
+  `classes.is_study_space`, a column missing from prod → dashboard 500. Fixed by applying
+  migration **015** + the `students.avatar_url` prereq to prod via MCP. All 38 columns/RPCs
+  the authenticated pages query are verified present and CI is green, but only a human with
+  admin creds can confirm the actual logged-in render. This is the last unverified step.
+
+---
+
 ## A. Must-do for PDPA compliance
 
 ### ☐ 1. Appoint a Data Protection Officer (DPO) — *s11(3), mandatory*
