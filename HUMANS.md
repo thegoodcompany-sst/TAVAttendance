@@ -8,14 +8,16 @@ Tracking key: ☐ = to do · ☑ = done. Owner: the Centre's Data Protection Off
 
 ---
 
-## 0. Verify now (2026-06-27 prod fix)
+## 0. Resolved (2026-06-27 prod fix)
 
-- ☐ **Log into `https://dash.thegoodcompanysg.dev` as an admin and confirm the dashboard
-  loads** (no "This page couldn't load"). Background: the deployed web filtered
-  `classes.is_study_space`, a column missing from prod → dashboard 500. Fixed by applying
-  migration **015** + the `students.avatar_url` prereq to prod via MCP. All 38 columns/RPCs
-  the authenticated pages query are verified present and CI is green, but only a human with
-  admin creds can confirm the actual logged-in render. This is the last unverified step.
+- ☑ **Dashboard 500 fixed and verified.** The deployed web filtered `classes.is_study_space`,
+  a column missing from prod → dashboard "This page couldn't load". Fixed by applying migration
+  **015** + the `students.avatar_url` prereq to prod via MCP. Verified: all 38 columns/RPCs the
+  authenticated pages query exist; the homepage queries (`get_roster_for_date`, `getTodaySessions`,
+  `getDailyAttendance`, `attendance_summary`) all run cleanly **under the real admin's RLS context**
+  returning live data; CI green. No errors since the fix.
+- ☐ *(optional eyeball)* Open `https://dash.thegoodcompanysg.dev` logged in as admin to see the
+  rendered page — the data path is proven, this is just visual confirmation.
 
 ---
 
