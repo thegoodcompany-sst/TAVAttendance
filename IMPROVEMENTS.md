@@ -31,10 +31,6 @@ The policy granting tutors SELECT on their own assignment rows is correct and
 harmless, but no tutor-facing UI uses it yet. No action needed; documented so a
 future tutor feature reuses it rather than adding a parallel policy.
 
-### CONTRIB-06 / repo hygiene — human decisions required
-- Untracked `iOS/TAVAttendance 2.xcodeproj/` appears to be a Finder duplicate of the
-  real project. A human should confirm and delete it before committing (tracked in
-  `HUMANS.md`).
 
 ### Android UI parity follow-ups
 The flag-gated features (PROD-01/02/04) and several kiosk UX items (UX-01/02/03/04/07,
