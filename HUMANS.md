@@ -1,42 +1,10 @@
 # HUMANS.md — actions only a human can complete
 
-Some PDPA (and related) compliance steps cannot be done in code or by an agent. They need a
-person with organisational authority, legal judgement, or access to dashboards/contracts.
+Some PDPA (and related) compliance and operational steps cannot be done in code or by an agent.
+They need a person with organisational authority, legal judgement, or access to dashboards/contracts.
 **The technical controls are in place; these items make the compliance real and lawful.**
 
 Tracking key: ☐ = to do · ☑ = done. Owner: the Centre's Data Protection Officer unless noted.
-
----
-
-## 0. Resolved (2026-06-29 prod fix)
-
-- ☑ **iOS kiosk "Failed to mark dismissal" fixed.** Prod's `dismissals` table was missing the
-  `dismissals_session_student_unique` (session_id, student_id) constraint — migration 010 (MAINT-01)
-  was never applied to prod (schema drift). The iOS upsert uses `onConflict: "session_id,student_id"`,
-  which Postgres rejects (42P10) without that constraint. Applied 010's MAINT-01 block (dedup + add
-  constraint) to prod via MCP, verified present. No app code change — DB-only fix.
-- ☐ **Confirm on device:** on the iPad kiosk, dismiss a signed-in student → card turns purple, no error.
-- ☑ **iOS "Failed to load punctuality stats" fixed.** The `class_punctuality` RPC (migration 010)
-  was never applied to prod (schema drift). Deployed it to prod via MCP, dependencies verified.
-- ☑ **iOS "Failed to load kiosk data" fixed (root cause of the FK errors too).** `getOrCreateSession`
-  sent a fresh `id` in the sessions upsert; `ON CONFLICT DO UPDATE` rewrote the existing session's
-  PK once attendance rows referenced it → `attendance_records_session_id_fkey` → HTTP 409 on every
-  kiosk reload after the first sign-in. Fixed by omitting `id` from the upsert (DB default fills it).
-  Code change in `iOS/.../Services/AttendanceService.swift`; iOS-only (Android does SELECT-then-INSERT,
-  web doesn't create sessions). **Rebuild/redeploy the iOS app to the iPad to pick it up.**
-- ☐ **Confirm on device:** reopen the iOS app — Sessions punctuality card loads, and the kiosk
-  loads without "Failed to load kiosk data" after a student has signed in.
-
-## 0b. Resolved (2026-06-27 prod fix)
-
-- ☑ **Dashboard 500 fixed and verified.** The deployed web filtered `classes.is_study_space`,
-  a column missing from prod → dashboard "This page couldn't load". Fixed by applying migration
-  **015** + the `students.avatar_url` prereq to prod via MCP. Verified: all 38 columns/RPCs the
-  authenticated pages query exist; the homepage queries (`get_roster_for_date`, `getTodaySessions`,
-  `getDailyAttendance`, `attendance_summary`) all run cleanly **under the real admin's RLS context**
-  returning live data; CI green. No errors since the fix.
-- ☐ *(optional eyeball)* Open `https://dash.thegoodcompanysg.dev` logged in as admin to see the
-  rendered page — the data path is proven, this is just visual confirmation.
 
 ---
 
@@ -86,7 +54,7 @@ VALUES ('data_protection_notice', '1.1', 'TAVA Attendance — Data Protection No
 ```
 
 ### ☑ 8. Retention purge job (pg_cron) — DONE
-`pg_cron` was enabled and the daily job `pdpa-daily-purge` (18:20) is scheduled and active. Verify:
+`pg_cron` is enabled and the daily job `pdpa-daily-purge` (18:20) is scheduled and active. Verify:
 ```sql
 SELECT * FROM cron.job WHERE jobname='pdpa-daily-purge';
 SELECT purge_expired_personal_data();  -- safe to run manually; returns counts
@@ -121,45 +89,32 @@ On an admin-signed-in build, verify in the Shortcuts app + Siri:
 - "Open the sign-in kiosk" → app opens on the Sign-In tab.
 - Signed-out / non-admin caller → friendly spoken error, no crash.
 
-### ☐ 13. Decide how to wire Supabase credentials into the build (pre-existing, NOT caused by PR #1)
-On a fresh checkout the app **crashes at launch** in `SupabaseManager.init()` because
-`SUPABASE_PROJECT_URL` / `SUPABASE_ANON_KEY` never reach the Info dictionary: `iOS/project.yml`
-`info.properties` doesn't list them, so XcodeGen generates an `Info.plist` without them, and
-`Config.xcconfig`'s values have nowhere to flow. (Confirmed: injecting the keys into the built
-`Info.plist` makes the app launch cleanly to the login screen.) Fix options for a human to choose:
-add the two keys to `project.yml` `info.properties` as `$(SUPABASE_PROJECT_URL)` /
-`$(SUPABASE_ANON_KEY)` **and** correct the `Config.xcconfig` URL escaping (the `//` in
-`https://` is otherwise read as an xcconfig comment). Left for you since it touches credential
-wiring / security setup. This affects `main` regardless of PR #1.
+### ☐ 13. Wire Supabase credentials into the iOS build
+Decide how the two credentials reach the Info dictionary on a fresh checkout: add
+`SUPABASE_PROJECT_URL` / `SUPABASE_ANON_KEY` to `iOS/project.yml` `info.properties` as
+`$(SUPABASE_PROJECT_URL)` / `$(SUPABASE_ANON_KEY)`, and make sure the `//` in the `https://` URL in
+`Config.xcconfig` is escaped (an unescaped `//` is read as an xcconfig comment). Left for a human
+since it touches credential wiring / security setup.
 
 ---
 
-## D. IMPROVEMENTS.md second wave (2026-06-24)
+## D. Migrations & feature flags
 
-### ◐ 14. Apply migrations 012–014 to the live project — PARTIALLY DONE 2026-06-25
-**Done (applied to prod via MCP, 2026-06-25):**
-- `012_feature_flags` — full migration: `feature_flags` table + `is_feature_enabled()` + RLS + 3 seeded OFF flags. (Recorded in `schema_migrations`.)
-- `014a_get_roster_for_date` — *partial 014*: only the `get_roster_for_date(DATE)` RPC, applied to fix a production login crash (`Could not find the function public.get_roster_for_date(p_date)`). PostgREST schema cache reloaded.
+### ◐ 14. Finish applying migrations 012–015 to the live project — IN PROGRESS
+**Applied to prod (via MCP):** `012_feature_flags`, `014a_get_roster_for_date`, and `015` plus its
+`students.avatar_url` prereq.
 
-**Still to do (BLOCKED by live-schema drift — needs a dev-branch reconciliation, do NOT apply verbatim to prod):**
-The live DB has drifted from the migration sequence — several columns the later
-migrations assume are **missing in prod**:
-- `classes.recurrence_rule` — absent → **`013_audit_fixes.sql` fails** (its `classes_recurrence_rule_check` CHECK targets this column).
-- `attendance_records.late_reason` — absent → the `014` rebuild of `get_session_roster` (adds `avatar_url`, references `late_reason`) fails.
-- live `get_session_roster(uuid)` returns 6 cols (no `avatar_url`); `CREATE OR REPLACE` can't change return type (needs `DROP FUNCTION` first).
-
-Remaining un-applied pieces: all of **013** (handle_new_user SEC-05 guard, sync_attendance
-`blocked_ended_session` return shape, result_slips subject-CHECK drop, recurrence_rule CHECK)
-and the **rest of 014** (student-photos bucket + policies, `students.avatar_url`,
-`device_tokens`, `get_session_roster` avatar_url). These back features that are flag-gated
-OFF, so prod is functional without them. Recommended: spin up a Supabase **dev branch**,
-add the missing columns (`classes.recurrence_rule`, `attendance_records.late_reason`) so the
-migrations apply cleanly, verify, then promote. Each migration has a paired `.down.sql`.
+**Still to do:** the remaining pieces of **013** and **014** (handle_new_user SEC-05 guard,
+`sync_attendance` `blocked_ended_session` return shape, result_slips subject-CHECK drop,
+`recurrence_rule` CHECK, student-photos bucket + policies, `device_tokens`, `get_session_roster`
+`avatar_url`). These need a few columns added first (`classes.recurrence_rule`,
+`attendance_records.late_reason`) so the migrations apply cleanly. They back features that are
+flag-gated OFF, so prod is functional without them. Recommended: apply on a Supabase **dev branch**,
+verify, then promote. Each migration has a paired `.down.sql`.
 
 ### ☐ 15. Decide whether to keep `iOS/TAVAttendance 2.xcodeproj/` (CONTRIB-06)
 This untracked directory looks like a Finder duplicate of the real project. Confirm
-and delete it (or keep intentionally) before committing — an agent must not delete an
-unrecognised file it didn't create.
+and delete it (or keep intentionally) — an agent must not delete an unrecognised file it didn't create.
 
 ### ☐ 16. Flip feature flags when each feature is ready
 Features ship OFF. Enable per platform-ready feature:
@@ -175,9 +130,7 @@ The `notify-parent` edge function is scaffolded but unwired. Supply an APNs key
 in `supabase/functions/notify-parent/index.ts`, then enable `push_notifications`.
 
 ### ☐ 18. Finish the Android port UI follow-ups
-All three builds were verified during implementation: iOS (`xcodebuild`, BUILD
-SUCCEEDED), web (`npm run build`, OK), Android (`./gradlew compileDebugKotlin`,
-BUILD SUCCESSFUL). Still to do: run a full `./gradlew assembleDebug` (exercises R8 +
+iOS, web, and Android all compile. Still to do: run a full `./gradlew assembleDebug` (exercises R8 +
 the new ProGuard keep rules) and complete the Compose UI parity items listed in
 `Android/PORTING_NOTES.md` (kiosk UX + parent screen + FCM).
 
@@ -190,9 +143,9 @@ Supabase status subscription described in `CONTRIBUTING.md` §6.
 
 ---
 
-## E. Superadmin feature-flags web section (2026-06-25)
+## E. Superadmin feature-flags web section
 
-A `/feature-flags` admin page now lets the superadmin toggle the `feature_flags`
+A `/feature-flags` admin page lets the superadmin toggle the `feature_flags`
 rows from the web dashboard (an alternative to the SQL in §16). Access is gated
 **app-layer only** to one email — the DB RLS write policy stays at `is_admin()`
 (intentional; documented in `web/lib/superadmin.ts` and the design spec).
@@ -213,49 +166,33 @@ Cannot be automated (requires Supabase auth + accounts). With the web app runnin
   `/feature-flags` directly returns a **404**.
 
 ### ☐ 23. Review the Chinese (Simplified) UI translations
-iOS localization now uses a String Catalog (`iOS/TAVAttendance/Localizable.xcstrings`) with
+iOS localization uses a String Catalog (`iOS/TAVAttendance/Localizable.xcstrings`) with
 **English source + best-effort `zh-Hans` translations** for the Privacy Notice screen. The
-notice term has been set to **"数据保护声明"** (data protection notice) to match
-`docs/pdpa/DATA_PROTECTION_NOTICE.md`. A native speaker should still review overall wording
+notice term is set to **"数据保护声明"** (data protection notice) to match
+`docs/pdpa/DATA_PROTECTION_NOTICE.md`. A native speaker should review overall wording
 before shipping. Edit translations in Xcode's String Catalog editor (open `Localizable.xcstrings`).
 Strings covered: Loading…, Version %@, Notice Unavailable, Privacy, Done, Privacy Notice, and the
 two load-failure messages. Other app screens are not yet localized — adding them is the next step.
 
 ---
 
-## F. Dashboard outage hotfix (2026-06-25)
+## F. Study Space tracking (2026-06-26)
 
-### ☐ 24. Push the dashboard hotfix commit to `origin/main`
-Production was down — the dashboard home page 500'd for every logged-in user
-(`ERROR 961535271` / PostgREST `PGRST200`) because `getTodaySessions` embedded
-`enrollments` directly on a `sessions` query with no FK between them. Fixed in
-`web/lib/queries.ts` by routing the embed through `sessions → classes → enrollments`.
-**Already deployed to prod** (Vercel CLI, `dpl_sftgTHzdNJbSbVyRTvbWENtDx6Mg`, verified
-live) and **committed locally** as `68fabc4`, but **not pushed**. Push it so
-`origin/main` matches prod and a future git-triggered deploy doesn't revert the fix:
-```bash
-git push origin main
-```
-
----
-
-## G. tava.sg alignment + Study Space tracking (2026-06-26)
-
-### ☐ 25. Apply migration `015_study_space_and_notice.sql` to the live project
+### ☐ 24. Apply migration `015_study_space_and_notice.sql` to the live project
 Adds `classes.is_study_space` + the singleton Study Space class, seeds the
 `study_space_tracking` flag (OFF), adds `get_study_space_roster`, excludes study space from
 `attendance_summary` + `get_roster_for_date`, and publishes Data Protection Notice **v1.1**.
-The notice (§B-style) and flag parts are independent of the §14 schema drift, but verify the
-column/function changes apply cleanly against the live schema first (use a dev branch if unsure).
+The notice and flag parts are independent of the §14 work, but verify the column/function
+changes apply cleanly against the live schema first (use a dev branch if unsure).
 Paired down migration: `015_study_space_and_notice.down.sql`.
 
-### ☐ 26. Finish DPO contact on the v1.1 notice — *ties into §1/§2*
-The v1.1 notice now names **Talent Beacon** as the controller and `admin@talentbeacon.org` /
+### ☐ 25. Finish DPO contact on the v1.1 notice — *ties into §1/§2*
+The v1.1 notice names **Talent Beacon** as the controller and `admin@talentbeacon.org` /
 209 Bukit Batok Street 21, #01-182 as the contact, but the **DPO name/role** is still a
 placeholder in `docs/pdpa/DATA_PROTECTION_NOTICE.md` and the seeded `policy_documents` v1.1 body.
 Fill it in and get legal/DPO sign-off (removes "DRAFT v1.1").
 
-### ☐ 27. Flip `study_space_tracking` when the Study Space feature is ready
+### ☐ 26. Flip `study_space_tracking` when the Study Space feature is ready
 Ships OFF. Enable per §16 (or via the superadmin `/feature-flags` page) **only after** the
 Android + web ports land, so study-space sessions never exist before every reporting surface
 excludes them:
@@ -263,27 +200,25 @@ excludes them:
 UPDATE feature_flags SET enabled = true WHERE key = 'study_space_tracking';
 ```
 
-### ☐ 28. Fix tava.sg's own copy inconsistency (website, not the app)
+### ☐ 27. Fix tava.sg's own copy inconsistency (website, not the app)
 The site states opening hours as both **"12–6pm"** (header) and **"1–6pm"** (registration prose),
 and lists tuition at **7:30pm** though the drop-in space closes at 6pm. Confirm the canonical
 figures and correct them on tava.sg. (No app change — the app does not hardcode these.)
 
-### ☐ 29. Unblock Android build/test verification (environment)
-`compileDebugKotlin` passes for the Study Space changes, but a full `./gradlew test` /
-`assembleDebug` can't complete in this environment for two pre-existing reasons:
-- **macOS Finder duplicates** — ~48 `… 2.kt` / `… 2.xml` / `… 2.png` files under `Android/app/src`
+### ☐ 28. Unblock the full Android build/test on this machine (environment)
+`compileDebugKotlin` passes, but a full `./gradlew test` / `assembleDebug` needs two local fixes:
+- **macOS Finder duplicates** — `… 2.kt` / `… 2.xml` / `… 2.png` files under `Android/app/src`
   (and the `iOS/TAVAttendance 2.xcodeproj` per §15) break resource merge + cause redeclarations.
   Delete them (they are untracked Finder copies) before building.
-- **JDK 26** is the only installed JDK; the Android Gradle Plugin's `jlink` JDK-image transform
-  fails on it. Install a **JDK 17 or 21** and point `JAVA_HOME`/Gradle toolchain at it, then run
-  `./gradlew testDebugUnitTest` (includes the new `DayAwareKioskTest`).
+- **JDK version** — the Android Gradle Plugin's `jlink` transform needs **JDK 17 or 21**; point
+  `JAVA_HOME`/the Gradle toolchain at one, then run `./gradlew testDebugUnitTest` (includes
+  `DayAwareKioskTest`).
 
 ---
 
 ## Notes
-- Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the new
+- Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the
   `anonymise_student/erase_student/export_student_personal_data` SECURITY DEFINER functions are
   callable by `authenticated` **by design** — each guards with `is_admin()` (or is required by RLS).
   `rate_limit_events` has RLS on with no policy **by design** (service-role only).
-- Anon key remains in old git history (`build.gradle.kts`, old `SupabaseConfig.kt`); the anon key is
-  public-by-design, but rotate it via the dashboard if this repo ever goes public.
+- The Supabase anon key is public-by-design; rotate it via the dashboard if this repo ever goes public.

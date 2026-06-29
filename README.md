@@ -60,7 +60,7 @@ iOS/TAVAttendance/
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
 supabase/
-  migrations/     001…014 (see supabase/migrations/README.md for the down-migration convention)
+  migrations/     001…015 (see supabase/migrations/README.md for the down-migration convention)
   functions/      notify-parent edge function (PROD-02, flag-gated)
   seed.sql
 ```
