@@ -17,6 +17,7 @@
 		2ADC0F222562BC8827278955 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543023F8203B0054936C6A20 /* NetworkMonitor.swift */; };
 		2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */; };
 		313617761ED161A0A3D09850 /* ClassEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA18DB9555C7936A4D227EC /* ClassEntity.swift */; };
+		38FE42903F12B183D53D2AA6 /* StudySpaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109CE89C8684265033D609D6 /* StudySpaceView.swift */; };
 		444135573C1FE2B662F582F6 /* TodayAttendanceSummaryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEC7D4C66DA385710F81DC6 /* TodayAttendanceSummaryIntent.swift */; };
 		45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64ADFF510704F740AA4F9A37 /* AttendanceService.swift */; };
 		48407CE22BE54FB050C3242C /* StudentProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */; };
@@ -62,6 +63,7 @@
 		06D9A61ADE3ECD77F0BD9220 /* ExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportView.swift; sourceTree = "<group>"; };
 		0B27337B14AAF2CF27A31982 /* ClassPunctualityIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassPunctualityIntent.swift; sourceTree = "<group>"; };
 		0CEC7D4C66DA385710F81DC6 /* TodayAttendanceSummaryIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayAttendanceSummaryIntent.swift; sourceTree = "<group>"; };
+		109CE89C8684265033D609D6 /* StudySpaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudySpaceView.swift; sourceTree = "<group>"; };
 		1A13F07251D1EC6DF75C6E76 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 		232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TAVAttendanceApp.swift; sourceTree = "<group>"; };
 		24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
@@ -93,7 +95,7 @@
 		BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProfileView.swift; sourceTree = "<group>"; };
 		C1DE5F56BB1FCDC540A6E5A6 /* PDPAValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDPAValidation.swift; sourceTree = "<group>"; };
 		CB273005930FAD09CC8AD1F7 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D30A5704E0BE4968BD6157D7 /* CorrectionRequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionRequestsView.swift; sourceTree = "<group>"; };
 		D4527A7623645D63DEDC2198 /* StudentEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentEntity.swift; sourceTree = "<group>"; };
 		D56A28E4752FD6F6FA99B737 /* AttendanceStatusAppEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceStatusAppEnum.swift; sourceTree = "<group>"; };
@@ -101,13 +103,13 @@
 		E118AE1693C05946C87E9552 /* IntentSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentSupport.swift; sourceTree = "<group>"; };
 		E9545022B35ECF9F7DF0E84D /* CheckStudentStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckStudentStatusIntent.swift; sourceTree = "<group>"; };
 		EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorAssignmentView.swift; sourceTree = "<group>"; };
-		ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */ = {isa = PBXFileReference; lastKnownFileType = text; path = SupabaseConfig.swift.example; sourceTree = "<group>"; };
+		ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */ = {isa = PBXFileReference; path = SupabaseConfig.swift.example; sourceTree = "<group>"; };
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F3063799091ACD1EB194B57C /* KioskRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskRouter.swift; sourceTree = "<group>"; };
 		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_B4640D51-39A8-46CD-B8EC-723049B207AE" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_4C877619-F886-460A-BC37-DFF404B1CD59" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -134,6 +136,7 @@
 			isa = PBXGroup;
 			children = (
 				F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */,
+				109CE89C8684265033D609D6 /* StudySpaceView.swift */,
 			);
 			path = Kiosk;
 			sourceTree = "<group>";
@@ -143,7 +146,6 @@
 			children = (
 				4FF1F3FEA5695821BE4E3EFE /* TAVAttendance */,
 				F7C1A3B656D06525CBB93444 /* Products */,
-				55584E972FED6E8F00B66238 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -187,14 +189,6 @@
 				B45DE67A859A4D79875E07C9 /* Views */,
 			);
 			path = TAVAttendance;
-			sourceTree = "<group>";
-		};
-		55584E972FED6E8F00B66238 /* Recovered References */ = {
-			isa = PBXGroup;
-			children = (
-				"TEMP_B4640D51-39A8-46CD-B8EC-723049B207AE" /* Config.xcconfig */,
-			);
-			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 		9B2124344B144DC479818A99 /* Services */ = {
@@ -298,6 +292,14 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
+		"TEMP_D034D2C6-ADDF-4524-A0E3-EC0142F01448" /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_4C877619-F886-460A-BC37-DFF404B1CD59" /* Config.xcconfig */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -329,6 +331,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					B3761B335799DF70F2AAAA46 = {
+						DevelopmentTeam = "";
+					};
+				};
 			};
 			buildConfigurationList = A76FA904BD2D2EEF50075B71 /* Build configuration list for PBXProject "TAVAttendance" */;
 			developmentRegion = en;
@@ -410,6 +417,7 @@
 				4A5DA3CF97AEE047612EA4B8 /* StudentManagementView.swift in Sources */,
 				FE79888841DAF0F65F1CEEED /* StudentPrivacyView.swift in Sources */,
 				48407CE22BE54FB050C3242C /* StudentProfileView.swift in Sources */,
+				38FE42903F12B183D53D2AA6 /* StudySpaceView.swift in Sources */,
 				7B82E654CF7767F1DDC560CD /* SupabaseManager.swift in Sources */,
 				61A15FE98F1DE3DA980A0221 /* TAVAShortcuts.swift in Sources */,
 				10BC5C64E7AD432622E17329 /* TAVAttendanceApp.swift in Sources */,
@@ -542,11 +550,11 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_B4640D51-39A8-46CD-B8EC-723049B207AE" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_4C877619-F886-460A-BC37-DFF404B1CD59" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = DUU8J39BA7;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -562,11 +570,11 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_B4640D51-39A8-46CD-B8EC-723049B207AE" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_4C877619-F886-460A-BC37-DFF404B1CD59" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = DUU8J39BA7;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (

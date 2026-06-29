@@ -8,7 +8,26 @@ Tracking key: ☐ = to do · ☑ = done. Owner: the Centre's Data Protection Off
 
 ---
 
-## 0. Resolved (2026-06-27 prod fix)
+## 0. Resolved (2026-06-29 prod fix)
+
+- ☑ **iOS kiosk "Failed to mark dismissal" fixed.** Prod's `dismissals` table was missing the
+  `dismissals_session_student_unique` (session_id, student_id) constraint — migration 010 (MAINT-01)
+  was never applied to prod (schema drift). The iOS upsert uses `onConflict: "session_id,student_id"`,
+  which Postgres rejects (42P10) without that constraint. Applied 010's MAINT-01 block (dedup + add
+  constraint) to prod via MCP, verified present. No app code change — DB-only fix.
+- ☐ **Confirm on device:** on the iPad kiosk, dismiss a signed-in student → card turns purple, no error.
+- ☑ **iOS "Failed to load punctuality stats" fixed.** The `class_punctuality` RPC (migration 010)
+  was never applied to prod (schema drift). Deployed it to prod via MCP, dependencies verified.
+- ☑ **iOS "Failed to load kiosk data" fixed (root cause of the FK errors too).** `getOrCreateSession`
+  sent a fresh `id` in the sessions upsert; `ON CONFLICT DO UPDATE` rewrote the existing session's
+  PK once attendance rows referenced it → `attendance_records_session_id_fkey` → HTTP 409 on every
+  kiosk reload after the first sign-in. Fixed by omitting `id` from the upsert (DB default fills it).
+  Code change in `iOS/.../Services/AttendanceService.swift`; iOS-only (Android does SELECT-then-INSERT,
+  web doesn't create sessions). **Rebuild/redeploy the iOS app to the iPad to pick it up.**
+- ☐ **Confirm on device:** reopen the iOS app — Sessions punctuality card loads, and the kiosk
+  loads without "Failed to load kiosk data" after a student has signed in.
+
+## 0b. Resolved (2026-06-27 prod fix)
 
 - ☑ **Dashboard 500 fixed and verified.** The deployed web filtered `classes.is_study_space`,
   a column missing from prod → dashboard "This page couldn't load". Fixed by applying migration

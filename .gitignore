@@ -31,12 +31,13 @@ supabase/.branches/
 supabase/.temp/
 
 # Android
-Andriod/.kotlin/
+Android/.kotlin/
 
 # Tooling / IDE artefacts
 .mcp.json
 .claude/worktrees/
 iOS/io/
+iOS/TAVAttendance.xcodeproj/-Xcc/
 **/*.class
 
 # Credentials — never commit live keys

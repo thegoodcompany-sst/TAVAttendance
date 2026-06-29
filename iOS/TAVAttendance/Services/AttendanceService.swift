@@ -140,7 +140,22 @@ final class AttendanceService {
         // Use upsert to avoid the TOCTOU race: concurrent kiosk loads on the same
         // (class_id, session_date) pair would violate the unique constraint with a
         // plain SELECT-then-INSERT. ON CONFLICT DO UPDATE is idempotent.
-        let new = Session(id: UUID(), classId: classId, sessionDate: date, topic: nil, notes: nil, startedAt: nil, endedAt: nil, subTutorId: nil)
+        //
+        // Do NOT send `id`: PostgREST's upsert is INSERT ... ON CONFLICT DO UPDATE
+        // SET (every supplied column). Including a fresh `id` rewrites the existing
+        // session's primary key on conflict, which attendance_records reference —
+        // raising attendance_records_session_id_fkey (HTTP 409) once anyone has
+        // signed in. Omitting it lets the DB default (gen_random_uuid()) fill it on
+        // insert and leaves the existing id untouched on conflict.
+        struct SessionUpsert: Encodable {
+            let classId: UUID
+            let sessionDate: String
+            enum CodingKeys: String, CodingKey {
+                case classId = "class_id"
+                case sessionDate = "session_date"
+            }
+        }
+        let new = SessionUpsert(classId: classId, sessionDate: date)
         return try await db.from("sessions")
             .upsert(new, onConflict: "class_id,session_date")
             .select().single().execute().value
