@@ -14,7 +14,7 @@ export function KpiTile({ label, value, delta, accent }: KpiTileProps) {
         'rounded-3xl p-5',
         accent
           ? 'bg-brand-soft'
-          : 'bg-white shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]'
+          : 'bg-white shadow-card'
       )}
     >
       <p
@@ -27,7 +27,7 @@ export function KpiTile({ label, value, delta, accent }: KpiTileProps) {
       </p>
       <p
         className={cn(
-          'text-4xl font-bold tracking-tight',
+          'font-display text-4xl font-semibold tracking-tight',
           accent ? 'text-brand-ink' : 'text-foreground'
         )}
       >

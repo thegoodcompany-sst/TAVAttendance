@@ -97,7 +97,7 @@ export function SetPasswordForm() {
             <AlertCircle className="w-7 h-7 text-destructive" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold">Link invalid or expired</h2>
+            <h2 className="font-display text-xl font-semibold text-brand-ink">Link invalid or expired</h2>
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{sessionError}</p>
           </div>
         </div>
@@ -115,7 +115,7 @@ export function SetPasswordForm() {
               <CheckCircle2 className="w-8 h-8 text-brand" strokeWidth={1.75} />
             </div>
             <div className="space-y-1.5">
-              <h2 className="text-lg font-semibold">
+              <h2 className="font-display text-xl font-semibold text-brand-ink">
                 {firstName ? `You're all set, ${firstName}!` : 'Account activated!'}
               </h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -140,7 +140,7 @@ export function SetPasswordForm() {
           <div className="w-9 h-9 rounded-xl bg-brand flex items-center justify-center text-white font-bold text-base">
             T
           </div>
-          <span className="font-bold text-brand text-xl tracking-tight">TAVA</span>
+          <span className="font-display font-semibold text-brand text-2xl tracking-tight">TAVA</span>
         </div>
 
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
@@ -149,7 +149,7 @@ export function SetPasswordForm() {
           <div className="p-7 space-y-6">
             {/* Header */}
             <div>
-              <h1 className="text-xl font-semibold text-foreground">You&apos;ve been invited</h1>
+              <h1 className="font-display text-2xl font-semibold text-brand-ink">You&apos;ve been invited</h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Create a password to activate your account.
               </p>

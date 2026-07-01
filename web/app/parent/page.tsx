@@ -1,6 +1,7 @@
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { getAllStudents, getStudentClassSummary } from '@/lib/queries'
 import { Avatar } from '@/components/dashboard/avatar'
+import { PageHeader } from '@/components/dashboard/page-header'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,8 @@ export default async function ParentPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">My Children</h1>
+      <PageHeader title="My children" />
+
 
       {children.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 text-center shadow-sm">

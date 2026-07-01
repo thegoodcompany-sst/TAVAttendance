@@ -17,13 +17,13 @@ export default async function PrivacyPage() {
         Back to dashboard
       </Link>
 
-      <div className="bg-white rounded-3xl p-8 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+      <div className="bg-white rounded-3xl p-8 shadow-card">
         <div className="flex items-center gap-3 mb-5">
           <div className="w-10 h-10 rounded-xl bg-brand-soft flex items-center justify-center">
             <ShieldCheck size={20} className="text-brand" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">
+            <h1 className="font-display text-2xl font-semibold text-brand-ink">
               {notice?.title ?? 'Data Protection Notice'}
             </h1>
             {notice && (

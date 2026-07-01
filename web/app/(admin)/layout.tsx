@@ -44,7 +44,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile top nav */}
         <header className="md:hidden bg-white border-b border-border h-14 flex items-center justify-between px-4 sticky top-0 z-10">
-          <span className="font-bold text-brand text-lg">TAVA</span>
+          <span className="font-display font-semibold text-brand text-xl">TAVA</span>
           <div className="flex items-center gap-2">
             <nav className="flex gap-0.5">
               {[

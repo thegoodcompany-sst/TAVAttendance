@@ -37,10 +37,10 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
       </Link>
 
       {/* Header */}
-      <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)] flex items-center gap-5">
+      <div className="bg-white rounded-3xl p-6 shadow-card flex items-center gap-5">
         <Avatar name={student.full_name} size="lg" />
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold">{student.full_name}</h1>
+          <h1 className="font-display text-2xl font-semibold text-brand-ink">{student.full_name}</h1>
           {(student.school || student.year_of_study) && (
             <p className="text-sm text-muted-foreground mt-0.5">
               {[student.school, student.year_of_study].filter(Boolean).join(' · ')}
@@ -60,11 +60,11 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           Attendance by class
         </p>
         {classSummary.length === 0 ? (
-          <div className="bg-white rounded-3xl p-10 text-center shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+          <div className="bg-white rounded-3xl p-10 text-center shadow-card">
             <p className="text-sm text-muted-foreground">No attendance records yet.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-3xl overflow-hidden shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+          <div className="bg-white rounded-3xl overflow-hidden shadow-card">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">
@@ -104,11 +104,11 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           Recent records
         </p>
         {recentRecords.length === 0 ? (
-          <div className="bg-white rounded-3xl p-10 text-center shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+          <div className="bg-white rounded-3xl p-10 text-center shadow-card">
             <p className="text-sm text-muted-foreground">No records found.</p>
           </div>
         ) : (
-          <div className="bg-white rounded-3xl overflow-hidden shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+          <div className="bg-white rounded-3xl overflow-hidden shadow-card">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border">

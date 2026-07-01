@@ -3,11 +3,11 @@ import { formatScheduleTime } from '@/lib/date'
 import type { SessionSummary } from '@/lib/queries'
 
 const BG_GRADIENTS = [
-  'from-violet-400 to-purple-600',
-  'from-blue-400 to-indigo-600',
-  'from-emerald-400 to-teal-600',
+  'from-blue-500 to-[#193775]',
+  'from-sky-400 to-indigo-600',
+  'from-[#FAC12F] to-orange-500',
+  'from-indigo-400 to-[#193775]',
   'from-amber-400 to-orange-600',
-  'from-rose-400 to-pink-600',
 ]
 
 function classInitials(name: string) {

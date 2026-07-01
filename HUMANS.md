@@ -216,6 +216,20 @@ figures and correct them on tava.sg. (No app change — the app does not hardcod
 
 ---
 
+## G. Web brand redesign (2026-06-30)
+
+### ☐ 29. Visually verify the logged-in dashboard pages after the brand redesign
+The `redesign/tava-brand` branch re-skins the whole web app to the tava.sg brand (navy/marigold/cream,
+Lato body, Fredoka display titles, navy page-header band). `npm run lint` + `npm run build` pass and the
+`/login`, `/set-password`, and `/auth/confirm` pages were screenshot-verified at desktop + mobile. The
+authenticated pages (`/`, `/overview`, `/students`, `/students/[id]`, `/users`, `/corrections`,
+`/feature-flags`, `/privacy`, `/parent`) could **not** be screenshot here — they need a real admin/parent
+login. Sign in with an admin account on `npm run dev` and confirm on each: navy header band + Fredoka
+title, cream page background, marigold used only as the small underline/accent, tables and rosters still
+legible. Status badge colors (green/orange/red) were intentionally kept to match the iPad kiosk semantics.
+
+---
+
 ## Notes
 - Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the
   `anonymise_student/erase_student/export_student_personal_data` SECURITY DEFINER functions are

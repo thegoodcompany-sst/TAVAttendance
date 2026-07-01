@@ -4,6 +4,7 @@ import { AttendanceChart } from '@/components/dashboard/attendance-chart'
 import { ScheduleList } from '@/components/dashboard/schedule-list'
 import { ClassTile } from '@/components/dashboard/class-tile'
 import { QuickActionsCard } from '@/components/dashboard/quick-actions-card'
+import { PageHeader } from '@/components/dashboard/page-header'
 import { getTodayRoster, getTodaySessions, getDailyAttendance, getYesterdayRoster } from '@/lib/queries'
 
 export const dynamic = 'force-dynamic'
@@ -49,11 +50,7 @@ export default async function TodayPage() {
       <AutoRefresh intervalMs={30000} />
 
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Page header */}
-        <div>
-          <h1 className="text-2xl font-bold">Good {greeting()}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{dayLabel}</p>
-        </div>
+        <PageHeader title={`Good ${greeting()}`} subtitle={dayLabel} />
 
         {/* Main two-column layout */}
         <div className="flex flex-col lg:flex-row gap-6">
@@ -84,10 +81,10 @@ export default async function TodayPage() {
             </div>
 
             {/* Attendance chart */}
-            <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+            <div className="bg-white rounded-3xl p-6 shadow-card">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="font-semibold">Attendance</h2>
+                  <h2 className="font-display text-lg font-semibold">Attendance</h2>
                   <p className="text-xs text-muted-foreground mt-0.5">Last 14 days</p>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -109,8 +106,8 @@ export default async function TodayPage() {
           <div className="lg:w-[288px] xl:w-[320px] flex flex-col gap-6 flex-shrink-0">
             <QuickActionsCard />
 
-            <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
-              <h2 className="font-semibold mb-4">Today&apos;s schedule</h2>
+            <div className="bg-white rounded-3xl p-6 shadow-card">
+              <h2 className="font-display text-lg font-semibold mb-4">Today&apos;s schedule</h2>
               <ScheduleList sessions={sessions} />
             </div>
           </div>
@@ -133,7 +130,7 @@ export default async function TodayPage() {
         )}
 
         {sessions.length === 0 && (
-          <div className="bg-white rounded-3xl p-12 text-center shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+          <div className="bg-white rounded-3xl p-12 text-center shadow-card">
             <p className="text-sm text-muted-foreground">
               No sessions today — open the iPad kiosk to create them.
             </p>

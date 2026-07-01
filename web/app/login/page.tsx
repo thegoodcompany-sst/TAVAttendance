@@ -50,8 +50,8 @@ export default function LoginPage() {
 
   if (handlingInvite) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <p className="text-sm text-gray-500 animate-pulse">Verifying your invite…</p>
+      <div className="min-h-screen flex items-center justify-center bg-surface p-4">
+        <p className="text-sm text-muted-foreground animate-pulse">Verifying your invite…</p>
       </div>
     )
   }
@@ -89,10 +89,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-sm shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-surface p-4">
+      <Card className="w-full max-w-sm shadow-card-lg border-border/60">
         <CardHeader className="space-y-1 pb-4">
-          <div className="mb-1">
+          <div className="mb-2">
             <Image
               src="/tava-logo.png"
               alt="TAVA"
@@ -102,13 +102,13 @@ export default function LoginPage() {
               className="h-12 w-auto"
             />
           </div>
-          <CardTitle className="text-lg">Sign in</CardTitle>
+          <CardTitle className="font-display text-2xl font-semibold text-brand-ink">Welcome back</CardTitle>
           <CardDescription>Admin accounts only</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700" htmlFor="email">
+              <label className="text-sm font-medium text-foreground" htmlFor="email">
                 Email
               </label>
               <input
@@ -117,13 +117,13 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
                 placeholder="admin@example.com"
                 autoComplete="email"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700" htmlFor="password">
+              <label className="text-sm font-medium text-foreground" htmlFor="password">
                 Password
               </label>
               <input
@@ -132,7 +132,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full rounded-lg border border-border px-3 py-2 text-sm shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
                 autoComplete="current-password"
               />
             </div>

@@ -36,7 +36,7 @@ export default async function ParentLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-surface">
       <header className="bg-white border-b border-border h-14 flex items-center justify-between px-4">
-        <span className="font-bold text-brand text-lg">TAVA</span>
+        <span className="font-display font-semibold text-brand text-xl">TAVA</span>
         <form action="/api/auth/signout" method="post">
           <SignOutButton />
         </form>

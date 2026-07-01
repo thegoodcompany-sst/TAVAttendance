@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { ImportForm } from './form'
+import { PageHeader } from '@/components/dashboard/page-header'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,16 +16,15 @@ export default function ImportStudentsPage() {
         All students
       </Link>
 
-      <div>
-        <h1 className="text-2xl font-bold">Import students</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Paste CSV rows. Header order:{' '}
-          <code className="text-xs bg-muted px-1 py-0.5 rounded">full_name, date_of_birth, school, year_of_study, notes</code>.
-          Only <code className="text-xs bg-muted px-1 py-0.5 rounded">full_name</code> is required.
-        </p>
-      </div>
+      <PageHeader title="Import students" />
 
-      <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+      <p className="text-sm text-muted-foreground">
+        Paste CSV rows. Header order:{' '}
+        <code className="text-xs bg-muted px-1 py-0.5 rounded">full_name, date_of_birth, school, year_of_study, notes</code>.
+        Only <code className="text-xs bg-muted px-1 py-0.5 rounded">full_name</code> is required.
+      </p>
+
+      <div className="bg-white rounded-3xl p-6 shadow-card">
         <ImportForm />
       </div>
     </div>

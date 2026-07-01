@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isSuperadmin } from '@/lib/superadmin'
 import { FlagsList, type FlagRow } from './flags-list'
+import { PageHeader } from '@/components/dashboard/page-header'
 
 export default async function FeatureFlagsPage() {
   const supabase = await createClient()
@@ -22,12 +23,10 @@ export default async function FeatureFlagsPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground tracking-tight">Feature flags</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Toggle in-progress features across iOS, Android, and web. Changes take effect on next load.
-        </p>
-      </div>
+      <PageHeader
+        title="Feature flags"
+        subtitle="Toggle in-progress features across iOS, Android, and web. Changes take effect on next load."
+      />
 
       <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">

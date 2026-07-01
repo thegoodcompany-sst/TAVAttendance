@@ -1,12 +1,13 @@
 import { cn } from '@/lib/utils'
 import type { SessionSummary } from '@/lib/queries'
 
+// TAVA-toned bands: navy, bright blue, and marigold accents.
 const GRADIENTS = [
-  'from-violet-300 via-purple-400 to-fuchsia-500',
-  'from-blue-300 via-indigo-400 to-violet-500',
-  'from-emerald-300 via-teal-400 to-cyan-500',
-  'from-amber-300 via-orange-400 to-rose-400',
-  'from-rose-300 via-pink-400 to-fuchsia-500',
+  'from-blue-500 via-indigo-600 to-[#193775]',
+  'from-sky-400 via-blue-500 to-indigo-600',
+  'from-amber-300 via-[#FAC12F] to-orange-400',
+  'from-indigo-400 via-blue-500 to-[#193775]',
+  'from-[#FAC12F] via-amber-400 to-orange-500',
 ]
 
 export function ClassTile({
@@ -17,7 +18,7 @@ export function ClassTile({
   index: number
 }) {
   return (
-    <div className="rounded-3xl overflow-hidden bg-white shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+    <div className="rounded-3xl overflow-hidden bg-white shadow-card">
       <div
         className={cn(
           'h-28 bg-gradient-to-br',

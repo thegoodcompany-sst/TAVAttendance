@@ -90,7 +90,7 @@ export function PdpaPanel({
   }
 
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)] space-y-5">
+    <div className="bg-white rounded-3xl p-6 shadow-card space-y-5">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
         Privacy &amp; consent
       </p>

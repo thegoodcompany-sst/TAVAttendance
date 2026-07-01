@@ -1,6 +1,7 @@
 import { AutoRefresh } from '@/components/auto-refresh'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar } from '@/components/dashboard/avatar'
+import { PageHeader } from '@/components/dashboard/page-header'
 import { getTodayRoster, type StudentTodayEntry } from '@/lib/queries'
 
 export const dynamic = 'force-dynamic'
@@ -32,7 +33,7 @@ function Column({
   accent: string
 }) {
   return (
-    <div className="bg-white rounded-3xl p-5 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)] flex flex-col">
+    <div className="bg-white rounded-3xl p-5 shadow-card flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className={`text-sm font-semibold ${accent}`}>{title}</h3>
         <span className="bg-muted rounded-full px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -74,13 +75,10 @@ export default async function OverviewPage() {
       <AutoRefresh intervalMs={30000} />
 
       <div className="max-w-7xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Overview</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{dayLabel}</p>
-        </div>
+        <PageHeader title="Overview" subtitle={dayLabel} />
 
         {roster.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+          <div className="bg-white rounded-3xl p-12 text-center shadow-card">
             <p className="text-sm text-muted-foreground">
               No students expected today — open the kiosk to create sessions.
             </p>
@@ -141,7 +139,7 @@ function OtherSection({
         {students.map(s => (
           <div
             key={s.studentId}
-            className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]"
+            className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-card"
           >
             <Avatar name={s.fullName} size="sm" />
             <div className="flex-1 min-w-0">

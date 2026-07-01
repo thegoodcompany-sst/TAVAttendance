@@ -45,3 +45,4 @@ iOS/TAVAttendance.xcodeproj/-Xcc/
 iOS/TAVAttendance/Core/SupabaseConfig.swift
 iOS/Config.xcconfig
 Android/secrets.properties
+.gstack/

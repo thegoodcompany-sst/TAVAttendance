@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { InviteForm } from './invite-form'
 import { RemoveUserButton } from './remove-button'
 import { UserPlus, ShieldCheck, BookOpen, Users } from 'lucide-react'
+import { PageHeader } from '@/components/dashboard/page-header'
 
 const ROLE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   admin: { label: 'Admin', icon: ShieldCheck, color: 'text-brand bg-brand-soft' },
@@ -23,13 +24,10 @@ export default async function UsersPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground tracking-tight">Users</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Invite tutors, parents, and admins. They&apos;ll receive an email to set their own password.
-        </p>
-      </div>
+      <PageHeader
+        title="Users"
+        subtitle="Invite tutors, parents, and admins. They'll receive an email to set their own password."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6 items-start">
         {/* Invite card */}

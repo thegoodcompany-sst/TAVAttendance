@@ -74,7 +74,7 @@ export default function ConfirmPage() {
             <AlertCircle className="w-7 h-7 text-destructive" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold">Link invalid or expired</h2>
+            <h2 className="font-display text-xl font-semibold text-brand-ink">Link invalid or expired</h2>
             <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{error}</p>
             <p className="text-sm text-muted-foreground mt-3">Ask your admin to resend the invitation.</p>
           </div>

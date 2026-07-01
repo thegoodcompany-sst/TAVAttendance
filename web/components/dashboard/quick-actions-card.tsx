@@ -10,8 +10,8 @@ const ACTIONS = [
 
 export function QuickActionsCard() {
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
-      <h2 className="font-semibold mb-4">Quick actions</h2>
+    <div className="bg-white rounded-3xl p-6 shadow-card">
+      <h2 className="font-display text-lg font-semibold mb-4">Quick actions</h2>
       <div className="flex flex-col gap-1">
         {ACTIONS.map(({ href, label, Icon, primary }) => (
           <Link

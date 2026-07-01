@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { NewStudentForm } from './form'
+import { PageHeader } from '@/components/dashboard/page-header'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,14 +16,12 @@ export default function NewStudentPage() {
         All students
       </Link>
 
-      <div>
-        <h1 className="text-2xl font-bold">Add student</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Record a new student and attest that parent/guardian consent was obtained.
-        </p>
-      </div>
+      <PageHeader
+        title="Add student"
+        subtitle="Record a new student and attest that parent/guardian consent was obtained."
+      />
 
-      <div className="bg-white rounded-3xl p-6 shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_16px_-4px_rgba(80,60,160,0.08)]">
+      <div className="bg-white rounded-3xl p-6 shadow-card">
         <NewStudentForm />
       </div>
     </div>
