@@ -215,6 +215,18 @@ figures and correct them on tava.sg. (No app change — the app does not hardcod
 
 ---
 
+## G. Refactor follow-up (2026-07-03)
+
+### ☐ 29. Decide whether to wire `PdpaPanel` into the web student detail page
+`web/app/(admin)/students/[id]/pdpa-panel.tsx` (plus `getStudentConsent` and the
+withdraw/anonymise/erase/export actions behind it) has never been imported by
+`students/[id]/page.tsx` — it looks like the panel was built and never wired in.
+It is the s16/s21/s25 PDPA machinery, so it was deliberately NOT deleted in the
+2026-07 refactor. Decide: wire it into the student page (one import + render), or
+schedule it with the PDPA app-UI work.
+
+---
+
 ## Notes
 - Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the
   `anonymise_student/erase_student/export_student_personal_data` SECURITY DEFINER functions are
