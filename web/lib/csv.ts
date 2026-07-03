@@ -10,7 +10,7 @@ export type ParsedStudentRow = {
  * Parse a single CSV line respecting double-quoted fields (RFC-4180 subset:
  * commas and escaped "" inside quotes are honoured; embedded newlines are not).
  */
-export function parseCsvLine(line: string): string[] {
+function parseCsvLine(line: string): string[] {
   const out: string[] = []
   let cur = ''
   let inQuotes = false

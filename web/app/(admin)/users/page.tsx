@@ -3,6 +3,7 @@ import { InviteForm } from './invite-form'
 import { RemoveUserButton } from './remove-button'
 import { UserPlus, ShieldCheck, BookOpen, Users } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard/page-header'
+import { initials } from '@/lib/utils'
 
 const ROLE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   admin: { label: 'Admin', icon: ShieldCheck, color: 'text-brand bg-brand-soft' },
@@ -65,12 +66,6 @@ export default async function UsersPage() {
               {members.map(member => {
                 const meta = ROLE_META[member.role] ?? ROLE_META.tutor
                 const Icon = meta.icon
-                const initials = (member.full_name ?? '?')
-                  .split(' ')
-                  .map((n: string) => n[0])
-                  .slice(0, 2)
-                  .join('')
-                  .toUpperCase()
                 const joinedAt = new Date(member.created_at).toLocaleDateString('en-SG', {
                   day: 'numeric',
                   month: 'short',
@@ -80,7 +75,7 @@ export default async function UsersPage() {
                   <li key={member.id} className="group flex items-center gap-4 px-6 py-3.5">
                     {/* Avatar */}
                     <div className="w-9 h-9 rounded-full bg-brand-soft flex items-center justify-center text-brand-ink text-xs font-semibold flex-shrink-0">
-                      {initials}
+                      {initials(member.full_name ?? '?')}
                     </div>
                     {/* Name + date */}
                     <div className="flex-1 min-w-0">

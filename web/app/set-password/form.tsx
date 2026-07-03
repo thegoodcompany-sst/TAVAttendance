@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { initials } from '@/lib/utils'
 import {
   CheckCircle2, Eye, EyeOff, Mail, Lock,
   ShieldCheck, BookOpen, Users, AlertCircle,
@@ -160,7 +161,7 @@ export function SetPasswordForm() {
               {fullName && (
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-brand-soft flex items-center justify-center flex-shrink-0 text-xs font-semibold text-brand-ink">
-                    {fullName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()}
+                    {initials(fullName)}
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">{fullName}</p>

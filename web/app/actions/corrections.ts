@@ -1,9 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
-
-const NRIC_RE = /\b[STFGM][0-9]{7}[A-Z]\b/i
+import { requireAdmin, NRIC_RE } from '@/lib/admin'
 
 // Columns on `students` an admin is allowed to correct via this queue.
 const CORRECTABLE_FIELDS = new Set([
@@ -13,23 +11,6 @@ const CORRECTABLE_FIELDS = new Set([
   'year_of_study',
   'notes',
 ])
-
-async function requireAdmin() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' as const, supabase, user: null }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role !== 'admin') {
-    return { error: 'Only admins can perform this action.' as const, supabase, user: null }
-  }
-  return { error: null, supabase, user }
-}
 
 /**
  * Apply a correction request (PDPA s22): writes the requested value onto the

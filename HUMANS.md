@@ -66,6 +66,9 @@ or schedule the job manually.
 `erase_student` / `anonymise_student` delete result-slip **rows**, but Storage **objects** under the
 `result-slips` bucket are not deleted from SQL. Either delete objects from the app at erasure time,
 or run a periodic Storage cleanup of orphaned objects (path convention: `<student_id>/<file>`).
+A draft implementation exists on the unmerged local branch `worktree-agent-a0964c91cbe6e7bb4`
+(commit `cc63405`, 2026-06); its migration is numbered `013` which now clashes with main — renumber
+before merging, or treat it as reference only.
 
 ### ☐ 10. Turn on Supabase log/security alerting
 Enable log drains/alerts and review `get_advisors` (security + performance) regularly — this backs
@@ -112,9 +115,8 @@ since it touches credential wiring / security setup.
 flag-gated OFF, so prod is functional without them. Recommended: apply on a Supabase **dev branch**,
 verify, then promote. Each migration has a paired `.down.sql`.
 
-### ☐ 15. Decide whether to keep `iOS/TAVAttendance 2.xcodeproj/` (CONTRIB-06)
-This untracked directory looks like a Finder duplicate of the real project. Confirm
-and delete it (or keep intentionally) — an agent must not delete an unrecognised file it didn't create.
+### ☑ 15. `iOS/TAVAttendance 2.xcodeproj/` Finder duplicate — GONE (CONTRIB-06)
+Verified 2026-07-02: the directory no longer exists in the working tree. Nothing to do.
 
 ### ☐ 16. Flip feature flags when each feature is ready
 Features ship OFF. Enable per platform-ready feature:
@@ -206,10 +208,7 @@ and lists tuition at **7:30pm** though the drop-in space closes at 6pm. Confirm 
 figures and correct them on tava.sg. (No app change — the app does not hardcode these.)
 
 ### ☐ 28. Unblock the full Android build/test on this machine (environment)
-`compileDebugKotlin` passes, but a full `./gradlew test` / `assembleDebug` needs two local fixes:
-- **macOS Finder duplicates** — `… 2.kt` / `… 2.xml` / `… 2.png` files under `Android/app/src`
-  (and the `iOS/TAVAttendance 2.xcodeproj` per §15) break resource merge + cause redeclarations.
-  Delete them (they are untracked Finder copies) before building.
+`compileDebugKotlin` passes, but a full `./gradlew test` / `assembleDebug` needs one local fix:
 - **JDK version** — the Android Gradle Plugin's `jlink` transform needs **JDK 17 or 21**; point
   `JAVA_HOME`/the Gradle toolchain at one, then run `./gradlew testDebugUnitTest` (includes
   `DayAwareKioskTest`).

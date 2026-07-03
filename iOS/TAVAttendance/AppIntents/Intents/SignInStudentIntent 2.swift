@@ -26,8 +26,13 @@ struct SignInStudentIntent: AppIntent {
             throw AppIntentError.studentNotInToday(student.name)
         }
 
-        let status = try await AttendanceService.shared.markKioskSignIn(entry: entry)
+        try await AttendanceService.shared.markKioskSignIn(entry: entry)
 
-        return .result(dialog: "Signed in \(student.name) — marked \(status.spokenLabel).")
+        // Re-read to report the resulting status (On Time vs Late).
+        let refreshed = try await AttendanceService.shared.fetchKioskEntries()
+        let status = IntentSupport.findEntry(for: student.id, in: refreshed)?.status
+        let label = status?.spokenLabel ?? "signed in"
+
+        return .result(dialog: "Signed in \(student.name) — marked \(label).")
     }
 }

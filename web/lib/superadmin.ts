@@ -5,7 +5,7 @@
 
 const DEFAULT_SUPERADMIN_EMAIL = 'edmund@thegoodcompanysg.dev'
 
-export function getSuperadminEmail(): string {
+function getSuperadminEmail(): string {
   return (process.env.SUPERADMIN_EMAIL ?? DEFAULT_SUPERADMIN_EMAIL).trim().toLowerCase()
 }
 

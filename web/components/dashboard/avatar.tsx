@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn, initials } from '@/lib/utils'
 
 const PALETTE = [
   'bg-blue-100 text-blue-700',
@@ -21,13 +21,6 @@ type AvatarProps = {
 }
 
 export function Avatar({ name, size = 'md', className }: AvatarProps) {
-  const initials = name
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
-
   const sizeClass =
     size === 'sm' ? 'w-8 h-8 text-xs' :
     size === 'lg' ? 'w-12 h-12 text-base' :
@@ -45,7 +38,7 @@ export function Avatar({ name, size = 'md', className }: AvatarProps) {
         className
       )}
     >
-      <span aria-hidden="true">{initials}</span>
+      <span aria-hidden="true">{initials(name)}</span>
     </div>
   )
 }

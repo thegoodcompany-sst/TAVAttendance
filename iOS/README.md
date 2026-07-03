@@ -42,7 +42,7 @@ The scaffolding files live in `TAVAttendance/` but Xcode doesn't know about them
 
 Open `Core/SupabaseManager.swift` and replace the placeholder values:
 
-### Local dev (after running `supabase start` in `Backend/`)
+### Local dev (after running `supabase start` at the repo root)
 
 ```swift
 static let supabaseURL     = "http://127.0.0.1:54321"
@@ -113,4 +113,4 @@ Backend tables for `result_slips`, `messages`, `awards`, `dismissals`, `food_pol
 1. Add a method to `AttendanceService.swift` (or a new `XxxService.swift`)
 2. Add the model to `Models.swift`
 3. Build the view
-4. Add a migration in `Backend/supabase/migrations/` to open up RLS for the new role/feature
+4. Add a migration in `supabase/migrations/` to open up RLS for the new role/feature

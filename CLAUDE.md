@@ -232,8 +232,3 @@ All three platforms now use structured error handling instead of silent catches:
 - **iOS**: New `AppError` type (`Core/AppError.swift`) + `View.errorAlert()` modifier. Errors surface as alerts with retry/dismiss options. Updated views: `GlobalKioskView`, `SessionListView`, `SessionDetailView`, `ExportView`.
 - **Web**: Query functions in `lib/queries.ts` now throw `Error` on failure (previously returned `[]`). Callers should use error boundaries or try/catch.
 - **Android**: Uses `runCatching` extensively; error handling is a known gap (most results are not inspected). See `SessionListScreen.kt`, `RosterScreen.kt`, `GlobalKioskScreen.kt` for patterns.
-
-## `.claude/settings.json`
-
-`bgIsolation` is set to `"none"`. This was required because this project had uncommitted local changes when the first background agent session started — the default worktree would have branched from `origin/main`, missing the local changes entirely.  
-If you start fresh (clean commit on main), you can remove this setting to re-enable worktree isolation for background agents.

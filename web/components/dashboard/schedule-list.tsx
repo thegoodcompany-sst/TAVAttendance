@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils'
+import { cn, initials } from '@/lib/utils'
 import { formatScheduleTime } from '@/lib/date'
 import type { SessionSummary } from '@/lib/queries'
 
@@ -9,15 +9,6 @@ const BG_GRADIENTS = [
   'from-indigo-400 to-[#193775]',
   'from-amber-400 to-orange-600',
 ]
-
-function classInitials(name: string) {
-  return name
-    .split(' ')
-    .map(w => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase()
-}
 
 export function ScheduleList({ sessions }: { sessions: SessionSummary[] }) {
   if (sessions.length === 0) {
@@ -38,7 +29,7 @@ export function ScheduleList({ sessions }: { sessions: SessionSummary[] }) {
               BG_GRADIENTS[i % BG_GRADIENTS.length]
             )}
           >
-            {classInitials(s.className)}
+            {initials(s.className)}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{s.className}</p>

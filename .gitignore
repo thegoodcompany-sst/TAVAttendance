@@ -46,3 +46,7 @@ iOS/TAVAttendance/Core/SupabaseConfig.swift
 iOS/Config.xcconfig
 Android/secrets.properties
 .gstack/
+
+# macOS Finder duplicates
+* 2
+* 2.*

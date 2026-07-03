@@ -7,16 +7,14 @@ Powered by [Supabase](https://supabase.com) (Postgres + Auth + Storage + Realtim
 ## Project Structure
 
 ```
-Backend/
-├── supabase/
-│   ├── config.toml                    Supabase local dev config
-│   ├── seed.sql                       Dev seed data (local only)
-│   └── migrations/
-│       ├── 001_schema.sql             All tables (Phase 1 full, Phase 2/3 stubs)
-│       ├── 002_rls.sql                Row Level Security policies
-│       └── 003_functions_triggers.sql Audit log, helper functions, offline sync RPC
-└── API.md                             iOS integration guide (Swift SDK examples)
+supabase/
+├── config.toml       Supabase local dev config
+├── seed.sql          Dev seed data (local only)
+├── functions/        Edge functions
+└── migrations/       001–015 (001 schema, 002 RLS, 003 functions/triggers, then incremental)
 ```
+
+The iOS integration guide (Swift SDK examples) is in `docs/API.md`.
 
 ---
 
@@ -32,7 +30,7 @@ brew install supabase/tap/supabase
 
 ### 1. Start local Supabase
 
-Run from the **repo root** (not `Backend/`). All migrations now live in `supabase/migrations/` at the root.
+Run from the **repo root**.
 
 ```bash
 supabase start

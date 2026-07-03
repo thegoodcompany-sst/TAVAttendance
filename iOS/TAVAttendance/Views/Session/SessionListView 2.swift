@@ -36,6 +36,9 @@ struct SessionListView: View {
     private var isAdmin: Bool { authManager.currentProfile?.role == "admin" }
 
     private let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    private let displayFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
         f.locale = Locale(identifier: "en_US_POSIX"); return f
     }()
@@ -442,7 +445,7 @@ struct SessionListView: View {
     private func todayDateString() -> String { dateFormatter.string(from: Date()) }
 
     private func formattedDate(_ isoDate: String) -> String {
-        guard let date = dateFormatter.date(from: isoDate) else { return isoDate }
+        guard let date = displayFormatter.date(from: isoDate) else { return isoDate }
         return prettyFormatter.string(from: date)
     }
 }

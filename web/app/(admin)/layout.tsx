@@ -26,9 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="text-center max-w-sm">
           <h1 className="text-xl font-semibold mb-2">Access denied</h1>
           <p className="text-sm text-muted-foreground mb-4">This dashboard is for admin accounts only.</p>
-          <form action="/api/auth/signout" method="post">
-            <SignOutButton />
-          </form>
+          <SignOutButton />
         </div>
       </div>
     )

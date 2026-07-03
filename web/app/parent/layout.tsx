@@ -25,9 +25,7 @@ export default async function ParentLayout({ children }: { children: React.React
         <div className="text-center max-w-sm">
           <h1 className="text-xl font-semibold mb-2">Access denied</h1>
           <p className="text-sm text-muted-foreground mb-4">This area is for parent accounts.</p>
-          <form action="/api/auth/signout" method="post">
-            <SignOutButton />
-          </form>
+          <SignOutButton />
         </div>
       </div>
     )
@@ -37,9 +35,7 @@ export default async function ParentLayout({ children }: { children: React.React
     <div className="min-h-screen bg-surface">
       <header className="bg-white border-b border-border h-14 flex items-center justify-between px-4">
         <span className="font-display font-semibold text-brand text-xl">TAVA</span>
-        <form action="/api/auth/signout" method="post">
-          <SignOutButton />
-        </form>
+        <SignOutButton />
       </header>
       <main className="max-w-3xl mx-auto p-4 md:p-6">{children}</main>
     </div>

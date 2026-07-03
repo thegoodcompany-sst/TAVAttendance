@@ -23,7 +23,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -205,26 +204,11 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Late if any of the student's sessions has passed its start/scheduled time. */
     private fun computeSignInStatus(entry: KioskEntry): AttendanceStatus {
         val now = Date()
-        for (session in entry.sessions) {
-            if (session.startedAt != null) {
-                val startedAt = runCatching {
-                    Date(java.time.Instant.parse(session.startedAt).toEpochMilli())
-                }.getOrNull()
-                if (startedAt != null && now.after(startedAt)) return AttendanceStatus.late
-            } else if (session.scheduleTime != null) {
-                val parts = session.scheduleTime.split(":").mapNotNull { it.toIntOrNull() }
-                if (parts.size >= 2) {
-                    val cal = Calendar.getInstance()
-                    cal.set(Calendar.HOUR_OF_DAY, parts[0])
-                    cal.set(Calendar.MINUTE, parts[1])
-                    cal.set(Calendar.SECOND, 0)
-                    if (now.after(cal.time)) return AttendanceStatus.late
-                }
-            }
-        }
-        return AttendanceStatus.present
+        return if (entry.sessions.any { AttendanceService.signInStatus(it, now) == AttendanceStatus.late })
+            AttendanceStatus.late else AttendanceStatus.present
     }
 
     // -----------------------------------------------------------------------
@@ -235,14 +219,9 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         get() = Secure.getString(getApplication<Application>().contentResolver, Secure.ANDROID_ID)
             ?: "tava-kiosk-fallback"
 
-    /** Hash using the new PBKDF2 scheme (v2: prefix). */
-    fun hashPin(pin: String): String = hashPinPbkdf2(pin, deviceSalt)
-
-    /**
-     * Set the PIN.  Always stores a v2: PBKDF2 hash going forward.
-     */
+    /** Set the PIN. Always stores a v2: PBKDF2 hash going forward. */
     fun setPin(pin: String) {
-        prefs.edit().putString("pin", hashPin(pin)).apply()
+        prefs.edit().putString("pin", hashPinPbkdf2(pin, deviceSalt)).apply()
     }
 
     fun clearPin() {

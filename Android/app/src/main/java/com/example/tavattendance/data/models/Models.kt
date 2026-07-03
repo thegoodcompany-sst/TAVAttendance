@@ -55,18 +55,6 @@ data class Session(
 enum class AttendanceStatus { present, absent, late, excused }
 
 @Serializable
-data class AttendanceRecord(
-    val id: String? = null,
-    @SerialName("session_id") val sessionId: String,
-    @SerialName("student_id") val studentId: String,
-    val status: AttendanceStatus,
-    @SerialName("marked_by") val markedBy: String? = null,
-    @SerialName("marked_at") val markedAt: String? = null,
-    val notes: String? = null,
-    @SerialName("client_mutation_id") val clientMutationId: String
-)
-
-@Serializable
 data class AttendanceInsert(
     @SerialName("session_id") val sessionId: String,
     @SerialName("student_id") val studentId: String,

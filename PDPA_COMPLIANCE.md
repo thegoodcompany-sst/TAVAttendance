@@ -38,7 +38,7 @@ The recent security hardening covers much of the **Protection Obligation (s24)**
 
 - **Row-Level Security** across all tables with role-scoped policies (`002_rls.sql`). Parents see only their children; tutors only their assigned classes.
 - **Profile reads correctly scoped** — the earlier "any authenticated user can read all profiles" hole was closed in `004_security_fixes.sql:30-35` (`read own or admin`). ✅ (No action needed; previously a real cross-tenant leak.)
-- **Encryption** at rest (AES-256) and in transit (TLS) via Supabase; **SG region** intended for data residency (`Backend/README.md:80,115`).
+- **Encryption** at rest (AES-256) and in transit (TLS) via Supabase; **SG region** intended for data residency (`supabase/README.md`).
 - **Hashed kiosk PIN** (`v1:` prefix), credentials moved out of source into gitignored config, `search_path` pinned on all functions, audit triggers on key tables (`010_audit_fixes.sql`).
 - **Audit trail** exists (`audit_log`) — a useful foundation for breach investigation and the access obligation.
 
@@ -67,7 +67,7 @@ Many HIGH items are *procedural* (a policy/notice/process), not code — but the
 
 ### 3.3 Purpose Limitation Obligation — s18  ·  **MEDIUM**
 
-**PDPA-P1 (MEDIUM):** Free-text fields (`students.notes`, `sessions.notes`, `attendance_records.notes`) are unconstrained. `Backend/README.md:115` *advises* against storing NRIC but nothing enforces it, and staff can paste medical/behavioural/identifier data that exceeds the collection purpose. Collecting more than is reasonably needed breaches data minimisation.
+**PDPA-P1 (MEDIUM):** Free-text fields (`students.notes`, `sessions.notes`, `attendance_records.notes`) are unconstrained. `supabase/README.md` *advises* against storing NRIC but nothing enforces it, and staff can paste medical/behavioural/identifier data that exceeds the collection purpose. Collecting more than is reasonably needed breaches data minimisation.
 → *Add field guidance/validation, a "no NRIC / no sensitive identifiers" warning at input, and consider lightweight server-side pattern detection for NRIC-like strings.*
 
 ### 3.4 Access & Correction Obligation — s21–22  ·  **MEDIUM**
@@ -103,7 +103,7 @@ Many HIGH items are *procedural* (a policy/notice/process), not code — but the
 
 ### 3.8 Transfer Limitation Obligation — s26  ·  **LOW** (verify)
 
-**PDPA-T1 (LOW):** Data residency in **Singapore (ap-southeast-1)** is *documented as intended* (`Backend/README.md:80`) but is an account/project setting, not enforced by code. *Verify the live Supabase project region and any read-replica/backup region; document it.*
+**PDPA-T1 (LOW):** Data residency in **Singapore (ap-southeast-1)** is *documented as intended* (`supabase/README.md`) but is an account/project setting, not enforced by code. *Verify the live Supabase project region and any read-replica/backup region; document it.*
 
 **PDPA-T2 (LOW):** Supabase (on AWS) is a **data intermediary / sub-processor**. The centre needs a Data Processing Agreement and assurance of comparable protection for any data processed/stored. *Record this in the accountability documentation.*
 

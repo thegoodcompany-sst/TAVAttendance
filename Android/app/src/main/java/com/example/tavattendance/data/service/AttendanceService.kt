@@ -370,30 +370,34 @@ object AttendanceService {
     suspend fun markKioskSignIn(entry: KioskEntry) {
         val now = Date()
         for (session in entry.sessions) {
-            var status = AttendanceStatus.present
-            if (session.startedAt != null) {
-                val startedAt = runCatching {
-                    java.time.Instant.parse(session.startedAt).let { Date(it.toEpochMilli()) }
-                }.getOrNull()
-                if (startedAt != null && now.after(startedAt)) {
-                    status = AttendanceStatus.late
-                }
-            } else if (session.scheduleTime != null) {
-                // Split on ":" taking first two parts — handles both "HH:mm" and "HH:mm:ss"
-                val parts = session.scheduleTime.split(":").mapNotNull { it.toIntOrNull() }
-                if (parts.size >= 2) {
-                    val classCal = Calendar.getInstance()
-                    classCal.set(Calendar.HOUR_OF_DAY, parts[0])
-                    classCal.set(Calendar.MINUTE, parts[1])
-                    classCal.set(Calendar.SECOND, 0)
-                    classCal.set(Calendar.MILLISECOND, 0)
-                    if (now.after(classCal.time)) {
-                        status = AttendanceStatus.late
-                    }
-                }
-            }
-            markAttendance(sessionId = session.id, studentId = entry.studentId, status = status)
+            markAttendance(
+                sessionId = session.id,
+                studentId = entry.studentId,
+                status = signInStatus(session, now)
+            )
         }
+    }
+
+    /** Present, or late when the session has started (or its scheduled time has passed). */
+    fun signInStatus(session: KioskSession, now: Date): AttendanceStatus {
+        if (session.startedAt != null) {
+            val startedAt = runCatching {
+                java.time.Instant.parse(session.startedAt).let { Date(it.toEpochMilli()) }
+            }.getOrNull()
+            if (startedAt != null && now.after(startedAt)) return AttendanceStatus.late
+        } else if (session.scheduleTime != null) {
+            // Split on ":" taking first two parts — handles both "HH:mm" and "HH:mm:ss"
+            val parts = session.scheduleTime.split(":").mapNotNull { it.toIntOrNull() }
+            if (parts.size >= 2) {
+                val classCal = Calendar.getInstance()
+                classCal.set(Calendar.HOUR_OF_DAY, parts[0])
+                classCal.set(Calendar.MINUTE, parts[1])
+                classCal.set(Calendar.SECOND, 0)
+                classCal.set(Calendar.MILLISECOND, 0)
+                if (now.after(classCal.time)) return AttendanceStatus.late
+            }
+        }
+        return AttendanceStatus.present
     }
 
     suspend fun fetchStudentAttendanceHistory(
@@ -453,13 +457,6 @@ object AttendanceService {
     suspend fun fetchCurrentConsent(studentId: String): List<ConsentRecord> =
         db.from("current_consent").select {
             filter { eq("student_id", studentId) }
-        }.decodeList<ConsentRecord>()
-
-    /** Full append-only consent ledger for one student (most recent first). */
-    suspend fun fetchConsentHistory(studentId: String): List<ConsentRecord> =
-        db.from("consent_records").select {
-            filter { eq("student_id", studentId) }
-            order("created_at", Order.DESCENDING)
         }.decodeList<ConsentRecord>()
 
     // ---- PDPA: erase / anonymise ----

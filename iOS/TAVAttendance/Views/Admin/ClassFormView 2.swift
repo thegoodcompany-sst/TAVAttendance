@@ -6,13 +6,6 @@ private enum RecurrenceMode: Equatable {
     case custom
 }
 
-private let weekdays = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-private let dayAbbrev: [String: String] = [
-    "Monday": "MO", "Tuesday": "TU", "Wednesday": "WE",
-    "Thursday": "TH", "Friday": "FR", "Saturday": "SA", "Sunday": "SU"
-]
-private let abbrevToDay = Dictionary(uniqueKeysWithValues: dayAbbrev.map { ($1, $0) })
-
 struct ClassFormView: View {
     enum Mode {
         case create
@@ -39,6 +32,16 @@ struct ClassFormView: View {
     @State private var recurrenceEndDate: Date = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
     @State private var hasEndDate = false
 
+    private let days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    private let dayAbbrev: [String: String] = [
+        "Monday": "MO", "Tuesday": "TU", "Wednesday": "WE",
+        "Thursday": "TH", "Friday": "FR", "Saturday": "SA", "Sunday": "SU"
+    ]
+    private let abbrevToDay: [String: String] = [
+        "MO": "Monday", "TU": "Tuesday", "WE": "Wednesday",
+        "TH": "Thursday", "FR": "Friday", "SA": "Saturday", "SU": "Sunday"
+    ]
+
     init(mode: Mode, onSave: @escaping () -> Void) {
         self.mode = mode
         self.onSave = onSave
@@ -61,7 +64,13 @@ struct ClassFormView: View {
                 }
                 if byDays.count > 1 {
                     _recurrenceMode = State(initialValue: .custom)
-                    _selectedDays = State(initialValue: Set(byDays.compactMap { abbrevToDay[$0] }))
+                    _selectedDays = State(initialValue: Set(byDays.compactMap { abbrev in
+                        let abbrevToDay: [String: String] = [
+                            "MO": "Monday", "TU": "Tuesday", "WE": "Wednesday",
+                            "TH": "Thursday", "FR": "Friday", "SA": "Saturday", "SU": "Sunday"
+                        ]
+                        return abbrevToDay[abbrev]
+                    }))
                 } else if !byDays.isEmpty {
                     _recurrenceMode = State(initialValue: .weekly)
                 }
@@ -88,7 +97,7 @@ struct ClassFormView: View {
                 Section("Schedule") {
                     Picker("Day", selection: $scheduleDay) {
                         Text("—").tag("")
-                        ForEach(weekdays, id: \.self) { day in
+                        ForEach(days, id: \.self) { day in
                             Text(day).tag(day)
                         }
                     }
@@ -111,7 +120,7 @@ struct ClassFormView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             HStack(spacing: 6) {
-                                ForEach(weekdays, id: \.self) { day in
+                                ForEach(days, id: \.self) { day in
                                     let short = String(day.prefix(2))
                                     let isSelected = selectedDays.contains(day)
                                     Button {
@@ -185,7 +194,7 @@ struct ClassFormView: View {
             }
             return "FREQ=WEEKLY;BYDAY=\(abbrev)"
         case .custom:
-            let ordered = weekdays.filter { selectedDays.contains($0) }
+            let ordered = days.filter { selectedDays.contains($0) }
             guard !ordered.isEmpty else { return "FREQ=WEEKLY" }
             let byDay = ordered.compactMap { dayAbbrev[$0] }.joined(separator: ",")
             return "FREQ=WEEKLY;BYDAY=\(byDay)"
