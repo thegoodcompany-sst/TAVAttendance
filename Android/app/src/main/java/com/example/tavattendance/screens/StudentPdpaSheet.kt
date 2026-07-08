@@ -94,6 +94,8 @@ class StudentPdpaViewModel(app: Application) : AndroidViewModel(app) {
                 val date = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
                 val fileName = "pdpa-export-$studentId-$date.json"
                 val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+                // Purge prior PII exports so they don't accumulate unencrypted on a shared device.
+                dir.listFiles()?.forEach { it.delete() }
                 val file = File(dir, fileName)
                 withContext(Dispatchers.IO) { file.writeText(json) }
                 val uri = FileProvider.getUriForFile(

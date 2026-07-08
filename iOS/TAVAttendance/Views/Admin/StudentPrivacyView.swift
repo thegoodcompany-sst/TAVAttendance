@@ -56,7 +56,7 @@ struct StudentPrivacyView: View {
             }
             .task { await load() }
             .errorAlert(error: $error)
-            .sheet(isPresented: $showShare) {
+            .sheet(isPresented: $showShare, onDismiss: cleanupExportFile) {
                 if let exportURL { ShareLink(item: exportURL) }
             }
             .confirmationDialog("Withdraw consent?", isPresented: $showWithdrawConfirm, titleVisibility: .visible) {
@@ -188,18 +188,30 @@ struct StudentPrivacyView: View {
             let fileName = "pdpa-export-\(student.id.uuidString)-\(fmt.string(from: Date())).json"
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
             // Pretty-print if it parses as JSON; otherwise write the raw bytes.
+            // PDPA: write with complete file protection so the bundle is encrypted at
+            // rest while it sits in the temp dir awaiting the share sheet.
+            let opts: Data.WritingOptions = [.completeFileProtection]
             if let obj = try? JSONSerialization.jsonObject(with: data),
                let pretty = try? JSONSerialization.data(withJSONObject: obj,
                                                         options: [.prettyPrinted, .sortedKeys]) {
-                try pretty.write(to: url)
+                try pretty.write(to: url, options: opts)
             } else {
-                try data.write(to: url)
+                try data.write(to: url, options: opts)
             }
             exportURL = url
             showShare = true
         } catch {
             self.error = AppError("Could not export student data.", underlyingError: error)
         }
+    }
+
+    // PDPA: the export is personal data — don't leave it in the temp dir after the
+    // share sheet closes.
+    private func cleanupExportFile() {
+        if let exportURL {
+            try? FileManager.default.removeItem(at: exportURL)
+        }
+        exportURL = nil
     }
 
     private func anonymise() async {

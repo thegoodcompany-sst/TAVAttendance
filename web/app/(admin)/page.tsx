@@ -5,7 +5,7 @@ import { ScheduleList } from '@/components/dashboard/schedule-list'
 import { ClassTile } from '@/components/dashboard/class-tile'
 import { QuickActionsCard } from '@/components/dashboard/quick-actions-card'
 import { PageHeader } from '@/components/dashboard/page-header'
-import { getTodayRoster, getTodaySessions, getDailyAttendance, getYesterdayRoster } from '@/lib/queries'
+import { getTodayRoster, getTodaySessions, getDailyAttendance } from '@/lib/queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,11 +22,10 @@ function greeting() {
 }
 
 export default async function TodayPage() {
-  const [roster, sessions, dailyData, yesterdayRoster] = await Promise.all([
+  const [roster, sessions, dailyData] = await Promise.all([
     getTodayRoster(),
     getTodaySessions(),
     getDailyAttendance(14),
-    getYesterdayRoster(),
   ])
 
   const presentCount  = roster.filter(s => s.status === 'present').length
@@ -34,9 +33,8 @@ export default async function TodayPage() {
   const totalExpected = roster.length
   const onTimeRate    = totalExpected > 0 ? Math.round((presentCount / totalExpected) * 100) : 0
 
-  const yPresent  = yesterdayRoster.filter(s => s.status === 'present').length
-  const yLate     = yesterdayRoster.filter(s => s.status === 'late').length
-  const yExpected = yesterdayRoster.length
+  // No day-over-day delta: TAVA runs classes only Mon + Thu, so "yesterday" is
+  // almost always a zero-class day and the comparison is noise, not signal.
 
   const dayLabel = new Intl.DateTimeFormat('en-SG', {
     timeZone: 'Asia/Singapore',
@@ -61,18 +59,15 @@ export default async function TodayPage() {
               <KpiTile
                 label="Expected"
                 value={totalExpected}
-                delta={totalExpected - yExpected}
               />
               <KpiTile
                 label="Present"
                 value={presentCount}
-                delta={presentCount - yPresent}
                 accent
               />
               <KpiTile
                 label="Late"
                 value={lateCount}
-                delta={lateCount - yLate}
               />
               <KpiTile
                 label="On-time rate"

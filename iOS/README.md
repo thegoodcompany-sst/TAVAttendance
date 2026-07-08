@@ -40,21 +40,35 @@ The scaffolding files live in `TAVAttendance/` but Xcode doesn't know about them
 
 ## Step 3 — Fill in Your Supabase Credentials
 
-Open `Core/SupabaseManager.swift` and replace the placeholder values:
+Credentials are never hardcoded in `SupabaseManager.swift` — they flow in via a gitignored
+xcconfig file, referenced from `Info.plist` through XcodeGen's `project.yml`.
+
+```bash
+cp Config.xcconfig.example Config.xcconfig
+```
+
+Then edit `Config.xcconfig`:
 
 ### Local dev (after running `supabase start` at the repo root)
 
-```swift
-static let supabaseURL     = "http://127.0.0.1:54321"
-static let supabaseAnonKey = "<anon key printed by `supabase start`>"
+```
+SUPABASE_PROJECT_URL = http://127.0.0.1:54321
+SUPABASE_ANON_KEY = <anon key printed by `supabase start`>
 ```
 
 ### Production
 
-```swift
-static let supabaseURL     = "https://YOUR_PROJECT_REF.supabase.co"
-static let supabaseAnonKey = "<anon key from Supabase Dashboard → Settings → API>"
 ```
+SUPABASE_PROJECT_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
+SUPABASE_ANON_KEY = <anon key from Supabase Dashboard → Settings → API>
+```
+
+> `//` starts a comment in `.xcconfig` syntax, so the URL's slashes must be split with an
+> empty `$()` reference as shown (see `Config.xcconfig.example`) — don't wrap the value in quotes.
+
+`SupabaseManager.swift` reads these at runtime via
+`Bundle.main.object(forInfoDictionaryKey:)` — no rebuild-from-source-edit needed after
+changing `Config.xcconfig`, just re-run the build so Xcode re-reads the xcconfig values.
 
 ---
 

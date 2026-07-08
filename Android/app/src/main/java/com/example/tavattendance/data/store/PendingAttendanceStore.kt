@@ -35,7 +35,16 @@ class PendingAttendanceStore(context: Context) {
         val records = load().toMutableList()
         val idx = records.indexOfFirst { it.sessionId == sessionId && it.studentId == studentId }
         if (idx >= 0) {
-            records[idx] = records[idx].copy(status = status, notes = notes)
+            // A correction after a prior sync must get a fresh markedAt/clientMutationId and
+            // be un-synced, otherwise it silently never uploads (stale isSynced=true) or loses
+            // the server's `marked_at <= EXCLUDED.marked_at` ON CONFLICT race.
+            records[idx] = records[idx].copy(
+                status = status,
+                notes = notes,
+                markedAt = java.time.Instant.now().toString(),
+                clientMutationId = java.util.UUID.randomUUID().toString(),
+                isSynced = false
+            )
         } else {
             records.add(
                 PendingAttendanceRecord(

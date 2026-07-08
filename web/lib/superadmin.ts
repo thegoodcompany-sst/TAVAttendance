@@ -3,6 +3,8 @@
 // the DB RLS write policy stays at is_admin(). Imported only by server
 // components and server actions — never by a client component.
 
+import 'server-only'
+
 const DEFAULT_SUPERADMIN_EMAIL = 'edmund@thegoodcompanysg.dev'
 
 function getSuperadminEmail(): string {

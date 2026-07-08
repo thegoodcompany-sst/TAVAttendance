@@ -12,8 +12,9 @@ struct RosterView: View {
     @State private var showEndClassConfirm = false
     @State private var showMarkAbsentConfirm = false
     @State private var endClassError: String? = nil
+    @State private var error: AppError? = nil
     @StateObject private var network = NetworkMonitor()
-    @StateObject private var pendingStore = PendingAttendanceStore()
+    @ObservedObject private var pendingStore = PendingAttendanceStore.shared
 
     // Track optimistic status updates and mark times locally for instant UI feedback
     @State private var localStatus: [UUID: AttendanceStatus] = [:]
@@ -120,6 +121,7 @@ struct RosterView: View {
         } message: {
             Text(endClassError ?? "")
         }
+        .errorAlert(error: $error)
         .task {
             await loadRoster()
         }
@@ -310,13 +312,23 @@ struct RosterView: View {
                 // each button press). The override stays correct until the view is
                 // reloaded via pull-to-refresh or reopen.
             } catch {
-                // Keep local override; fall through to pending store as backup
-                pendingStore.add(
-                    sessionId: session.id,
-                    studentId: entry.studentId,
-                    status: status,
-                    notes: nil
-                )
+                // Only a transport failure (network dropped mid-request) should fall
+                // through to the offline pending store. A hard rejection — RLS denial,
+                // ended session — is permanent: queuing it disguises a failure as
+                // "pending" and re-sends it forever. Surface those as an error and drop
+                // the optimistic override so the row reverts to server truth.
+                if error is URLError {
+                    pendingStore.add(
+                        sessionId: session.id,
+                        studentId: entry.studentId,
+                        status: status,
+                        notes: nil
+                    )
+                } else {
+                    localStatus.removeValue(forKey: entry.studentId)
+                    localMarkedAt.removeValue(forKey: entry.studentId)
+                    self.error = AppError("Could not save attendance", underlyingError: error)
+                }
             }
         } else {
             pendingStore.add(
@@ -334,17 +346,19 @@ struct RosterView: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            let (synced, _) = try await AttendanceService.shared.syncPending(unsynced)
-            if synced > 0 {
-                pendingStore.markSynced(clientMutationIds: Set(unsynced.map(\.clientMutationId)))
-                roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
-                for record in unsynced {
-                    localStatus.removeValue(forKey: record.studentId)
-                    localMarkedAt.removeValue(forKey: record.studentId)
-                }
+            // The RPC succeeded — every record is terminal (synced, skipped because a
+            // newer server row won, or blocked because the session already ended). Clear
+            // them all; leaving skipped/blocked rows in the store re-sends them forever.
+            _ = try await AttendanceService.shared.syncPending(unsynced)
+            pendingStore.markSynced(clientMutationIds: Set(unsynced.map(\.clientMutationId)))
+            roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+            for record in unsynced {
+                localStatus.removeValue(forKey: record.studentId)
+                localMarkedAt.removeValue(forKey: record.studentId)
             }
         } catch {
-            // Silently fail — will retry on next reconnect
+            // Only reached on a transport failure (the RPC never returned). Keep the
+            // records and retry on next reconnect.
         }
     }
 

@@ -52,7 +52,7 @@ all-OFF. Flip one (admin only):
 
 ```sql
 UPDATE feature_flags SET enabled = true WHERE key = 'parent_portal';
--- keys: parent_portal, push_notifications, student_photos
+-- keys: parent_portal, push_notifications, student_photos, study_space_tracking
 ```
 
 ---
@@ -103,7 +103,7 @@ There is no automated test suite; test manually (full script in `CLAUDE.md`):
 
 | Platform | Command | Dir |
 |---|---|---|
-| iOS | `bash scripts/test_ios.sh` (or build via Xcode) | `iOS/` |
+| iOS | `xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 16'` (or build via Xcode; scheme name comes from `project.yml`, XcodeGen-managed) | `iOS/` |
 | Android | `./gradlew test` | `Android/` |
 | Web | `npm run build` / `npm run lint` | `web/` |
 

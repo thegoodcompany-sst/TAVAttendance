@@ -89,7 +89,7 @@ struct ExportView: View {
                 }
             }
         }
-        .sheet(isPresented: $showShare) {
+        .sheet(isPresented: $showShare, onDismiss: cleanupExportFile) {
             if let url = exportURL {
                 ShareLink(item: url)
             }
@@ -160,8 +160,18 @@ struct ExportView: View {
         let csv = lines.joined(separator: "\n")
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("attendance_\(isoFmt.string(from: fromDate))_\(isoFmt.string(from: toDate)).csv")
-        try csv.write(to: url, atomically: true, encoding: .utf8)
+        // PDPA: encrypt at rest while the export awaits the share sheet.
+        try Data(csv.utf8).write(to: url, options: [.completeFileProtection])
         return url
+    }
+
+    // PDPA: attendance exports are personal data — remove the temp file once the
+    // share sheet closes rather than leaving it in the temp dir.
+    private func cleanupExportFile() {
+        if let exportURL {
+            try? FileManager.default.removeItem(at: exportURL)
+        }
+        exportURL = nil
     }
 
     private func escapedCSV(_ value: String) -> String {
@@ -222,7 +232,7 @@ struct ExportView: View {
                 y += 16
             }
         }
-        try data.write(to: url)
+        try data.write(to: url, options: [.completeFileProtection])
         return url
     }
 }

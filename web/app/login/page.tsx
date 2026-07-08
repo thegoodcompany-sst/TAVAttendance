@@ -70,12 +70,18 @@ export default function LoginPage() {
       return
     }
 
-    // Verify admin role
+    // Verify role — admins and parents get a dashboard, tutors do not.
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', data.user.id)
       .single()
+
+    if (profile?.role === 'parent') {
+      router.push('/parent')
+      router.refresh()
+      return
+    }
 
     if (profile?.role !== 'admin') {
       await supabase.auth.signOut()

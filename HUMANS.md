@@ -227,6 +227,46 @@ schedule it with the PDPA app-UI work.
 
 ---
 
+## H. Security audit follow-up (2026-07-06)
+
+Code/migration fixes from the 2026-07-06 audit are committed (migration `016_security_fixes.sql`,
+iOS/Android/web patches). These remaining items need a human with dashboard/prod access.
+
+### ☐ 30. Apply migration `016_security_fixes.sql` to the live project — *high priority*
+016 closes two criticals: (a) `attendance_summary` lost `security_invoker` in 015, so on any
+environment where 015 has been applied the view runs as owner and leaks every student's attendance
+to any authenticated/anon reader; (b) `handle_new_user` let public self-signup mint an **admin**.
+016 depends on 013–015 being applied first (see §D.14). Apply 013→014→015→016 in order, then
+verify: `SELECT relname, reloptions FROM pg_class WHERE relname='attendance_summary';` must show
+`security_invoker=on`.
+
+### ☐ 31. Disable public sign-ups in the prod Supabase dashboard — *high priority*
+Auth → Providers → Email → turn **OFF** "Allow new users to sign up". Every account is created by
+admin invite; public signup + metadata role was the admin-escalation vector. `supabase/config.toml`
+is already set to `enable_signup = false` for local, but prod auth is dashboard-controlled.
+(Migration 016 also hardens `handle_new_user` so metadata can no longer mint privileged roles even
+if signup is on, and `web/app/actions/invite.ts` now sets the invited role via the service role
+after creation — but keep public signup off as defence in depth.)
+
+### ☐ 32. (Optional) Rotate the Supabase anon key
+The public GitHub history contains the **anon** key (not service_role) — public-by-design, security
+rests on RLS, so rotation is not strictly required. If you want defence-in-depth, rotate to the new
+publishable/secret key pair in the dashboard and update all three platforms' config. History rewrite
+is pointless (the key is legitimately shipped in every client).
+
+### ☐ 33. iOS kiosk PIN — confirm Keychain migration on a real device
+If the iOS fix moved the kiosk PIN hash from UserDefaults to Keychain, verify on a physical iPad that
+an existing PIN still validates after upgrade and that a restored/migrated device isn't permanently
+locked (the pre-fix bug). If the migration was deferred (left as a TODO), the UserDefaults+idfv
+lock-out risk remains — see the `ponytail:` note in `GlobalKioskView.swift`.
+
+### ☐ 34. Install JDK 17 or 21 to unblock Android unit tests
+`./gradlew test` fails on this machine (jlink error under JDK 26; `/usr/libexec/java_home -v 17`
+and `-v 21` both fall back to temurin-26). `brew install --cask temurin@21` (or 17) fixes it.
+Until then agents verify Android with `./gradlew clean compileDebugKotlin` only — no unit tests run.
+
+---
+
 ## Notes
 - Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the
   `anonymise_student/erase_student/export_student_personal_data` SECURITY DEFINER functions are

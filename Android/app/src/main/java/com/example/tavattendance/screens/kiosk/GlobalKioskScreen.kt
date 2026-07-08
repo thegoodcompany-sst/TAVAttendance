@@ -127,6 +127,11 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage = _snackbarMessage.asStateFlow()
 
+    // Distinguishes "load failed" from "genuinely no classes today" so the empty state
+    // doesn't lie about there being nothing scheduled.
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError = _loadError.asStateFlow()
+
     // MAINT-10: derived StateFlow for isAdminMode — Compose will recompose
     // whenever isLocked or isAdminUnlocked changes.
     val isAdminMode = combine(_isAdminUnlocked, _isLocked) { adminUnlocked, locked ->
@@ -138,10 +143,14 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     fun loadEntries() {
         viewModelScope.launch {
             _isLoading.value = true
-            runCatching { _entries.value = AttendanceService.fetchKioskEntries() }
+            _loadError.value = null
+            runCatching { AttendanceService.fetchKioskEntries() }
+                .onSuccess { _entries.value = it }
                 .onFailure { e ->
                     android.util.Log.e("GlobalKioskVM", "Failed to load kiosk entries", e)
-                    _snackbarMessage.value = "Failed to load students: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                    val msg = "Failed to load students: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                    _snackbarMessage.value = msg
+                    _loadError.value = msg
                 }
             _isLoading.value = false
         }
@@ -283,17 +292,28 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
             _isLocked.value = false
             _isAdminUnlocked.value = true
             // Reset lockout on successful unlock.
+            prefs.edit().putInt("lockout_stage", 0).apply()
             persistFailedAttempts(0, 0L)
         }
         return matches
     }
 
-    /** SEC-02: record a failed attempt and compute lockout if threshold reached. */
+    /**
+     * SEC-02: record a failed attempt and compute lockout if threshold reached.
+     * Each consecutive lockout doubles the window (30s, 60s, 120s, ... capped at 30min) instead
+     * of a fixed 30s, so repeated brute-force runs get exponentially slower rather than free
+     * 5-guesses-per-30s forever. The stage counter is persisted and only resets on a correct PIN.
+     */
     fun recordFailedAttempt() {
         val attempts = _failedAttempts.value + 1
-        val until = if (attempts >= 5) System.currentTimeMillis() + 30_000L else _lockedUntil.value
-        val resetAttempts = if (attempts >= 5) 0 else attempts
-        persistFailedAttempts(resetAttempts, until)
+        if (attempts >= 5) {
+            val stage = prefs.getInt("lockout_stage", 0) + 1
+            val windowMs = (30_000L shl (stage - 1).coerceAtMost(6)).coerceAtMost(30 * 60_000L)
+            prefs.edit().putInt("lockout_stage", stage).apply()
+            persistFailedAttempts(0, System.currentTimeMillis() + windowMs)
+        } else {
+            persistFailedAttempts(attempts, _lockedUntil.value)
+        }
     }
 
     private fun persistFailedAttempts(attempts: Int, until: Long) {
@@ -327,6 +347,7 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
     val showPinUnlock by vm.showPinUnlock.collectAsState()
     val showSettings by vm.showSettings.collectAsState()
     val snackbarMessage by vm.snackbarMessage.collectAsState()
+    val loadError by vm.loadError.collectAsState()
 
     // MAINT-10: collect StateFlow so Compose recomposes when lock state changes.
     val isLocked by vm.isLocked.collectAsState()
@@ -416,6 +437,13 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
                 when {
                     isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
+                    }
+                    loadError != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+                            Text(loadError!!, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                            Spacer(Modifier.height(12.dp))
+                            Button(onClick = { vm.loadEntries() }) { Text("Retry") }
+                        }
                     }
                     entries.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(

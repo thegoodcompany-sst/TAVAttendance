@@ -49,6 +49,14 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     private val _isEndingClass = MutableStateFlow(false)
     val isEndingClass = _isEndingClass.asStateFlow()
 
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    val snackbarMessage = _snackbarMessage.asStateFlow()
+
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError = _loadError.asStateFlow()
+
+    fun clearSnackbar() { _snackbarMessage.value = null }
+
     // Optimistic local overrides: studentId → status
     private val _localStatus = MutableStateFlow<Map<String, AttendanceStatus>>(emptyMap())
     val localStatus = _localStatus.asStateFlow()
@@ -87,7 +95,13 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     fun loadRoster() {
         viewModelScope.launch {
             _isLoading.value = true
-            runCatching { _roster.value = AttendanceService.fetchRoster(sessionId) }
+            _loadError.value = null
+            runCatching { AttendanceService.fetchRoster(sessionId) }
+                .onSuccess { _roster.value = it }
+                .onFailure { e ->
+                    android.util.Log.e("Roster", "loadRoster failed: ${e.message}", e)
+                    _loadError.value = e.localizedMessage ?: "Failed to load roster"
+                }
             _isLoading.value = false
         }
     }
@@ -139,21 +153,34 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // Syncs ALL pending records (not just this session's) — pending marks made in a session
+    // that isn't reopened online would otherwise never sync.
     fun syncPending() {
         viewModelScope.launch {
-            val unsynced = pendingStore.allPending().filter { it.sessionId == sessionId }
+            val unsynced = pendingStore.allPending()
             if (unsynced.isEmpty()) return@launch
             _isSaving.value = true
             runCatching {
-                val (synced, _) = AttendanceService.syncPending(unsynced)
-                if (synced > 0) {
+                val result = AttendanceService.syncPending(unsynced)
+                // Only mark the batch fully synced when the server accounted for every
+                // record (synced + skipped); a mismatch means some were blocked (ended
+                // session) and must stay pending — we can't tell which ones from the
+                // aggregate counts, so leave the whole batch in the store rather than
+                // silently drop the blocked ones.
+                if (result.synced + result.skipped == unsynced.size) {
                     pendingStore.markSynced(unsynced.map { it.clientMutationId }.toSet())
-                    for (r in unsynced) {
+                    for (r in unsynced.filter { it.sessionId == sessionId }) {
                         _localStatus.value = _localStatus.value - r.studentId
                         _localMarkedAt.value = _localMarkedAt.value - r.studentId
                     }
                     _roster.value = AttendanceService.fetchRoster(sessionId)
                 }
+                if (result.blockedEndedSession > 0) {
+                    _snackbarMessage.value =
+                        "${result.blockedEndedSession} mark${if (result.blockedEndedSession == 1) "" else "s"} rejected — session already ended."
+                }
+            }.onFailure { e ->
+                android.util.Log.e("Roster", "syncPending failed: ${e.message}", e)
             }
             _isSaving.value = false
         }
@@ -191,6 +218,16 @@ fun RosterScreen(
     val isOnline by vm.isOnline.collectAsState()
     val localStatus by vm.localStatus.collectAsState()
     val localMarkedAt by vm.localMarkedAt.collectAsState()
+    val loadError by vm.loadError.collectAsState()
+    val snackbarMessage by vm.snackbarMessage.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let { msg ->
+            snackbarHostState.showSnackbar(message = msg, duration = SnackbarDuration.Long)
+            vm.clearSnackbar()
+        }
+    }
 
     var selectedStudent by remember { mutableStateOf<RosterEntry?>(null) }
     var showEndConfirm by remember { mutableStateOf(false) }
@@ -248,6 +285,7 @@ fun RosterScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("${formatDate(sessionDate)} · $className") },
@@ -295,6 +333,13 @@ fun RosterScreen(
         when {
             isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
+            }
+            loadError != null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                    Text(loadError!!, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { vm.loadRoster() }) { Text("Retry") }
+                }
             }
             roster.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Text("No students enrolled.", color = MaterialTheme.colorScheme.onSurfaceVariant)

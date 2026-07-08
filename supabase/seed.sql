@@ -8,6 +8,16 @@
 
 -- Passwords for all seed users: TAVAdev123!
 
+-- Guard: refuse to seed anything but a fresh local instance. This file creates a
+-- known-UUID admin with a published password; running it against a populated
+-- (e.g. production) database would plant a backdoor account.
+DO $$
+BEGIN
+    IF (SELECT COUNT(*) FROM auth.users) > 3 THEN
+        RAISE EXCEPTION 'seed.sql: refusing to run — auth.users already populated (not a fresh local instance)';
+    END IF;
+END $$;
+
 -- ── Auth users (created via Supabase auth schema directly for seeding) ──
 
 INSERT INTO auth.users (

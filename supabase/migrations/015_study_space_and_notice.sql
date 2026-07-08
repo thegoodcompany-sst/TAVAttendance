@@ -84,7 +84,12 @@ REVOKE EXECUTE ON FUNCTION get_study_space_roster(UUID) FROM PUBLIC, anon;
 
 -- attendance_summary view (003): never count study-space sessions.
 -- Body identical to 003_functions_triggers.sql:66-86 plus the WHERE filter.
-CREATE OR REPLACE VIEW attendance_summary AS
+-- security_invoker (007/009) + active-row filter (010) MUST be re-declared here:
+-- CREATE OR REPLACE VIEW resets reloptions, so omitting them silently reopens an
+-- RLS bypass and re-counts inactive rows (see migration 016).
+CREATE OR REPLACE VIEW attendance_summary
+WITH (security_invoker = true)
+AS
 SELECT
     s.student_id,
     st.full_name                                                     AS student_name,
@@ -104,7 +109,9 @@ FROM attendance_records s
 JOIN students st  ON st.id = s.student_id
 JOIN sessions se  ON se.id = s.session_id
 JOIN classes  c   ON c.id  = se.class_id
-WHERE c.is_study_space = FALSE
+WHERE st.is_active     = TRUE
+  AND c.is_active      = TRUE
+  AND c.is_study_space = FALSE
 GROUP BY s.student_id, st.full_name, se.class_id, c.name;
 
 -- get_roster_for_date RPC (014): exclude study-space sessions from the

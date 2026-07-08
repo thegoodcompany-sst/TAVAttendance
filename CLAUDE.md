@@ -4,6 +4,11 @@ Things that cannot be derived by reading the codebase. Read this before writing 
 
 ---
 
+## Migrations
+
+Prod Supabase (`zgikcbsxzjgbigywxbbj`) is behind the migration files — 013–015 are not fully
+applied. **Never edit an existing migration; every schema fix ships as a new numbered one.**
+
 ## Architecture decisions worth knowing
 
 ### The kiosk iPad must be signed in as an admin account
@@ -151,9 +156,13 @@ There is no automated test suite. Manual testing checklist:
 
 | Platform | Command | Working directory |
 |---|---|---|
-| iOS | `bash scripts/test_ios.sh` | `iOS/` |
-| Android | `./gradlew test` | `Android/` |
-| Web | `npm run build` / `npm run lint` | `web/` |
+| iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO` (scheme name from `project.yml`; project is XcodeGen-managed — run `xcodegen generate` first if `.xcodeproj` is stale) | `iOS/` |
+| Android | `./gradlew clean compileDebugKotlin` — **`./gradlew test` cannot run on this machine** (jlink error under JDK 26; no JDK 17/21 installed), so compile-check is the verification | `Android/` |
+| Web | `npm run build` / `npm run lint`; deploy via the `/deploy` skill (Vercel, dash.thegoodcompanysg.dev) | `web/` |
+
+On this machine iOS builds **must** set `DEVELOPER_DIR` to Xcode-beta and pass
+`CODE_SIGNING_ALLOWED=NO`. A failure at `CodeSign swift-crypto_Crypto.bundle` is a
+pre-existing local keychain issue, not a code problem — do not try to "fix" it.
 
 ---
 

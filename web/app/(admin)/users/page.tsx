@@ -67,6 +67,7 @@ export default async function UsersPage() {
                 const meta = ROLE_META[member.role] ?? ROLE_META.tutor
                 const Icon = meta.icon
                 const joinedAt = new Date(member.created_at).toLocaleDateString('en-SG', {
+                  timeZone: 'Asia/Singapore',
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',

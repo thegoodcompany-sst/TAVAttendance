@@ -54,7 +54,6 @@
 		EDC6B0ACAB97F385C9998282 /* CorrectionRequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30A5704E0BE4968BD6157D7 /* CorrectionRequestsView.swift */; };
 		F7217E3079E64AAB8DDECED7 /* StudentFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC7DC93588149D2B2912D0C /* StudentFormView.swift */; };
 		FE79888841DAF0F65F1CEEED /* StudentPrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C36143FEF33A6D9C5370479 /* StudentPrivacyView.swift */; };
-		FFA3A4B7268E697901321908 /* SupabaseConfig.swift.example in Resources */ = {isa = PBXBuildFile; fileRef = ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -101,13 +100,12 @@
 		E118AE1693C05946C87E9552 /* IntentSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentSupport.swift; sourceTree = "<group>"; };
 		E9545022B35ECF9F7DF0E84D /* CheckStudentStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckStudentStatusIntent.swift; sourceTree = "<group>"; };
 		EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorAssignmentView.swift; sourceTree = "<group>"; };
-		ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */ = {isa = PBXFileReference; path = SupabaseConfig.swift.example; sourceTree = "<group>"; };
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F3063799091ACD1EB194B57C /* KioskRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskRouter.swift; sourceTree = "<group>"; };
 		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_46739DDD-E827-4EBF-BF79-D1B6215DCB39" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -206,7 +204,6 @@
 				543023F8203B0054936C6A20 /* NetworkMonitor.swift */,
 				FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */,
 				90A44B53697EDDA16EB00544 /* PushManager.swift */,
-				ED734A894F359F1E9E1206FF /* SupabaseConfig.swift.example */,
 				385F3C087DCCACB84D814052 /* SupabaseManager.swift */,
 			);
 			path = Core;
@@ -289,10 +286,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_C47D0085-7187-4ED8-BAFC-A169012CE727" /* iOS */ = {
+		"TEMP_1C8BBD17-F68F-45F0-ACBF-61A9534FD757" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_46739DDD-E827-4EBF-BF79-D1B6215DCB39" /* Config.xcconfig */,
+				"TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -364,7 +361,6 @@
 			files = (
 				2016432196785011366FAB4C /* Assets.xcassets in Resources */,
 				80AE796DDE099DC594738E3D /* Localizable.xcstrings in Resources */,
-				FFA3A4B7268E697901321908 /* SupabaseConfig.swift.example in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -546,7 +542,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_46739DDD-E827-4EBF-BF79-D1B6215DCB39" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -566,7 +562,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_46739DDD-E827-4EBF-BF79-D1B6215DCB39" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

@@ -13,6 +13,8 @@
 .externalNativeBuild
 .cxx
 
+/.idea
+
 # Secrets
 app/src/main/java/com/example/tavattendance/core/SupabaseConfig.kt
 /secrets.properties

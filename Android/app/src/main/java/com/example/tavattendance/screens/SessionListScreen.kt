@@ -42,6 +42,11 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     private val _isEnding = MutableStateFlow(false)
     val isEnding = _isEnding.asStateFlow()
 
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    val snackbarMessage = _snackbarMessage.asStateFlow()
+
+    fun clearSnackbar() { _snackbarMessage.value = null }
+
     private var classId: String = ""
     private var tavClass: TAVClass? = null
 
@@ -56,7 +61,12 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     fun loadSessions() {
         viewModelScope.launch {
             _isLoading.value = true
-            runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
+            runCatching { AttendanceService.fetchSessions(classId) }
+                .onSuccess { _sessions.value = it }
+                .onFailure { e ->
+                    android.util.Log.e("SessionList", "fetchSessions failed: ${e.message}", e)
+                    _snackbarMessage.value = "Failed to load sessions: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                }
             autoEndIfExpired()
             _isLoading.value = false
         }
@@ -76,6 +86,10 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             runCatching { AttendanceService.endSession(session.id) }
+                .onFailure { e ->
+                    android.util.Log.e("SessionList", "autoEndIfExpired failed: ${e.message}", e)
+                    _snackbarMessage.value = "Failed to auto-end class: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                }
             runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
         }
     }
@@ -176,6 +190,15 @@ fun SessionListScreen(
     val isLoading by vm.isLoading.collectAsState()
     val isStarting by vm.isStarting.collectAsState()
     val isEnding by vm.isEnding.collectAsState()
+    val snackbarMessage by vm.snackbarMessage.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let { msg ->
+            snackbarHostState.showSnackbar(message = msg, duration = SnackbarDuration.Short)
+            vm.clearSnackbar()
+        }
+    }
 
     val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
     val todaySession = sessions.firstOrNull { it.sessionDate == todayStr }
@@ -189,6 +212,7 @@ fun SessionListScreen(
     }.getOrDefault(iso)
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(className) },

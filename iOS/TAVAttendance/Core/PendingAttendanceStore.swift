@@ -5,12 +5,19 @@ struct PendingAttendanceRecord: Codable {
     let studentId: UUID
     var status: AttendanceStatus
     var notes: String?
-    let clientMutationId: String
-    let markedAt: Date
+    // var (not let): an in-place correction reassigns a fresh clientMutationId and
+    // markedAt so an in-flight sync of the old id can't clobber the newer tap.
+    var clientMutationId: String
+    var markedAt: Date
     var isSynced: Bool
 }
 
 final class PendingAttendanceStore: ObservableObject {
+    // Singleton: the store is a write-through cache over one shared UserDefaults key,
+    // so separate instances would clobber each other. All callers use `.shared`.
+    static let shared = PendingAttendanceStore()
+    private init() {}
+
     private let key = "pendingAttendance"
 
     // In-memory cache — loaded once on first access, then kept in sync via write-through.
@@ -40,6 +47,12 @@ final class PendingAttendanceStore: ObservableObject {
         if let index = records.firstIndex(where: { $0.sessionId == sessionId && $0.studentId == studentId }) {
             records[index].status = status
             records[index].notes = notes
+            // Fresh id + timestamp: this is a NEW mutation. Reusing the old
+            // clientMutationId would let an in-flight sync's markSynced() delete this
+            // corrected record; a newer markedAt also wins the server's
+            // `marked_at <= EXCLUDED.marked_at` conflict guard.
+            records[index].clientMutationId = UUID().uuidString
+            records[index].markedAt = Date()
         } else {
             let record = PendingAttendanceRecord(
                 sessionId: sessionId,

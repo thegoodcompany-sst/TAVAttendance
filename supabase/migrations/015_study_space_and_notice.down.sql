@@ -61,8 +61,12 @@ AS $$
 $$;
 GRANT EXECUTE ON FUNCTION get_roster_for_date(DATE) TO authenticated, service_role;
 
--- Restore attendance_summary to the 003 version (no study-space filter).
-CREATE OR REPLACE VIEW attendance_summary AS
+-- Restore attendance_summary to its pre-015 (post-010) state: security_invoker
+-- ON and active-row filter, but no study-space filter. NOT the bare 003 version,
+-- which would strip security_invoker and reopen an RLS bypass on rollback.
+CREATE OR REPLACE VIEW attendance_summary
+WITH (security_invoker = true)
+AS
 SELECT
     s.student_id,
     st.full_name                                                     AS student_name,
@@ -82,6 +86,8 @@ FROM attendance_records s
 JOIN students st  ON st.id = s.student_id
 JOIN sessions se  ON se.id = s.session_id
 JOIN classes  c   ON c.id  = se.class_id
+WHERE st.is_active = TRUE
+  AND c.is_active  = TRUE
 GROUP BY s.student_id, st.full_name, se.class_id, c.name;
 
 -- Remove the feature flag and the singleton Study Space class, then drop the column.

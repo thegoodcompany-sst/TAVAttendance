@@ -34,31 +34,34 @@ Minimum version: **2.x**. Import: `import Supabase`.
 ### 1.2 Shared Client
 
 Create a single `SupabaseClient` instance and share it across the app (singleton or environment object).
+Credentials are never hardcoded in source. Copy `Config.xcconfig.example` → `Config.xcconfig`
+(gitignored) and fill in `SUPABASE_PROJECT_URL` / `SUPABASE_ANON_KEY`. `project.yml` (XcodeGen)
+wires those xcconfig build settings into `Info.plist`, which the client reads at runtime:
 
 ```swift
 // SupabaseManager.swift
 import Supabase
-
-struct SupabaseConfig {
-    static let url    = URL(string: "https://YOUR_PROJECT_REF.supabase.co")!
-    static let anonKey = "YOUR_ANON_KEY"
-}
 
 final class SupabaseManager {
     static let shared = SupabaseManager()
     let client: SupabaseClient
 
     private init() {
-        client = SupabaseClient(
-            supabaseURL: SupabaseConfig.url,
-            supabaseKey: SupabaseConfig.anonKey
-        )
+        guard
+            let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_PROJECT_URL") as? String,
+            let url = URL(string: urlString),
+            let anonKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String
+        else {
+            fatalError("Supabase config missing. Add SUPABASE_PROJECT_URL and SUPABASE_ANON_KEY to Config.xcconfig (copy from Config.xcconfig.example).")
+        }
+        client = SupabaseClient(supabaseURL: url, supabaseKey: anonKey)
     }
 }
 ```
 
-> Replace `YOUR_PROJECT_REF` and `YOUR_ANON_KEY` from **Supabase Dashboard → Settings → API**.
-> Never commit the service role key to source control. The anon key is safe for client use because RLS enforces access control.
+> Get the project URL and anon key from **Supabase Dashboard → Settings → API**.
+> Never commit the service role key to source control, and never commit `Config.xcconfig` itself.
+> The anon key is safe for client use because RLS enforces access control.
 
 ---
 

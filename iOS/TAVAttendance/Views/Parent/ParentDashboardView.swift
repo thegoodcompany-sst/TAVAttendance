@@ -14,6 +14,7 @@ struct ParentDashboardView: View {
 
     @State private var children: [Student] = []
     @State private var isLoading = true
+    @State private var loadFailed = false
     @State private var selectedChild: Student?
 
     var body: some View {
@@ -24,6 +25,8 @@ struct ParentDashboardView: View {
                 } else if isLoading {
                     ProgressView("Loading…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if loadFailed {
+                    loadError
                 } else {
                     childList
                 }
@@ -50,6 +53,18 @@ struct ParentDashboardView: View {
             Label("Coming Soon", systemImage: "hourglass")
         } description: {
             Text("Your child's attendance history is being prepared. You'll be able to view it here soon.")
+        }
+    }
+
+    // A load failure is distinct from "no children linked" — an empty list because the
+    // request threw would otherwise read as "you have no children", hiding the error.
+    private var loadError: some View {
+        ContentUnavailableView {
+            Label("Couldn't Load", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text("We couldn't load your children's information. Please check your connection and try again.")
+        } actions: {
+            Button("Retry") { Task { await loadChildren() } }
         }
     }
 
@@ -82,7 +97,12 @@ struct ParentDashboardView: View {
 
     private func loadChildren() async {
         isLoading = true
-        children = (try? await AttendanceService.shared.fetchAllStudents()) ?? []
+        loadFailed = false
+        do {
+            children = try await AttendanceService.shared.fetchAllStudents()
+        } catch {
+            loadFailed = true
+        }
         isLoading = false
     }
 }

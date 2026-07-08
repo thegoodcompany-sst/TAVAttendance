@@ -124,7 +124,16 @@ struct GlobalKioskView: View {
             }
 
             if showPINEntry {
-                PINUnlockOverlay(storedPIN: storedPIN) { success in
+                PINUnlockOverlay(storedPIN: storedPIN, onReset: {
+                    // QA-06 recovery: reachable only after a lockout. If the stored hash
+                    // can never validate (e.g. after a device restore changed the salt),
+                    // this clears the PIN and unlocks so the kiosk isn't permanently
+                    // bricked. Staff then set a new PIN via Settings.
+                    withAnimation(.easeInOut(duration: 0.2)) { showPINEntry = false }
+                    storedPIN = ""
+                    isLocked = false
+                    showPINResetAlert = true
+                }) { success in
                     withAnimation(.easeInOut(duration: 0.2)) { showPINEntry = false }
                     if success { isLocked = false; isAdminUnlocked = true }
                 }
@@ -147,6 +156,18 @@ struct GlobalKioskView: View {
                     storedPIN = ""
                     showPINResetAlert = true
                 }
+            }
+            // SECURITY: a configured PIN must re-lock on every launch. isAdminUnlocked
+            // is @State (resets to false on restart), but kioskLocked is @AppStorage and
+            // can persist `false` — leaving the kiosk "unlocked but not admin", where a
+            // student could open Kiosk Settings and remove the PIN (privilege escalation).
+            // Forcing locked here means admin access always requires re-entering the PIN
+            // this session, matching the "does not persist across restarts" rule.
+            // Guarded on !isAdminUnlocked so a .task re-run (e.g. returning to this tab)
+            // never re-locks a kiosk the admin already unlocked this session — at launch
+            // isAdminUnlocked is always false, so a PIN-set kiosk still boots locked.
+            if !storedPIN.isEmpty && !isAdminUnlocked {
+                isLocked = true
             }
             await load()
         }
@@ -265,7 +286,9 @@ struct GlobalKioskView: View {
                 .accessibilityLabel("Study Space")
             }
 
-            if isLocked {
+            if !isAdminMode {
+                // Not admin (a PIN is set and hasn't been entered this session):
+                // show the unlock affordance, never the settings gear.
                 Button { showPINEntry = true } label: {
                     Image(systemName: "lock.fill")
                         .font(.title3)
@@ -274,6 +297,9 @@ struct GlobalKioskView: View {
                         .background(Color(.systemGray5), in: Circle())
                 }
             } else if !isSelectionMode {
+                // SECURITY: the gear is admin-only. Gating it on isAdminMode (not just
+                // !isLocked) closes the escalation where a persisted kioskLocked=false
+                // showed Settings to a student.
                 Button { showSettings = true } label: {
                     Image(systemName: "gearshape.fill")
                         .font(.title3)
@@ -933,30 +959,55 @@ private struct KioskSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showPINSetup = false
 
+    // SECURITY: Change PIN / Remove PIN both re-authenticate against the current PIN
+    // before taking effect, so reaching this sheet is not enough to alter the PIN.
+    private enum SecureAction { case change, remove }
+    @State private var challenge: SecureAction? = nil
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    if storedPIN.isEmpty {
-                        Label("No PIN set — kiosk is unlocked", systemImage: "lock.open")
-                            .foregroundStyle(.secondary)
-                        Button("Set Kiosk PIN…") { showPINSetup = true }
-                    } else {
-                        Label("PIN configured", systemImage: "lock.fill")
-                            .foregroundStyle(.green)
-                        Button("Change PIN…") { showPINSetup = true }
-                        Button("Lock Kiosk Now") {
-                            isLocked = true
-                            dismiss()
+            ZStack {
+                Form {
+                    Section {
+                        if storedPIN.isEmpty {
+                            Label("No PIN set — kiosk is unlocked", systemImage: "lock.open")
+                                .foregroundStyle(.secondary)
+                            Button("Set Kiosk PIN…") { showPINSetup = true }
+                        } else {
+                            Label("PIN configured", systemImage: "lock.fill")
+                                .foregroundStyle(.green)
+                            Button("Change PIN…") { challenge = .change }
+                            Button("Lock Kiosk Now") {
+                                isLocked = true
+                                dismiss()
+                            }
+                            Button("Remove PIN", role: .destructive) {
+                                challenge = .remove
+                            }
                         }
-                        Button("Remove PIN", role: .destructive) {
-                            storedPIN = ""; isLocked = false
+                    } header: {
+                        Text("Kiosk Lock")
+                    } footer: {
+                        Text("When locked the tab bar is hidden and only the sign-in grid is shown. Tap the lock icon and enter the PIN to unlock and access admin controls.")
+                    }
+                }
+
+                // Re-authentication overlay for the destructive PIN actions.
+                if let action = challenge {
+                    PINUnlockOverlay(storedPIN: storedPIN, onReset: {
+                        // Recovery is disabled inside settings — an admin who can open
+                        // this sheet is already unlocked; only cancel the challenge.
+                        challenge = nil
+                    }) { success in
+                        challenge = nil
+                        guard success else { return }
+                        switch action {
+                        case .change: showPINSetup = true
+                        case .remove: storedPIN = ""; isLocked = false
                         }
                     }
-                } header: {
-                    Text("Kiosk Lock")
-                } footer: {
-                    Text("When locked the tab bar is hidden and only the sign-in grid is shown. Tap the lock icon and enter the PIN to unlock and access admin controls.")
+                    .zIndex(10)
+                    .transition(.opacity)
                 }
             }
             .navigationTitle("Kiosk Settings")
@@ -1051,6 +1102,8 @@ private struct PINSetupSheet: View {
 
 private struct PINUnlockOverlay: View {
     let storedPIN: String
+    // QA-06 recovery: invoked from the lockout screen when the PIN can never validate.
+    var onReset: (() -> Void)? = nil
     let onDone: (Bool) -> Void
 
     // Persisted so a device restart can't reset the lockout counter.
@@ -1061,10 +1114,24 @@ private struct PINUnlockOverlay: View {
     @State private var error = ""
     @State private var secondsRemaining: Int = 0
 
-    private let maxAttempts = 5
-    private let lockoutSeconds: Double = 30
+    // Lock after this many CUMULATIVE failures; the counter is only reset by a correct
+    // PIN, never by a lockout expiring (that was the brute-force hole: 5 tries / 30s
+    // forever). Past the threshold, each further wrong entry backs off exponentially.
+    private let attemptsBeforeLockout = 5
 
     private var isLockedOut: Bool { Date().timeIntervalSince1970 < lockoutUntil }
+
+    /// Exponential backoff keyed on cumulative failures: 5→30s, 6→1m, 7→2m … capped 1h.
+    private func lockoutDuration(forFailures failures: Int) -> Double {
+        let over = max(0, failures - attemptsBeforeLockout)
+        return min(30.0 * pow(2.0, Double(over)), 3600)
+    }
+
+    private var lockoutMessage: String {
+        let s = secondsRemaining
+        if s >= 60 { return "Try again in \(s / 60)m \(s % 60)s" }
+        return "Try again in \(s)s"
+    }
 
     var body: some View {
         ZStack {
@@ -1085,11 +1152,23 @@ private struct PINUnlockOverlay: View {
 
                 if isLockedOut {
                     VStack(spacing: 12) {
-                        Text("Try again in \(secondsRemaining)s")
+                        Text(lockoutMessage)
                             .font(.title2.bold())
                             .foregroundStyle(.orange)
                         Button("Cancel") { onDone(false) }
                             .foregroundStyle(.white.opacity(0.7))
+                        // QA-06: an escape hatch reachable only once locked out, so a
+                        // legit admin whose hash can't validate (e.g. after a device
+                        // restore) isn't permanently bricked. Confirmed to avoid taps.
+                        if let onReset {
+                            Button("Forgot PIN — Reset Kiosk", role: .destructive) {
+                                failedAttempts = 0
+                                lockoutUntil = 0
+                                onReset()
+                            }
+                            .foregroundStyle(.red)
+                            .padding(.top, 8)
+                        }
                     }
                 } else {
                     HStack(spacing: 20) {
@@ -1135,11 +1214,13 @@ private struct PINUnlockOverlay: View {
                 lockoutUntil = 0
                 onDone(true)
             } else {
+                // Cumulative: never reset the counter on lockout, only on success.
                 failedAttempts += 1
-                let attemptsLeft = maxAttempts - failedAttempts
+                let attemptsLeft = attemptsBeforeLockout - failedAttempts
                 if attemptsLeft <= 0 {
-                    lockoutUntil = Date().timeIntervalSince1970 + lockoutSeconds
-                    failedAttempts = 0
+                    // Exponential backoff grows with total failures; the counter is left
+                    // in place so the next wrong entry after the lockout locks longer.
+                    lockoutUntil = Date().timeIntervalSince1970 + lockoutDuration(forFailures: failedAttempts)
                     tick()
                     entered = ""
                 } else {
@@ -1158,6 +1239,22 @@ private struct PINUnlockOverlay: View {
 // The identifierForVendor ties the hash to this device installation,
 // making offline brute-force against a UserDefaults dump impractical without
 // also knowing the device UUID.
+//
+// ponytail: DEFERRED (finding 8a) — move the hash + a RANDOM salt to the Keychain.
+// Not done here because it can't be build-verified in this environment and a blind
+// migration risks bricking live kiosks. The exact migration to implement:
+//   1. Generate a random 32-byte salt once; store {salt, hash} as one keychain item
+//      under service "sg.tava.kiosk", account "pinHash",
+//      accessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly.
+//   2. Change hashPIN to take the stored salt (not identifierForVendor) so a device
+//      restore no longer changes the salt — the "v1:" hash keeps validating.
+//   3. On first launch: if UserDefaults "kioskPIN" holds a "v1:" hash and no keychain
+//      item exists, copy it into the keychain (keeping the OLD idfv salt for that
+//      migrated value via a "v1:"/"v2:" version tag), THEN remove the UserDefaults key.
+//   4. New PINs are written "v2:" (random-salt) only. Keep validating "v1:" during a
+//      deprecation window. Do NOT delete the UserDefaults copy until the keychain
+//      write is confirmed (read-back) to avoid a half-migration lockout.
+// Until then, the QA-06 reset affordance (finding 8c) is the in-app recovery path.
 private func hashPIN(_ pin: String) -> String {
     let salt = (UIDevice.current.identifierForVendor?.uuidString ?? "tava-kiosk-fallback").utf8
     var derived = [UInt8](repeating: 0, count: 32)

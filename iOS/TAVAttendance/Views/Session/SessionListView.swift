@@ -456,6 +456,7 @@ private struct SubstituteTutorSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSaving = false
+    @State private var error: AppError? = nil
 
     var body: some View {
         NavigationStack {
@@ -498,6 +499,7 @@ private struct SubstituteTutorSheet: View {
                     Button("Cancel") { dismiss() }
                 }
             }
+            .errorAlert(error: $error)
         }
     }
 
@@ -507,7 +509,10 @@ private struct SubstituteTutorSheet: View {
             try await AttendanceService.shared.setSessionSubstitute(sessionId: session.id, tutorId: tutorId)
             onSave()
             dismiss()
-        } catch {}
+        } catch {
+            // Don't dismiss on failure — surface it so the change isn't silently lost.
+            self.error = AppError("Could not update the substitute tutor.", underlyingError: error)
+        }
         isSaving = false
     }
 }

@@ -168,13 +168,27 @@ object AttendanceService {
             }
         }.decodeList<Session>()
         if (existing.isNotEmpty()) return existing.first()
-        return db.from("sessions").insert(
-            Session(
-                id = UUID.randomUUID().toString(),
-                classId = classId,
-                sessionDate = date
-            )
-        ) { select() }.decodeSingle<Session>()
+        return try {
+            db.from("sessions").insert(
+                Session(
+                    id = UUID.randomUUID().toString(),
+                    classId = classId,
+                    sessionDate = date
+                )
+            ) { select() }.decodeSingle<Session>()
+        } catch (e: Exception) {
+            // Two kiosks/tutors opening the same class at once can both lose the initial
+            // select race and then collide on the sessions(class_id, session_date) unique
+            // constraint (001_schema.sql). Re-select instead of failing outright.
+            // ponytail: catch-and-reselect instead of an upsert, since an upsert would need to
+            // send `id` in the payload and risk overwriting the winner's id on conflict.
+            db.from("sessions").select {
+                filter {
+                    eq("class_id", classId)
+                    eq("session_date", date)
+                }
+            }.decodeList<Session>().firstOrNull() ?: throw e
+        }
     }
 
     suspend fun fetchClass(id: String): TAVClass? =
@@ -380,12 +394,14 @@ object AttendanceService {
 
     /** Present, or late when the session has started (or its scheduled time has passed). */
     fun signInStatus(session: KioskSession, now: Date): AttendanceStatus {
-        if (session.startedAt != null) {
-            val startedAt = runCatching {
-                java.time.Instant.parse(session.startedAt).let { Date(it.toEpochMilli()) }
-            }.getOrNull()
-            if (startedAt != null && now.after(startedAt)) return AttendanceStatus.late
+        val startedAt = session.startedAt?.let {
+            runCatching { java.time.Instant.parse(it).let { i -> Date(i.toEpochMilli()) } }.getOrNull()
+        }
+        if (startedAt != null) {
+            if (now.after(startedAt)) return AttendanceStatus.late
         } else if (session.scheduleTime != null) {
+            // Falls through here both when startedAt is null AND when it failed to parse —
+            // an unparsable startedAt must not silently default to Present.
             // Split on ":" taking first two parts — handles both "HH:mm" and "HH:mm:ss"
             val parts = session.scheduleTime.split(":").mapNotNull { it.toIntOrNull() }
             if (parts.size >= 2) {
@@ -601,7 +617,10 @@ object AttendanceService {
     @Serializable
     private data class SyncParams(val records: List<SyncRecord>)
 
-    suspend fun syncPending(records: List<PendingAttendanceRecord>): Pair<Int, Int> {
+    /** synced, skipped (newer server record won), blocked_ended_session (session already ended — migration 016). */
+    data class SyncResult(val synced: Int, val skipped: Int, val blockedEndedSession: Int)
+
+    suspend fun syncPending(records: List<PendingAttendanceRecord>): SyncResult {
         val payload = records.map { r ->
             SyncRecord(
                 sessionId = r.sessionId,
@@ -614,6 +633,10 @@ object AttendanceService {
         }
         val paramsJson = Json.encodeToJsonElement(SyncParams(payload)) as JsonObject
         val result = db.postgrest.rpc("sync_attendance", paramsJson).decodeAs<Map<String, Int>>()
-        return (result["synced"] ?: 0) to (result["skipped"] ?: 0)
+        return SyncResult(
+            synced = result["synced"] ?: 0,
+            skipped = result["skipped"] ?: 0,
+            blockedEndedSession = result["blocked_ended_session"] ?: 0
+        )
     }
 }

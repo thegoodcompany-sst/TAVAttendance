@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { todayInTz, yesterdayInTz, dateOffsetInTz } from '@/lib/date'
+import { todayInTz, dateOffsetInTz } from '@/lib/date'
 import { type AttendanceStatus } from '@/lib/status'
 
 export type StudentTodayEntry = {
@@ -37,8 +37,6 @@ async function getRosterForDate(date: string): Promise<StudentTodayEntry[]> {
 
 export const getTodayRoster = cache((): Promise<StudentTodayEntry[]> => getRosterForDate(todayInTz()))
 
-export const getYesterdayRoster = cache((): Promise<StudentTodayEntry[]> => getRosterForDate(yesterdayInTz()))
-
 export type SessionSummary = {
   sessionId: string
   className: string
@@ -64,11 +62,10 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
     .from('sessions')
     .select(`
       id,
-      class:classes!inner(name, schedule_time, is_study_space, enrollments:enrollments!inner(is_active)),
+      class:classes!inner(name, schedule_time, is_study_space, enrollments:enrollments(is_active)),
       attendance_records(status)
     `)
     .eq('session_date', today)
-    .eq('class.enrollments.is_active', true)
     // Study Space attendance is internal-only — never surface it in reports (migration 015).
     .eq('class.is_study_space', false)
 
@@ -78,7 +75,9 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
 
   return (data ?? []).map((s: any) => {
     const records: Array<{ status: string }> = s.attendance_records ?? []
-    const total = (s.class?.enrollments as any[])?.length ?? 0
+    // Enrollments are left-joined (not `!inner`) so a session isn't dropped
+    // just because every enrollment for its class has since been deactivated.
+    const total = ((s.class?.enrollments as any[]) ?? []).filter(e => e.is_active).length
     return {
       sessionId: s.id,
       className: s.class?.name ?? 'Unknown',
@@ -87,7 +86,7 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
       lateCount:    records.filter(r => r.status === 'late').length,
       absentCount:  records.filter(r => r.status === 'absent').length,
       excusedCount: records.filter(r => r.status === 'excused').length,
-      notHereCount: total - records.length,
+      notHereCount: Math.max(0, total - records.length),
       totalEnrolled: total,
     }
   })
@@ -193,7 +192,7 @@ export async function getStudent(id: string) {
     .from('students')
     .select('id, full_name, school, year_of_study, notes')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
   if (error) {
     throw new Error(`getStudent: ${error.message}`)

@@ -4,16 +4,12 @@
    for details.
 -->
 <data-extraction-rules>
+    <!-- Excludes ALL SharedPreferences (auth refresh token, kiosk PIN hash/lockout state,
+         unsynced offline attendance) from both cloud backup and device-to-device transfer. -->
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="." />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="." />
     </device-transfer>
-    -->
 </data-extraction-rules>

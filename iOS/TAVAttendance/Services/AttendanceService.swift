@@ -5,6 +5,18 @@ final class AttendanceService {
     static let shared = AttendanceService()
     private let db = SupabaseManager.shared.client
 
+    /// "yyyy-MM-dd" formatter pinned to a POSIX Gregorian calendar. A device set to a
+    /// non-Gregorian calendar (e.g. Buddhist/Japanese) would otherwise format session
+    /// dates in that calendar's era/year, splitting kiosk vs tutor sessions for the
+    /// same real day. Used for session_date reads/writes.
+    static let ymdFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        return f
+    }()
+
     // MARK: - Classes
 
     func fetchMyClasses() async throws -> [TAVClass] {
@@ -216,9 +228,7 @@ final class AttendanceService {
     // MARK: - Global kiosk
 
     func fetchKioskEntries() async throws -> [KioskEntry] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let today = formatter.string(from: Date())
+        let today = Self.ymdFormatter.string(from: Date())
 
         // Day-aware: only create/show sessions for classes scheduled today, so opening
         // the kiosk on a non-tuition day doesn't spin up phantom sessions. Supports
@@ -378,9 +388,7 @@ final class AttendanceService {
     /// Loads today's Study Space session (creating it on first use) and the roster of
     /// ALL active students with their current Present/Not-Here status for it.
     func loadStudySpace() async throws -> (session: Session, roster: [RosterEntry]) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let today = formatter.string(from: Date())
+        let today = Self.ymdFormatter.string(from: Date())
 
         let session = try await getOrCreateSession(classId: Self.studySpaceClassId, date: today)
         let roster: [RosterEntry] = try await db
@@ -416,16 +424,20 @@ final class AttendanceService {
             .value
     }
 
-    func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (synced: Int, skipped: Int) {
+    func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (synced: Int, skipped: Int, blockedEndedSession: Int) {
         let payload = records.map { r -> [String: String] in
             ["session_id": r.sessionId.uuidString, "student_id": r.studentId.uuidString,
              "status": r.status.rawValue, "notes": r.notes ?? "",
              "client_mutation_id": r.clientMutationId,
              "marked_at": ISO8601DateFormatter().string(from: r.markedAt)]
         }
+        // Decode all three counters (migration 013 + 016). skipped (newer server row
+        // won) and blocked_ended_session (session already ended) are both TERMINAL —
+        // the record will never sync — so the caller clears them from the store on any
+        // successful RPC, not just when synced > 0.
         let result: [String: Int] = try await db
             .rpc("sync_attendance", params: ["records": payload]).execute().value
-        return (result["synced"] ?? 0, result["skipped"] ?? 0)
+        return (result["synced"] ?? 0, result["skipped"] ?? 0, result["blocked_ended_session"] ?? 0)
     }
 
     // MARK: - Dismissals (#15)
@@ -770,7 +782,7 @@ final class AttendanceService {
     /// QA-04 / MAINT-06: returns the joined `session_date` so the export uses the
     /// true session date (not `marked_at`, which is wrong for offline-synced rows).
     func fetchAttendanceForExport(classId: UUID, from: Date, to: Date) async throws -> [AttendanceExportRecord] {
-        let fmt = DateFormatter(); fmt.dateFormat = "yyyy-MM-dd"
+        let fmt = Self.ymdFormatter
         return try await db.from("attendance_records")
             .select("student_id, status, marked_at, late_reason, session:sessions!inner(session_date, class_id)")
             .eq("session.class_id", value: classId.uuidString)

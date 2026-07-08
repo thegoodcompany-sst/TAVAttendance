@@ -168,7 +168,11 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+# OFF: every account is created by an admin invite (web/app/actions/invite.ts →
+# service-role admin API). Public /auth/v1/signup would let anyone mint a profile;
+# combined with metadata role it was an admin-escalation path (see migration 016).
+# Mirror this in the prod dashboard (Authentication → Providers → Email → Allow signups).
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts

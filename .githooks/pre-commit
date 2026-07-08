@@ -12,4 +12,15 @@ if [ -n "$matches" ]; then
   exit 1
 fi
 
+# Also catch a raw JWT literal (e.g. a Swift string `supabaseKey: "eyJ..."`) —
+# the header.payload shape of any JWT, regardless of variable name.
+jwt_matches=$(git diff --cached -U0 | grep -nE '^\+.*eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}')
+
+if [ -n "$jwt_matches" ]; then
+  echo "✖ pre-commit blocked: a staged change contains a raw JWT-shaped secret."
+  echo "  Keep keys in gitignored config (Config.xcconfig / secrets.properties / .env.local)."
+  echo "$jwt_matches"
+  exit 1
+fi
+
 exit 0
