@@ -17,7 +17,7 @@ stays the compact source of truth; the skills carry the runbooks.
 
 Prod Supabase (`zgikcbsxzjgbigywxbbj`) was reconciled with the migration files on **2026-07-09**
 (drift campaign; HUMANS.md §14/§30) and is tracked by the CI drift detector — as of
-**2026-07-10** prod matches migrations 001–021. **Never edit an
+**2026-07-10** prod matches migrations 001–022. **Never edit an
 existing migration; every schema fix ships as a new numbered one**, and apply it to prod BEFORE
 deploying app code that references it. Verify prod state with queries, never by reading files:
 `.claude/skills/tava-prod-drift-campaign` keeps the drift-prevention protocol.
