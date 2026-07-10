@@ -53,7 +53,7 @@ targets:
         SWIFT_VERSION: "5.9"
         PRODUCT_BUNDLE_IDENTIFIER: com.tava.TAVAttendance
         TARGETED_DEVICE_FAMILY: "1,2"
-        DEVELOPMENT_TEAM: ""
+        DEVELOPMENT_TEAM: "DUU8J39BA7"
     configFiles:
       Debug: Config.xcconfig
       Release: Config.xcconfig
