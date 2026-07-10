@@ -5,6 +5,7 @@ Android app (Jetpack Compose), and a web admin dashboard (Next.js), all backed b
 the same Supabase project.
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for full local setup of every platform.
+Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/skills/tava-*`.
 
 ## What it does today
 
@@ -60,7 +61,7 @@ iOS/TAVAttendance/
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
 supabase/
-  migrations/     001…015 (see supabase/migrations/README.md for the down-migration convention)
+  migrations/     001…016 (see supabase/migrations/README.md for the down-migration convention)
   functions/      notify-parent edge function (PROD-02, flag-gated)
   seed.sql
 ```
