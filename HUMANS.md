@@ -263,6 +263,20 @@ Until these are set, the CI `Drift detector` job logs a warning and skips (CI st
 Heads-up: the first `supabase db diff --linked` run may surface residual diff left over from the
 2026-07-09 reconciliation — triage that output before treating the job as a hard gate.
 
+**Status 2026-07-10: secrets added; the web-schema check is live and passing.** The `db diff`
+half is skipped pending §36.
+
+### ☐ 36. Decide: fix the invalid syntax in migration 005 to make the chain replayable
+CI's `supabase db diff` found that `005_sprint_features.sql` uses `CREATE POLICY IF NOT EXISTS`,
+which is not valid Postgres — the migration chain cannot be replayed onto a fresh database
+(shadow DB, new dev machine, disaster recovery), and the native drift diff can't run.
+Prod never executed this file as-is (its 005 content arrived via the 2026-07-09 timestamped
+backfill migrations), so editing the file would not obscure what prod ran — but it breaks the
+"never edit an existing migration" rule, so it needs your sign-off. If approved: replace each
+`CREATE POLICY IF NOT EXISTS` with `DROP POLICY IF EXISTS …; CREATE POLICY …` (same end state),
+then remove the shadow-provisioning skip in `.github/workflows/ci.yml`. Until then the CI db-diff
+step logs a warning and skips.
+
 ---
 
 ## Notes
