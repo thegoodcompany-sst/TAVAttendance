@@ -9,6 +9,7 @@ enum FeatureFlag: String {
     case pushNotifications  = "push_notifications"
     case studentPhotos      = "student_photos"
     case studySpaceTracking = "study_space_tracking"
+    case testMode           = "test_mode"
 }
 
 @MainActor

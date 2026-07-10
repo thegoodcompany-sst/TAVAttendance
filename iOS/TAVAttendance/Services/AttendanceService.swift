@@ -234,7 +234,10 @@ final class AttendanceService {
         // the kiosk on a non-tuition day doesn't spin up phantom sessions. Supports
         // multiple classes on the same day (e.g. Thu English + Thu Reading).
         let todayWeekday = Self.weekdayName(for: Date())
-        let classes = try await fetchMyClasses().filter { Self.classMeetsToday($0, weekday: todayWeekday) }
+        // test_mode (migration 020) bypasses the day filter so demos/testing on
+        // non-tuition days still show every active class.
+        let testMode = await FeatureFlagStore.shared.isEnabled(.testMode)
+        let classes = try await fetchMyClasses().filter { testMode || Self.classMeetsToday($0, weekday: todayWeekday) }
         let classMap = Dictionary(uniqueKeysWithValues: classes.map { ($0.id, $0) })
 
         // Parallelize session creation — the upsert on (class_id, session_date) makes

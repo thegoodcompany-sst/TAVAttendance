@@ -66,4 +66,38 @@ final class AttendanceLogicTests: XCTestCase {
     func testWorstStatusEqual() {
         XCTAssertEqual(AttendanceService.worstStatus(.present, .present), .present)
     }
+
+    // MARK: classMeetsToday
+
+    private func makeClass(recurrenceRule: String? = nil, scheduleDay: String? = nil) -> TAVClass {
+        TAVClass(id: UUID(), name: "Test", subject: nil, level: nil,
+                 scheduleDay: scheduleDay, scheduleTime: nil, durationMinutes: 60,
+                 isActive: true, recurrenceRule: recurrenceRule,
+                 recurrenceEndDate: nil, isStudySpace: nil)
+    }
+
+    func testBydayRuleMatchesWeekday() {
+        let cls = makeClass(recurrenceRule: "FREQ=WEEKLY;BYDAY=MO,TH")
+        XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Monday"))
+        XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Thursday"))
+        XCTAssertFalse(AttendanceService.classMeetsToday(cls, weekday: "Saturday"))
+    }
+
+    func testBydayRuleWinsOverScheduleDay() {
+        let cls = makeClass(recurrenceRule: "FREQ=WEEKLY;BYDAY=MO", scheduleDay: "Saturday")
+        XCTAssertFalse(AttendanceService.classMeetsToday(cls, weekday: "Saturday"))
+        XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Monday"))
+    }
+
+    func testScheduleDayMatchIsCaseInsensitive() {
+        let cls = makeClass(scheduleDay: "thursday")
+        XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Thursday"))
+        XCTAssertFalse(AttendanceService.classMeetsToday(cls, weekday: "Monday"))
+    }
+
+    func testAdHocClassAlwaysMeets() {
+        let cls = makeClass()
+        XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Saturday"))
+        XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Sunday"))
+    }
 }
