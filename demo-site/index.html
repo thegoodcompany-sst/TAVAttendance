@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TAVA Attendance — Demo</title>
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --text: #1f1c17;
+    --muted: #6b6459;
+    --border: #e7e2d8;
+    --accent: #c8672a;
+    --accent-soft: #f6e7db;
+    --maxw: 720px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17150f;
+      --surface: #201d16;
+      --text: #f0ece3;
+      --muted: #a49c8d;
+      --border: #322d23;
+      --accent: #e7893f;
+      --accent-soft: #2c2115;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    font-size: 17px;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 1.75rem; margin-bottom: 2rem; }
+  .badge {
+    display: inline-block; font-size: .78rem; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--accent);
+    background: var(--accent-soft); padding: .3rem .6rem; border-radius: 999px;
+  }
+  h1 { font-size: 2rem; line-height: 1.2; margin: .9rem 0 .4rem; letter-spacing: -.02em; }
+  h2 {
+    font-size: 1.3rem; margin: 2.5rem 0 .75rem; letter-spacing: -.01em;
+    padding-top: .5rem;
+  }
+  h3 { font-size: 1.02rem; margin: 1.5rem 0 .3rem; }
+  p { margin: .6rem 0; }
+  .lede { font-size: 1.12rem; color: var(--muted); margin-top: .5rem; }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+  ul { padding-left: 1.2rem; margin: .6rem 0; }
+  li { margin: .3rem 0; }
+  .beat {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1rem 1.15rem; margin: .85rem 0;
+  }
+  .beat h3 { margin-top: 0; }
+  .beat p { margin: .35rem 0 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0 0; }
+  .chip {
+    font-size: .8rem; font-weight: 600; padding: .18rem .55rem; border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .c-green { color: #2e7d32; }
+  .c-orange { color: #c8672a; }
+  .c-red { color: #c0392b; }
+  .c-purple { color: #7c53c3; }
+  @media (prefers-color-scheme: dark) {
+    .c-green { color: #7bc47f; }
+    .c-orange { color: #e7893f; }
+    .c-red { color: #e57368; }
+    .c-purple { color: #b79be8; }
+  }
+  .status-row { display: flex; flex-wrap: wrap; gap: 1rem; margin: .5rem 0; }
+  .cols { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+  @media (min-width: 620px) { .cols { grid-template-columns: 1fr 1fr; } }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.1rem 1.2rem;
+  }
+  .card h3 { margin-top: 0; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">TAVA Attendance</span>
+    <h1>A live attendance system for a tuition centre</h1>
+    <p class="lede">Students tap their own name on an iPad to sign in. Staff see it live on the web. It keeps working when the Wi-Fi doesn't.</p>
+  </header>
+
+  <h2>The problem</h2>
+  <p>TAVA is a Singapore tuition centre — Maths on Mondays, English and Reading on Thursdays, plus a drop-in study space through the week. Attendance was a paper register: slow to take, easy to lose, and impossible to answer simple questions from ("how often has this student been late this term?").</p>
+  <p>TAVA Attendance replaces the paper register with three connected pieces:</p>
+  <ul>
+    <li><strong>An iPad kiosk</strong> at the door where students sign themselves in.</li>
+    <li><strong>A web dashboard</strong> where staff watch attendance live and pull reports.</li>
+    <li><strong>A shared backend</strong> that keeps everything in sync and works offline.</li>
+  </ul>
+
+  <h2>What it does</h2>
+  <ul>
+    <li><strong>Self sign-in.</strong> Students tap their name. No teacher standing at the door with a clipboard.</li>
+    <li><strong>Automatic late tracking.</strong> The kiosk compares the sign-in time against the class start time and marks late on its own.</li>
+    <li><strong>Offline-safe.</strong> If the network drops, sign-ins are stored on the device and synced automatically when it returns — no lost records, no duplicates.</li>
+    <li><strong>Parent visibility.</strong> A read-only view for parents of their own child (staged behind a feature flag).</li>
+  </ul>
+
+  <h2>The walkthrough</h2>
+  <p class="muted">The same beats shown in the live demo.</p>
+
+  <div class="beat">
+    <h3>1. Student signs in</h3>
+    <p>A student taps their card on the kiosk. It turns <span class="c-green">green</span> if they're on time, or <span class="c-orange">orange</span> if class has already started — decided automatically from the class schedule.</p>
+  </div>
+
+  <div class="beat">
+    <h3>2. Staff overrides</h3>
+    <p>Staff can correct any card on the spot: mark <span class="c-orange">Late</span>, mark <span class="c-orange">Not Here</span> (which lets the student tap in again), or mark <span class="c-red">Absent</span>. When a parent collects a child early, the card goes <span class="c-purple">purple</span> — Dismissed — the student still counts as present, just signed out early.</p>
+  </div>
+
+  <div class="beat">
+    <h3>3. Offline, then back online</h3>
+    <p>With Wi-Fi off, a sign-in still works and shows a small pending indicator. When the connection returns, it syncs quietly in the background and the indicator clears.</p>
+  </div>
+
+  <div class="beat">
+    <h3>4. Live dashboard</h3>
+    <p>The web dashboard shows today's sessions and attendance, refreshing every 30 seconds — a sign-in on the iPad appears on screen moments later.</p>
+  </div>
+
+  <div class="beat">
+    <h3>5. Analytics &amp; student history</h3>
+    <p>Attendance and punctuality percentages per student per class, and a per-student history of recent sessions. The paperwork a parent-teacher meeting used to need, ready in a click.</p>
+  </div>
+
+  <div class="beat">
+    <h3>6. Parent portal</h3>
+    <p>Parents see a read-only view scoped to their own child only.</p>
+  </div>
+
+  <h2>Where it stands</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>Live in production</h3>
+      <p class="muted">The kiosk, the live dashboard, analytics, student history, offline sync, and staff overrides are running in production today.</p>
+    </div>
+    <div class="card">
+      <h3>Staged behind flags</h3>
+      <p class="muted">The parent portal and push notifications are built but shipped dark behind feature flags — turned on the moment they're ready, with no redeploy.</p>
+    </div>
+  </div>
+
+  <h2>What's next</h2>
+  <ul>
+    <li><strong>Parent notifications</strong> — alert a parent automatically when their child is marked late or absent.</li>
+    <li><strong>Android app</strong> — a second kiosk platform alongside iOS.</li>
+    <li><strong>PDPA compliance work</strong> — completing the data-protection groundwork for handling children's personal data.</li>
+  </ul>
+
+  <footer>
+    TAVA Attendance — internal demo overview. Built for The Good Company.
+  </footer>
+</div>
+</body>
+</html>
