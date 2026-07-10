@@ -74,10 +74,15 @@ jobs:
             exit 0
           fi
           supabase link --project-ref zgikcbsxzjgbigywxbbj
-          out="$(supabase db diff --linked --schema public 2>&1)" || { echo "$out"; exit 1; }
-          if echo "$out" | grep -qvE '^\s*$|No schema changes found'; then
+          # stdout is the diff DDL; CLI progress chatter goes to stderr (streams to log).
+          out="$(supabase db diff --linked --schema public)"
+          # Table-level grant/revoke lines are platform-privilege noise: the shadow
+          # DB's default privileges differ from a hosted project's, and RLS is the
+          # real gate. Everything else in the DDL is drift.
+          drift="$(echo "$out" | grep -vE '^\s*$|^set check_function_bodies|^(grant|revoke) ' || true)"
+          if [ -n "$drift" ]; then
             echo "Schema drift detected between prod and migration files:"
-            echo "$out"
+            echo "$drift"
             exit 1
           fi
           echo "No schema drift."

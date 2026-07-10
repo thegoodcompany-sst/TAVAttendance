@@ -78,3 +78,4 @@ applies forward only.
 | 016 | security_fixes                | SEC-16a–j: security_invoker restore, handle_new_user hardening | yes   |
 | 017 | advisor_followups             | search_path pin + anon revokes (post-drift-campaign advisors) | yes   |
 | 018 | restore_substitute_policies   | substitute-tutor RLS missing in prod (drift-detector find); first DEVOPS-02 migration | yes   |
+| 019 | reconcile_prod_gaps           | audit triggers + perf indexes missing in prod (drift-detector find); formatting re-pins | yes   |
