@@ -39,6 +39,15 @@ export function dateOffsetInTz(offsetDays: number, tz = 'Asia/Singapore'): strin
   return base.toISOString().slice(0, 10)
 }
 
+/**
+ * Whether a YYYY-MM-DD calendar date falls on a TAVA tuition day (Mon or Thu).
+ * Parsed as UTC midnight so the weekday matches the calendar date exactly.
+ */
+export function isTuitionDay(date: string): boolean {
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay()
+  return dow === 1 || dow === 4
+}
+
 export function formatScheduleTime(raw: string): string {
   const parts = raw.split(':')
   const h = parseInt(parts[0], 10)

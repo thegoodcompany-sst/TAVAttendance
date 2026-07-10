@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { todayInTz, dateOffsetInTz } from '@/lib/date'
+import { todayInTz, dateOffsetInTz, isTuitionDay } from '@/lib/date'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 import { type AttendanceStatus } from '@/lib/status'
 
 export type StudentTodayEntry = {
@@ -347,7 +348,12 @@ export async function getDailyAttendance(days = 14): Promise<DailyAttendancePoin
     map.set(session.session_date, entry)
   }
 
+  // test_mode ON shows every day (demo/testing creates weekend sessions);
+  // OFF keeps the chart to real tuition days so test noise stays hidden.
+  const testMode = await isFeatureEnabled('test_mode')
+
   return Array.from(map.entries())
+    .filter(([date]) => testMode || isTuitionDay(date))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, counts]) => ({ date, ...counts }))
 }
@@ -436,12 +442,16 @@ export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]>
     throw new Error(`getMonthlyAttendanceDrops: ${error.message}`)
   }
 
+  const testMode = await isFeatureEnabled('test_mode')
+
   // attended = present|late|excused, matching the attendance_summary definition.
   type Bucket = { total: number; attended: number }
   const agg = new Map<string, { name: string; thisM: Bucket; lastM: Bucket }>()
   for (const r of (data ?? []) as any[]) {
     const date: string = r.session?.session_date ?? ''
     if (!date) continue
+    // Same rule as getDailyAttendance: hide non-tuition-day (test) records unless test_mode is ON.
+    if (!testMode && !isTuitionDay(date)) continue
     const entry = agg.get(r.student_id) ?? {
       name: r.student?.full_name ?? 'Unknown',
       thisM: { total: 0, attended: 0 },
