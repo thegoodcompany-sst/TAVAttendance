@@ -34,7 +34,7 @@ server actions). Don't scatter queries into views/components.
 3. **`attendance_summary` carries `WITH (security_invoker = true)`** — without it the view runs as owner and bypasses RLS. Re-state it on every `CREATE OR REPLACE`. (Restored on prod 2026-07-09 via migration 016.)
 4. **Offline sync is idempotent and last-write-wins by `marked_at`.** `sync_attendance` uses `ON CONFLICT ... WHERE marked_at <= EXCLUDED.marked_at` plus `ON CONFLICT (client_mutation_id) DO NOTHING`; ended sessions reject writes (returned as `blocked_ended_session`). Consequence: device clock accuracy matters; a badly wrong clock silently loses.
 5. **Feature flags gate all unshipped features and ship OFF.** One `feature_flags` table read by all three platforms; flips are admin-only (RLS) and human-verified.
-6. **Migrations are append-only** (new numbered file + `.down.sql` from 012 on). Never edited, because prod is partially applied out-of-band.
+6. **Migrations are append-only** (new numbered file + reverse script in `migrations/down/` from 012 on). Never edited, because prod is partially applied out-of-band.
 
 ## Load-bearing decisions and their WHY
 

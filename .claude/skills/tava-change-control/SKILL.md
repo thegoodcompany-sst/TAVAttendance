@@ -23,7 +23,7 @@ exists because breaking it already cost real time or caused a real outage.
 
 | Rule | Why (the incident) |
 |---|---|
-| **Never edit an existing migration file. Every schema change is a NEW numbered migration** (with a paired `NNN_name.down.sql`). | Prod is behind the files and partially applied out-of-band. Editing an old file makes it impossible to know what prod actually ran. |
+| **Never edit an existing migration file. Every schema change is a NEW numbered migration** (with a paired reverse script at `down/NNN_name.sql`). | Prod is behind the files and partially applied out-of-band. Editing an old file makes it impossible to know what prod actually ran. |
 | **Migration applies to prod BEFORE web code referencing new columns deploys.** | 2026-06-27 outage: web deployed `queries.ts` filtering `classes.is_study_space` before migration 015 was applied → PostgREST 400 → the whole authenticated dashboard showed "This page couldn't load". |
 | **Never assume a repo migration is applied to prod. Verify against the live DB.** | Migration 007 (`security_invoker` on `attendance_summary`) sat in the repo unapplied for weeks — any authed user could read every student's attendance until 2026-06-10. Migration 005 was never applied at all, which later blocked 013/014. |
 | **`CREATE OR REPLACE VIEW` resets view options — re-state `WITH (security_invoker = true)` every time you touch `attendance_summary`.** | Migration 015 recreated the view without it and silently reintroduced the RLS bypass; migration 016 (SEC-16a) fixed it. |
@@ -37,7 +37,7 @@ exists because breaking it already cost real time or caused a real outage.
 
 | Change type | Gate |
 |---|---|
-| Schema (new table/column/function/policy) | New numbered migration + `.down.sql`; verify locally with `supabase db reset`; prod application follows `tava-prod-drift-campaign` protocol; update `supabase/migrations/README.md` table. |
+| Schema (new table/column/function/policy) | New numbered migration + reverse script in `supabase/migrations/down/` (NOT beside the forward files — the CLI would apply it as a forward migration); verify locally with `supabase db reset`; prod application follows `tava-prod-drift-campaign` protocol; update `supabase/migrations/README.md` table. |
 | Prod SQL of any kind | Only via Supabase MCP `apply_migration`/`execute_sql` with the exact SQL recorded (commit or HUMANS.md). After creating/altering a function: `NOTIFY pgrst, 'reload schema';` or PostgREST won't see it. |
 | Web deploy | `npm run lint && npm run build` green, migration ordering satisfied, then the repo `deploy` skill (Vercel). |
 | iOS change | Builds with the exact command in `tava-validation-and-qa`; manual checklist for touched flows; port handoff blocks emitted. |

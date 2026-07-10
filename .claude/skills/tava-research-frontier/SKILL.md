@@ -18,7 +18,7 @@ frontier below is unblocked.)
 
 1. **Check the graveyard first**: `tava-failure-archaeology` dead-ends + HUMANS.md — is this settled?
 2. **Spec before code** for anything non-trivial: dated doc in `docs/superpowers/specs/` (the superadmin feature-flags spec is the worked example — spec → plan → small reviewed commits).
-3. **Schema first, flag-gated, OFF**: new migration + `.down.sql`; every platform gates on the flag; ship dark.
+3. **Schema first, flag-gated, OFF**: new migration + reverse script in `migrations/down/`; every platform gates on the flag; ship dark.
 4. **Predict the numbers before running**: write the acceptance query/checklist BEFORE building (see milestones below), then build until it passes.
 5. **Ship or retire explicitly**: flag flips via HUMANS.md, or the idea gets a dead-end entry in the archaeology skill — never a silent stall. (The unwired `PdpaPanel` is the cautionary tale of skipping this step.)
 

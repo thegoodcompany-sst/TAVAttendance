@@ -5,16 +5,16 @@ Forward migrations are applied in numeric order: `NNN_name.sql`.
 ## Down-migration convention (DEVOPS-01)
 
 Starting with migration **012**, every new migration ships a paired reverse
-script named `NNN_name.down.sql` that undoes exactly what the forward script did
+script at `down/NNN_name.sql` that undoes exactly what the forward script did
 (drop tables/functions it created, restore the prior body of any function it
 replaced, re-add any constraint it removed).
 
 - Forward: `supabase db push` (or apply in order).
 - Reverse a single migration manually, newest-first:
   ```bash
-  psql "$DATABASE_URL" -f supabase/migrations/014_feature_tables.down.sql
-  psql "$DATABASE_URL" -f supabase/migrations/013_audit_fixes.down.sql
-  psql "$DATABASE_URL" -f supabase/migrations/012_feature_flags.down.sql
+  psql "$DATABASE_URL" -f supabase/migrations/down/014_feature_tables.sql
+  psql "$DATABASE_URL" -f supabase/migrations/down/013_audit_fixes.sql
+  psql "$DATABASE_URL" -f supabase/migrations/down/012_feature_flags.sql
   ```
 
 Down scripts must be run in reverse numeric order and only as far back as needed.
@@ -52,7 +52,9 @@ END $$;
 ```
 
 Existing migrations (001–017) are already applied to prod and are never edited
-(see CLAUDE.md); the convention applies forward only.
+(see CLAUDE.md; the one sanctioned exception was the HUMANS.md §36 replayability
+fixes to 005/010/014, which changed syntax, not end state); the convention
+applies forward only.
 
 ## Current migrations
 

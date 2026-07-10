@@ -182,7 +182,7 @@ Adds `classes.is_study_space` + the singleton Study Space class, seeds the
 `attendance_summary` + `get_roster_for_date`, and publishes Data Protection Notice **v1.1**.
 The notice and flag parts are independent of the §14 work, but verify the column/function
 changes apply cleanly against the live schema first (use a dev branch if unsure).
-Paired down migration: `015_study_space_and_notice.down.sql`.
+Paired down migration: `supabase/migrations/down/015_study_space_and_notice.sql`.
 
 ### ☐ 25. Finish DPO contact on the v1.1 notice — *ties into §1/§2*
 The v1.1 notice names **Talent Beacon** as the controller and `admin@talentbeacon.org` /

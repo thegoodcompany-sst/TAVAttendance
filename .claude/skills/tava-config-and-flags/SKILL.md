@@ -32,7 +32,7 @@ or via the superadmin web page below. **A flag is global across platforms — ev
 
 ### Checklist: adding a new flag
 
-1. New migration (never edit 012): `INSERT INTO feature_flags (key, enabled, description) VALUES ('my_feature', false, '...');` + `.down.sql` deleting it.
+1. New migration (never edit 012): `INSERT INTO feature_flags (key, enabled, description) VALUES ('my_feature', false, '...');` + a `migrations/down/` reverse script deleting it.
 2. Gate the code on ALL platforms that surface the feature (query the store/helper above; default to OFF when the row is missing or the read fails).
 3. Nothing else — the web `/feature-flags` page renders every row generically, so the toggle appears automatically once the row is seeded.
 4. Add a HUMANS.md item for the eventual flip with its preconditions.

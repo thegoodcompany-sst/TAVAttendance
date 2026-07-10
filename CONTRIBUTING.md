@@ -20,7 +20,7 @@ supabase db reset       # applies every migration in supabase/migrations in orde
 ### Migrations
 
 Forward migrations are `NNN_name.sql`, applied in numeric order. From migration
-012 onward each ships a paired `NNN_name.down.sql` reverse script — see
+012 onward each ships a paired reverse script in `supabase/migrations/down/` — see
 `supabase/migrations/README.md`. Migrations 001–011 predate that convention.
 
 ### Storage buckets
