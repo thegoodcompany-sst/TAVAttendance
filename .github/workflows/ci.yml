@@ -85,7 +85,8 @@ jobs:
           # Table-level grant/revoke lines are platform-privilege noise: the shadow
           # DB's default privileges differ from a hosted project's, and RLS is the
           # real gate. Everything else in the DDL is drift.
-          drift="$(echo "$out" | grep -vE '^\s*$|^set check_function_bodies|^(grant|revoke) ' || true)"
+          # (also drop container-image names the CLI echoes to stdout on first pull)
+          drift="$(echo "$out" | grep -vE '^\s*$|^set check_function_bodies|^(grant|revoke) |^(ghcr|docker)\.io/|^public\.ecr\.aws/' || true)"
           if [ -n "$drift" ]; then
             echo "Schema drift detected between prod and migration files:"
             echo "$drift"
