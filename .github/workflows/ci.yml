@@ -74,17 +74,7 @@ jobs:
             exit 0
           fi
           supabase link --project-ref zgikcbsxzjgbigywxbbj
-          if ! out="$(supabase db diff --linked --schema public 2>&1)"; then
-            # 005_sprint_features.sql uses CREATE POLICY IF NOT EXISTS (invalid
-            # Postgres), so the chain cannot replay onto a shadow DB until the
-            # HUMANS.md §36 decision. Skip only that failure mode, loudly.
-            if echo "$out" | grep -q "failed to provision the shadow database"; then
-              echo "::warning::db diff skipped: migration chain not replayable (005 syntax — HUMANS.md §36)"
-              exit 0
-            fi
-            echo "$out"
-            exit 1
-          fi
+          out="$(supabase db diff --linked --schema public 2>&1)" || { echo "$out"; exit 1; }
           if echo "$out" | grep -qvE '^\s*$|No schema changes found'; then
             echo "Schema drift detected between prod and migration files:"
             echo "$out"

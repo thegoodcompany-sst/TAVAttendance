@@ -266,7 +266,13 @@ Heads-up: the first `supabase db diff --linked` run may surface residual diff le
 **Status 2026-07-10: secrets added; the web-schema check is live and passing.** The `db diff`
 half is skipped pending §36.
 
-### ☐ 36. Decide: fix the invalid syntax in migration 005 to make the chain replayable
+### ☑ 36. Decide: fix the invalid syntax in migration 005 to make the chain replayable — DONE (2026-07-10)
+Approved and fixed: 005's two `CREATE POLICY IF NOT EXISTS` became `DROP POLICY IF EXISTS` +
+`CREATE POLICY`; the CI shadow-provisioning skip was removed. Bonus find while fixing: prod had
+NO substitute-tutor policies at all (the reconciliation missed them) — restored as migration
+018 (applied to prod, verified). Original item below for the record.
+
+### Original §36 text
 CI's `supabase db diff` found that `005_sprint_features.sql` uses `CREATE POLICY IF NOT EXISTS`,
 which is not valid Postgres — the migration chain cannot be replayed onto a fresh database
 (shadow DB, new dev machine, disaster recovery), and the native drift diff can't run.

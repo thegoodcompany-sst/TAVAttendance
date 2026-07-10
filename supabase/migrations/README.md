@@ -24,7 +24,7 @@ not attempt to reverse them with this mechanism. Restore from a backup instead.
 
 ## Self-verifying migrations (DEVOPS-02)
 
-Starting with migration **018**, every new forward migration ends with a
+Starting with migration **018** (the first example), every new forward migration ends with a
 verification block that asserts the migration actually did what it claims —
 so a partially-applied migration aborts (and rolls back, since each migration
 runs in one transaction) instead of leaving prod in a half-state, and the
@@ -75,3 +75,4 @@ Existing migrations (001–017) are already applied to prod and are never edited
 | 015 | study_space_and_notice        | is_study_space + singleton class, roster RPC, notice v1.1 | yes   |
 | 016 | security_fixes                | SEC-16a–j: security_invoker restore, handle_new_user hardening | yes   |
 | 017 | advisor_followups             | search_path pin + anon revokes (post-drift-campaign advisors) | yes   |
+| 018 | restore_substitute_policies   | substitute-tutor RLS missing in prod (drift-detector find); first DEVOPS-02 migration | yes   |

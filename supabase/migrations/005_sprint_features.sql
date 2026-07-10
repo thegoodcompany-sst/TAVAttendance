@@ -19,12 +19,16 @@ ALTER TABLE sessions
     ADD COLUMN IF NOT EXISTS sub_tutor_id UUID REFERENCES auth.users(id);
 
 -- Allow a substitute tutor to read and update sessions they cover
-CREATE POLICY IF NOT EXISTS "substitute_can_read_session"
+-- (2026-07-10, HUMANS.md §36: was CREATE POLICY IF NOT EXISTS — invalid Postgres,
+-- made the chain non-replayable; prod never ran this file as-is)
+DROP POLICY IF EXISTS "substitute_can_read_session" ON sessions;
+CREATE POLICY "substitute_can_read_session"
     ON sessions FOR SELECT
     USING (sub_tutor_id = auth.uid());
 
 -- Allow a substitute tutor to mark attendance for their covered sessions
-CREATE POLICY IF NOT EXISTS "substitute_can_mark_attendance"
+DROP POLICY IF EXISTS "substitute_can_mark_attendance" ON attendance_records;
+CREATE POLICY "substitute_can_mark_attendance"
     ON attendance_records FOR ALL
     USING (
         EXISTS (
