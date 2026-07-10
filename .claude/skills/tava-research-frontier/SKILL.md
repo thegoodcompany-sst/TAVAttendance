@@ -30,7 +30,9 @@ frontier below is unblocked.)
 - **First three steps:** (1) port the parent screen to Android per PORTING_NOTES; (2) create one real parent account + link, verify RLS shows exactly one child; (3) run the study-space-exclusion query as that parent.
 - **Milestone:** a parent account logs in on all three platforms and sees exactly their child's non-study-space attendance — and `SELECT` as that parent returns 0 rows for any other student.
 
-### 2. Analytics dashboard (admin)
+### 2. Analytics dashboard (admin) — SHIPPED 2026-07-10
+Built as `web/app/(admin)/analytics/`: KPI tiles, per-class chart, sortable per-student
+table, and a "biggest drops this month" panel. Remaining candidate: per-week trend lines.
 - **Asset:** `attendance_summary` view live and queryable; web already has recharts as a dependency.
 - **First three steps:** (1) design one screen around attendance % per class/student; (2) `getAttendanceSummary()` in `web/lib/queries.ts` (filter `is_study_space = FALSE` — invariant); (3) trend query grouped by week.
 - **Milestone:** an admin answers "which student's attendance dropped this month?" from the dashboard alone, and the numbers match a hand-run SQL check.
@@ -50,13 +52,19 @@ food polls (tables exist); result-slip flow (table+bucket exist; blocked on
 
 ## Tier 2 — Ops autonomy (make the drift class of failure impossible)
 
-### 5. Drift detector
+### 5. Drift detector — SHIPPED 2026-07-10
+`scripts/check-web-schema.mjs` + `scripts/drift-check.sh`; wired into CI (`drift` job,
+dormant until the HUMANS.md §35 secrets exist) and into the deploy skill as a mandatory
+pre-deploy gate. Milestone verified: seeding a schema dump without `is_study_space`
+fails the check.
 - **Why SOTA fails here:** the migration ledger lies; humans forget out-of-band applies.
 - **Asset:** the campaign skill's Phase-0 queries are already a hand-run drift detector.
 - **First three steps:** (1) script that diffs `information_schema` of prod vs a `supabase db reset` local into a report; (2) run it in CI weekly / before web deploys; (3) fail the deploy when web code references a column prod lacks (grep queries.ts columns vs the report).
 - **Milestone:** reintroducing the 2026-06-27 outage conditions (deploy code referencing a column prod lacks) is CAUGHT by CI before deploy.
 
-### 6. Self-verifying migrations
+### 6. Self-verifying migrations — CONVENTION ADOPTED 2026-07-10 (DEVOPS-02)
+Documented with a DO/ASSERT template in `supabase/migrations/README.md`; applies to 018+.
+Related: `supabase/tests/sync_attendance_test.sql` (rollback-safe idempotency asserts).
 - **Asset:** 016's header lists its own verification queries; the campaign formalised gates.
 - **First step trio:** (1) convention — every migration ends with `DO $$ ... ASSERT ... $$` blocks; (2) retrofit 016's gate; (3) document in migrations README.
 - **Milestone:** an intentionally-broken migration aborts itself on a dev branch with a named assertion instead of half-applying.
