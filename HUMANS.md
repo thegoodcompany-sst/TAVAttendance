@@ -263,8 +263,10 @@ Until these are set, the CI `Drift detector` job logs a warning and skips (CI st
 Heads-up: the first `supabase db diff --linked` run may surface residual diff left over from the
 2026-07-09 reconciliation — triage that output before treating the job as a hard gate.
 
-**Status 2026-07-10: secrets added; the web-schema check is live and passing.** The `db diff`
-half is skipped pending §36.
+**Status 2026-07-10 (end of day): fully live and green.** Secrets added; both halves run on
+every push — the web-schema check and a live-to-live `db diff` (prod vs a replayed local DB;
+the shadow-based `--linked` mode false-positives on the `security_invoker` view). Privilege
+statements are filtered as platform noise; structural DDL fails the job.
 
 ### ☑ 36. Decide: fix the invalid syntax in migration 005 to make the chain replayable — DONE (2026-07-10)
 Approved and fixed: 005's two `CREATE POLICY IF NOT EXISTS` became `DROP POLICY IF EXISTS` +
