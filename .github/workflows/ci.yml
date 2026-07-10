@@ -74,8 +74,14 @@ jobs:
             exit 0
           fi
           supabase link --project-ref zgikcbsxzjgbigywxbbj
+          # Live-to-live comparison: replay migrations into a real local DB and
+          # diff prod against it. The shadow-based `db diff --linked` has a
+          # reproducible false positive on the security_invoker view
+          # (attendance_summary) — verified byte-identical on 2026-07-10.
+          supabase db start
+          supabase db reset --local
           # stdout is the diff DDL; CLI progress chatter goes to stderr (streams to log).
-          out="$(supabase db diff --linked --schema public)"
+          out="$(supabase db diff --from linked --to local --schema public)"
           # Table-level grant/revoke lines are platform-privilege noise: the shadow
           # DB's default privileges differ from a hosted project's, and RLS is the
           # real gate. Everything else in the DDL is drift.
