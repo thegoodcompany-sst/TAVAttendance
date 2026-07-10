@@ -45,6 +45,13 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+    entitlements:
+      path: TAVAttendance/TAVAttendance.entitlements
+      properties:
+        # PROD-02: APNs for parent push notifications (PushManager). Harmless while
+        # the push_notifications flag is OFF; needs the Push capability enabled on
+        # the App ID before device signing works (HUMANS.md).
+        aps-environment: development
     dependencies:
       - package: Supabase
         product: Supabase
