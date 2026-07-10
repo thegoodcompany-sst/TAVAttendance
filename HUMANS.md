@@ -122,10 +122,17 @@ UPDATE feature_flags SET enabled = true WHERE key = 'student_photos';     -- PRO
 UPDATE feature_flags SET enabled = true WHERE key = 'push_notifications'; -- PROD-02
 ```
 
-### ☐ 17. Provide APNs / FCM credentials for push (PROD-02)
-The `notify-parent` edge function is scaffolded but unwired. Supply an APNs key
-(iOS) and an FCM server key (Android) as Supabase function secrets, finish the sender
-in `supabase/functions/notify-parent/index.ts`, then enable `push_notifications`.
+### ☐ 17. Provide APNs credentials for push (PROD-02)
+The APNs sender in `supabase/functions/notify-parent/index.ts` and the DB trigger
+(migration 021) are wired as of 2026-07-10 — three human steps remain:
+1. Function secrets: `supabase secrets set APNS_KEY="<p8 PEM>" APNS_KEY_ID=... APNS_TEAM_ID=...`
+   (optional: `APNS_TOPIC`, defaults to `com.tava.TAVAttendance`; `APNS_HOST`, set
+   `https://api.sandbox.push.apple.com` for dev builds).
+2. Arm the DB trigger — seed the Vault secret with the service-role key:
+   `SELECT vault.create_secret('<service-role-key>', 'notify_parent_service_key');`
+   Until this exists, `trg_notify_parent` is a no-op.
+3. Enable Push Notifications on the App ID (§38), then flip `push_notifications` per §16.
+FCM (Android) is deliberately unwired until the Android port lands (§18).
 
 ### ☐ 18. Finish the Android port UI follow-ups
 iOS, web, and Android all compile. Still to do: run a full `./gradlew assembleDebug` (exercises R8 +
@@ -213,6 +220,8 @@ withdraw/anonymise/erase/export actions behind it) has never been imported by
 It is the s16/s21/s25 PDPA machinery, so it was deliberately NOT deleted in the
 2026-07 refactor. Decide: wire it into the student page (one import + render), or
 schedule it with the PDPA app-UI work.
+**2026-07-10: deliberately left unwired for demo day** — it puts destructive
+Erase/Anonymise buttons on the exact page being demoed. Wire it after the demo.
 
 ---
 
@@ -284,6 +293,31 @@ backfill migrations), so editing the file would not obscure what prod ran — bu
 `CREATE POLICY IF NOT EXISTS` with `DROP POLICY IF EXISTS …; CREATE POLICY …` (same end state),
 then remove the shadow-provisioning skip in `.github/workflows/ci.yml`. Until then the CI db-diff
 step logs a warning and skips.
+
+---
+
+## I. Demo day (2026-07-11)
+
+### ☐ 37. After demo day: flip `test_mode` OFF and delete the demo data
+Migration 020 seeded the `test_mode` flag **ON** so the Saturday demo works (kiosk
+shows all classes regardless of weekday; analytics shows all days). After the demo:
+```sql
+UPDATE feature_flags SET enabled = FALSE WHERE key = 'test_mode';
+DELETE FROM attendance_records
+ WHERE session_id IN (SELECT id FROM sessions WHERE session_date = '2026-07-11');
+DELETE FROM sessions WHERE session_date = '2026-07-11';
+```
+The DELETEs are load-bearing, not cosmetic: `attendance_summary` and the monthly-drop
+analytics aggregate **all** dates, so leftover Saturday rows would permanently skew
+real students' attendance percentages. Also flip `parent_portal` / `student_photos`
+back OFF if they were turned on for the demo (§16).
+
+### ☐ 38. Enable Push Notifications capability on the App ID
+Apple Developer portal → Identifiers → `com.tava.TAVAttendance` → enable Push
+Notifications. Required before a **device** build signs with the new
+`aps-environment` entitlement (added 2026-07-10 via `iOS/project.yml`). If a device
+build fails on provisioning before this is done, rollback = delete the
+`entitlements:` block in `iOS/project.yml` and rerun `xcodegen generate`.
 
 ---
 

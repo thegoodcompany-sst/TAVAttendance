@@ -61,7 +61,7 @@ iOS/TAVAttendance/
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
 supabase/
-  migrations/     001…016 (see supabase/migrations/README.md for the down-migration convention)
+  migrations/     001…021 (see supabase/migrations/README.md for the down-migration convention)
   functions/      notify-parent edge function (PROD-02, flag-gated)
   seed.sql
 ```
@@ -91,14 +91,13 @@ setup, plus the Supabase Storage buckets and the local test checklist, see
 
 ## User accounts
 
-Users are invited via the **Supabase Dashboard → Authentication → Invite User**.  
-Set `raw_user_meta_data` on the invite:
-
-```json
-{ "full_name": "Teacher Name", "role": "tutor" }
-```
+Admins invite users from the web dashboard (**/users** page — email + role, sends a
+Supabase invite that lands on the set-password page). The Supabase Dashboard
+(**Authentication → Invite User** with `raw_user_meta_data`
+`{ "full_name": "Teacher Name", "role": "tutor" }`) remains the manual fallback.
 
 Roles: `admin`, `tutor`, `parent`. A trigger (`handle_new_user`) auto-creates the `profiles` row.
+Linking parents to children (`parent_student_links`) is still a manual SQL insert.
 
 ---
 
@@ -112,15 +111,16 @@ Tables already exist in the schema (`result_slips`, `messages`). RLS is admin-on
 - **Messaging**: direct messaging between centre and parent via `messages` table
 - **Parent app tab**: new tab visible only to `parent` role accounts
 
-### Phase 2 — Analytics Dashboard (admin)
-- The `attendance_summary` view is already live in Postgres — wire it up to a dashboard screen
-- Attendance % per class, per student, trend over time
-- Awards system (`awards` table exists): flag students with perfect attendance, most improved, etc.
+### Phase 2 — Analytics Dashboard (admin) — SHIPPED 2026-07-10
+- Web **/analytics**: per-student-per-class attendance % (from `attendance_summary`) + monthly-drop watchlist
+- When the `test_mode` flag is OFF, analytics filters to tuition days (Mon/Thu) so test data stays hidden
+- Still open: awards system (`awards` table exists): perfect attendance, most improved, etc.
 
-### Phase 3 — Dismissal & Safety
-- `dismissals` table exists — record when each student leaves and "safely home" confirmation
-- Tutor taps student to dismiss; parent receives push notification and confirms arrival home
-- Useful for younger students where parents want pick-up confirmation
+### Phase 3 — Dismissal & Safety (partially live)
+- Kiosk dismissal marking is LIVE — admin dismisses a student (purple card), stored in `dismissals`
+- Parent push on late/absent: backend wired end-to-end (migration 021 trigger + APNs sender in
+  `notify-parent`) but inert until credentials are supplied (HUMANS.md §17) and the
+  `push_notifications` flag flips; "safely home" confirmation still open
 
 ### Phase 3 — Food/Event Ordering
 - `food_polls` table exists — centre creates a poll (e.g. "Hari Raya lunch order"), students/parents respond

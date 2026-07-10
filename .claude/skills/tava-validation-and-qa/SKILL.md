@@ -24,7 +24,7 @@ has its own gate queries).
 
 | Platform | Command (run from) | What it proves |
 |---|---|---|
-| iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO` (from `iOS/`) | Compiles + any XCTests pass. CodeSign bundle failure = local keychain, ignore. Machine-specific flags: see `tava-build-and-env`. |
+| iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` (from `iOS/`) | Compiles + any XCTests pass. CodeSign bundle failure = local keychain, ignore. Machine-specific flags: see `tava-build-and-env`. |
 | Android | `./gradlew clean compileDebugKotlin` (from `Android/`) | Compiles only. `./gradlew test` is blocked on this machine (JDK 26); CI's `assembleDebug` covers R8. Once JDK 17/21 exists: `./gradlew testDebugUnitTest`. |
 | Web | `npm run lint && npm run build` (from `web/`) | Lint + production build. CI runs the same. |
 | Migrations | `supabase db reset` (repo root) | All 16 migrations apply in order on a clean local DB. For a new migration also run its `down/` reverse script then the forward again. |
@@ -60,7 +60,7 @@ report/parent view (invariant).
 
 **Web smoke**: login → dashboard renders (today's sessions + daily
 attendance) → student detail → CSV export. Superadmin: `/feature-flags`
-lists 4 flags, toggle persists across reload; other admin gets 404.
+lists 5 flags (incl. test_mode), toggle persists across reload; other admin gets 404.
 
 ## DB-level checks (paste-ready)
 

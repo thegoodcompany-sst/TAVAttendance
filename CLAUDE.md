@@ -16,7 +16,8 @@ stays the compact source of truth; the skills carry the runbooks.
 ## Migrations
 
 Prod Supabase (`zgikcbsxzjgbigywxbbj`) was reconciled with the migration files on **2026-07-09**
-(drift campaign; HUMANS.md §14/§30) — prod now matches migrations 001–017. **Never edit an
+(drift campaign; HUMANS.md §14/§30) and is tracked by the CI drift detector — as of
+**2026-07-10** prod matches migrations 001–021. **Never edit an
 existing migration; every schema fix ships as a new numbered one**, and apply it to prod BEFORE
 deploying app code that references it. Verify prod state with queries, never by reading files:
 `.claude/skills/tava-prod-drift-campaign` keeps the drift-prevention protocol.
@@ -45,12 +46,22 @@ As of migration 015 the kiosk filters classes to today via `AttendanceService.cl
 `PendingAttendanceStore` persists pending records in UserDefaults. The `sync_attendance` Postgres function uses `ON CONFLICT ... WHERE marked_at <= EXCLUDED.marked_at` — a more recent server record will NOT be overwritten by an older offline record. Device clock accuracy matters; if a device's clock is badly wrong, sync may silently skip its records. As of migration 013 the function returns `{synced, skipped, blocked_ended_session}` — `blocked_ended_session` counts records rejected because their session had already ended (distinct from `skipped`, which means a newer server record won), and a second `ON CONFLICT (client_mutation_id) DO NOTHING` path prevents an unhandled unique-violation.
 
 ### Feature flags
-The `feature_flags` table (migration 012) gates in-progress features; flags ship OFF. Read it via `FeatureFlagStore` (iOS, `Services/FeatureFlags.swift`), `FeatureFlags` (Android), or `getFeatureFlags()` (web, `lib/feature-flags.ts`). Current keys: `parent_portal` (PROD-01), `push_notifications` (PROD-02), `student_photos` (PROD-04), `study_space_tracking` (migration 015 — see below). Flipping a flag is admin-only (RLS); the web toggle UI (`web/app/(admin)/feature-flags/`) is superadmin-only and renders every row generically, so seeding a new flag row makes its toggle appear automatically. The parent portal needs no new RLS — parent read policies for `students`/`attendance_records` already exist in `002_rls.sql`.
+The `feature_flags` table (migration 012) gates in-progress features; flags ship OFF. Read it via `FeatureFlagStore` (iOS, `Services/FeatureFlags.swift`), `FeatureFlags` (Android), or `getFeatureFlags()` (web, `lib/feature-flags.ts`). Current keys: `parent_portal` (PROD-01), `push_notifications` (PROD-02), `student_photos` (PROD-04), `study_space_tracking` (migration 015 — see below), `test_mode` (migration 020 — kiosk shows all classes regardless of weekday, web analytics shows all days; seeded ON only for demo day 2026-07-11, normally OFF — see below). Flipping a flag is admin-only (RLS); the web toggle UI (`web/app/(admin)/feature-flags/`) is superadmin-only and renders every row generically, so seeding a new flag row makes its toggle appear automatically. The parent portal needs no new RLS — parent read policies for `students`/`attendance_records` already exist in `002_rls.sql`.
 
 ### Study Space tracking (`study_space_tracking`, migration 015) — INTERNAL ONLY
 TAVA also runs an open drop-in study space (Mon–Fri 12–6pm) separate from tuition. This feature lets staff record who is in that room. It is modelled as a **single flagged class** (`classes.is_study_space = TRUE`, fixed UUID `57000000-0000-0000-0000-000000000001`) so it reuses the sessions/attendance_records/offline stack. Roster = **all active students** (not enrollment-based, via the `get_study_space_roster` RPC). Status is **Present / Not Here (`excused`) only** — no late/absent, no auto-late. Marked on the **iPad kiosk** (`StudySpaceView`, reached from the kiosk header when the flag is on); no web marking UI.
 
 **INVARIANT — study-space attendance is internal reference ONLY and must NEVER appear in any report, report card, or parent view.** Enforced by excluding `classes.is_study_space = TRUE` at the source: the `attendance_summary` view and `get_roster_for_date` RPC (migration 015), plus `fetchMyClasses` (hides the class from the kiosk/class list/export picker), iOS `fetchStudentAttendanceHistory`, and the web queries `getTodaySessions` / `getDailyAttendance` / `getStudentRecentRecords`. **Any new report / report-card / parent query MUST filter `classes.is_study_space = FALSE`.**
+
+### `test_mode` (migration 020) — demo/testing on non-tuition days
+When ON: `fetchKioskEntries` (iOS) skips the `classMeetsToday` day filter so every
+active class appears on the kiosk, and the web analytics (`getDailyAttendance`,
+`getMonthlyAttendanceDrops`) include all days. When OFF: web analytics filter to
+tuition days (Mon/Thu, `isTuitionDay` in `web/lib/date.ts`) so test/demo sessions on
+other days stay invisible. `attendance_summary` (the view) is deliberately NOT
+filtered — after any test-mode session, the demo-day rows must be **deleted**
+(HUMANS.md §37) or they permanently skew attendance percentages. iOS loads flags once
+at sign-in — relaunch the app after flipping.
 
 ---
 
@@ -101,7 +112,7 @@ These tables exist in Postgres and have RLS enabled (admin-only until implemente
 | `result_slips` | Exam score slips uploaded by parents | Schema only |
 | `messages` | Centre ↔ parent direct messages | Schema only |
 | `awards` | Attendance/punctuality awards | Schema only |
-| `dismissals` | Student pick-up & "safely home" tracking | Schema only |
+| `dismissals` | Student pick-up & "safely home" tracking | Kiosk marking LIVE (purple card, admin long-press); "safely home" confirmation not built |
 | `food_polls` | Event food ordering by centre | Schema only |
 | `food_poll_responses` | Student/parent responses | Schema only |
 
@@ -109,25 +120,20 @@ The `attendance_summary` **view** is live and queryable — it aggregates attend
 
 ---
 
-## User management (no UI exists yet)
+## User management
 
-All user accounts are created via the **Supabase Dashboard** (or Supabase CLI):
-
-```
-Dashboard → Authentication → Users → Invite User
-Email: teacher@example.com
-Metadata: { "full_name": "Wayne Tan", "role": "tutor" }
-```
-
+Admins invite users from the web dashboard (`web/app/(admin)/users/` + the
+`invite` server action — email + role; the invitee lands on the set-password page).
+The Supabase Dashboard (**Authentication → Users → Invite User** with metadata
+`{ "full_name": "Wayne Tan", "role": "tutor" }`) remains the manual fallback.
 The `handle_new_user` trigger auto-creates the `profiles` row. The `role` field must be one of `admin`, `tutor`, or `parent` — checked at the DB level.
 
-To link a parent to their child(ren), insert into `parent_student_links`:
+To link a parent to their child(ren), insert into `parent_student_links` (still no UI —
+a common first ask when the parent role is activated):
 ```sql
 INSERT INTO parent_student_links (parent_id, student_id)
 VALUES ('<parent_auth_uuid>', '<student_uuid>');
 ```
-
-No UI for this exists yet. It's a common first ask when the parent role is activated.
 
 ---
 
