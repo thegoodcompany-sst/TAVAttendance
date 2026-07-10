@@ -133,7 +133,11 @@ No UI for this exists yet. It's a common first ask when the parent role is activ
 
 ## Testing procedures
 
-There is no automated test suite. Manual testing checklist:
+Automated coverage exists for the riskiest pure logic only: iOS `TAVAttendanceTests`
+(auto-late `signInStatus` parsing + `worstStatus` merge), Android `DayAwareKioskTest`, and
+`supabase/tests/sync_attendance_test.sql` (offline-sync idempotency — plain SQL asserts,
+runs in one transaction and rolls back, safe against any environment). Everything else is
+manual. Manual testing checklist:
 
 ### Kiosk sign-in flow
 1. Log in as admin, open Sign In tab.

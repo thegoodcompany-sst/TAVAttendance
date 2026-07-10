@@ -281,7 +281,7 @@ final class AttendanceService {
     }
 
     // late > present > absent > excused — worst shown when a student spans multiple sessions
-    private static func worstStatus(_ a: AttendanceStatus?, _ b: AttendanceStatus?) -> AttendanceStatus? {
+    static func worstStatus(_ a: AttendanceStatus?, _ b: AttendanceStatus?) -> AttendanceStatus? {
         let rank: [AttendanceStatus: Int] = [.late: 4, .present: 3, .absent: 2, .excused: 1]
         switch (a, b) {
         case (nil, let x): return x
@@ -301,34 +301,39 @@ final class AttendanceService {
     /// Returns the worst status marked (late if any session was late), for immediate UI display.
     @discardableResult
     func markKioskSignIn(entry: KioskEntry) async throws -> AttendanceStatus {
-        let cal = Calendar.current
         let now = Date()
-        var todayComponents = cal.dateComponents([.year, .month, .day], from: now)
         var worst: AttendanceStatus = .present
 
         for session in entry.sessions {
-            var status: AttendanceStatus = .present
-
-            // If teacher manually started the class, everyone signing in now is Late
-            if let startedAt = session.startedAt, now > startedAt {
-                status = .late
-            } else if let timeStr = session.scheduleTime {
-                // schedule_time is a Postgres TIME: "HH:mm:ss" from PostgREST, "HH:mm"
-                // from free-text entry — parse the first two components, never assume two.
-                let parts = timeStr.split(separator: ":").compactMap { Int($0) }
-                if parts.count >= 2 {
-                    todayComponents.hour = parts[0]
-                    todayComponents.minute = parts[1]
-                    todayComponents.second = 0
-                    if let classStart = cal.date(from: todayComponents), now > classStart {
-                        status = .late
-                    }
-                }
-            }
+            let status = Self.signInStatus(scheduleTime: session.scheduleTime, startedAt: session.startedAt, now: now)
             try await markAttendance(sessionId: session.id, studentId: entry.studentId, status: status)
             if status == .late { worst = .late }
         }
         return worst
+    }
+
+    /// Auto-late decision for a single kiosk sign-in. A teacher-started class (`startedAt`
+    /// in the past) forces `.late`; otherwise the class's `scheduleTime` — a Postgres TIME
+    /// rendered as "HH:mm:ss" by PostgREST or "HH:mm" from free-text entry — is parsed by
+    /// splitting on ":" and taking the first two components (never assume exactly two).
+    /// Malformed or short strings fall through to `.present`.
+    static func signInStatus(scheduleTime: String?, startedAt: Date?, now: Date, calendar: Calendar = .current) -> AttendanceStatus {
+        if let startedAt, now > startedAt {
+            return .late
+        }
+        if let timeStr = scheduleTime {
+            let parts = timeStr.split(separator: ":").compactMap { Int($0) }
+            if parts.count >= 2 {
+                var components = calendar.dateComponents([.year, .month, .day], from: now)
+                components.hour = parts[0]
+                components.minute = parts[1]
+                components.second = 0
+                if let classStart = calendar.date(from: components), now > classStart {
+                    return .late
+                }
+            }
+        }
+        return .present
     }
 
     // MARK: - Day-of-week scheduling

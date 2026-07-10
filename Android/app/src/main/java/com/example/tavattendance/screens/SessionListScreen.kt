@@ -122,6 +122,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
                 onSessionReady(fresh)
             }.onFailure { e ->
                 android.util.Log.e("SessionList", "startTodayClass failed: ${e.message}", e)
+                _snackbarMessage.value = "Failed to start class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isStarting.value = false
         }
@@ -139,6 +140,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
                 onSessionReady(fresh)
             }.onFailure { e ->
                 android.util.Log.e("SessionList", "resumeTodayClass failed: ${e.message}", e)
+                _snackbarMessage.value = "Failed to resume class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isStarting.value = false
         }
@@ -152,6 +154,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
             }.onFailure { e ->
                 android.util.Log.e("SessionList", "endTodayClass failed: ${e.message}", e)
+                _snackbarMessage.value = "Failed to end class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isEnding.value = false
         }

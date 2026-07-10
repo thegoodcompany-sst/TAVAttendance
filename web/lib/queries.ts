@@ -351,3 +351,124 @@ export async function getDailyAttendance(days = 14): Promise<DailyAttendancePoin
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, counts]) => ({ date, ...counts }))
 }
+
+// ── Analytics ─────────────────────────────────────────────────────────────
+
+export type AttendanceSummaryRow = {
+  studentId: string
+  studentName: string
+  classId: string
+  className: string
+  totalSessions: number
+  presentCount: number
+  lateCount: number
+  absentCount: number
+  excusedCount: number
+  attendancePct: number | null
+}
+
+/**
+ * Every per-student-per-class row from the `attendance_summary` view. The view
+ * already excludes study-space, inactive students, and inactive classes at
+ * source (migration 016), so this is safe to read directly.
+ */
+export const getAttendanceSummary = cache(async (): Promise<AttendanceSummaryRow[]> => {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('attendance_summary')
+    .select('student_id, student_name, class_id, class_name, total_sessions, present_count, late_count, absent_count, excused_count, attendance_pct')
+    .order('class_name')
+
+  if (error) {
+    throw new Error(`getAttendanceSummary: ${error.message}`)
+  }
+
+  return (data ?? []).map((r: any) => ({
+    studentId: r.student_id,
+    studentName: r.student_name,
+    classId: r.class_id,
+    className: r.class_name,
+    totalSessions: r.total_sessions,
+    presentCount: r.present_count,
+    lateCount: r.late_count,
+    absentCount: r.absent_count,
+    excusedCount: r.excused_count,
+    attendancePct: r.attendance_pct,
+  }))
+})
+
+export type StudentMonthlyDrop = {
+  studentId: string
+  studentName: string
+  thisMonthPct: number
+  lastMonthPct: number
+  delta: number
+  thisMonthSessions: number
+  lastMonthSessions: number
+}
+
+/**
+ * Per-student attendance % for this calendar month vs last, so the page can
+ * answer "whose attendance dropped this month". Reads attendance_records
+ * through sessions with an inner join on classes to exclude study space
+ * (migration 015). Only students with sessions in BOTH months are returned —
+ * a delta needs two comparable points — sorted biggest drop first.
+ */
+export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]> {
+  const supabase = await createClient()
+  const today = todayInTz()
+  const thisMonthStart = `${today.slice(0, 7)}-01`
+  const [y, m] = today.split('-').map(Number)
+  const lastMonthStart = m === 1
+    ? `${y - 1}-12-01`
+    : `${y}-${String(m - 1).padStart(2, '0')}-01`
+
+  const { data, error } = await supabase
+    .from('attendance_records')
+    .select('status, student_id, student:students!inner(full_name, is_active), session:sessions!inner(session_date, class:classes!inner(is_study_space, is_active))')
+    .eq('session.class.is_study_space', false)
+    .eq('session.class.is_active', true)
+    .eq('student.is_active', true)
+    .gte('session.session_date', lastMonthStart)
+    .lte('session.session_date', today)
+
+  if (error) {
+    throw new Error(`getMonthlyAttendanceDrops: ${error.message}`)
+  }
+
+  // attended = present|late|excused, matching the attendance_summary definition.
+  type Bucket = { total: number; attended: number }
+  const agg = new Map<string, { name: string; thisM: Bucket; lastM: Bucket }>()
+  for (const r of (data ?? []) as any[]) {
+    const date: string = r.session?.session_date ?? ''
+    if (!date) continue
+    const entry = agg.get(r.student_id) ?? {
+      name: r.student?.full_name ?? 'Unknown',
+      thisM: { total: 0, attended: 0 },
+      lastM: { total: 0, attended: 0 },
+    }
+    const bucket = date >= thisMonthStart ? entry.thisM : entry.lastM
+    bucket.total++
+    if (r.status === 'present' || r.status === 'late' || r.status === 'excused') bucket.attended++
+    agg.set(r.student_id, entry)
+  }
+
+  const pct = (b: Bucket) => Math.round((b.attended / b.total) * 1000) / 10
+
+  return Array.from(agg.entries())
+    .filter(([, v]) => v.thisM.total > 0 && v.lastM.total > 0)
+    .map(([studentId, v]) => {
+      const thisMonthPct = pct(v.thisM)
+      const lastMonthPct = pct(v.lastM)
+      return {
+        studentId,
+        studentName: v.name,
+        thisMonthPct,
+        lastMonthPct,
+        delta: Math.round((thisMonthPct - lastMonthPct) * 10) / 10,
+        thisMonthSessions: v.thisM.total,
+        lastMonthSessions: v.lastM.total,
+      }
+    })
+    .sort((a, b) => a.delta - b.delta)
+}

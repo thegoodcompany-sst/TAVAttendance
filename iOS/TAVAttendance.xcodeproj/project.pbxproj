@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01664D28876316AD8B14BEA1 /* AttendanceLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AC7E67C7091F97B5D7E4FF /* AttendanceLogicTests.swift */; };
 		065119F939DA1316C08031A7 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E65CF322BFF554E531CA30 /* FeatureFlags.swift */; };
 		0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F44A35FCED4364A1434BFDC /* RosterView.swift */; };
 		10BC5C64E7AD432622E17329 /* TAVAttendanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */; };
@@ -56,6 +57,16 @@
 		FE79888841DAF0F65F1CEEED /* StudentPrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C36143FEF33A6D9C5370479 /* StudentPrivacyView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		FB831165CBB12E0E7A78BAC1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AEDB9117D3EEC69B28C150E1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B3761B335799DF70F2AAAA46;
+			remoteInfo = TAVAttendance;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		00D13ADBA1A88996D74858B4 /* StudentAttendanceRateIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentAttendanceRateIntent.swift; sourceTree = "<group>"; };
 		06D9A61ADE3ECD77F0BD9220 /* ExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportView.swift; sourceTree = "<group>"; };
@@ -83,6 +94,7 @@
 		76DF1807148A196AA37C1204 /* ParentLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentLinkView.swift; sourceTree = "<group>"; };
 		79BF5AC4077D5D181F5C1813 /* MarkAttendanceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkAttendanceIntent.swift; sourceTree = "<group>"; };
 		81CC1BD809880605E561BC0F /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
+		87AC7E67C7091F97B5D7E4FF /* AttendanceLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceLogicTests.swift; sourceTree = "<group>"; };
 		90A44B53697EDDA16EB00544 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
 		942348981E4DF7666AF12F79 /* ClassListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassListView.swift; sourceTree = "<group>"; };
 		96716DCA08CE8D202CCB479C /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -103,9 +115,10 @@
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F3063799091ACD1EB194B57C /* KioskRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskRouter.swift; sourceTree = "<group>"; };
 		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
+		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_A74C04DD-799A-4640-9245-48AA91962ACE" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				4FF1F3FEA5695821BE4E3EFE /* TAVAttendance */,
+				82CD083980EE2D8C19CDD4B0 /* TAVAttendanceTests */,
 				F7C1A3B656D06525CBB93444 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -185,6 +199,14 @@
 				B45DE67A859A4D79875E07C9 /* Views */,
 			);
 			path = TAVAttendance;
+			sourceTree = "<group>";
+		};
+		82CD083980EE2D8C19CDD4B0 /* TAVAttendanceTests */ = {
+			isa = PBXGroup;
+			children = (
+				87AC7E67C7091F97B5D7E4FF /* AttendanceLogicTests.swift */,
+			);
+			path = TAVAttendanceTests;
 			sourceTree = "<group>";
 		};
 		9B2124344B144DC479818A99 /* Services */ = {
@@ -268,6 +290,7 @@
 			isa = PBXGroup;
 			children = (
 				CDE644C09FB4372E686B46F2 /* TAVAttendance.app */,
+				FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -286,10 +309,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_1C8BBD17-F68F-45F0-ACBF-61A9534FD757" /* iOS */ = {
+		"TEMP_8BFBD5C4-E63D-429A-AF6E-81C53038D05E" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */,
+				"TEMP_A74C04DD-799A-4640-9245-48AA91962ACE" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -297,6 +320,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		677EDCAE942890AFBCBEF3FF /* TAVAttendanceTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1650B0B3D0F7C74FC18E701E /* Build configuration list for PBXNativeTarget "TAVAttendanceTests" */;
+			buildPhases = (
+				241330B50BC8AF8FC8606CC8 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3B811B5CEA2433241EC9F812 /* PBXTargetDependency */,
+			);
+			name = TAVAttendanceTests;
+			packageProductDependencies = (
+			);
+			productName = TAVAttendanceTests;
+			productReference = FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		B3761B335799DF70F2AAAA46 /* TAVAttendance */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3F545E3C51D2DF16402AB299 /* Build configuration list for PBXNativeTarget "TAVAttendance" */;
@@ -350,6 +391,7 @@
 			projectRoot = "";
 			targets = (
 				B3761B335799DF70F2AAAA46 /* TAVAttendance */,
+				677EDCAE942890AFBCBEF3FF /* TAVAttendanceTests */,
 			);
 		};
 /* End PBXProject section */
@@ -367,6 +409,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		241330B50BC8AF8FC8606CC8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				01664D28876316AD8B14BEA1 /* AttendanceLogicTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		64E0FDA99DF52E3A654F6F54 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -419,6 +469,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3B811B5CEA2433241EC9F812 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B3761B335799DF70F2AAAA46 /* TAVAttendance */;
+			targetProxy = FB831165CBB12E0E7A78BAC1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		7405A4C87E32109B1F4886BB /* Release */ = {
@@ -542,7 +600,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_A74C04DD-799A-4640-9245-48AA91962ACE" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -562,7 +620,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_90465C43-9966-412B-81EA-BEA4B94C05E5" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_A74C04DD-799A-4640-9245-48AA91962ACE" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -580,9 +638,56 @@
 			};
 			name = Debug;
 		};
+		CEE94BFA36EF9255F604CD5E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tava.TAVAttendanceTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TAVAttendance.app/TAVAttendance";
+			};
+			name = Debug;
+		};
+		EA0DDE466B2A17835EDA359B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tava.TAVAttendanceTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TAVAttendance.app/TAVAttendance";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		1650B0B3D0F7C74FC18E701E /* Build configuration list for PBXNativeTarget "TAVAttendanceTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CEE94BFA36EF9255F604CD5E /* Debug */,
+				EA0DDE466B2A17835EDA359B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		3F545E3C51D2DF16402AB299 /* Build configuration list for PBXNativeTarget "TAVAttendance" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

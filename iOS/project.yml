@@ -57,3 +57,27 @@ targets:
     configFiles:
       Debug: Config.xcconfig
       Release: Config.xcconfig
+
+  TAVAttendanceTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: TAVAttendanceTests
+    dependencies:
+      - target: TAVAttendance
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        PRODUCT_BUNDLE_IDENTIFIER: com.tava.TAVAttendanceTests
+        GENERATE_INFOPLIST_FILE: "YES"
+
+schemes:
+  TAVAttendance:
+    build:
+      targets:
+        TAVAttendance: all
+        TAVAttendanceTests: [test]
+    test:
+      targets:
+        - TAVAttendanceTests

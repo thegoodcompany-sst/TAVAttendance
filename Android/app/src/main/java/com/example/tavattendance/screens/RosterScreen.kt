@@ -148,6 +148,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
             }.onFailure { e ->
                 android.util.Log.e("Roster", "endClass failed: ${e.message}", e)
+                _snackbarMessage.value = "Failed to end class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isEndingClass.value = false
         }
@@ -181,6 +182,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }.onFailure { e ->
                 android.util.Log.e("Roster", "syncPending failed: ${e.message}", e)
+                _snackbarMessage.value = "Failed to sync attendance: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isSaving.value = false
         }

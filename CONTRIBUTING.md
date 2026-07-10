@@ -93,7 +93,9 @@ cd web && npm install && npm run dev
 
 ## 5. Local testing checklist
 
-There is no automated test suite; test manually (full script in `CLAUDE.md`):
+Automated tests cover the core attendance logic only (iOS `TAVAttendanceTests`, Android
+`DayAwareKioskTest`, `supabase/tests/sync_attendance_test.sql`); test the rest manually
+(full script in `CLAUDE.md`):
 
 - **Kiosk sign-in**: admin login → Sign-In tab → tap a student → green (on time) /
   orange (late); long-press for overrides; search filters the grid.
@@ -103,7 +105,7 @@ There is no automated test suite; test manually (full script in `CLAUDE.md`):
 
 | Platform | Command | Dir |
 |---|---|---|
-| iOS | `xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 16'` (or build via Xcode; scheme name comes from `project.yml`, XcodeGen-managed) | `iOS/` |
+| iOS | `xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17'` (or build via Xcode; scheme name comes from `project.yml`, XcodeGen-managed) | `iOS/` |
 | Android | `./gradlew test` (needs JDK 17 or 21 — fails under newer JDKs with a jlink error; fall back to `./gradlew clean compileDebugKotlin`) | `Android/` |
 | Web | `npm run build` / `npm run lint` | `web/` |
 

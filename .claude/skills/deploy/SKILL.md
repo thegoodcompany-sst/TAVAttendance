@@ -25,6 +25,24 @@ Add a missing var with:
 printf 'value' | vercel env add VAR_NAME production
 ```
 
+## Pre-Deploy Gate — Schema Check (mandatory)
+
+Web code referencing a column prod lacks took the dashboard down on 2026-06-27.
+Before every deploy, verify every table/column/RPC referenced in `web/` exists in prod:
+
+1. Run this via the Supabase MCP `execute_sql` tool and save the JSON result to a temp file:
+   ```sql
+   select json_build_object(
+     'tables',   (select json_agg(distinct table_name)   from information_schema.tables   where table_schema='public'),
+     'columns',  (select json_agg(distinct column_name)  from information_schema.columns  where table_schema='public'),
+     'routines', (select json_agg(distinct routine_name) from information_schema.routines where routine_schema='public'));
+   ```
+2. `node scripts/check-web-schema.mjs <temp-file>` — must print "Schema check passed".
+
+If it fails: the missing migration must be applied to prod FIRST (see `tava-change-control` ordering rule). Do not deploy.
+
+(With `TAVA_DB_URL` + psql available, `scripts/drift-check.sh` does both steps.)
+
 ## Deploy
 
 ```bash

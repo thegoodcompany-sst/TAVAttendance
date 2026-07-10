@@ -254,6 +254,15 @@ lock-out risk remains — see the `ponytail:` note in `GlobalKioskView.swift`.
 `brew install --cask temurin@21` installed; `./gradlew test` (including `DayAwareKioskTest`)
 now runs on this machine.
 
+### ☐ 35. Add CI secrets so the drift-detector job runs (GitHub → repo Settings → Secrets and variables → Actions)
+- `TAVA_DB_URL` — prod Postgres connection string (Supabase Dashboard → Connect → Session pooler URI)
+- `SUPABASE_ACCESS_TOKEN` — a Supabase personal access token
+- `SUPABASE_DB_PASSWORD` — the prod database password
+
+Until these are set, the CI `Drift detector` job logs a warning and skips (CI stays green).
+Heads-up: the first `supabase db diff --linked` run may surface residual diff left over from the
+2026-07-09 reconciliation — triage that output before treating the job as a hard gate.
+
 ---
 
 ## Notes
