@@ -143,8 +143,11 @@ GRANT EXECUTE ON FUNCTION get_roster_for_date(DATE) TO authenticated, service_ro
 -- PROD-04 — add avatar_url to get_session_roster (so the kiosk card can
 -- show a photo when the student_photos flag is on). Extends the 010 version;
 -- all other columns/joins/ordering preserved.
+-- (2026-07-10, HUMANS.md §36: DROP added — OR REPLACE cannot change a return
+-- type, which made the chain non-replayable; prod never ran this file as-is)
 -- ════════════════════════════════════════════════════════════════
-CREATE OR REPLACE FUNCTION get_session_roster(p_session_id UUID)
+DROP FUNCTION IF EXISTS get_session_roster(UUID);
+CREATE FUNCTION get_session_roster(p_session_id UUID)
 RETURNS TABLE (
     student_id      UUID,
     full_name       TEXT,

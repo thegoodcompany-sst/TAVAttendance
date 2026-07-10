@@ -257,8 +257,11 @@ GROUP BY s.student_id, st.full_name, se.class_id, c.name;
 -- Fix: add late_reason TEXT to RETURNS TABLE and to the SELECT list (ar.late_reason).
 -- All other columns, ordering, and joins preserved exactly.
 -- search_path pinned (per 009_security_hardening.sql).
+-- (2026-07-10, HUMANS.md §36: DROP added — OR REPLACE cannot change a return
+-- type, which made the chain non-replayable; prod never ran this file as-is)
 
-CREATE OR REPLACE FUNCTION get_session_roster(p_session_id UUID)
+DROP FUNCTION IF EXISTS get_session_roster(UUID);
+CREATE FUNCTION get_session_roster(p_session_id UUID)
 RETURNS TABLE (
     student_id      UUID,
     full_name       TEXT,
