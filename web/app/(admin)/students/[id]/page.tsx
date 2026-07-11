@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { getStudent, getStudentClassSummary, getStudentRecentRecords } from '@/lib/queries'
+import { getStudent, getStudentClassSummary, getStudentRecentRecords, getStudentResults } from '@/lib/queries'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar } from '@/components/dashboard/avatar'
 
@@ -18,10 +18,11 @@ function PctBadge({ pct }: { pct: number | null }) {
 
 export default async function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [student, classSummary, recentRecords] = await Promise.all([
+  const [student, classSummary, recentRecords, results] = await Promise.all([
     getStudent(id),
     getStudentClassSummary(id),
     getStudentRecentRecords(id),
+    getStudentResults(id),
   ])
 
   if (!student) notFound()
@@ -44,6 +45,11 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           {(student.school || student.year_of_study) && (
             <p className="text-sm text-muted-foreground mt-0.5">
               {[student.school, student.year_of_study].filter(Boolean).join(' · ')}
+            </p>
+          )}
+          {results.length > 0 && (
+            <p className="mt-2 text-sm font-medium text-brand-ink/70">
+              {results.map(r => `${r.subject}: ${r.grade}`).join(' · ')}
             </p>
           )}
           {student.notes && (

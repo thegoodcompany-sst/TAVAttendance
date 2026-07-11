@@ -320,7 +320,7 @@ private fun TodayClassControls(
                 java.time.Instant.parse(session.endedAt).let { Date(it.toEpochMilli()) }
             }.getOrNull()
             TodayActionCard(
-                title = "Resume Class",
+                title = "Start Class",
                 subtitle = endedDate?.let { "Ended ${timeFmt.format(it)}" },
                 color = if (busy) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         else MaterialTheme.colorScheme.primary,
@@ -335,7 +335,7 @@ private fun TodayClassControls(
                 java.time.Instant.parse(session.startedAt).let { Date(it.toEpochMilli()) }
             }.getOrNull()
             TodayActionCard(
-                title = "Resume Class",
+                title = "Return to Class",
                 subtitle = startedDate?.let { "Started ${timeFmt.format(it)}" },
                 color = Color(0xFF34C759),
                 showSpinner = isStarting,

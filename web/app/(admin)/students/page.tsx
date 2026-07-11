@@ -1,12 +1,20 @@
 import Link from 'next/link'
-import { getAllStudents } from '@/lib/queries'
+import { getAllStudents, getStudentResults } from '@/lib/queries'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PageHeader } from '@/components/dashboard/page-header'
 
 export const dynamic = 'force-dynamic'
 
+function gradesLabel(results: { subject: string; grade: string }[]) {
+  return results.map(r => `${r.subject}: ${r.grade}`).join(' · ')
+}
+
 export default async function StudentsPage() {
-  const students = await getAllStudents()
+  const [students, results] = await Promise.all([getAllStudents(), getStudentResults()])
+  const gradesByStudent = new Map<string, { subject: string; grade: string }[]>()
+  for (const r of results) {
+    gradesByStudent.set(r.studentId, [...(gradesByStudent.get(r.studentId) ?? []), r])
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -32,6 +40,11 @@ export default async function StudentsPage() {
                   {(s.school || s.yearOfStudy) && (
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {[s.school, s.yearOfStudy].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  {gradesByStudent.has(s.id) && (
+                    <p className="text-xs text-brand-ink/70 mt-1 font-medium">
+                      {gradesLabel(gradesByStudent.get(s.id)!)}
                     </p>
                   )}
                 </div>

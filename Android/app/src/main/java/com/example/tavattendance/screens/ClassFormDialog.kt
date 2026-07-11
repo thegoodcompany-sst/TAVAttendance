@@ -8,8 +8,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.tavattendance.data.models.ClassInsert
+import com.example.tavattendance.data.models.ResultSubject
 import com.example.tavattendance.data.models.TAVClass
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClassFormDialog(
     title: String,
@@ -18,7 +20,7 @@ fun ClassFormDialog(
     onSave: (ClassInsert) -> Unit
 ) {
     var name by remember { mutableStateOf(initial?.name ?: "") }
-    var subject by remember { mutableStateOf(initial?.subject ?: "") }
+    var subject by remember { mutableStateOf(ResultSubject.normalizing(initial?.subject)) }
     var level by remember { mutableStateOf(initial?.level ?: "") }
     var scheduleDay by remember { mutableStateOf(initial?.scheduleDay ?: "") }
     var scheduleTime by remember { mutableStateOf(initial?.scheduleTime?.take(5) ?: "") }
@@ -39,13 +41,35 @@ fun ClassFormDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = subject,
-                    onValueChange = { subject = it },
-                    label = { Text("Subject") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                var subjectExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = subjectExpanded,
+                    onExpandedChange = { subjectExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = subject?.displayName ?: "—",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Subject") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subjectExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = subjectExpanded,
+                        onDismissRequest = { subjectExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("—") },
+                            onClick = { subject = null; subjectExpanded = false }
+                        )
+                        ResultSubject.entries.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(s.displayName) },
+                                onClick = { subject = s; subjectExpanded = false }
+                            )
+                        }
+                    }
+                }
                 OutlinedTextField(
                     value = level,
                     onValueChange = { level = it },
@@ -82,7 +106,7 @@ fun ClassFormDialog(
                     onSave(
                         ClassInsert(
                             name = name.trim(),
-                            subject = subject.trim().ifBlank { null },
+                            subject = subject?.raw,
                             level = level.trim().ifBlank { null },
                             scheduleDay = scheduleDay.trim().ifBlank { null },
                             scheduleTime = scheduleTime.trim().ifBlank { null },

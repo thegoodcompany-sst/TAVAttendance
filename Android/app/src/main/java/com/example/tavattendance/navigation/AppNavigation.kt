@@ -102,7 +102,44 @@ fun AdminApp(authViewModel: AuthViewModel) {
 @Composable
 fun TutorApp(authViewModel: AuthViewModel) {
     val navController = rememberNavController()
-    AppNavHost(navController = navController, authViewModel = authViewModel, isAdmin = false)
+    val navBackStack by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStack?.destination?.route
+
+    val topLevelRoutes = listOf(Screen.Classes.route, Screen.Students.route)
+    val showBottomBar = currentRoute in topLevelRoutes
+
+    Scaffold(
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Classes.route,
+                        onClick = {
+                            navController.navigate(Screen.Classes.route) {
+                                popUpTo(Screen.Classes.route) { inclusive = true }
+                            }
+                        },
+                        icon = { Icon(Icons.Default.List, contentDescription = null) },
+                        label = { Text("Classes") }
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.Students.route,
+                        onClick = {
+                            navController.navigate(Screen.Students.route) {
+                                popUpTo(Screen.Classes.route)
+                            }
+                        },
+                        icon = { Icon(Icons.Default.Person, contentDescription = null) },
+                        label = { Text("Students") }
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding)) {
+            AppNavHost(navController = navController, authViewModel = authViewModel, isAdmin = false)
+        }
+    }
 }
 
 @Composable
@@ -172,11 +209,12 @@ fun AppNavHost(
             )
         }
 
-        if (isAdmin) {
-            composable(Screen.Students.route) {
-                StudentManagementScreen()
-            }
+        composable(Screen.Students.route) {
+            // Admins manage the roster; tutors enter grades for their assigned classes.
+            if (isAdmin) StudentManagementScreen() else StudentResultsScreen()
+        }
 
+        if (isAdmin) {
             composable(Screen.Kiosk.route) {
                 GlobalKioskScreen()
             }

@@ -187,6 +187,30 @@ export async function getStudentRecentRecords(studentId: string): Promise<Attend
   }))
 }
 
+export type StudentResult = {
+  studentId: string
+  subject: 'Math' | 'English'
+  grade: string
+}
+
+// Read-only surface for tutor-entered grades (migration 023). Entry is iOS-only.
+export async function getStudentResults(studentId?: string): Promise<StudentResult[]> {
+  const supabase = await createClient()
+  let query = supabase.from('student_results').select('student_id, subject, grade')
+  if (studentId) query = query.eq('student_id', studentId)
+  const { data, error } = await query
+
+  if (error) {
+    throw new Error(`getStudentResults: ${error.message}`)
+  }
+
+  return (data ?? []).map((r: any) => ({
+    studentId: r.student_id,
+    subject: r.subject,
+    grade: r.grade,
+  }))
+}
+
 export async function getStudent(id: string) {
   const supabase = await createClient()
   const { data, error } = await supabase

@@ -38,6 +38,63 @@ data class Student(
     // PROD-04: storage path to the student's photo; shown only when the
     // student_photos feature flag is on.
     @SerialName("avatar_url") val avatarUrl: String? = null
+) {
+    val isPrimaryLevel: Boolean? get() = classifyPrimaryLevel(yearOfStudy)
+}
+
+// The two canonical subjects (migration 023). The DB stores the raw values
+// 'Math' / 'English'; free-text classes.subject is mapped on via normalizing().
+enum class ResultSubject(val raw: String, val displayName: String) {
+    MATH("Math", "Mathematics"),
+    ENGLISH("English", "English");
+
+    companion object {
+        fun fromRaw(raw: String?): ResultSubject? = entries.firstOrNull { it.raw == raw }
+
+        /** Maps free-text classes.subject ("Math", "Mathematics ", "english"…) onto the
+         * two canonical subjects; null for anything else. */
+        fun normalizing(raw: String?): ResultSubject? {
+            val s = (raw ?: "").trim().lowercase()
+            return when {
+                s.startsWith("math") -> MATH
+                s.startsWith("eng") -> ENGLISH
+                else -> null
+            }
+        }
+    }
+}
+
+// PSLE Achievement Levels (primary) vs O-Level grades (secondary), migration 023.
+object GradeBands {
+    val primary = listOf("AL1", "AL2", "AL3", "AL4", "AL5", "AL6", "AL7", "AL8")
+    val secondary = listOf("A1", "A2", "B3", "B4", "C5", "C6", "D7", "E8", "F9")
+}
+
+/** Classifies free-text year_of_study ("P5", "sec 2", "3") into primary/secondary to pick
+ * the grade band; null when ambiguous (grade picker then shows both bands). */
+fun classifyPrimaryLevel(yearOfStudy: String?): Boolean? {
+    val s = (yearOfStudy ?: "").trim().lowercase()
+    return when {
+        s.startsWith("p") || s.contains("pri") -> true
+        s.startsWith("s") || s.contains("sec") -> false
+        else -> null
+    }
+}
+
+@Serializable
+data class StudentResult(
+    val id: String,
+    @SerialName("student_id") val studentId: String,
+    val subject: String,
+    val grade: String
+)
+
+@Serializable
+data class StudentResultUpsert(
+    @SerialName("student_id") val studentId: String,
+    val subject: String,
+    val grade: String,
+    @SerialName("updated_by") val updatedBy: String? = null
 )
 
 @Serializable

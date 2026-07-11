@@ -86,6 +86,33 @@ object AttendanceService {
         }
     }
 
+    // ---- Student results (migration 023) ----
+
+    /** RLS scopes rows to the caller: admins see all, tutors only students enrolled in
+     * their assigned classes. */
+    suspend fun fetchStudentResults(): List<StudentResult> =
+        db.from("student_results").select().decodeList<StudentResult>()
+
+    suspend fun upsertStudentResult(studentId: String, subject: ResultSubject, grade: String) {
+        db.from("student_results").upsert(
+            StudentResultUpsert(
+                studentId = studentId,
+                subject = subject.raw,
+                grade = grade,
+                updatedBy = db.auth.currentUserOrNull()?.id
+            )
+        ) { onConflict = "student_id,subject" }
+    }
+
+    suspend fun deleteStudentResult(studentId: String, subject: ResultSubject) {
+        db.from("student_results").delete {
+            filter {
+                eq("student_id", studentId)
+                eq("subject", subject.raw)
+            }
+        }
+    }
+
     suspend fun fetchEnrollments(classId: String): List<Enrollment> =
         db.from("enrollments").select {
             filter {
