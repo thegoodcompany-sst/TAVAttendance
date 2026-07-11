@@ -25,7 +25,7 @@ struct ClassFormView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
-    @State private var subject = ""
+    @State private var subject: ResultSlipSubject?
     @State private var level = ""
     @State private var scheduleDay = ""
     @State private var scheduleTime = ""
@@ -44,7 +44,7 @@ struct ClassFormView: View {
         self.onSave = onSave
         if case .edit(let cls) = mode {
             _name           = State(initialValue: cls.name)
-            _subject        = State(initialValue: cls.subject ?? "")
+            _subject        = State(initialValue: ResultSlipSubject(normalizing: cls.subject))
             _level          = State(initialValue: cls.level ?? "")
             _scheduleDay    = State(initialValue: cls.scheduleDay ?? "")
             _scheduleTime   = State(initialValue: cls.scheduleTime ?? "")
@@ -81,7 +81,12 @@ struct ClassFormView: View {
             Form {
                 Section("Class Details") {
                     TextField("Class name *", text: $name)
-                    TextField("Subject (e.g. Mathematics)", text: $subject)
+                    Picker("Subject", selection: $subject) {
+                        Text("—").tag(nil as ResultSlipSubject?)
+                        ForEach(ResultSlipSubject.allCases) { s in
+                            Text(s.displayName).tag(s as ResultSlipSubject?)
+                        }
+                    }
                     TextField("Level (e.g. Sec 2)", text: $level)
                 }
 
@@ -203,7 +208,7 @@ struct ClassFormView: View {
         errorMessage = nil
         let insert = ClassInsert(
             name:            name.trimmingCharacters(in: .whitespaces),
-            subject:         subject.isEmpty ? nil : subject,
+            subject:         subject?.rawValue,
             level:           level.isEmpty ? nil : level,
             scheduleDay:     scheduleDay.isEmpty ? nil : scheduleDay,
             scheduleTime:    scheduleTime.isEmpty ? nil : scheduleTime,

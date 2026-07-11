@@ -178,11 +178,11 @@ struct SessionListView: View {
     private var todayClassControls: some View {
         if let session = todaySession {
             if session.endedAt != nil {
-                // Class was ended — allow resume
-                resumeRow(session: session, subtitle: "Ended \(timeFormatter.string(from: session.endedAt!))")
+                // Class was ended — starting again reopens the same session
+                resumeRow(session: session, title: "Start Class", subtitle: "Ended \(timeFormatter.string(from: session.endedAt!))")
             } else if session.startedAt != nil {
-                // Class in progress — resume or end
-                resumeRow(session: session, subtitle: "Started \(timeFormatter.string(from: session.startedAt!))")
+                // Class in progress — return or end
+                resumeRow(session: session, title: "Return to Class", subtitle: "Started \(timeFormatter.string(from: session.startedAt!))")
                 endClassRow(session: session)
             } else {
                 // Session row exists but not yet started
@@ -219,7 +219,7 @@ struct SessionListView: View {
         .disabled(isStartingClass)
     }
 
-    private func resumeRow(session: Session, subtitle: String) -> some View {
+    private func resumeRow(session: Session, title: LocalizedStringKey, subtitle: String) -> some View {
         Button {
             guard !isStartingClass else { return }
             Task { await resumeTodayClass(session: session) }
@@ -228,7 +228,7 @@ struct SessionListView: View {
                 Image(systemName: "play.circle.fill")
                     .font(.title2)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("Resume Class")
+                    Text(title)
                         .font(.headline)
                     Text(subtitle)
                         .font(.caption)

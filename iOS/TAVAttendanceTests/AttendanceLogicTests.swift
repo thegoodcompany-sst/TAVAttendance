@@ -100,4 +100,32 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Saturday"))
         XCTAssertTrue(AttendanceService.classMeetsToday(cls, weekday: "Sunday"))
     }
+
+    // MARK: subject normalization (student results / class form)
+
+    func testSubjectNormalization() {
+        XCTAssertEqual(ResultSlipSubject(normalizing: "Math"), .math)
+        XCTAssertEqual(ResultSlipSubject(normalizing: "Mathematics "), .math)
+        XCTAssertEqual(ResultSlipSubject(normalizing: "english"), .english)
+        XCTAssertEqual(ResultSlipSubject(normalizing: "English "), .english)
+        XCTAssertNil(ResultSlipSubject(normalizing: "Science"))
+        XCTAssertNil(ResultSlipSubject(normalizing: nil))
+        XCTAssertNil(ResultSlipSubject(normalizing: ""))
+    }
+
+    // MARK: primary/secondary grade-band inference
+
+    private func student(year: String?) -> Student {
+        Student(id: UUID(), fullName: "Test", school: nil, yearOfStudy: year,
+                isActive: true, avatarUrl: nil)
+    }
+
+    func testPrimaryLevelInference() {
+        XCTAssertEqual(student(year: "P5").isPrimaryLevel, true)
+        XCTAssertEqual(student(year: "Primary 4").isPrimaryLevel, true)
+        XCTAssertEqual(student(year: "Sec 2").isPrimaryLevel, false)
+        XCTAssertEqual(student(year: "sec 2 but he doesn’t study").isPrimaryLevel, false)
+        XCTAssertNil(student(year: "3").isPrimaryLevel)
+        XCTAssertNil(student(year: nil).isPrimaryLevel)
+    }
 }

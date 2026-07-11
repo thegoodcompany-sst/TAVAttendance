@@ -82,3 +82,4 @@ applies forward only.
 | 020 | test_mode_flag                | test_mode feature flag (seeded ON for demo day 2026-07-11) | yes   |
 | 021 | notify_parent_trigger         | pg_net trigger → notify-parent edge fn on late/absent (inert until Vault key seeded) | yes   |
 | 022 | advisor_followups_021         | revoke RPC exec on trigger fn; pg_net → extensions schema | yes   |
+| 023 | student_results               | tutor-entered subject grades (AL1–AL8 / A1–F9), staff RLS | yes   |

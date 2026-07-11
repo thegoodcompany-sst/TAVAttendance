@@ -19,7 +19,7 @@ struct TAVAttendanceApp: App {
                     case "parent":
                         ParentDashboardView()
                     default:
-                        ClassListView()
+                        TutorTabView()
                     }
                 }
                 .environmentObject(authManager)
@@ -32,6 +32,17 @@ struct TAVAttendanceApp: App {
                 LoginView()
                     .environmentObject(authManager)
             }
+        }
+    }
+}
+
+private struct TutorTabView: View {
+    var body: some View {
+        TabView {
+            ClassListView()
+                .tabItem { Label("Classes", systemImage: "rectangle.3.group") }
+            StudentResultsView()
+                .tabItem { Label("Students", systemImage: "person.3") }
         }
     }
 }

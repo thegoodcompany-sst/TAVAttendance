@@ -62,6 +62,32 @@ final class AttendanceService {
         try await db.from("students").update(["is_active": false]).eq("id", value: id).execute()
     }
 
+    // MARK: - Student results (migration 023)
+
+    /// RLS scopes rows to the caller: admins see all, tutors only students
+    /// enrolled in their assigned classes.
+    func fetchStudentResults() async throws -> [StudentResult] {
+        return try await db.from("student_results").select().execute().value
+    }
+
+    func upsertStudentResult(studentId: UUID, subject: ResultSlipSubject, grade: String) async throws {
+        let record = StudentResultUpsert(
+            studentId: studentId,
+            subject: subject.rawValue,
+            grade: grade,
+            updatedBy: db.auth.currentSession?.user.id)
+        try await db.from("student_results")
+            .upsert(record, onConflict: "student_id,subject")
+            .execute()
+    }
+
+    func deleteStudentResult(studentId: UUID, subject: ResultSlipSubject) async throws {
+        try await db.from("student_results").delete()
+            .eq("student_id", value: studentId)
+            .eq("subject", value: subject.rawValue)
+            .execute()
+    }
+
     // MARK: - Enrollments
 
     func fetchEnrollments(classId: UUID) async throws -> [Enrollment] {

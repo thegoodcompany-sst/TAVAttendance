@@ -5,6 +5,48 @@ enum ResultSlipSubject: String, Codable, CaseIterable, Identifiable {
     case math    = "Math"
     case english = "English"
     var id: String { rawValue }
+
+    var displayName: String { self == .math ? "Mathematics" : "English" }
+
+    /// Maps the free-text `classes.subject` values in prod ("Math", "Mathematics ",
+    /// "english"…) onto the canonical two subjects; nil for anything else.
+    init?(normalizing raw: String?) {
+        let s = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if s.hasPrefix("math") { self = .math }
+        else if s.hasPrefix("eng") { self = .english }
+        else { return nil }
+    }
+}
+
+// MARK: - Student results (migration 023): one grade per student per subject
+enum GradeBands {
+    static let primary   = ["AL1", "AL2", "AL3", "AL4", "AL5", "AL6", "AL7", "AL8"]
+    static let secondary = ["A1", "A2", "B3", "B4", "C5", "C6", "D7", "E8", "F9"]
+}
+
+struct StudentResult: Codable, Identifiable {
+    let id: UUID
+    let studentId: UUID
+    let subject: String
+    let grade: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, subject, grade
+        case studentId = "student_id"
+    }
+}
+
+struct StudentResultUpsert: Encodable {
+    let studentId: UUID
+    let subject: String
+    let grade: String
+    let updatedBy: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case subject, grade
+        case studentId = "student_id"
+        case updatedBy = "updated_by"
+    }
 }
 
 struct Profile: Codable, Identifiable {
@@ -62,6 +104,17 @@ struct Student: Codable, Identifiable {
         case yearOfStudy = "year_of_study"
         case isActive    = "is_active"
         case avatarUrl   = "avatar_url"
+    }
+}
+
+extension Student {
+    /// Classifies free-text year_of_study ("P5", "sec 2", "3") into primary/secondary
+    /// to pick the grade band; nil when ambiguous (grade picker then shows both).
+    var isPrimaryLevel: Bool? {
+        let s = (yearOfStudy ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        if s.hasPrefix("p") || s.contains("pri") { return true }
+        if s.hasPrefix("s") || s.contains("sec") { return false }
+        return nil
     }
 }
 
