@@ -6,6 +6,7 @@ xcuserdata/
 # Build output
 build/
 DerivedData/
+export-builds/
 
 # macOS
 .DS_Store

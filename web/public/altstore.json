@@ -1,0 +1,37 @@
+{
+  "name": "TAVA Attendance",
+  "subtitle": "Attendance kiosk for TAVA tuition",
+  "nsfw": false,
+  "iconURL": "https://dash.thegoodcompanysg.dev/tava-appicon.png",
+  "tintColor": "#2563EB",
+  "website": "https://dash.thegoodcompanysg.dev",
+  "apps": [
+    {
+      "name": "TAVA Attendance",
+      "bundleIdentifier": "com.tava.TAVAttendance",
+      "developerName": "The Good Company",
+      "subtitle": "Attendance kiosk for TAVA tuition",
+      "localizedDescription": "Kiosk and roster app for TAVA tuition — student sign-in, tutor rosters, and offline-capable attendance marking.",
+      "iconURL": "https://dash.thegoodcompanysg.dev/tava-appicon.png",
+      "tintColor": "#2563EB",
+      "category": "utilities",
+      "screenshots": [],
+      "versions": [
+        {
+          "version": "1.0",
+          "buildVersion": "1",
+          "date": "2026-07-11",
+          "localizedDescription": "Initial AltStore release.",
+          "downloadURL": "https://github.com/thegoodcompany-sst/TAVAttendance/releases/download/pre-release/TAVAttendance.ipa",
+          "size": 1938128,
+          "minOSVersion": "17.0"
+        }
+      ],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      }
+    }
+  ],
+  "news": []
+}
