@@ -104,7 +104,6 @@
 		B01FF2DBA483058541024A0D /* PrivacyNoticeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyNoticeView.swift; sourceTree = "<group>"; };
 		B85DEA9F263B167CCEC35BFC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProfileView.swift; sourceTree = "<group>"; };
-		BA820A484FA7CF5C6F73E359 /* TAVAttendance.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TAVAttendance.entitlements; sourceTree = "<group>"; };
 		CB273005930FAD09CC8AD1F7 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D30A5704E0BE4968BD6157D7 /* CorrectionRequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionRequestsView.swift; sourceTree = "<group>"; };
@@ -121,7 +120,7 @@
 		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_44587B12-A3DC-4BD9-8464-D6264B2A768C" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_308C7F29-73B3-49CB-B98F-00F536186832" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,7 +193,6 @@
 				309D5646A5E18F3D281FEABD /* Assets.xcassets */,
 				5CAA9B963B7BEE4160883812 /* Info.plist */,
 				96716DCA08CE8D202CCB479C /* Localizable.xcstrings */,
-				BA820A484FA7CF5C6F73E359 /* TAVAttendance.entitlements */,
 				232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */,
 				3BB69713E30D1B0586407932 /* AppIntents */,
 				9E1CA679F85B258F455BB18F /* Core */,
@@ -322,10 +320,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_8C98C5DE-0C56-4B49-BF5D-5CF36F45AAF3" /* iOS */ = {
+		"TEMP_D6D4F55D-01FC-4D59-A3C6-7919547953D2" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_44587B12-A3DC-4BD9-8464-D6264B2A768C" /* Config.xcconfig */,
+				"TEMP_308C7F29-73B3-49CB-B98F-00F536186832" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -614,10 +612,9 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_44587B12-A3DC-4BD9-8464-D6264B2A768C" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_308C7F29-73B3-49CB-B98F-00F536186832" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = TAVAttendance/TAVAttendance.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
@@ -635,10 +632,9 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_44587B12-A3DC-4BD9-8464-D6264B2A768C" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_308C7F29-73B3-49CB-B98F-00F536186832" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = TAVAttendance/TAVAttendance.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;

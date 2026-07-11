@@ -313,11 +313,14 @@ real students' attendance percentages. Also flip `parent_portal` / `student_phot
 back OFF if they were turned on for the demo (§16).
 
 ### ☐ 38. Enable Push Notifications capability on the App ID
+**Blocked on a paid Apple Developer Program membership** — personal teams cannot
+sign the Push capability at all ("Personal development teams … do not support the
+Push Notifications capability", hit 2026-07-11), so the `aps-environment`
+entitlement was removed from `iOS/project.yml` that day to unblock device builds
+(the restore snippet is commented in the file). Once on a paid team:
 Apple Developer portal → Identifiers → `com.tava.TAVAttendance` → enable Push
-Notifications. Required before a **device** build signs with the new
-`aps-environment` entitlement (added 2026-07-10 via `iOS/project.yml`). If a device
-build fails on provisioning before this is done, rollback = delete the
-`entitlements:` block in `iOS/project.yml` and rerun `xcodegen generate`.
+Notifications, then restore the commented `entitlements:` block and rerun
+`xcodegen generate`.
 
 ---
 
