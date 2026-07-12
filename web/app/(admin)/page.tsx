@@ -6,6 +6,7 @@ import { ClassTile } from '@/components/dashboard/class-tile'
 import { QuickActionsCard } from '@/components/dashboard/quick-actions-card'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { getTodayRoster, getTodaySessions, getDailyAttendance } from '@/lib/queries'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,10 +23,11 @@ function greeting() {
 }
 
 export default async function TodayPage() {
-  const [roster, sessions, dailyData] = await Promise.all([
+  const [roster, sessions, dailyData, showNotes] = await Promise.all([
     getTodayRoster(),
     getTodaySessions(),
     getDailyAttendance(14),
+    isFeatureEnabled('session_notes'),
   ])
 
   const presentCount  = roster.filter(s => s.status === 'present').length
@@ -113,7 +115,7 @@ export default async function TodayPage() {
           <div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {sessions.map((s, i) => (
-                <ClassTile key={s.sessionId} session={s} index={i} />
+                <ClassTile key={s.sessionId} session={s} index={i} showNotes={showNotes} />
               ))}
             </div>
             <div className="mt-5 flex justify-center">

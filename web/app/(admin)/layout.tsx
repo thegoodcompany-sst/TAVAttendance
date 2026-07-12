@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { SignOutButton } from '@/components/sign-out-button'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { isSuperadmin } from '@/lib/superadmin'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -34,14 +35,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const userName = profile.full_name ?? 'Admin'
   const superadmin = isSuperadmin(user)
+  const showAwards = await isFeatureEnabled('awards')
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar userName={userName} isSuperadmin={superadmin} />
+      <Sidebar userName={userName} isSuperadmin={superadmin} showAwards={showAwards} />
 
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile top nav */}
-        <header className="md:hidden bg-white border-b border-border h-14 flex items-center justify-between px-4 sticky top-0 z-10">
+        <header className="md:hidden print:hidden bg-white border-b border-border h-14 flex items-center justify-between px-4 sticky top-0 z-10">
           <span className="font-display font-semibold text-brand text-xl">TAVA</span>
           <div className="flex items-center gap-2">
             <nav className="flex gap-0.5">
@@ -49,6 +51,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 { href: '/', label: 'Today' },
                 { href: '/overview', label: 'Overview' },
                 { href: '/analytics', label: 'Analytics' },
+                ...(showAwards ? [{ href: '/awards', label: 'Awards' }] : []),
                 { href: '/students', label: 'Students' },
                 { href: '/users', label: 'Users' },
                 ...(superadmin ? [{ href: '/feature-flags', label: 'Flags' }, { href: '/danger', label: 'Wipe' }] : []),
@@ -68,7 +71,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </header>
 
         {/* Desktop top bar */}
-        <header className="hidden md:flex bg-white border-b border-border h-14 items-center justify-end px-6 sticky top-0 z-10 flex-shrink-0">
+        <header className="hidden md:flex print:hidden bg-white border-b border-border h-14 items-center justify-end px-6 sticky top-0 z-10 flex-shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{userName}</span>
             <SignOutButton />
@@ -81,7 +84,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </main>
 
         {/* Footer */}
-        <footer className="bg-surface border-t border-border px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <footer className="print:hidden bg-surface border-t border-border px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>TAVA Attendance</span>
           <span className="text-border">·</span>
           <Link href="/privacy" prefetch className="hover:text-foreground transition-colors">

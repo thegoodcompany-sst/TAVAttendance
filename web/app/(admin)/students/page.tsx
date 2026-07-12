@@ -1,5 +1,7 @@
 import Link from 'next/link'
+import { QrCode } from 'lucide-react'
 import { getAllStudents, getStudentResults } from '@/lib/queries'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PageHeader } from '@/components/dashboard/page-header'
 
@@ -10,7 +12,11 @@ function gradesLabel(results: { subject: string; grade: string }[]) {
 }
 
 export default async function StudentsPage() {
-  const [students, results] = await Promise.all([getAllStudents(), getStudentResults()])
+  const [students, results, showQr] = await Promise.all([
+    getAllStudents(),
+    getStudentResults(),
+    isFeatureEnabled('qr_sign_in'),
+  ])
   const gradesByStudent = new Map<string, { subject: string; grade: string }[]>()
   for (const r of results) {
     gradesByStudent.set(r.studentId, [...(gradesByStudent.get(r.studentId) ?? []), r])
@@ -21,7 +27,17 @@ export default async function StudentsPage() {
       <PageHeader
         title="Students"
         subtitle={`${students.length} active student${students.length !== 1 ? 's' : ''}`}
-      />
+      >
+        {showQr && (
+          <Link
+            href="/students/qr"
+            prefetch
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-white/90 hover:text-white transition-colors"
+          >
+            <QrCode size={15} /> QR codes
+          </Link>
+        )}
+      </PageHeader>
 
       {students.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 text-center shadow-card">

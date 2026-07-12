@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert } from 'lucide-react'
+import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from './avatar'
 
@@ -15,18 +15,21 @@ const NAV = [
   { href: '/users', label: 'Users', Icon: UserPlus },
 ]
 
-export function Sidebar({ userName, isSuperadmin = false }: { userName: string; isSuperadmin?: boolean }) {
+export function Sidebar({ userName, isSuperadmin = false, showAwards = false }: { userName: string; isSuperadmin?: boolean; showAwards?: boolean }) {
   const pathname = usePathname()
-  const nav = isSuperadmin
-    ? [
-        ...NAV,
-        { href: '/feature-flags', label: 'Feature Flags', Icon: Flag },
-        { href: '/danger', label: 'Data Wipe', Icon: TriangleAlert },
-      ]
-    : NAV
+  const nav = [
+    ...NAV,
+    ...(showAwards ? [{ href: '/awards', label: 'Awards', Icon: Trophy }] : []),
+    ...(isSuperadmin
+      ? [
+          { href: '/feature-flags', label: 'Feature Flags', Icon: Flag },
+          { href: '/danger', label: 'Data Wipe', Icon: TriangleAlert },
+        ]
+      : []),
+  ]
 
   return (
-    <aside className="group hidden md:flex flex-col w-[92px] hover:w-[216px] transition-[width] duration-200 ease-in-out min-h-screen bg-white border-r border-border py-5 gap-1 sticky top-0 h-screen flex-shrink-0 overflow-hidden z-20">
+    <aside className="group hidden print:hidden md:flex flex-col w-[92px] hover:w-[216px] transition-[width] duration-200 ease-in-out min-h-screen bg-white border-r border-border py-5 gap-1 sticky top-0 h-screen flex-shrink-0 overflow-hidden z-20">
       {/* Brand mark */}
       <div className="flex items-center h-10 mb-5 flex-shrink-0 px-[14px]">
         <Image

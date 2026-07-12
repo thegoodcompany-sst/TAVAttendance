@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { SessionSummary } from '@/lib/queries'
+import { SessionNote } from './session-note'
 
 // TAVA-toned bands: navy, bright blue, and marigold accents.
 const GRADIENTS = [
@@ -13,9 +14,11 @@ const GRADIENTS = [
 export function ClassTile({
   session,
   index,
+  showNotes = false,
 }: {
   session: SessionSummary
   index: number
+  showNotes?: boolean
 }) {
   return (
     <div className="rounded-3xl overflow-hidden bg-white shadow-card">
@@ -30,6 +33,7 @@ export function ClassTile({
         <p className="text-xs text-muted-foreground mt-1">
           {session.presentCount + session.lateCount} of {session.totalEnrolled} here today
         </p>
+        {showNotes && <SessionNote sessionId={session.sessionId} note={session.notes} />}
       </div>
     </div>
   )
