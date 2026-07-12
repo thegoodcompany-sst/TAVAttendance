@@ -25,6 +25,10 @@ iOS `FeatureFlagStore` (`Services/FeatureFlags.swift`), Android
 | `push_notifications` | APNs/FCM via `notify-parent` edge function + `device_tokens` | Scaffolded, OFF; needs real keys (HUMANS.md §17) + prod migration 014 |
 | `student_photos` | Kiosk avatars (`students.avatar_url` + `student-photos` bucket) | Built, OFF; prod backend complete since 2026-07-09 (migration 014) |
 | `study_space_tracking` | Internal drop-in room tracking (iPad `StudySpaceView`) | Built (iOS), OFF; flip ONLY after Android+web ports land (§26) |
+| `test_mode` | Kiosk ignores weekday filter; web analytics shows all days | Built, OFF (demo-day tool; migration 020) |
+| `session_notes` | Tutor free-text note on today's session (roster / web session detail) | Built 2026-07-12, OFF (migration 026) |
+| `qr_sign_in` | Kiosk camera QR scanner (payload = student UUID) + web printable QR page | Built 2026-07-12 (iOS+web), OFF (migration 026) |
+| `awards` | Admin web awards page over `attendance_summary` → `awards` table | Built 2026-07-12 (web), OFF (migration 026) |
 
 Read state: `SELECT key, enabled FROM feature_flags;`
 Flip (human-gated step, per change control): `UPDATE feature_flags SET enabled = true WHERE key = '<key>';`

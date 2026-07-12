@@ -355,6 +355,16 @@ Signed in as an **admin** account (RLS makes a tutor login useless for the kiosk
 kiosk PIN set, AltStore refresh routine confirmed (personal-team signing expires
 every 7 days — keep AltServer reachable on the same Wi-Fi).
 
+### ☐ 43. Flip the new feature flags when ready (migration 026, all OFF)
+Shipped dark 2026-07-12; flip via the superadmin `/feature-flags` page when the
+preconditions hold. A flag is global — every platform must handle it first.
+
+- [ ] `session_notes` — flip once tutors want it; iOS + Android + web all handle it.
+- [ ] `qr_sign_in` — print the student QR sheet from the dashboard first
+      (`/students` QR page, visible once the flag is ON — so flip, print, done).
+      iOS kiosk needs camera permission granted on the iPad on first scan.
+- [ ] `awards` — web-only admin page; flip whenever you want to start recording awards.
+
 ---
 
 ## Notes
