@@ -298,7 +298,12 @@ step logs a warning and skips.
 
 ## I. Demo day (2026-07-11)
 
-### ☐ 37. After demo day: flip `test_mode` OFF and delete the demo data
+### ☑ 37. After demo day: flip `test_mode` OFF and delete the demo data — DONE 2026-07-12
+Done via agent session 2026-07-12: `test_mode` OFF; all 4 demo sessions (Jul 10 **and**
+11 — the "Lycia" classes), their 12 attendance records and 9 dismissals deleted; the 4
+duplicate demo classes + 12 enrollments deleted per Edmund's instruction. Verified:
+0 sessions ≥ 2026-07-10 remain, guard trigger re-enabled, `parent_portal` /
+`student_photos` were already OFF. Original context:
 Migration 020 seeded the `test_mode` flag **ON** so the Saturday demo works (kiosk
 shows all classes regardless of weekday; analytics shows all days). After the demo:
 ```sql
@@ -321,6 +326,34 @@ entitlement was removed from `iOS/project.yml` that day to unblock device builds
 Apple Developer portal → Identifiers → `com.tava.TAVAttendance` → enable Push
 Notifications, then restore the commented `entitlements:` block and rerun
 `xcodegen generate`.
+
+---
+
+## J. Go-live: test batch (planned 2026-07-12, date TBD)
+
+Launch bar (Edmund's decision): **full PDPA close-out before any real student data.**
+MVP scope: kiosk sign-in + tutor roster marking + admin web dashboard; nothing parent-facing.
+Plan details: `PDPA_COMPLIANCE.md` §4c + agent memory `project_launch_plan`.
+
+### ☐ 39. Provide the launch date and the roster CSV
+2–3 test-batch classes. The CSV (any format) gets inserted directly via SQL — send it
+to the agent when it arrives.
+
+### ☐ 40. Appoint the DPO and finish the notice (same as §1/§2/§25)
+Still the hard blocker for the launch bar: DPO name/contact into the notice, then
+legal/DPO sign-off on the three `docs/pdpa/` documents.
+
+### ☐ 41. Attest consent per student before their first class
+Decision 2026-07-12: consent is collected offline and an admin attests it **in-app**
+before that student's first session. Easiest path: import the roster CSV via
+**`/students/import`** on the dashboard — its attestation checkbox writes a granted
+`consent_records` row per created student automatically (QA-verified 2026-07-12:
+the erase/anonymise/export backend all pass; the export now includes grades, mig 025).
+
+### ☐ 42. Kiosk iPad setup on launch day
+Signed in as an **admin** account (RLS makes a tutor login useless for the kiosk),
+kiosk PIN set, AltStore refresh routine confirmed (personal-team signing expires
+every 7 days — keep AltServer reachable on the same Wi-Fi).
 
 ---
 

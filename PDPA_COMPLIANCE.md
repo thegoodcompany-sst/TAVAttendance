@@ -166,6 +166,27 @@ Implementation was carried out after this audit. Current state:
 | B1 breach plan | Drafted; needs ownership (HUMANS §A2) |
 | G1 accountability/DPO | Open — human (HUMANS §A1) |
 
+## 4c. Status update (2026-07-12) — pre-launch verification
+
+Verified against the live prod DB (queries, not files) ahead of the first real-data launch
+(test batch of 2–3 classes):
+
+- **Live and confirmed:** `pdpa-daily-purge` pg_cron job active; `policy_documents` seeded (2);
+  `consent_records` / `current_consent` / `correction_requests` / `data_disclosures` tables live;
+  `result-slips` bucket private + scoped (unchanged since 011).
+- **Gap found:** web `pdpa-panel.tsx` (`web/app/(admin)/students/[id]/`) is **built but not
+  imported anywhere** — the admin PDPA actions (erase/anonymise/export/consent) are unreachable
+  on web. Must be wired before launch.
+- **Still open (blocks the launch bar of "full close-out"):**
+  1. Runtime QA of all PDPA app flows on the three platforms (only compile-verified 2026-06-15).
+  2. HUMAN: appoint DPO + publish contact in the notice (§A1).
+  3. HUMAN: sign off the three governance docs in `docs/pdpa/` (§A2).
+  4. HUMAN: leaked-password protection — blocked on the free Supabase plan (HUMANS.md notes);
+     accept the risk or upgrade the plan.
+- **Already closed since the audit:** region verified ap-southeast-1 (HUMANS.md §5, done).
+- **Launch policy (decided 2026-07-12):** real student data enters the system only after full
+  PDPA close-out — the items above are the gate, tracked in `HUMANS.md`.
+
 ## 5. Finding index
 
 | ID | Obligation | Severity | One-line |

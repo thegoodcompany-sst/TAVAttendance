@@ -1,9 +1,10 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { getStudent, getStudentClassSummary, getStudentRecentRecords, getStudentResults } from '@/lib/queries'
+import { getStudent, getStudentClassSummary, getStudentConsent, getStudentRecentRecords, getStudentResults } from '@/lib/queries'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar } from '@/components/dashboard/avatar'
+import { PdpaPanel } from './pdpa-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,11 +19,12 @@ function PctBadge({ pct }: { pct: number | null }) {
 
 export default async function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [student, classSummary, recentRecords, results] = await Promise.all([
+  const [student, classSummary, recentRecords, results, consent] = await Promise.all([
     getStudent(id),
     getStudentClassSummary(id),
     getStudentRecentRecords(id),
     getStudentResults(id),
+    getStudentConsent(id),
   ])
 
   if (!student) notFound()
@@ -147,6 +149,8 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           </div>
         )}
       </div>
+
+      <PdpaPanel studentId={id} studentName={student.full_name} consent={consent} />
     </div>
   )
 }

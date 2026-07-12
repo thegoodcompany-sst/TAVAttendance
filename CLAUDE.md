@@ -17,7 +17,7 @@ stays the compact source of truth; the skills carry the runbooks.
 
 Prod Supabase (`zgikcbsxzjgbigywxbbj`) was reconciled with the migration files on **2026-07-09**
 (drift campaign; HUMANS.md §14/§30) and is tracked by the CI drift detector — as of
-**2026-07-10** prod matches migrations 001–022. **Never edit an
+**2026-07-12** prod matches migrations 001–025. **Never edit an
 existing migration; every schema fix ships as a new numbered one**, and apply it to prod BEFORE
 deploying app code that references it. Verify prod state with queries, never by reading files:
 `.claude/skills/tava-prod-drift-campaign` keeps the drift-prevention protocol.
@@ -205,19 +205,7 @@ After implementing any iOS feature, before declaring the task done:
 
 ### iOS → Android file mapping
 
-The authoritative mapping now lives in `Android/PORTING_NOTES.md`. Quick reference:
-
-| iOS file | Android equivalent |
-|---|---|
-| `Models/Models.swift` | `data/models/Models.kt` |
-| `Services/AttendanceService.swift` | `data/service/AttendanceService.kt` |
-| `Services/FeatureFlags.swift` | `data/service/FeatureFlags.kt` |
-| `Views/Kiosk/GlobalKioskView.swift` | `screens/kiosk/GlobalKioskScreen.kt` |
-| `Views/Parent/ParentDashboardView.swift` | `screens/ParentDashboardScreen.kt` *(UI pending)* |
-| `Views/Session/StudentProfileView.swift` | `screens/StudentProfileSheet.kt` |
-| `Views/Session/RosterView.swift` | `screens/RosterScreen.kt` |
-| `Views/Admin/ClassFormView.swift` | `screens/ClassFormDialog.kt` |
-| `Views/Admin/StudentManagementView.swift` | `screens/StudentManagementScreen.kt` |
+The authoritative mapping lives in `Android/PORTING_NOTES.md`.
 
 ### Paste-ready prompt template
 

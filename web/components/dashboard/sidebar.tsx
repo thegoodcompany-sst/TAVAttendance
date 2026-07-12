@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag } from 'lucide-react'
+import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from './avatar'
 
@@ -18,7 +18,11 @@ const NAV = [
 export function Sidebar({ userName, isSuperadmin = false }: { userName: string; isSuperadmin?: boolean }) {
   const pathname = usePathname()
   const nav = isSuperadmin
-    ? [...NAV, { href: '/feature-flags', label: 'Feature Flags', Icon: Flag }]
+    ? [
+        ...NAV,
+        { href: '/feature-flags', label: 'Feature Flags', Icon: Flag },
+        { href: '/danger', label: 'Data Wipe', Icon: TriangleAlert },
+      ]
     : NAV
 
   return (
