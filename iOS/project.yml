@@ -35,6 +35,7 @@ targets:
         # Read at runtime via Bundle.main.object(forInfoDictionaryKey:) in SupabaseManager.
         SUPABASE_PROJECT_URL: "$(SUPABASE_PROJECT_URL)"
         SUPABASE_ANON_KEY: "$(SUPABASE_ANON_KEY)"
+        NSCameraUsageDescription: "The camera scans student QR codes for kiosk sign-in."
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

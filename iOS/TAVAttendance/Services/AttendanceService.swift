@@ -235,6 +235,15 @@ final class AttendanceService {
             .execute()
     }
 
+    /// Saves the tutor's free-text note on a session (flag `session_notes`).
+    /// An empty note is stored as SQL NULL, sent explicitly (the SDK omits nil properties).
+    func updateSessionNotes(id: UUID, notes: String?) async throws {
+        try await db.from("sessions")
+            .update(["notes": notes.map(AnyJSON.string) ?? AnyJSON.null])
+            .eq("id", value: id)
+            .execute()
+    }
+
     // MARK: - Roster & Attendance
 
     func fetchRoster(sessionId: UUID) async throws -> [RosterEntry] {
@@ -317,6 +326,12 @@ final class AttendanceService {
         case (let x, nil): return x
         case (let x?, let y?): return (rank[y] ?? 0) > (rank[x] ?? 0) ? y : x
         }
+    }
+
+    /// Parses a kiosk QR payload into a student UUID. Tolerates surrounding whitespace
+    /// (some QR generators append a trailing newline); anything else is rejected.
+    static func studentId(fromQRPayload payload: String) -> UUID? {
+        UUID(uuidString: payload.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// Marks a student across all their today's sessions. Status is applied as-is to every session.

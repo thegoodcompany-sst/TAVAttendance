@@ -10,6 +10,8 @@ enum FeatureFlag: String {
     case studentPhotos      = "student_photos"
     case studySpaceTracking = "study_space_tracking"
     case testMode           = "test_mode"
+    case sessionNotes       = "session_notes"
+    case qrSignIn           = "qr_sign_in"
 }
 
 @MainActor

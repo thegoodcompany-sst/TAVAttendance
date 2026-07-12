@@ -128,4 +128,15 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertNil(student(year: "3").isPrimaryLevel)
         XCTAssertNil(student(year: nil).isPrimaryLevel)
     }
+
+    // MARK: QR payload → student UUID
+
+    func testQRPayloadParsing() {
+        let id = UUID()
+        XCTAssertEqual(AttendanceService.studentId(fromQRPayload: id.uuidString), id)
+        XCTAssertEqual(AttendanceService.studentId(fromQRPayload: " \(id.uuidString.lowercased())\n"), id)
+        XCTAssertNil(AttendanceService.studentId(fromQRPayload: ""))
+        XCTAssertNil(AttendanceService.studentId(fromQRPayload: "not-a-uuid"))
+        XCTAssertNil(AttendanceService.studentId(fromQRPayload: "https://example.com/\(id.uuidString)"))
+    }
 }

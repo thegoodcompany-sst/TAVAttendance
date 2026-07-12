@@ -51,6 +51,7 @@
 		BA86F67649226E9C79AA8C4C /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A44B53697EDDA16EB00544 /* PushManager.swift */; };
 		BAFF49E2F26D7AC1DD4937BB /* StudentAttendanceRateIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00D13ADBA1A88996D74858B4 /* StudentAttendanceRateIntent.swift */; };
 		C2DCEC585CCBC4BDAD601D61 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB273005930FAD09CC8AD1F7 /* Models.swift */; };
+		C2E9D3AF084BA4D847F9850D /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757DCC9F10B26459799B20D3 /* QRScannerView.swift */; };
 		D693F8B311CB2B7F6D73D158 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85DEA9F263B167CCEC35BFC /* LoginView.swift */; };
 		D84A9BB30A1CE2302FA69420 /* EnrollmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */; };
 		EDC6B0ACAB97F385C9998282 /* CorrectionRequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30A5704E0BE4968BD6157D7 /* CorrectionRequestsView.swift */; };
@@ -88,11 +89,11 @@
 		4F44A35FCED4364A1434BFDC /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
 		5203C5DAD18245C177E027F0 /* SignInStudentIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInStudentIntent.swift; sourceTree = "<group>"; };
 		543023F8203B0054936C6A20 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
-		55A547ED3003B550000864E0 /* TAVAttendance.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = TAVAttendance.xcodeproj; sourceTree = SOURCE_ROOT; };
 		5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentView.swift; sourceTree = "<group>"; };
 		5CAA9B963B7BEE4160883812 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		626807EE6AA6433E29B7EEF5 /* TAVAShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TAVAShortcuts.swift; sourceTree = "<group>"; };
 		64ADFF510704F740AA4F9A37 /* AttendanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceService.swift; sourceTree = "<group>"; };
+		757DCC9F10B26459799B20D3 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
 		76DF1807148A196AA37C1204 /* ParentLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentLinkView.swift; sourceTree = "<group>"; };
 		79BF5AC4077D5D181F5C1813 /* MarkAttendanceIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkAttendanceIntent.swift; sourceTree = "<group>"; };
 		81CC1BD809880605E561BC0F /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
@@ -106,7 +107,7 @@
 		B85DEA9F263B167CCEC35BFC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProfileView.swift; sourceTree = "<group>"; };
 		CB273005930FAD09CC8AD1F7 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
-		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CDE644C09FB4372E686B46F2 /* TAVAttendance.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TAVAttendance.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D30A5704E0BE4968BD6157D7 /* CorrectionRequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionRequestsView.swift; sourceTree = "<group>"; };
 		D4527A7623645D63DEDC2198 /* StudentEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentEntity.swift; sourceTree = "<group>"; };
 		D56A28E4752FD6F6FA99B737 /* AttendanceStatusAppEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceStatusAppEnum.swift; sourceTree = "<group>"; };
@@ -118,10 +119,10 @@
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F3063799091ACD1EB194B57C /* KioskRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskRouter.swift; sourceTree = "<group>"; };
 		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
-		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_B9459D39-8F31-44F0-B528-8025DE261F43" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +149,7 @@
 			isa = PBXGroup;
 			children = (
 				F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */,
+				757DCC9F10B26459799B20D3 /* QRScannerView.swift */,
 				109CE89C8684265033D609D6 /* StudySpaceView.swift */,
 			);
 			path = Kiosk;
@@ -159,7 +161,6 @@
 				4FF1F3FEA5695821BE4E3EFE /* TAVAttendance */,
 				82CD083980EE2D8C19CDD4B0 /* TAVAttendanceTests */,
 				F7C1A3B656D06525CBB93444 /* Products */,
-				55A547EC3003B51F000864E0 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -201,22 +202,8 @@
 				B01C0DBACA98886FA038F890 /* Models */,
 				9B2124344B144DC479818A99 /* Services */,
 				B45DE67A859A4D79875E07C9 /* Views */,
-				55A547ED3003B550000864E0 /* TAVAttendance.xcodeproj */,
 			);
 			path = TAVAttendance;
-			sourceTree = "<group>";
-		};
-		55A547EC3003B51F000864E0 /* Recovered References */ = {
-			isa = PBXGroup;
-			children = (
-				"TEMP_B9459D39-8F31-44F0-B528-8025DE261F43" /* Config.xcconfig */,
-			);
-			name = "Recovered References";
-			sourceTree = "<group>";
-		};
-		55A547EE3003B550000864E0 /* Products */ = {
-			isa = PBXGroup;
-			name = Products;
 			sourceTree = "<group>";
 		};
 		7EC0E30C3E74621CFAD41ECC /* Tutor */ = {
@@ -336,6 +323,14 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
+		"TEMP_44387855-46ED-4F0A-89E0-7E5DBE6DF707" /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -384,7 +379,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2700;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					B3761B335799DF70F2AAAA46 = {
+						DevelopmentTeam = DUU8J39BA7;
+					};
+				};
 			};
 			buildConfigurationList = A76FA904BD2D2EEF50075B71 /* Build configuration list for PBXProject "TAVAttendance" */;
 			developmentRegion = en;
@@ -402,12 +402,6 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F7C1A3B656D06525CBB93444 /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 55A547EE3003B550000864E0 /* Products */;
-					ProjectRef = 55A547ED3003B550000864E0 /* TAVAttendance.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
 				B3761B335799DF70F2AAAA46 /* TAVAttendance */,
@@ -467,6 +461,7 @@
 				83BFCAAD82E7EEB250A165E7 /* PendingAttendanceStore.swift in Sources */,
 				48D38D79344B863C708969C2 /* PrivacyNoticeView.swift in Sources */,
 				BA86F67649226E9C79AA8C4C /* PushManager.swift in Sources */,
+				C2E9D3AF084BA4D847F9850D /* QRScannerView.swift in Sources */,
 				746AABDC906A3C1E149B747A /* ResultSlipUploadSheet.swift in Sources */,
 				0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */,
 				5F60A9C0CC3678AEC4069EEA /* SessionDetailView.swift in Sources */,
@@ -504,7 +499,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -538,7 +532,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -552,7 +545,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -563,7 +555,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -597,7 +588,6 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -618,7 +608,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -627,7 +616,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_B9459D39-8F31-44F0-B528-8025DE261F43" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -647,7 +636,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_B9459D39-8F31-44F0-B528-8025DE261F43" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

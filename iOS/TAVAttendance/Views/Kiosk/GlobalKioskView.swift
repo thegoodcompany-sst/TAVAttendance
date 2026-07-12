@@ -14,6 +14,7 @@ struct GlobalKioskView: View {
     @State private var showSettings = false
     @State private var showPINEntry = false
     @State private var showStudySpace = false
+    @State private var showQRScanner = false
 
     // True when the admin unlocked the kiosk by entering a PIN this session.
     // Grants extra controls: absent marking, late→present override, present→late override.
@@ -216,6 +217,9 @@ struct GlobalKioskView: View {
         .fullScreenCover(isPresented: $showStudySpace) {
             StudySpaceView()
         }
+        .sheet(isPresented: $showQRScanner) {
+            QRScannerSheet { payload in await handleScannedPayload(payload) }
+        }
         .errorAlert(error: $error)
     }
 
@@ -273,6 +277,19 @@ struct GlobalKioskView: View {
                         .padding(10)
                         .background(Color(.systemGray5), in: Circle())
                 }
+            }
+
+            if !isSelectionMode && !entries.isEmpty && featureFlags.isEnabled(.qrSignIn) {
+                // Student-facing like the card grid itself: scanning only ever runs
+                // the same sign-in path a card tap would, so no admin gate needed.
+                Button { showQRScanner = true } label: {
+                    Image(systemName: "qrcode.viewfinder")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .padding(10)
+                        .background(Color(.systemGray5), in: Circle())
+                }
+                .accessibilityLabel("Scan QR to Sign In")
             }
 
             if isAdminMode && !isSelectionMode && featureFlags.isEnabled(.studySpaceTracking) {
@@ -522,6 +539,34 @@ struct GlobalKioskView: View {
             }
         } catch {
             self.error = AppError("Action failed", underlyingError: error)
+        }
+    }
+
+    /// QR sign-in (flag `qr_sign_in`): resolves the payload to a kiosk entry and runs
+    /// the exact same path as tapping the card. Returns the feedback line shown in the scanner.
+    private func handleScannedPayload(_ payload: String) async -> String {
+        guard let id = AttendanceService.studentId(fromQRPayload: payload) else {
+            return String(localized: "Not a student QR code")
+        }
+        guard let entry = entries.first(where: { $0.studentId == id }) else {
+            return String(localized: "Student not found for today's classes")
+        }
+        guard !entry.isDismissed else {
+            return "\(entry.fullName) — \(String(localized: "already dismissed"))"
+        }
+        switch entry.status {
+        case nil, .excused:
+            await handle(.signIn, for: entry)
+            if let updated = entries.first(where: { $0.studentId == id }),
+               let status = updated.status, status != .excused {
+                let label = status == .late ? String(localized: "Late") : String(localized: "On Time")
+                return "\(updated.fullName) — \(label)"
+            }
+            return String(localized: "Sign-in failed — please try again")
+        case .absent:
+            return "\(entry.fullName) — \(String(localized: "marked Absent, ask a teacher"))"
+        default:
+            return "\(entry.fullName) — \(String(localized: "already signed in"))"
         }
     }
 

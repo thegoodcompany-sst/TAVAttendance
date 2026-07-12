@@ -5,7 +5,10 @@ struct RosterView: View {
     let tavClass: TAVClass
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var featureFlags: FeatureFlagStore
     @State private var roster: [RosterEntry] = []
+    @State private var showSessionNotes = false
+    @State private var sessionNotes: String? = nil
     @State private var isLoading = true
     @State private var isSaving = false
     @State private var isEndingClass = false
@@ -61,6 +64,13 @@ struct RosterView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if featureFlags.isEnabled(.sessionNotes) {
+                    Button {
+                        showSessionNotes = true
+                    } label: {
+                        Label("Session Notes", systemImage: "note.text")
+                    }
+                }
                 if !network.isConnected {
                     Label("Offline", systemImage: "wifi.slash")
                         .foregroundStyle(.orange)
@@ -122,6 +132,13 @@ struct RosterView: View {
             Text(endClassError ?? "")
         }
         .errorAlert(error: $error)
+        .sheet(isPresented: $showSessionNotes) {
+            SessionNotesSheet(initial: sessionNotes ?? session.notes ?? "") { text in
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                try await AttendanceService.shared.updateSessionNotes(id: session.id, notes: trimmed.isEmpty ? nil : trimmed)
+                sessionNotes = trimmed
+            }
+        }
         .task {
             await loadRoster()
         }
@@ -393,6 +410,59 @@ struct RosterView: View {
         case .absent:  return "Absent"
         case .late:    return "Late"
         case .excused: return "Excused"
+        }
+    }
+}
+
+// MARK: - Session notes sheet (flag `session_notes`)
+
+private struct SessionNotesSheet: View {
+    let initial: String
+    let onSave: (String) async throws -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+    @State private var isSaving = false
+    @State private var error: AppError? = nil
+
+    init(initial: String, onSave: @escaping (String) async throws -> Void) {
+        self.initial = initial
+        self.onSave = onSave
+        _text = State(initialValue: initial)
+    }
+
+    var body: some View {
+        NavigationStack {
+            TextEditor(text: $text)
+                .padding(12)
+                .navigationTitle("Session Notes")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        if isSaving {
+                            ProgressView()
+                        } else {
+                            Button("Save") { Task { await save() } }
+                                .disabled(text == initial)
+                        }
+                    }
+                }
+                .errorAlert(error: $error)
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func save() async {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await onSave(text)
+            dismiss()
+        } catch {
+            self.error = AppError("Could not save session notes", underlyingError: error)
         }
     }
 }
