@@ -99,5 +99,11 @@ dependencies {
     implementation(libs.supabase.storage)
     implementation(libs.ktor.client.okhttp)
 
+    // Kiosk QR sign-in (flag qr_sign_in): CameraX preview + ML Kit barcode scanning.
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
+
     testImplementation(libs.junit)
 }

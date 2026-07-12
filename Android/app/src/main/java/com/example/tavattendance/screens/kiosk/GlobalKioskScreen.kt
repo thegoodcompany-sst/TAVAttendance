@@ -176,11 +176,7 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching {
                 when (action) {
-                    KioskAction.SignIn -> {
-                        AttendanceService.markKioskSignIn(entry)
-                        val worstStatus = computeSignInStatus(entry)
-                        updateEntry(entry.studentId, worstStatus)
-                    }
+                    KioskAction.SignIn -> performSignIn(entry)
                     KioskAction.MarkPresent -> {
                         AttendanceService.markKioskAttendance(entry, AttendanceStatus.present)
                         updateEntry(entry.studentId, AttendanceStatus.present)
@@ -203,6 +199,37 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
                 _snackbarMessage.value = "Action failed: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _pendingIds.value = _pendingIds.value - entry.studentId
+        }
+    }
+
+    private suspend fun performSignIn(entry: KioskEntry) {
+        AttendanceService.markKioskSignIn(entry)
+        updateEntry(entry.studentId, computeSignInStatus(entry))
+    }
+
+    /**
+     * QR sign-in (flag `qr_sign_in`): resolves the payload to a kiosk entry and runs
+     * the exact same sign-in path as tapping the card. Returns the feedback line
+     * shown in the scanner. Mirrors iOS handleScannedPayload.
+     */
+    suspend fun handleScannedPayload(payload: String): String {
+        val id = AttendanceService.studentIdFromQrPayload(payload)
+            ?: return "Not a student QR code"
+        val entry = _entries.value.firstOrNull { it.studentId.lowercase() == id }
+            ?: return "Student not found for today's classes"
+        return when (entry.status) {
+            null, AttendanceStatus.excused -> {
+                val result = runCatching { performSignIn(entry) }
+                val updated = _entries.value.firstOrNull { it.studentId == entry.studentId }
+                val status = updated?.status
+                if (result.isSuccess && status != null && status != AttendanceStatus.excused) {
+                    "${entry.fullName} — ${if (status == AttendanceStatus.late) "Late" else "On Time"}"
+                } else {
+                    "Sign-in failed — please try again"
+                }
+            }
+            AttendanceStatus.absent -> "${entry.fullName} — marked Absent, ask a teacher"
+            else -> "${entry.fullName} — already signed in"
         }
     }
 
@@ -358,6 +385,11 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
     val studySpaceEnabled = featureFlags[FeatureFlags.STUDY_SPACE_TRACKING] == true
     var showStudySpace by remember { mutableStateOf(false) }
 
+    // QR sign-in (flag qr_sign_in): student-facing like the card grid itself —
+    // scanning only ever runs the same sign-in path a card tap would, so no admin gate.
+    val qrSignInEnabled = featureFlags[FeatureFlags.QR_SIGN_IN] == true
+    var showQrScanner by remember { mutableStateOf(false) }
+
     val attending = entries.count { it.isAttending }
     val today = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(Date())
 
@@ -418,6 +450,11 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
                         if (isAdminMode && studySpaceEnabled) {
                             TextButton(onClick = { showStudySpace = true }) {
                                 Text("Study Space")
+                            }
+                        }
+                        if (qrSignInEnabled && entries.isNotEmpty()) {
+                            TextButton(onClick = { showQrScanner = true }) {
+                                Text("Scan QR")
                             }
                         }
                         IconButton(
@@ -489,6 +526,13 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
 
             if (showStudySpace) {
                 StudySpaceScreen(onDismiss = { showStudySpace = false })
+            }
+
+            if (showQrScanner) {
+                QrScannerSheet(
+                    onScan = { payload -> vm.handleScannedPayload(payload) },
+                    onDismiss = { showQrScanner = false }
+                )
             }
         }
     }

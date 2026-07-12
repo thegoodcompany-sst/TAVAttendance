@@ -361,6 +361,20 @@ object AttendanceService {
         }
     }
 
+    private val UUID_REGEX =
+        Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+    /**
+     * Parses a kiosk QR payload (flag `qr_sign_in`) into a student UUID string.
+     * Tolerates surrounding whitespace (some QR generators append a trailing newline)
+     * and normalises to lowercase for matching; anything that isn't a bare UUID
+     * (URLs, garbage) is rejected. Mirrors iOS `studentId(fromQRPayload:)`.
+     */
+    fun studentIdFromQrPayload(payload: String): String? {
+        val trimmed = payload.trim()
+        return if (UUID_REGEX.matches(trimmed)) trimmed.lowercase() else null
+    }
+
     // ---- Day-of-week scheduling ----
 
     /** English full weekday name ("Monday".."Sunday") for the given date. */

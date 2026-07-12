@@ -12,7 +12,7 @@ here. Do **not** change Supabase migrations — they are shared across platforms
 | `Services/FeatureFlags.swift` | `data/service/FeatureFlags.kt` |
 | `Views/Kiosk/GlobalKioskView.swift` | `screens/kiosk/GlobalKioskScreen.kt` |
 | `Views/Parent/ParentDashboardView.swift` | `screens/ParentDashboardScreen.kt` |
-| `Views/Kiosk/QRScannerView.swift` | *(pending — CameraX/ML Kit scanner)* |
+| `Views/Kiosk/QRScannerView.swift` | `screens/kiosk/QrScannerSheet.kt` |
 | `Views/Session/StudentProfileView.swift` | `screens/StudentProfileSheet.kt` |
 | `Views/Session/RosterView.swift` | `screens/RosterScreen.kt` |
 | `Views/Session/SessionListView.swift` | `screens/SessionListScreen.kt` |
@@ -41,6 +41,5 @@ These iOS items are ported at the data/service layer but still need Compose UI:
   absent-tap confirm (UX-04), Not-Here/Absent info (UX-07), unsigned text label (A11Y-02),
   photo display (PROD-04).
 - FCM push registration (PROD-02). Parent portal (PROD-01) ported 2026-07-12.
-- Kiosk QR sign-in (flag `qr_sign_in`): iOS scanner shipped 2026-07-12; Android needs a
-  CameraX + ML Kit (or ZXing) scanner in `GlobalKioskScreen` reusing the existing
-  sign-in path. Session notes (flag `session_notes`) ported 2026-07-12.
+- Kiosk QR sign-in (flag `qr_sign_in`) ported 2026-07-12 (CameraX + ML Kit,
+  `QrScannerSheet.kt`). Session notes (flag `session_notes`) ported 2026-07-12.
