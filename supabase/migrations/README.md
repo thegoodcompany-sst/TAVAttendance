@@ -85,3 +85,4 @@ applies forward only.
 | 023 | student_results               | tutor-entered subject grades (AL1–AL8 / A1–F9), staff RLS | yes   |
 | 024 | wipe_operational_data         | superadmin-only pre-launch data wipe RPC (keeps accounts/config/Study Space) | yes   |
 | 025 | export_include_student_results | subject-access export now includes student_results (PDPA QA find 2026-07-12) | yes   |
+| 026 | feature_flags_notes_qr_awards | session_notes / qr_sign_in / awards flag rows, all OFF | yes   |
