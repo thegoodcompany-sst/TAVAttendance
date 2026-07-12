@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_ID="${1:-${FIREBASE_APP_ID:-}}"
+APP_ID="${1:-${FIREBASE_APP_ID:-1:879371219921:android:dc7a8dbf4d8df141bf66f0}}"
 if [ -z "$APP_ID" ]; then
   echo "Usage: ./distribute.sh <firebase-app-id>   (or set FIREBASE_APP_ID)" >&2
   exit 1

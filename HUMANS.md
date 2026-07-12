@@ -378,13 +378,10 @@ preconditions hold. A flag is global — every platform must handle it first.
 
 Android release signing + build are wired (2026-07-12). Remaining steps need your Google login:
 
-- [ ] `firebase login` (browser auth to your Google account).
-- [ ] Create/pick a Firebase project, then register an Android app with package
-      `com.example.tavattendance` (Firebase console → Add app → Android). No
-      `google-services.json` needed — App Distribution only uses the App ID.
-- [ ] Copy the **App ID** (Project settings → your apps, form `1:1234:android:abcd`).
-- [ ] From `Android/`, run `./distribute.sh <APP_ID>` — builds the signed release
-      APK and uploads it. Testers in `Android/testers.txt`, notes in `release-notes.txt`.
+- [x] `firebase login` — done 2026-07-12.
+- [x] App registered; App ID `1:879371219921:android:dc7a8dbf4d8df141bf66f0`
+      (now the default in `distribute.sh` — just run `./distribute.sh`).
+      Release workflow lives in `.claude/skills/release`.
 - [ ] Keep `Android/release.jks` + the `KEYSTORE_*` values in `secrets.properties`
       backed up somewhere safe — losing them means you can't ship an update under
       the same signing identity.
