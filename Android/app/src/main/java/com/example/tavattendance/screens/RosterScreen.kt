@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -26,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.RosterEntry
 import com.example.tavattendance.data.service.AttendanceService
+import com.example.tavattendance.data.service.FeatureFlags
 import com.example.tavattendance.data.store.PendingAttendanceStore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
@@ -54,6 +56,13 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _loadError = MutableStateFlow<String?>(null)
     val loadError = _loadError.asStateFlow()
+
+    // Session notes (flag `session_notes`): current saved value + in-flight save state.
+    private val _sessionNotes = MutableStateFlow<String?>(null)
+    val sessionNotes = _sessionNotes.asStateFlow()
+
+    private val _isSavingNotes = MutableStateFlow(false)
+    val isSavingNotes = _isSavingNotes.asStateFlow()
 
     fun clearSnackbar() { _snackbarMessage.value = null }
 
@@ -85,10 +94,33 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     fun init(sessionId: String) {
         this.sessionId = sessionId
         loadRoster()
+        loadSessionNotes()
         viewModelScope.launch {
             isOnline.collect { connected ->
                 if (connected) syncPending()
             }
+        }
+    }
+
+    private fun loadSessionNotes() {
+        viewModelScope.launch {
+            runCatching { AttendanceService.fetchSessionNotes(sessionId) }
+                .onSuccess { _sessionNotes.value = it }
+                .onFailure { android.util.Log.e("Roster", "loadSessionNotes failed: ${it.message}", it) }
+        }
+    }
+
+    fun saveSessionNotes(text: String, onDone: () -> Unit) {
+        viewModelScope.launch {
+            _isSavingNotes.value = true
+            val trimmed = text.trim().ifEmpty { null }
+            runCatching { AttendanceService.updateSessionNotes(sessionId, trimmed) }
+                .onSuccess { _sessionNotes.value = trimmed; onDone() }
+                .onFailure { e ->
+                    android.util.Log.e("Roster", "saveSessionNotes failed: ${e.message}", e)
+                    _snackbarMessage.value = "Failed to save session notes: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                }
+            _isSavingNotes.value = false
         }
     }
 
@@ -223,6 +255,12 @@ fun RosterScreen(
     val loadError by vm.loadError.collectAsState()
     val snackbarMessage by vm.snackbarMessage.collectAsState()
 
+    val flags by FeatureFlags.flags.collectAsState()
+    val sessionNotesEnabled = flags[FeatureFlags.SESSION_NOTES] == true
+    val sessionNotes by vm.sessionNotes.collectAsState()
+    val isSavingNotes by vm.isSavingNotes.collectAsState()
+    var showSessionNotes by remember { mutableStateOf(false) }
+
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(snackbarMessage) {
         snackbarMessage?.let { msg ->
@@ -297,6 +335,11 @@ fun RosterScreen(
                     }
                 },
                 actions = {
+                    if (sessionNotesEnabled) {
+                        IconButton(onClick = { showSessionNotes = true }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Session notes")
+                        }
+                    }
                     if (!isOnline) {
                         Icon(
                             Icons.Default.Warning,
@@ -375,6 +418,51 @@ fun RosterScreen(
             onDismiss = { selectedStudent = null }
         )
     }
+
+    if (sessionNotesEnabled && showSessionNotes) {
+        SessionNotesDialog(
+            initial = sessionNotes ?: "",
+            isSaving = isSavingNotes,
+            onDismiss = { showSessionNotes = false },
+            onSave = { text -> vm.saveSessionNotes(text) { showSessionNotes = false } }
+        )
+    }
+}
+
+@Composable
+private fun SessionNotesDialog(
+    initial: String,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(initial) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("Session Notes") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                enabled = !isSaving,
+                placeholder = { Text("Notes for this session") }
+            )
+        },
+        confirmButton = {
+            if (isSaving) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            } else {
+                TextButton(onClick = { onSave(text) }, enabled = text != initial) {
+                    Text("Save")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancel") }
+        }
+    )
 }
 
 @Composable

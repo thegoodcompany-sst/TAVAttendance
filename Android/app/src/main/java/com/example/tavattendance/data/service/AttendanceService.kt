@@ -252,6 +252,25 @@ object AttendanceService {
         }
     }
 
+    @Serializable
+    private data class NotesPatch(
+        // ALWAYS encode so an emptied note is sent as `"notes": null` (SQL NULL)
+        @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.ALWAYS)
+        @SerialName("notes") val notes: String?
+    )
+
+    suspend fun fetchSessionNotes(id: String): String? =
+        db.from("sessions").select {
+            filter { eq("id", id) }
+        }.decodeList<Session>().firstOrNull()?.notes
+
+    /** Saves the tutor's free-text note on a session (flag `session_notes`). Empty note → SQL NULL. */
+    suspend fun updateSessionNotes(id: String, notes: String?) {
+        db.from("sessions").update(NotesPatch(notes)) {
+            filter { eq("id", id) }
+        }
+    }
+
     suspend fun fetchRoster(sessionId: String): List<RosterEntry> =
         db.postgrest.rpc("get_session_roster", buildJsonObject { put("p_session_id", sessionId) })
             .decodeList<RosterEntry>()

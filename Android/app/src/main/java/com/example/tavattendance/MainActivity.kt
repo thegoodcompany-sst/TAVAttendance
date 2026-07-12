@@ -23,6 +23,7 @@ import com.example.tavattendance.auth.AuthViewModel
 import com.example.tavattendance.auth.LoginScreen
 import com.example.tavattendance.navigation.AdminApp
 import com.example.tavattendance.navigation.TutorApp
+import com.example.tavattendance.screens.ParentDashboardScreen
 import com.example.tavattendance.ui.theme.TAVAttendanceTheme
 
 class MainActivity : ComponentActivity() {
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
                         CircularProgressIndicator()
                     }
                     profile?.role == "admin" -> AdminApp(authViewModel = authViewModel)
+                    profile?.role == "parent" -> ParentDashboardScreen(authViewModel = authViewModel)
                     else -> TutorApp(authViewModel = authViewModel)
                 }
             }

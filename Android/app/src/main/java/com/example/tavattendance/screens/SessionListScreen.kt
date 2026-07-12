@@ -45,6 +45,11 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage = _snackbarMessage.asStateFlow()
 
+    // Distinguishes "load failed" from "no past sessions yet" so the empty state doesn't
+    // mislead when the fetch actually threw.
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError = _loadError.asStateFlow()
+
     fun clearSnackbar() { _snackbarMessage.value = null }
 
     private var classId: String = ""
@@ -53,7 +58,9 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     fun init(classId: String) {
         this.classId = classId
         viewModelScope.launch {
-            tavClass = AttendanceService.fetchClass(classId)
+            // A fetchClass failure must not abort the coroutine (which would leave the
+            // screen stuck loading); a null class just disables scheduled auto-end.
+            tavClass = runCatching { AttendanceService.fetchClass(classId) }.getOrNull()
             loadSessions()
         }
     }
@@ -61,11 +68,12 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     fun loadSessions() {
         viewModelScope.launch {
             _isLoading.value = true
+            _loadError.value = null
             runCatching { AttendanceService.fetchSessions(classId) }
                 .onSuccess { _sessions.value = it }
                 .onFailure { e ->
                     android.util.Log.e("SessionList", "fetchSessions failed: ${e.message}", e)
-                    _snackbarMessage.value = "Failed to load sessions: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                    _loadError.value = "Failed to load sessions: ${e.localizedMessage ?: e.javaClass.simpleName}"
                 }
             autoEndIfExpired()
             _isLoading.value = false
@@ -194,6 +202,7 @@ fun SessionListScreen(
     val isStarting by vm.isStarting.collectAsState()
     val isEnding by vm.isEnding.collectAsState()
     val snackbarMessage by vm.snackbarMessage.collectAsState()
+    val loadError by vm.loadError.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(snackbarMessage) {
@@ -240,6 +249,14 @@ fun SessionListScreen(
         if (isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
+            }
+        } else if (loadError != null && sessions.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                    Text(loadError!!, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = { vm.loadSessions() }) { Text("Retry") }
+                }
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
