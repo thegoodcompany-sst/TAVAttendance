@@ -1,2 +1,4 @@
-TAVA Attendance — Android v1.0 (build 1)
-Internal test build. Kiosk sign-in, teacher roster, offline sync.
+TAVA Attendance — v1.1 (build 2)
+New (behind feature flags, off by default): parent portal, tutor session notes,
+kiosk QR sign-in, awards. Fixes: session list now shows load errors with retry
+instead of an empty list; release builds signed + minified.

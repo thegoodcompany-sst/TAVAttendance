@@ -13,6 +13,7 @@
 		10BC5C64E7AD432622E17329 /* TAVAttendanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */; };
 		135C5B0F8A62B43146F4B8C3 /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CC1BD809880605E561BC0F /* AppError.swift */; };
 		182629C14ED9DA07F22B0223 /* StudentEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4527A7623645D63DEDC2198 /* StudentEntity.swift */; };
+		1DE1185EA16F13D26B7314FD /* Info 2.plist in Resources */ = {isa = PBXBuildFile; fileRef = 303BA60C8577EF57F6C682C2 /* Info 2.plist */; };
 		2016432196785011366FAB4C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 309D5646A5E18F3D281FEABD /* Assets.xcassets */; };
 		2ADC0F222562BC8827278955 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543023F8203B0054936C6A20 /* NetworkMonitor.swift */; };
 		2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */; };
@@ -80,6 +81,7 @@
 		24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		27779637419CBFBFEA14E32A /* StudentManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentManagementView.swift; sourceTree = "<group>"; };
 		2C36143FEF33A6D9C5370479 /* StudentPrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentPrivacyView.swift; sourceTree = "<group>"; };
+		303BA60C8577EF57F6C682C2 /* Info 2.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Info 2.plist"; sourceTree = "<group>"; };
 		309D5646A5E18F3D281FEABD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		374D50CD7AD19737B0A39486 /* OpenKioskIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenKioskIntent.swift; sourceTree = "<group>"; };
 		385F3C087DCCACB84D814052 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
@@ -122,7 +124,7 @@
 		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_3507D535-9C41-4902-9043-7935F62E0A9B" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -194,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				309D5646A5E18F3D281FEABD /* Assets.xcassets */,
+				303BA60C8577EF57F6C682C2 /* Info 2.plist */,
 				5CAA9B963B7BEE4160883812 /* Info.plist */,
 				96716DCA08CE8D202CCB479C /* Localizable.xcstrings */,
 				232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */,
@@ -323,10 +326,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_44387855-46ED-4F0A-89E0-7E5DBE6DF707" /* iOS */ = {
+		"TEMP_DA2FAE8F-F37E-4F65-89AD-6492273B431C" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */,
+				"TEMP_3507D535-9C41-4902-9043-7935F62E0A9B" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -416,6 +419,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2016432196785011366FAB4C /* Assets.xcassets in Resources */,
+				1DE1185EA16F13D26B7314FD /* Info 2.plist in Resources */,
 				80AE796DDE099DC594738E3D /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -616,7 +620,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_3507D535-9C41-4902-9043-7935F62E0A9B" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -636,7 +640,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_5B0BC3E6-8F58-4F3C-AA77-429BA5635E76" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_3507D535-9C41-4902-9043-7935F62E0A9B" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
