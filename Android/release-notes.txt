@@ -1,0 +1,2 @@
+TAVA Attendance — Android v1.0 (build 1)
+Internal test build. Kiosk sign-in, teacher roster, offline sync.

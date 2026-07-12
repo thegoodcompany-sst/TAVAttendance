@@ -39,8 +39,19 @@ android {
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${secret("SUPABASE_ANON_KEY")}\"")
     }
 
+    signingConfigs {
+        create("release") {
+            // Keystore + passwords live in secrets.properties (gitignored).
+            storeFile = rootProject.file(secret("KEYSTORE_FILE"))
+            storePassword = secret("KEYSTORE_PASSWORD")
+            keyAlias = secret("KEY_ALIAS")
+            keyPassword = secret("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             // DEVOPS-02: shrink + obfuscate release builds. The keep rules in
             // proguard-rules.pro preserve the kotlinx-serialization / Supabase
             // metadata that runtime decoding relies on.

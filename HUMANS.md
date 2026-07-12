@@ -363,3 +363,18 @@ every 7 days — keep AltServer reachable on the same Wi-Fi).
   callable by `authenticated` **by design** — each guards with `is_admin()` (or is required by RLS).
   `rate_limit_events` has RLS on with no policy **by design** (service-role only).
 - The Supabase anon key is public-by-design; rotate it via the dashboard if this repo ever goes public.
+
+## §38 — Firebase App Distribution (Android) — one-time interactive setup
+
+Android release signing + build are wired (2026-07-12). Remaining steps need your Google login:
+
+- [ ] `firebase login` (browser auth to your Google account).
+- [ ] Create/pick a Firebase project, then register an Android app with package
+      `com.example.tavattendance` (Firebase console → Add app → Android). No
+      `google-services.json` needed — App Distribution only uses the App ID.
+- [ ] Copy the **App ID** (Project settings → your apps, form `1:1234:android:abcd`).
+- [ ] From `Android/`, run `./distribute.sh <APP_ID>` — builds the signed release
+      APK and uploads it. Testers in `Android/testers.txt`, notes in `release-notes.txt`.
+- [ ] Keep `Android/release.jks` + the `KEYSTORE_*` values in `secrets.properties`
+      backed up somewhere safe — losing them means you can't ship an update under
+      the same signing identity.
