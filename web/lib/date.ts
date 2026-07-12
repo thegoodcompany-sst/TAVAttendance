@@ -1,14 +1,3 @@
-export function yesterdayInTz(tz = 'Asia/Singapore'): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d)
-}
-
 export function todayInTz(tz = 'Asia/Singapore'): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: tz,

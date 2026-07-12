@@ -41,7 +41,8 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 
 Each platform reads Supabase credentials from a gitignored config file — see
 [CONTRIBUTING.md](CONTRIBUTING.md). Feature flags in the `feature_flags` table gate
-in-progress features (parent portal, push notifications, student photos); they ship OFF.
+in-progress features (parent portal, push notifications, student photos, study space
+tracking, test mode, session notes, QR sign-in, awards); they ship OFF.
 
 ## Project layout
 
@@ -54,14 +55,15 @@ iOS/TAVAttendance/
     Admin/        Class, student, enrolment, tutor-assignment management
     Auth/         LoginView
     Classes/      ClassListView (teacher entry point)
-    Kiosk/        GlobalKioskView (main kiosk)
+    Kiosk/        GlobalKioskView (main kiosk), StudySpaceView, QRScannerView (flag-gated)
     Parent/       ParentDashboardView (flag-gated parent portal)
     Session/      SessionListView, RosterView, StudentProfileView
+    Tutor/        StudentResultsView (tutor results entry)
 
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
 supabase/
-  migrations/     001…022 (see supabase/migrations/README.md for the down-migration convention)
+  migrations/     001…027 (see supabase/migrations/README.md for the down-migration convention)
   functions/      notify-parent edge function (PROD-02, flag-gated)
   seed.sql
 ```
@@ -114,7 +116,7 @@ Tables already exist in the schema (`result_slips`, `messages`). RLS is admin-on
 ### Phase 2 — Analytics Dashboard (admin) — SHIPPED 2026-07-10
 - Web **/analytics**: per-student-per-class attendance % (from `attendance_summary`) + monthly-drop watchlist
 - When the `test_mode` flag is OFF, analytics filters to tuition days (Mon/Thu) so test data stays hidden
-- Still open: awards system (`awards` table exists): perfect attendance, most improved, etc.
+- Awards system — *built, behind the `awards` flag*: web **/awards** computes candidates from `attendance_summary` and records rows in `awards`
 
 ### Phase 3 — Dismissal & Safety (partially live)
 - Kiosk dismissal marking is LIVE — admin dismisses a student (purple card), stored in `dismissals`
@@ -129,7 +131,7 @@ Tables already exist in the schema (`result_slips`, `messages`). RLS is admin-on
 ### Near-term improvements (no new tables needed)
 - **Student photo** on the kiosk card — *built, behind the `student_photos` flag* (`avatar_url` + `student-photos` bucket)
 - **Push notifications** via APNs/FCM — *scaffolded, behind the `push_notifications` flag* (`device_tokens` + `notify-parent` edge function; needs real APNs/FCM keys)
-- **Parent portal** — *built, behind the `parent_portal` flag* (iOS `ParentDashboardView`, web `/parent`)
+- **Parent portal** — *built, behind the `parent_portal` flag* (iOS `ParentDashboardView`, Android `ParentDashboardScreen`, web `/parent`)
 - **Bulk absent marking** — *shipped*: "Mark rest absent" in the roster
-- **Teacher notes per session**: the `sessions.notes` column exists, just needs a UI field in RosterView
-- **QR / NFC sign-in**: student scans a QR on entry instead of tapping their name card
+- **Teacher notes per session** — *built, behind the `session_notes` flag* (iOS/Android roster + web session detail)
+- **QR sign-in** — *built, behind the `qr_sign_in` flag*: kiosk camera scanner reusing the tap-to-sign path; web prints per-student QR codes (NFC still open)

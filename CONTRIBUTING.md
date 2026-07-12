@@ -52,7 +52,8 @@ all-OFF. Flip one (admin only):
 
 ```sql
 UPDATE feature_flags SET enabled = true WHERE key = 'parent_portal';
--- keys: parent_portal, push_notifications, student_photos, study_space_tracking
+-- keys: parent_portal, push_notifications, student_photos, study_space_tracking,
+--       test_mode, session_notes, qr_sign_in, awards
 ```
 
 ---
