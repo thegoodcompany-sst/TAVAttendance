@@ -8,7 +8,7 @@ export default async function PrivacyPage() {
   const notice = await getPrivacyNotice()
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6 px-4 py-10">
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"

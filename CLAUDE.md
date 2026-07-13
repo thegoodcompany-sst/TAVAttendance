@@ -244,6 +244,29 @@ Credentials are no longer hardcoded in source. Each platform loads them at build
 | Android | `Android/secrets.properties` (gitignored) → `buildConfigField` | Copy `secrets.properties.example` to `secrets.properties` and fill in values (or set env vars in CI). `build.gradle.kts` reads it at configure time; accessed via `BuildConfig.SUPABASE_PROJECT_URL` in `SupabaseClient.kt`. |
 | Web | Environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Standard Next.js pattern. Set in Vercel dashboard or `.env.local`. |
 
+## App Store Connect (asc CLI)
+
+App ID **6790169580**, bundle `com.tava.TAVAttendance` (locked — a build has been uploaded;
+renaming would mean a whole new app record). Use the `asc` CLI (authenticated) for everything:
+`asc validate --app 6790169580 --version 1.0` is the canonical readiness report.
+
+- **Min OS**: build + binary are iOS 17.0. "iOS 1" sightings are the version string `1.0`.
+- **Icon**: the binary's icon is fine (verify with `asc builds icons list --app … --latest`);
+  the ASC dashboard shows a placeholder until a build is attached to a version / first submission.
+- **Release staging (2026-07-13)**: version 1.0 has metadata, age rating (`--all-none`),
+  free pricing (base `SGP`), build 3 attached, `--release-type MANUAL`, and review details with
+  demo account `apple-testing@example.com` / `apple-review-tester` — a real **admin** user in prod
+  Supabase (created via the Auth admin API; `handle_new_user` ignores the role metadata and
+  defaults to `parent`, so the profiles row was updated to `admin` manually).
+- **Remaining blockers** are human steps (HUMANS.md §44/§45): availability + App Privacy labels
+  (need `asc web auth login` interactive 2FA or the ASC dashboard), screenshots (no real student
+  names — PDPA), then the unlisted-distribution request form.
+- **Quirks**: `asc pricing schedule create` start date must not be in the future *in Pacific time*;
+  initial availability can only be created via `asc web …` (web session), not the public API.
+- The public privacy policy URL is `https://dash.thegoodcompanysg.dev/privacy` — served by
+  `web/app/privacy/` (outside the auth gate, exempted in `web/proxy.ts`) reading
+  `policy_documents` via the anon-read policy from migration 028. Don't move it behind auth.
+
 ## Error handling improvements
 
 All three platforms now use structured error handling instead of silent catches:

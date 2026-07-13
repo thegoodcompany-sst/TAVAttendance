@@ -45,6 +45,7 @@ export async function proxy(request: NextRequest) {
   const isAuthFlow =
     pathname === '/login' ||
     pathname === '/set-password' ||
+    pathname === '/privacy' ||
     pathname.startsWith('/auth/')
 
   if (!user && !isAuthFlow) {

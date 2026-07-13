@@ -365,6 +365,28 @@ preconditions hold. A flag is global — every platform must handle it first.
       iOS kiosk needs camera permission granted on the iPad on first scan.
 - [ ] `awards` — web-only admin page; flip whenever you want to start recording awards.
 
+### ☐ 44. App Store submission — remaining blockers (2026-07-13)
+Version 1.0 in App Store Connect is staged: metadata, age rating, free pricing (base SGP),
+build 3 attached, release type MANUAL, review demo account
+`apple-testing@example.com` / `apple-review-tester` (admin role, created in prod Supabase).
+`asc validate --app 6790169580 --version 1.0` reports two blockers:
+
+- [ ] **Availability** — run `asc web auth login --apple-id <your Apple ID>` once
+      (interactive 2FA), then Claude can run
+      `asc web apps availability create --app 6790169580 --territory SGP --available-in-new-territories false`.
+      Or set it in ASC → Pricing and Availability.
+- [ ] **Screenshots** — at least one device size (6.9" iPhone + 13" iPad since the app
+      supports iPad). Take on device/simulator signed in as the review account — do NOT
+      screenshot real student names (PDPA).
+- [ ] **App Privacy labels** — dashboard-only: https://appstoreconnect.apple.com/apps/6790169580/appPrivacy
+      (declares: name, contact info; linked to identity; not used for tracking).
+
+### ☐ 45. Request unlisted app distribution from Apple
+After §44 is done and the app is submittable, fill in the request form at
+https://developer.apple.com/support/unlisted-app-distribution/ with app ID 6790169580.
+Apple replies by email; only then submit for review. Release stays MANUAL, so approval
+will not auto-publish.
+
 ---
 
 ## Notes

@@ -87,3 +87,4 @@ applies forward only.
 | 025 | export_include_student_results | subject-access export now includes student_results (PDPA QA find 2026-07-12) | yes   |
 | 026 | feature_flags_notes_qr_awards | session_notes / qr_sign_in / awards flag rows, all OFF | yes   |
 | 027 | awards_unique                 | UNIQUE (student_id, award_type, period) on awards | yes   |
+| 028 | policy_documents_public_read  | anon SELECT on current policy docs (public /privacy page for App Review) | yes   |
