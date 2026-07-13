@@ -56,7 +56,17 @@ export async function proxy(request: NextRequest) {
   // auth-flow routes (set-password, /auth/*) are left alone so invited users
   // can finish setting their password.
   if (user && pathname === '/login') {
-    return NextResponse.redirect(new URL('/', request.url))
+    // getClaims() passes on a locally-valid JWT even after the session was
+    // revoked server-side; the (admin) layout's getUser() then bounces back
+    // to /login → infinite redirect loop (ERR_TOO_MANY_REDIRECTS). /login is
+    // rare, so confirm with the Auth server before leaving it, and clear the
+    // dead session cookies so the login form renders.
+    const { data: verified } = await supabase.auth.getUser()
+    if (verified.user) {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+    await supabase.auth.signOut()
+    return supabaseResponse
   }
 
   return supabaseResponse
