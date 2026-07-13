@@ -213,7 +213,7 @@ now runs; `assembleDebug` still to be run to exercise R8/ProGuard.
 
 ## G. Refactor follow-up (2026-07-03)
 
-### ☐ 29. Decide whether to wire `PdpaPanel` into the web student detail page
+### ☑ 29. Decide whether to wire `PdpaPanel` into the web student detail page — DONE (see §52)
 `web/app/(admin)/students/[id]/pdpa-panel.tsx` (plus `getStudentConsent` and the
 withdraw/anonymise/erase/export actions behind it) has never been imported by
 `students/[id]/page.tsx` — it looks like the panel was built and never wired in.
@@ -410,3 +410,77 @@ Android release signing + build are wired (2026-07-12). Remaining steps need you
 - [ ] Keep `Android/release.jks` + the `KEYSTORE_*` values in `secrets.properties`
       backed up somewhere safe — losing them means you can't ship an update under
       the same signing identity.
+
+---
+
+## K. Pre-go-live PDPA checklist (2026-07-13)
+
+Consolidated from the prod audit (`docs/pdpa/AUDIT_2026-07-13.md`). The audit confirmed the
+technical machinery is in place and matches the docs (consent ledger, export/anonymise/erase RPCs,
+current notice v1.1 live and served at the public privacy page, `attendance_summary` still
+`security_invoker`, daily purge job active, no new security-advisor findings). **These items are
+the human/legal work that must be closed before real student data goes in.** Do them in order.
+
+### ☐ 46. Appoint + register the DPO and put the contact into the notice (blocks §1/§2/§40)
+Designate the DPO and publish a business contact. Then fill the name/contact into
+`docs/pdpa/DATA_PROTECTION_NOTICE.md` **and** re-publish the in-app notice (bump the
+`policy_documents` row per §7). The DPO placeholder currently shows as "[email protected]" on the
+public page — it must be a real contact before distributing anything to parents.
+
+### ☐ 47. Legal/DPO sign-off on the three governance docs (same as §2)
+Approve and remove "DRAFT" from `DATA_PROTECTION_NOTICE.md`, `DATA_RETENTION_SCHEDULE.md`,
+`DATA_BREACH_RESPONSE_PLAN.md`. Confirm the 7-year retention period and the consent-for-minors
+approach with counsel.
+
+### ☐ 48. Print + distribute the parent consent pack
+`docs/pdpa/CONSENT_PACK.md` is the print-ready parent-facing document (one-page plain-English
+summary + a consent form that maps 1:1 to the single `data_collection` consent the system records +
+withdrawal instructions). **Fill in the DPO name/contact first** (item 46), then print and hand one
+to each parent/guardian at enrolment. Keep every signed form on file.
+
+### ☐ 49. Validate the signed consent form wording covers every notice purpose (same as §3)
+Before collecting real signatures, confirm the consent pack's wording covers all six purposes in
+the notice and is legally valid for minors (parent/guardian consent).
+
+### ☐ 50. Attest consent per student before their first class (same as §41)
+Collect the signed form offline, then have an admin attest it in-app — easiest via
+`/students/import` on the dashboard, whose attestation checkbox writes a granted `data_collection`
+`consent_records` row per created student. Audit note: the 8 students currently in prod are test
+data with only 2 consent rows — do not treat these as real, cleared records.
+
+### ☐ 51. Decide on leaked-password protection (conscious call, not a miss)
+Security advisor still flags `auth_leaked_password_protection` as OFF. Per §4 it needs a **paid**
+Supabase plan (HaveIBeenPwned check). Either upgrade the plan and turn it on
+(Auth → Providers → Password), or accept the risk in writing. Not a blocker, but record the
+decision.
+
+### ☑ 52. Confirm PdpaPanel is live on the web student page — DONE (verified 2026-07-13)
+The audit found `PdpaPanel` is wired into `web/app/(admin)/students/[id]/page.tsx` (renders consent
+ledger + withdraw + export + anonymise/erase). This supersedes the open question in §29 — §29 can
+be marked done.
+
+---
+
+## L. TestFlight staff trial (date TBD — waiting on the centre)
+
+The guided test kit is ready in `docs/test-kit/` (STAFF_GUIDE.md + a 15-minute
+TEST_SCRIPT.md). These are the day-of steps only a human can do.
+
+### ☐ 53. On the confirmed trial morning: seed the demo data
+Apply `docs/test-kit/SEED_DEMO_DATA.sql` to prod (5 "Demo …" students + 1 ad-hoc
+demo class with fixed UUIDs), and run `docs/test-kit/TEARDOWN_DEMO_DATA.sql` the
+same day after the trial, before anyone reads reports — demo rows must not skew
+`attendance_summary`. If staff will run Part C (tutor roster) with a tutor login,
+fill a real tutor UUID into the commented `class_tutor_assignments` insert first.
+
+### ☐ 54. Hand the staff their access
+Give the trial staff the admin login for the kiosk iPad and have them set a kiosk
+PIN (the test script walks them through it). Print or send `STAFF_GUIDE.md` and
+`TEST_SCRIPT.md`.
+
+### ☐ 55. (Optional) richer screenshots for the guide
+Only the login screen could be captured safely — the current prod test students
+carry real-looking names (PDPA), and the simulator has no scriptable tap tooling.
+If you want full screenshots in the guide: capture them manually on the iPad after
+§53's demo students are seeded (their names are PDPA-safe), or rename the
+name-like test students in prod first.
