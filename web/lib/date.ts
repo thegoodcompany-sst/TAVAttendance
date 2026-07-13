@@ -37,6 +37,13 @@ export function isTuitionDay(date: string): boolean {
   return dow === 1 || dow === 4
 }
 
+/** Monday of the ISO week containing a YYYY-MM-DD date, as YYYY-MM-DD. */
+export function weekStartOf(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7))
+  return d.toISOString().slice(0, 10)
+}
+
 export function formatScheduleTime(raw: string): string {
   const parts = raw.split(':')
   const h = parseInt(parts[0], 10)

@@ -1,9 +1,10 @@
 import { PageHeader } from '@/components/dashboard/page-header'
 import { KpiTile } from '@/components/dashboard/kpi-tile'
-import { getAttendanceSummary, getMonthlyAttendanceDrops } from '@/lib/queries'
+import { getAttendanceSummary, getMonthlyAttendanceDrops, getWeeklyAttendanceTrend } from '@/lib/queries'
 import {
   ClassAttendanceChart,
   StudentAttendanceTable,
+  WeeklyTrendChart,
   type ClassStat,
   type StudentStat,
 } from './analytics-client'
@@ -15,9 +16,10 @@ function pct(attended: number, total: number): number {
 }
 
 export default async function AnalyticsPage() {
-  const [summary, drops] = await Promise.all([
+  const [summary, drops, weeklyTrend] = await Promise.all([
     getAttendanceSummary(),
     getMonthlyAttendanceDrops(),
+    getWeeklyAttendanceTrend(),
   ])
 
   // attended = present + late + excused, matching the attendance_summary view.
@@ -106,6 +108,16 @@ export default async function AnalyticsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 shadow-card">
+        <h2 className="font-display text-lg font-semibold mb-1">Weekly trend</h2>
+        <p className="text-xs text-muted-foreground mb-4">Centre-wide attendance % per week (Mon–Sun), last 12 weeks</p>
+        {weeklyTrend.length < 2 ? (
+          <p className="text-sm text-muted-foreground text-center py-12">Not enough weeks of data yet.</p>
+        ) : (
+          <WeeklyTrendChart points={weeklyTrend} />
+        )}
       </div>
 
       <div className="bg-white rounded-3xl p-6 shadow-card">

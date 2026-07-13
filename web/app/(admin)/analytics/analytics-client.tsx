@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Cell } from 'recharts'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import {
   ChartContainer,
@@ -65,6 +65,55 @@ export function ClassAttendanceChart({ classes }: { classes: ClassStat[] }) {
           ))}
         </Bar>
       </BarChart>
+    </ChartContainer>
+  )
+}
+
+export type WeeklyTrendPoint = {
+  weekStart: string
+  attendancePct: number
+  totalRecords: number
+}
+
+function weekLabel(weekStart: string): string {
+  return new Date(`${weekStart}T00:00:00Z`).toLocaleDateString('en-SG', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  })
+}
+
+export function WeeklyTrendChart({ points }: { points: WeeklyTrendPoint[] }) {
+  const config = { attendancePct: { label: 'Attendance %' } }
+  const data = points.map(p => ({ ...p, week: weekLabel(p.weekStart) }))
+  return (
+    <ChartContainer config={config} className="h-[220px] w-full">
+      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="3 3" />
+        <XAxis
+          dataKey="week"
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
+        />
+        <YAxis
+          domain={[0, 100]}
+          tickLine={false}
+          axisLine={false}
+          width={36}
+          tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
+          unit="%"
+        />
+        <ChartTooltip content={<ChartTooltipContent />} />
+        <Line
+          type="monotone"
+          dataKey="attendancePct"
+          stroke="var(--color-chart-1)"
+          strokeWidth={2.5}
+          dot={{ r: 3, fill: 'var(--color-chart-1)' }}
+          activeDot={{ r: 5 }}
+        />
+      </LineChart>
     </ChartContainer>
   )
 }

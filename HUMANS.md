@@ -269,6 +269,9 @@ now runs on this machine.
 - `SUPABASE_DB_PASSWORD` — the prod database password
 
 Until these are set, the CI `Drift detector` job logs a warning and skips (CI stays green).
+`SUPABASE_ACCESS_TOKEN` also arms the weekly `Advisor watch` workflow (added 2026-07-13:
+diffs Supabase security/performance advisors against `scripts/advisor-accepted.json` and
+fails on new findings), which is likewise dormant until the secret exists.
 Heads-up: the first `supabase db diff --linked` run may surface residual diff left over from the
 2026-07-09 reconciliation — triage that output before treating the job as a hard gate.
 

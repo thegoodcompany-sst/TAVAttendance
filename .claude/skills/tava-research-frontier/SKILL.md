@@ -32,7 +32,8 @@ frontier below is unblocked.)
 
 ### 2. Analytics dashboard (admin) — SHIPPED 2026-07-10
 Built as `web/app/(admin)/analytics/`: KPI tiles, per-class chart, sortable per-student
-table, and a "biggest drops this month" panel. Remaining candidate: per-week trend lines.
+table, and a "biggest drops this month" panel. Per-week trend line added 2026-07-13
+(`getWeeklyAttendanceTrend` + `WeeklyTrendChart`) — this entry is complete.
 - **Asset:** `attendance_summary` view live and queryable; web already has recharts as a dependency.
 - **First three steps:** (1) design one screen around attendance % per class/student; (2) `getAttendanceSummary()` in `web/lib/queries.ts` (filter `is_study_space = FALSE` — invariant); (3) trend query grouped by week.
 - **Milestone:** an admin answers "which student's attendance dropped this month?" from the dashboard alone, and the numbers match a hand-run SQL check.
@@ -69,8 +70,12 @@ Related: `supabase/tests/sync_attendance_test.sql` (rollback-safe idempotency as
 - **First step trio:** (1) convention — every migration ends with `DO $$ ... ASSERT ... $$` blocks; (2) retrofit 016's gate; (3) document in migrations README.
 - **Milestone:** an intentionally-broken migration aborts itself on a dev branch with a named assertion instead of half-applying.
 
-### 7. Advisor watch
-- (1) MCP `get_advisors` on a schedule → diff against the accepted-WARN list in HUMANS.md Notes → surface only NEW findings. **Milestone:** seeded regression (a view without `security_invoker`) is reported within one cycle.
+### 7. Advisor watch — SHIPPED 2026-07-13
+`scripts/advisor-watch.mjs` + baseline `scripts/advisor-accepted.json` (83 keys seeded from
+prod that day); weekly CI workflow `.github/workflows/advisors.yml`, dormant until the
+HUMANS.md §35 `SUPABASE_ACCESS_TOKEN` secret exists. Milestone verified: a seeded
+`security_definer_view` finding on `attendance_summary` fails the check (exit 1).
+Re-baseline (human-reviewed only): `node scripts/advisor-watch.mjs --accept`.
 
 ## Tier 3 — Product innovation (novel for a tuition centre; validate demand first)
 

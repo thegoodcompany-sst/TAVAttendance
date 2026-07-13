@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { todayInTz, dateOffsetInTz, isTuitionDay } from '@/lib/date'
+import { todayInTz, dateOffsetInTz, isTuitionDay, weekStartOf } from '@/lib/date'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { type AttendanceStatus } from '@/lib/status'
 
@@ -574,4 +574,58 @@ export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]>
       }
     })
     .sort((a, b) => a.delta - b.delta)
+}
+
+export type WeeklyAttendancePoint = {
+  weekStart: string
+  attendancePct: number
+  totalRecords: number
+}
+
+/**
+ * Centre-wide attendance % per ISO week (Monday start) over the last `weeks`
+ * weeks, for the analytics trend line. Same filters as
+ * getMonthlyAttendanceDrops: study space excluded (invariant), inactive
+ * classes/students excluded, non-tuition days hidden unless test_mode is ON.
+ * Weeks with no records are omitted — a % of zero sessions is meaningless.
+ */
+export async function getWeeklyAttendanceTrend(weeks = 12): Promise<WeeklyAttendancePoint[]> {
+  const supabase = await createClient()
+  const today = todayInTz()
+  const startDate = weekStartOf(dateOffsetInTz(-7 * (weeks - 1)))
+
+  const { data, error } = await supabase
+    .from('attendance_records')
+    .select('status, student:students!inner(is_active), session:sessions!inner(session_date, class:classes!inner(is_study_space, is_active))')
+    .eq('session.class.is_study_space', false)
+    .eq('session.class.is_active', true)
+    .eq('student.is_active', true)
+    .gte('session.session_date', startDate)
+    .lte('session.session_date', today)
+
+  if (error) {
+    throw new Error(`getWeeklyAttendanceTrend: ${error.message}`)
+  }
+
+  const testMode = await isFeatureEnabled('test_mode')
+
+  const agg = new Map<string, { total: number; attended: number }>()
+  for (const r of (data ?? []) as any[]) {
+    const date: string = r.session?.session_date ?? ''
+    if (!date) continue
+    if (!testMode && !isTuitionDay(date)) continue
+    const week = weekStartOf(date)
+    const bucket = agg.get(week) ?? { total: 0, attended: 0 }
+    bucket.total++
+    if (r.status === 'present' || r.status === 'late' || r.status === 'excused') bucket.attended++
+    agg.set(week, bucket)
+  }
+
+  return Array.from(agg.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekStart, b]) => ({
+      weekStart,
+      attendancePct: Math.round((b.attended / b.total) * 1000) / 10,
+      totalRecords: b.total,
+    }))
 }
