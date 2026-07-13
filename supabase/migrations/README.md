@@ -88,3 +88,4 @@ applies forward only.
 | 026 | feature_flags_notes_qr_awards | session_notes / qr_sign_in / awards flag rows, all OFF | yes   |
 | 027 | awards_unique                 | UNIQUE (student_id, award_type, period) on awards | yes   |
 | 028 | policy_documents_public_read  | anon SELECT on current policy docs (public /privacy page for App Review) | yes   |
+| 029 | user_delete_set_null          | provenance FKs to auth.users → ON DELETE SET NULL (admin user delete failed with 23503) | yes   |
