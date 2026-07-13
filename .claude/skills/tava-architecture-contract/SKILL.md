@@ -55,7 +55,7 @@ server actions). Don't scatter queries into views/components.
 
 - ~~Prod schema drift~~ — RESOLVED 2026-07-09 (prod = migrations 001–017). The prevention protocol and verification snapshot live in `tava-prod-drift-campaign`.
 - **Kiosk PIN hash in UserDefaults** (Keychain move deferred; `ponytail:` marker in `GlobalKioskView.swift`). Restored/migrated iPads risk lock-out.
-- **Android error handling**: many `runCatching` results uninspected — failures can be silent.
+- ~~Android error handling~~ — RESOLVED 2026-07-13: all screens surface load/write failures via `core/UiError.kt` (retry state + snackbar), mirroring iOS `AppError`.
 - **No automated test suite** (one Android unit test exists, blocked locally by JDK; everything else is manual checklists — see `tava-validation-and-qa`).
 - **Phase 2/3 tables exist but are unimplemented** (`result_slips`, `messages`, `awards`, `dismissals`*, `food_polls`, `food_poll_responses`) — RLS admin-only until built. (*dismissals is partially live via the kiosk.)
 - **Web `PdpaPanel` built but never wired** into the student page (decision pending, HUMANS.md §29).

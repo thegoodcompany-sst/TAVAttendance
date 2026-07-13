@@ -17,6 +17,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.ErrorRetry
+import com.example.tavattendance.core.asUserMessage
+import com.example.tavattendance.core.rememberSnackbarError
 import com.example.tavattendance.data.models.Student
 import com.example.tavattendance.data.models.StudentInsert
 import com.example.tavattendance.data.service.AttendanceService
@@ -31,12 +34,23 @@ class StudentManagementViewModel(app: Application) : AndroidViewModel(app) {
     private val _isLoading = MutableStateFlow(true)
     val isLoading = _isLoading.asStateFlow()
 
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError = _loadError.asStateFlow()
+
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    val snackbarMessage = _snackbarMessage.asStateFlow()
+
+    fun clearSnackbar() { _snackbarMessage.value = null }
+
     init { loadStudents() }
 
     fun loadStudents() {
         viewModelScope.launch {
             _isLoading.value = true
-            runCatching { _students.value = AttendanceService.fetchAllStudents() }
+            _loadError.value = null
+            runCatching { AttendanceService.fetchAllStudents() }
+                .onSuccess { _students.value = it }
+                .onFailure { _loadError.value = it.asUserMessage("Failed to load students") }
             _isLoading.value = false
         }
     }
@@ -54,19 +68,24 @@ class StudentManagementViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             }.onSuccess { loadStudents() }
+                .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't add student") }
         }
     }
 
     // consentAttested is only meaningful when creating; on edit the existing consent stands.
     fun editStudent(id: String, student: StudentInsert) {
         viewModelScope.launch {
-            runCatching { AttendanceService.updateStudent(id, student) }.onSuccess { loadStudents() }
+            runCatching { AttendanceService.updateStudent(id, student) }
+                .onSuccess { loadStudents() }
+                .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't save student") }
         }
     }
 
     fun deactivateStudent(id: String) {
         viewModelScope.launch {
-            runCatching { AttendanceService.deactivateStudent(id) }.onSuccess { loadStudents() }
+            runCatching { AttendanceService.deactivateStudent(id) }
+                .onSuccess { loadStudents() }
+                .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't deactivate student") }
         }
     }
 }
@@ -76,11 +95,16 @@ class StudentManagementViewModel(app: Application) : AndroidViewModel(app) {
 fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
     val students by vm.students.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
+    val loadError by vm.loadError.collectAsState()
+    val snackbarMessage by vm.snackbarMessage.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingStudent by remember { mutableStateOf<Student?>(null) }
     var profileStudent by remember { mutableStateOf<Student?>(null) }
 
+    val snackbarHost = rememberSnackbarError(snackbarMessage) { vm.clearSnackbar() }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 title = { Text("Students") },
@@ -95,6 +119,7 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
                 isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                loadError != null -> ErrorRetry(loadError!!, onRetry = { vm.loadStudents() })
                 students.isEmpty() -> Text(
                     "No active students.",
                     modifier = Modifier.align(Alignment.Center),

@@ -13,6 +13,9 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.ErrorRetry
+import com.example.tavattendance.core.asUserMessage
+import com.example.tavattendance.core.rememberSnackbarError
 import com.example.tavattendance.data.models.Enrollment
 import com.example.tavattendance.data.models.Student
 import com.example.tavattendance.data.service.AttendanceService
@@ -30,6 +33,14 @@ class EnrollmentViewModel(app: Application) : AndroidViewModel(app) {
     private val _isLoading = MutableStateFlow(true)
     val isLoading = _isLoading.asStateFlow()
 
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError = _loadError.asStateFlow()
+
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    val snackbarMessage = _snackbarMessage.asStateFlow()
+
+    fun clearSnackbar() { _snackbarMessage.value = null }
+
     private var classId: String = ""
 
     fun init(classId: String) {
@@ -37,15 +48,18 @@ class EnrollmentViewModel(app: Application) : AndroidViewModel(app) {
         load()
     }
 
-    private fun load() {
+    fun load() {
         viewModelScope.launch {
             _isLoading.value = true
+            _loadError.value = null
             runCatching {
                 val students = AttendanceService.fetchAllStudents()
                 val enrollments = AttendanceService.fetchEnrollments(classId)
+                students to enrollments.map { it.studentId }.toSet()
+            }.onSuccess { (students, ids) ->
                 _allStudents.value = students
-                _enrolledIds.value = enrollments.map { it.studentId }.toSet()
-            }
+                _enrolledIds.value = ids
+            }.onFailure { _loadError.value = it.asUserMessage("Failed to load students") }
             _isLoading.value = false
         }
     }
@@ -55,9 +69,11 @@ class EnrollmentViewModel(app: Application) : AndroidViewModel(app) {
             if (currentlyEnrolled) {
                 runCatching { AttendanceService.unenrollStudent(studentId, classId) }
                     .onSuccess { _enrolledIds.value = _enrolledIds.value - studentId }
+                    .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't unenroll student") }
             } else {
                 runCatching { AttendanceService.enrollStudent(studentId, classId) }
                     .onSuccess { _enrolledIds.value = _enrolledIds.value + studentId }
+                    .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't enroll student") }
             }
         }
     }
@@ -76,8 +92,13 @@ fun EnrollmentScreen(
     val allStudents by vm.allStudents.collectAsState()
     val enrolledIds by vm.enrolledIds.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
+    val loadError by vm.loadError.collectAsState()
+    val snackbarMessage by vm.snackbarMessage.collectAsState()
+
+    val snackbarHost = rememberSnackbarError(snackbarMessage) { vm.clearSnackbar() }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 title = { Text("Students — $className") },
@@ -93,6 +114,8 @@ fun EnrollmentScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        } else if (loadError != null) {
+            ErrorRetry(loadError!!, onRetry = { vm.load() }, modifier = Modifier.padding(padding))
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
                 items(allStudents, key = { it.id }) { student ->

@@ -18,6 +18,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.auth.AuthViewModel
+import com.example.tavattendance.core.ErrorRetry
+import com.example.tavattendance.core.asUserMessage
+import com.example.tavattendance.core.rememberSnackbarError
 import com.example.tavattendance.data.models.ClassInsert
 import com.example.tavattendance.data.models.TAVClass
 import com.example.tavattendance.data.service.AttendanceService
@@ -32,31 +35,48 @@ class ClassListViewModel(app: Application) : AndroidViewModel(app) {
     private val _isLoading = MutableStateFlow(true)
     val isLoading = _isLoading.asStateFlow()
 
+    private val _loadError = MutableStateFlow<String?>(null)
+    val loadError = _loadError.asStateFlow()
+
+    private val _snackbarMessage = MutableStateFlow<String?>(null)
+    val snackbarMessage = _snackbarMessage.asStateFlow()
+
+    fun clearSnackbar() { _snackbarMessage.value = null }
+
     init { loadClasses() }
 
     fun loadClasses() {
         viewModelScope.launch {
             _isLoading.value = true
-            runCatching { _classes.value = AttendanceService.fetchMyClasses() }
+            _loadError.value = null
+            runCatching { AttendanceService.fetchMyClasses() }
+                .onSuccess { _classes.value = it }
+                .onFailure { _loadError.value = it.asUserMessage("Failed to load classes") }
             _isLoading.value = false
         }
     }
 
     fun addClass(cls: ClassInsert) {
         viewModelScope.launch {
-            runCatching { AttendanceService.createClass(cls) }.onSuccess { loadClasses() }
+            runCatching { AttendanceService.createClass(cls) }
+                .onSuccess { loadClasses() }
+                .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't create class") }
         }
     }
 
     fun editClass(id: String, cls: ClassInsert) {
         viewModelScope.launch {
-            runCatching { AttendanceService.updateClass(id, cls) }.onSuccess { loadClasses() }
+            runCatching { AttendanceService.updateClass(id, cls) }
+                .onSuccess { loadClasses() }
+                .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't save class") }
         }
     }
 
     fun deleteClass(id: String) {
         viewModelScope.launch {
-            runCatching { AttendanceService.deleteClass(id) }.onSuccess { loadClasses() }
+            runCatching { AttendanceService.deleteClass(id) }
+                .onSuccess { loadClasses() }
+                .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't deactivate class") }
         }
     }
 }
@@ -72,10 +92,15 @@ fun ClassListScreen(
 ) {
     val classes by vm.classes.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
+    val loadError by vm.loadError.collectAsState()
+    val snackbarMessage by vm.snackbarMessage.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingClass by remember { mutableStateOf<TAVClass?>(null) }
 
+    val snackbarHost = rememberSnackbarError(snackbarMessage) { vm.clearSnackbar() }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
                 title = { Text("Classes") },
@@ -93,6 +118,7 @@ fun ClassListScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
                 isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                loadError != null -> ErrorRetry(loadError!!, onRetry = { vm.loadClasses() })
                 classes.isEmpty() -> Text(
                     text = "No active classes.",
                     modifier = Modifier.align(Alignment.Center),
