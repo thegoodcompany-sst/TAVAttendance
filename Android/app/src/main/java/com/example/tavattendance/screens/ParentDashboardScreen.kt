@@ -16,7 +16,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.tavattendance.auth.AuthViewModel
+import com.example.tavattendance.data.models.Dismissal
 import com.example.tavattendance.data.models.Student
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
@@ -27,6 +30,10 @@ import kotlinx.coroutines.launch
 class ParentDashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val _children = MutableStateFlow<List<Student>>(emptyList())
     val children = _children.asStateFlow()
+
+    // Today's dismissals still awaiting a safely-home confirmation (migration 030).
+    private val _pendingDismissals = MutableStateFlow<List<Dismissal>>(emptyList())
+    val pendingDismissals = _pendingDismissals.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading = _isLoading.asStateFlow()
@@ -43,7 +50,20 @@ class ParentDashboardViewModel(app: Application) : AndroidViewModel(app) {
             // RLS scopes students to this parent's own children (002_rls.sql).
             runCatching { _children.value = AttendanceService.fetchAllStudents() }
                 .onFailure { _loadFailed.value = true }
+            // Safely-home is best-effort decoration; a failure here must not
+            // hide the children list.
+            runCatching {
+                _pendingDismissals.value =
+                    AttendanceService.awaitingSafelyHome(AttendanceService.fetchTodayDismissals())
+            }
             _isLoading.value = false
+        }
+    }
+
+    fun markSafelyHome(dismissalId: String) {
+        viewModelScope.launch {
+            runCatching { AttendanceService.markSafelyHome(dismissalId) }
+                .onSuccess { _pendingDismissals.value = _pendingDismissals.value.filter { it.id != dismissalId } }
         }
     }
 }
@@ -56,15 +76,27 @@ fun ParentDashboardScreen(
 ) {
     val flags by FeatureFlags.flags.collectAsState()
     val portalEnabled = flags[FeatureFlags.PARENT_PORTAL] == true
+    val pushEnabled = flags[FeatureFlags.PUSH_NOTIFICATIONS] == true
 
     val children by vm.children.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val loadFailed by vm.loadFailed.collectAsState()
+    val pendingDismissals by vm.pendingDismissals.collectAsState()
 
     var selectedChild by remember { mutableStateOf<Student?>(null) }
 
     // Only hit the network when the portal is live.
     LaunchedEffect(portalEnabled) { if (portalEnabled) vm.loadChildren() }
+
+    // Dismissal pushes (flag push_notifications) need POST_NOTIFICATIONS on API 33+.
+    val notifPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {}
+    LaunchedEffect(pushEnabled) {
+        if (pushEnabled && android.os.Build.VERSION.SDK_INT >= 33) {
+            notifPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -98,6 +130,14 @@ fun ParentDashboardScreen(
                     body = "No students are linked to your account yet. Please contact the centre."
                 )
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(pendingDismissals, key = { "dismissal-${it.id}" }) { dismissal ->
+                        SafelyHomeCard(
+                            dismissal = dismissal,
+                            childName = children.firstOrNull { it.id == dismissal.studentId }?.fullName
+                                ?: "Your child",
+                            onConfirm = { vm.markSafelyHome(dismissal.id) }
+                        )
+                    }
                     items(children, key = { it.id }) { child ->
                         ListItem(
                             headlineContent = { Text(child.fullName) },
@@ -120,6 +160,31 @@ fun ParentDashboardScreen(
             fullName = child.fullName,
             onDismiss = { selectedChild = null }
         )
+    }
+}
+
+@Composable
+private fun SafelyHomeCard(dismissal: Dismissal, childName: String, onConfirm: () -> Unit) {
+    val time = dismissal.dismissedAt?.let {
+        runCatching {
+            java.time.OffsetDateTime.parse(it)
+                .atZoneSameInstant(java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("h:mm a"))
+        }.getOrNull()
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                if (time != null) "$childName was dismissed at $time."
+                else "$childName was dismissed today.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onConfirm) { Text("Mark safely home") }
+        }
     }
 }
 

@@ -484,3 +484,23 @@ carry real-looking names (PDPA), and the simulator has no scriptable tap tooling
 If you want full screenshots in the guide: capture them manually on the iPad after
 §53's demo students are seeded (their names are PDPA-safe), or rename the
 name-like test students in prod first.
+
+---
+
+## M. Push notifications: FCM + safely-home loop (2026-07-13, shipped dark)
+
+Migration 030 is applied to prod (dismissal trigger + `mark_safely_home` RPC, both inert);
+the `notify-parent` edge function v2 routes iOS→APNs / Android→FCM. Remaining human steps:
+
+### ☐ 56. Create the FCM service-account secret
+Firebase console → project settings → Service accounts → **Generate new private key**, then:
+```sh
+supabase secrets set FCM_SERVICE_ACCOUNT="$(cat key.json)" --project-ref zgikcbsxzjgbigywxbbj
+```
+Never commit the key. (APNs secrets remain the separate, still-pending §17 items.)
+
+### ☐ 57. Arm the trigger + flip the flag (same Vault step as §17)
+Both 021 and 030 triggers stay no-ops until the Vault secret
+`notify_parent_service_key` exists (§17 step 2). Then flip `push_notifications` —
+but only once the iOS side can register tokens too (a flag is global). On first
+Android run, the parent must accept the notification permission prompt (Android 13+).

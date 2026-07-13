@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // Reads app/google-services.json (gitignored — fetch command in PORTING_NOTES.md).
+    alias(libs.plugins.google.services)
 }
 
 // Supabase credentials live in Andriod/secrets.properties (gitignored).
@@ -104,6 +106,10 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.mlkit.barcode.scanning)
+
+    // Parent push notifications (flag push_notifications): FCM token + dismissal pushes.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
 }

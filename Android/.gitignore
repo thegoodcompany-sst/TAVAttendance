@@ -18,6 +18,10 @@
 # Secrets
 app/src/main/java/com/example/tavattendance/core/SupabaseConfig.kt
 /secrets.properties
+# Firebase client config — fetched, not committed (see PORTING_NOTES.md):
+#   firebase apps:sdkconfig ANDROID 1:879371219921:android:dc7a8dbf4d8df141bf66f0 \
+#     --project tavattendance-5a80e -o app/google-services.json
+app/google-services.json
 
 # Release signing keystore
 /release.jks

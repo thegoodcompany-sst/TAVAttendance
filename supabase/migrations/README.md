@@ -89,3 +89,4 @@ applies forward only.
 | 027 | awards_unique                 | UNIQUE (student_id, award_type, period) on awards | yes   |
 | 028 | policy_documents_public_read  | anon SELECT on current policy docs (public /privacy page for App Review) | yes   |
 | 029 | user_delete_set_null          | provenance FKs to auth.users → ON DELETE SET NULL (admin user delete failed with 23503) | yes   |
+| 030 | safely_home                   | mark_safely_home parent RPC (once-only) + dismissal-insert notify trigger (inert like 021) | yes   |

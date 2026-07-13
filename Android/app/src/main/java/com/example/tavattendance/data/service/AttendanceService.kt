@@ -664,6 +664,27 @@ object AttendanceService {
         ) { onConflict = "token" }
     }
 
+    // ---- Safely home (migration 030, flag: push_notifications) ----
+
+    /** Today's dismissals visible to the caller (RLS: parents see own children only). */
+    suspend fun fetchTodayDismissals(): List<Dismissal> {
+        val todayStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + "T00:00:00"
+        return db.from("dismissals").select {
+            filter { gte("dismissed_at", todayStart) }
+            order("dismissed_at", Order.DESCENDING)
+        }.decodeList<Dismissal>()
+    }
+
+    /** Dismissals still awaiting a parent's safely-home confirmation. */
+    fun awaitingSafelyHome(dismissals: List<Dismissal>): List<Dismissal> =
+        dismissals.filter { it.safelyHomeAt == null && it.dismissedAt != null }
+
+    /** Parent-only, once-only: sets safely_home_at on the child's dismissal row.
+     * Server enforces ownership and immutability (mark_safely_home, migration 030). */
+    suspend fun markSafelyHome(dismissalId: String) {
+        db.postgrest.rpc("mark_safely_home", buildJsonObject { put("p_dismissal_id", dismissalId) })
+    }
+
     @Serializable
     private data class SyncRecord(
         @SerialName("session_id") val sessionId: String,

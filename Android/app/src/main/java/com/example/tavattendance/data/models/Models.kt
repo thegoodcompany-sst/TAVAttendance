@@ -254,3 +254,15 @@ data class AttendanceHistoryRecord(
         data class ClassSummary(val name: String)
     }
 }
+
+/** A dismissal event (Phase 3 `dismissals` table). Parents read their own child's
+ * rows (RLS, migration 011) and confirm safely-home via the mark_safely_home RPC
+ * (migration 030). */
+@Serializable
+data class Dismissal(
+    val id: String,
+    @SerialName("session_id") val sessionId: String? = null,
+    @SerialName("student_id") val studentId: String? = null,
+    @SerialName("dismissed_at") val dismissedAt: String? = null,
+    @SerialName("safely_home_at") val safelyHomeAt: String? = null
+)

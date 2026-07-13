@@ -45,7 +45,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         val userId = status.session.user?.id
                         pendingUserId = userId
                         if (userId != null) fetchProfile(userId)
-                        viewModelScope.launch { runCatching { FeatureFlags.load() } }
+                        viewModelScope.launch {
+                            runCatching { FeatureFlags.load() }
+                            // No-op unless the push_notifications flag is ON.
+                            com.example.tavattendance.push.PushTokenRegistrar.registerIfEnabled()
+                        }
                         _isLoading.value = false
                     }
                     is SessionStatus.NotAuthenticated -> {
