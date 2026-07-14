@@ -29,7 +29,7 @@ targets:
       properties:
         CFBundleDisplayName: TAVAttendance
         CFBundleShortVersionString: "1.1"
-        CFBundleVersion: "3"
+        CFBundleVersion: "4"
         # Supabase credentials: values live in the gitignored Config.xcconfig;
         # Info.plist only references the build settings (so secrets stay out of source).
         # Read at runtime via Bundle.main.object(forInfoDictionaryKey:) in SupabaseManager.
