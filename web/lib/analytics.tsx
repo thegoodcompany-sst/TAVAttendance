@@ -102,8 +102,6 @@ export function AnalyticsCapture({
       if (!element) return
 
       let label = element.dataset.analytics
-        ?? element.getAttribute('aria-label')
-        ?? element.getAttribute('title')
       if (!label && element instanceof HTMLAnchorElement) {
         label = `route:${normalisePath(new URL(element.href, location.href).pathname)}`
       }
