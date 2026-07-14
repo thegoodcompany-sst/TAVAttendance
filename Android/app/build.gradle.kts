@@ -17,12 +17,19 @@ val secrets = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-fun secret(name: String): String =
-    secrets.getProperty(name)
-        ?: System.getenv(name)
-        ?: throw GradleException(
-            "Missing $name — copy secrets.properties.example to secrets.properties and fill it in."
-        )
+fun secretOrNull(name: String): String? = secrets.getProperty(name) ?: System.getenv(name)
+
+fun secret(name: String): String = secretOrNull(name)
+    ?: throw GradleException(
+        "Missing $name — copy secrets.properties.example to secrets.properties and fill it in."
+    )
+
+val releaseSecretNames = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+val releaseSecrets = releaseSecretNames.associateWith(::secretOrNull)
+val releaseRequested = gradle.startParameter.taskNames.any { it.contains("release", ignoreCase = true) }
+if (releaseRequested && releaseSecrets.values.any { it == null }) {
+    throw GradleException("Release signing requires ${releaseSecretNames.filter { releaseSecrets[it] == null }.joinToString()}.")
+}
 
 android {
     namespace = "com.example.tavattendance"
@@ -42,18 +49,19 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            // Keystore + passwords live in secrets.properties (gitignored).
-            storeFile = rootProject.file(secret("KEYSTORE_FILE"))
-            storePassword = secret("KEYSTORE_PASSWORD")
-            keyAlias = secret("KEY_ALIAS")
-            keyPassword = secret("KEY_PASSWORD")
+        if (releaseSecrets.values.all { it != null }) {
+            create("release") {
+                storeFile = rootProject.file(releaseSecrets.getValue("KEYSTORE_FILE")!!)
+                storePassword = releaseSecrets.getValue("KEYSTORE_PASSWORD")
+                keyAlias = releaseSecrets.getValue("KEY_ALIAS")
+                keyPassword = releaseSecrets.getValue("KEY_PASSWORD")
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             // DEVOPS-02: shrink + obfuscate release builds. The keep rules in
             // proguard-rules.pro preserve the kotlinx-serialization / Supabase
             // metadata that runtime decoding relies on.
