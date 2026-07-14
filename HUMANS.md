@@ -502,5 +502,8 @@ Never commit the key. (APNs secrets remain the separate, still-pending §17 item
 ### ☐ 57. Arm the trigger + flip the flag (same Vault step as §17)
 Both 021 and 030 triggers stay no-ops until the Vault secret
 `notify_parent_service_key` exists (§17 step 2). Then flip `push_notifications` —
-but only once the iOS side can register tokens too (a flag is global). On first
-Android run, the parent must accept the notification permission prompt (Android 13+).
+but only after the iOS `aps-environment` entitlement is restored (§38 recipe in
+project.yml; needs a paid Apple team) — the iOS client code (token registration +
+safely-home card) is already in place. iOS loads flags once at sign-in: relaunch
+after flipping. On first Android run, the parent must accept the notification
+permission prompt (Android 13+).

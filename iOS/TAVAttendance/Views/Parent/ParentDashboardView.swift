@@ -16,6 +16,8 @@ struct ParentDashboardView: View {
     @State private var isLoading = true
     @State private var loadFailed = false
     @State private var selectedChild: Student?
+    @State private var pendingDismissals: [Dismissal] = []
+    @State private var error: AppError?
 
     var body: some View {
         NavigationStack {
@@ -41,6 +43,7 @@ struct ParentDashboardView: View {
                 StudentProfileView(studentId: child.id, fullName: child.fullName)
                     .environmentObject(authManager)
             }
+            .errorAlert(error: $error)
         }
         .task {
             // Only hit the network if the portal is live.
@@ -77,21 +80,52 @@ struct ParentDashboardView: View {
                     description: Text("No students are linked to your account yet. Please contact the centre.")
                 )
             } else {
-                List(children) { child in
-                    Button {
-                        selectedChild = child
-                    } label: {
-                        HStack {
-                            Text(child.fullName)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
+                List {
+                    ForEach(pendingDismissals) { dismissal in
+                        safelyHomeCard(dismissal)
                     }
-                    .tint(.primary)
+                    ForEach(children) { child in
+                        Button {
+                            selectedChild = child
+                        } label: {
+                            HStack {
+                                Text(child.fullName)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .tint(.primary)
+                    }
                 }
             }
+        }
+    }
+
+    private func safelyHomeCard(_ dismissal: Dismissal) -> some View {
+        let name = children.first { $0.id == dismissal.studentId }?.fullName ?? String(localized: "Your child")
+        return VStack(alignment: .leading, spacing: 12) {
+            if let at = dismissal.dismissedAt {
+                Text("\(name) was dismissed at \(at.formatted(date: .omitted, time: .shortened)).")
+            } else {
+                Text("\(name) was dismissed today.")
+            }
+            Button("Mark Safely Home") {
+                Task { await markSafelyHome(dismissal) }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.vertical, 4)
+        .listRowBackground(Color.accentColor.opacity(0.1))
+    }
+
+    private func markSafelyHome(_ dismissal: Dismissal) async {
+        do {
+            try await AttendanceService.shared.markSafelyHome(dismissalId: dismissal.id)
+            pendingDismissals.removeAll { $0.id == dismissal.id }
+        } catch {
+            self.error = AppError("Couldn't confirm safely home. Please try again.", underlyingError: error)
         }
     }
 
@@ -103,6 +137,9 @@ struct ParentDashboardView: View {
         } catch {
             loadFailed = true
         }
+        // Safely-home is best-effort decoration; a failure here must not hide the children list.
+        pendingDismissals = AttendanceService.awaitingSafelyHome(
+            (try? await AttendanceService.shared.fetchTodayDismissals()) ?? [])
         isLoading = false
     }
 }

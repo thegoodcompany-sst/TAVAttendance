@@ -273,13 +273,15 @@ struct Dismissal: Codable, Identifiable {
     let studentId: UUID
     let dismissedAt: Date?
     let dismissedBy: UUID?
+    let safelyHomeAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
-        case sessionId   = "session_id"
-        case studentId   = "student_id"
-        case dismissedAt = "dismissed_at"
-        case dismissedBy = "dismissed_by"
+        case sessionId    = "session_id"
+        case studentId    = "student_id"
+        case dismissedAt  = "dismissed_at"
+        case dismissedBy  = "dismissed_by"
+        case safelyHomeAt = "safely_home_at"
     }
 }
 

@@ -122,7 +122,7 @@
 		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_C34118F8-87AE-434E-BEC4-05D0CD6A1879" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -323,10 +323,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_40BFB871-1B63-4599-AF80-E2D14681BA0B" /* iOS */ = {
+		"TEMP_AECF355A-0B9D-4196-B6DE-4A81B1774ADA" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_C34118F8-87AE-434E-BEC4-05D0CD6A1879" /* Config.xcconfig */,
+				"TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -616,7 +616,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_C34118F8-87AE-434E-BEC4-05D0CD6A1879" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -636,7 +636,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_C34118F8-87AE-434E-BEC4-05D0CD6A1879" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

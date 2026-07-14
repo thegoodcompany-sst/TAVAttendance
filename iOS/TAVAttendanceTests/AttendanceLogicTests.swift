@@ -139,4 +139,19 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertNil(AttendanceService.studentId(fromQRPayload: "not-a-uuid"))
         XCTAssertNil(AttendanceService.studentId(fromQRPayload: "https://example.com/\(id.uuidString)"))
     }
+
+    // MARK: safely-home filter (migration 030, flag: push_notifications)
+
+    private func dismissal(dismissedAt: Date?, safelyHomeAt: Date?) -> Dismissal {
+        Dismissal(id: UUID(), sessionId: UUID(), studentId: UUID(),
+                  dismissedAt: dismissedAt, dismissedBy: nil, safelyHomeAt: safelyHomeAt)
+    }
+
+    func testAwaitingSafelyHome() {
+        let confirmed = dismissal(dismissedAt: at(9, 0), safelyHomeAt: at(9, 30))
+        let awaiting = dismissal(dismissedAt: at(9, 0), safelyHomeAt: nil)
+        let noTimestamp = dismissal(dismissedAt: nil, safelyHomeAt: nil)
+        let result = AttendanceService.awaitingSafelyHome([confirmed, awaiting, noTimestamp])
+        XCTAssertEqual(result.map(\.id), [awaiting.id])
+    }
 }

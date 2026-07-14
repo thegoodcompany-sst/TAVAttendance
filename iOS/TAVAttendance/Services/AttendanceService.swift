@@ -524,6 +524,29 @@ final class AttendanceService {
         return Dictionary(uniqueKeysWithValues: rows.map { ($0.studentId, $0) })
     }
 
+    // MARK: - Safely home (migration 030, flag: push_notifications)
+
+    /// Today's dismissals visible to the caller (RLS: parents see own children only).
+    func fetchTodayDismissals() async throws -> [Dismissal] {
+        let todayStart = Self.ymdFormatter.string(from: Date()) + "T00:00:00"
+        return try await db.from("dismissals")
+            .select()
+            .gte("dismissed_at", value: todayStart)
+            .order("dismissed_at", ascending: false)
+            .execute().value
+    }
+
+    /// Dismissals still awaiting a parent's safely-home confirmation.
+    static func awaitingSafelyHome(_ dismissals: [Dismissal]) -> [Dismissal] {
+        dismissals.filter { $0.safelyHomeAt == nil && $0.dismissedAt != nil }
+    }
+
+    /// Parent-only, once-only: sets safely_home_at on the child's dismissal row.
+    /// Server enforces ownership and immutability (mark_safely_home, migration 030).
+    func markSafelyHome(dismissalId: UUID) async throws {
+        try await db.rpc("mark_safely_home", params: ["p_dismissal_id": dismissalId.uuidString]).execute()
+    }
+
     // MARK: - Punctuality (#8)
 
     func fetchClassPunctuality(classId: UUID, from: Date, to: Date) async throws -> PunctualitySummary {
