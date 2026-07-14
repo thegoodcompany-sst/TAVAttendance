@@ -120,6 +120,7 @@ struct SessionListView: View {
             }
         }
         .navigationTitle(tavClass.name)
+        .analyticsScreen("session_list")
         .navigationBarTitleDisplayMode(.large)
         .navigationDestination(isPresented: Binding(
             get: { route != nil },
@@ -380,6 +381,7 @@ struct SessionListView: View {
     private func startTodayClass() async {
         isStartingClass = true
         defer { isStartingClass = false }
+        Analytics.shared.track(.tap, name: "start_session", properties: ["screen": .string("session_list")])
         do {
             let session = try await AttendanceService.shared.getOrCreateSession(
                 classId: tavClass.id, date: todayDateString())
@@ -412,6 +414,7 @@ struct SessionListView: View {
     private func endTodayClass(session: Session) async {
         isEndingClass = true
         defer { isEndingClass = false }
+        Analytics.shared.track(.tap, name: "end_session", properties: ["screen": .string("session_list")])
         do {
             try await AttendanceService.shared.endSession(id: session.id)
             sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)

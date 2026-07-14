@@ -137,6 +137,7 @@ struct RosterView: View {
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 try await AttendanceService.shared.updateSessionNotes(id: session.id, notes: trimmed.isEmpty ? nil : trimmed)
                 sessionNotes = trimmed
+                Analytics.shared.track(.tap, name: "save_note", properties: ["screen": .string("roster")])
             }
         }
         .task {
@@ -147,6 +148,7 @@ struct RosterView: View {
                 Task { await syncPending() }
             }
         }
+        .analyticsScreen("roster")
     }
 
     // MARK: - Roster List
@@ -287,7 +289,9 @@ struct RosterView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+            roster = try await Analytics.shared.time("roster_load", extra: ["screen": .string("roster")]) {
+                try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+            }
         } catch {
             // Leave roster empty; user sees ContentUnavailableView
         }
@@ -362,11 +366,20 @@ struct RosterView: View {
         guard !unsynced.isEmpty else { return }
         isSaving = true
         defer { isSaving = false }
+        let started = Date()
+        let pendingBefore = unsynced.count
         do {
             // The RPC succeeded — every record is terminal (synced, skipped because a
             // newer server row won, or blocked because the session already ended). Clear
             // them all; leaving skipped/blocked rows in the store re-sends them forever.
-            _ = try await AttendanceService.shared.syncPending(unsynced)
+            let result = try await AttendanceService.shared.syncPending(unsynced)
+            Analytics.shared.track(.ops, name: "sync_result", properties: [
+                "synced": .integer(result.synced),
+                "skipped": .integer(result.skipped),
+                "blocked_ended_session": .integer(result.blockedEndedSession),
+                "pending_before": .integer(pendingBefore),
+                "duration_ms": Analytics.ms(since: started),
+            ])
             pendingStore.markSynced(clientMutationIds: Set(unsynced.map(\.clientMutationId)))
             roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             for record in unsynced {
@@ -376,6 +389,10 @@ struct RosterView: View {
         } catch {
             // Only reached on a transport failure (the RPC never returned). Keep the
             // records and retry on next reconnect.
+            Analytics.shared.track(.ops, name: "sync_failure", properties: [
+                "message": .string("\(error)"),
+                "pending_count": .integer(pendingBefore),
+            ])
         }
     }
 

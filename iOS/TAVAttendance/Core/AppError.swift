@@ -9,6 +9,12 @@ struct AppError: Identifiable, LocalizedError {
     init(_ message: String, underlyingError: Error? = nil) {
         self.message = message
         self.underlyingError = underlyingError
+        // Single choke point for handled-error analytics. AppError is the app's
+        // error funnel, so every constructed error is logged once (fail-silent,
+        // flag-gated). No student names — only the operation message.
+        Task { @MainActor in
+            Analytics.shared.track(.error, name: message)
+        }
     }
 
     var errorDescription: String? { message }

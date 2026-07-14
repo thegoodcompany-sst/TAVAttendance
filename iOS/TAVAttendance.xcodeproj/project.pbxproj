@@ -25,6 +25,7 @@
 		48D38D79344B863C708969C2 /* PrivacyNoticeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01FF2DBA483058541024A0D /* PrivacyNoticeView.swift */; };
 		4A5DA3CF97AEE047612EA4B8 /* StudentManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27779637419CBFBFEA14E32A /* StudentManagementView.swift */; };
 		4B671F07BF5257F4D8698371 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8511E3D4328E027CE05E01E8 /* Supabase */; };
+		57360712B2FCAB4474584EFF /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5EC050D1FB11BF60A79BDD /* Analytics.swift */; };
 		5F60A9C0CC3678AEC4069EEA /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A13F07251D1EC6DF75C6E76 /* SessionDetailView.swift */; };
 		61A15FE98F1DE3DA980A0221 /* TAVAShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626807EE6AA6433E29B7EEF5 /* TAVAShortcuts.swift */; };
 		6E41513F3BD4A9FB3BBC2722 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */; };
@@ -56,6 +57,7 @@
 		D84A9BB30A1CE2302FA69420 /* EnrollmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */; };
 		EDC6B0ACAB97F385C9998282 /* CorrectionRequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30A5704E0BE4968BD6157D7 /* CorrectionRequestsView.swift */; };
 		F7217E3079E64AAB8DDECED7 /* StudentFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC7DC93588149D2B2912D0C /* StudentFormView.swift */; };
+		FD3419A9374A8E606D4F799C /* AnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6DEBD5025C3EA87CF049788 /* AnalyticsTests.swift */; };
 		FE79888841DAF0F65F1CEEED /* StudentPrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C36143FEF33A6D9C5370479 /* StudentPrivacyView.swift */; };
 /* End PBXBuildFile section */
 
@@ -112,6 +114,7 @@
 		D4527A7623645D63DEDC2198 /* StudentEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentEntity.swift; sourceTree = "<group>"; };
 		D56A28E4752FD6F6FA99B737 /* AttendanceStatusAppEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceStatusAppEnum.swift; sourceTree = "<group>"; };
 		D673875F41EE45E065B47053 /* StudentImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentImportView.swift; sourceTree = "<group>"; };
+		D6DEBD5025C3EA87CF049788 /* AnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTests.swift; sourceTree = "<group>"; };
 		E118AE1693C05946C87E9552 /* IntentSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentSupport.swift; sourceTree = "<group>"; };
 		E9545022B35ECF9F7DF0E84D /* CheckStudentStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckStudentStatusIntent.swift; sourceTree = "<group>"; };
 		EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorAssignmentView.swift; sourceTree = "<group>"; };
@@ -122,7 +125,8 @@
 		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
-		"TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		FF5EC050D1FB11BF60A79BDD /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
+		"TEMP_11167080-3BB3-4969-BDD2-574CD2805643" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -217,6 +221,7 @@
 		82CD083980EE2D8C19CDD4B0 /* TAVAttendanceTests */ = {
 			isa = PBXGroup;
 			children = (
+				D6DEBD5025C3EA87CF049788 /* AnalyticsTests.swift */,
 				87AC7E67C7091F97B5D7E4FF /* AttendanceLogicTests.swift */,
 			);
 			path = TAVAttendanceTests;
@@ -225,6 +230,7 @@
 		9B2124344B144DC479818A99 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				FF5EC050D1FB11BF60A79BDD /* Analytics.swift */,
 				64ADFF510704F740AA4F9A37 /* AttendanceService.swift */,
 				42E65CF322BFF554E531CA30 /* FeatureFlags.swift */,
 			);
@@ -323,10 +329,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_AECF355A-0B9D-4196-B6DE-4A81B1774ADA" /* iOS */ = {
+		"TEMP_D39E3922-39FA-4071-BB68-6FCC4B7A32BA" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */,
+				"TEMP_11167080-3BB3-4969-BDD2-574CD2805643" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -427,6 +433,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FD3419A9374A8E606D4F799C /* AnalyticsTests.swift in Sources */,
 				01664D28876316AD8B14BEA1 /* AttendanceLogicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -435,6 +442,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				57360712B2FCAB4474584EFF /* Analytics.swift in Sources */,
 				135C5B0F8A62B43146F4B8C3 /* AppError.swift in Sources */,
 				45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */,
 				7A8E8AB674B8766A7D6C91C6 /* AttendanceStatusAppEnum.swift in Sources */,
@@ -616,7 +624,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_11167080-3BB3-4969-BDD2-574CD2805643" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -636,7 +644,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_ED3CBB89-D04C-4731-85F3-5B8C91E7E4C8" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_11167080-3BB3-4969-BDD2-574CD2805643" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

@@ -67,6 +67,7 @@ struct CorrectionRequestsView: View {
                 }
             }
             .navigationTitle("Correction Requests")
+            .analyticsScreen("corrections")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

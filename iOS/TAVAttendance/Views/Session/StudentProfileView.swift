@@ -115,6 +115,7 @@ struct StudentProfileView: View {
                 }
             }
             .navigationTitle(fullName)
+            .analyticsScreen("student_profile")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

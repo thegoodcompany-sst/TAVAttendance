@@ -72,16 +72,22 @@ struct StudySpaceView: View {
             }
             .task { await load() }
             .errorAlert(error: $error)
+            .analyticsScreen("study_space")
         }
     }
 
     private func load() async {
         isLoading = true
         defer { isLoading = false }
+        let started = Date()
         do {
             let result = try await AttendanceService.shared.loadStudySpace()
             session = result.session
             roster = result.roster
+            Analytics.shared.track(.ops, name: "study_space_load", properties: [
+                "roster_count": .integer(roster.count),
+                "duration_ms": Analytics.ms(since: started),
+            ])
         } catch {
             self.error = AppError("Couldn't load the Study Space roster.", underlyingError: error)
         }

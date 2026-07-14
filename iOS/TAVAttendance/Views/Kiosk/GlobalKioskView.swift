@@ -136,7 +136,10 @@ struct GlobalKioskView: View {
                     showPINResetAlert = true
                 }) { success in
                     withAnimation(.easeInOut(duration: 0.2)) { showPINEntry = false }
-                    if success { isLocked = false; isAdminUnlocked = true }
+                    if success {
+                        isLocked = false; isAdminUnlocked = true
+                        Analytics.shared.track(.ops, name: "admin_unlock")
+                    }
                 }
                 .zIndex(10)
                 .transition(.opacity.animation(.easeInOut(duration: 0.2)))
@@ -209,6 +212,7 @@ struct GlobalKioskView: View {
                 isAdminUnlocked = false
                 isSelectionMode = false
                 selectedIds = []
+                Analytics.shared.track(.ops, name: "admin_lock")
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -221,6 +225,7 @@ struct GlobalKioskView: View {
             QRScannerSheet { payload in await handleScannedPayload(payload) }
         }
         .errorAlert(error: $error)
+        .analyticsScreen("kiosk")
     }
 
     // MARK: - Header
@@ -466,8 +471,15 @@ struct GlobalKioskView: View {
     private func load() async {
         isLoading = true
         defer { isLoading = false }
+        let started = Date()
         do {
             entries = try await AttendanceService.shared.fetchKioskEntries()
+            let classCount = Set(entries.flatMap { $0.sessions.map(\.id) }).count
+            Analytics.shared.track(.ops, name: "kiosk_load", properties: [
+                "class_count": .integer(classCount),
+                "entry_count": .integer(entries.count),
+                "duration_ms": Analytics.ms(since: started),
+            ])
             let sessionIds = entries.flatMap { $0.sessions.map { $0.id } }
             if !sessionIds.isEmpty {
                 let dismissals = try await AttendanceService.shared.fetchTodaysDismissals(sessionIds: sessionIds)
@@ -546,8 +558,10 @@ struct GlobalKioskView: View {
     /// the exact same path as tapping the card. Returns the feedback line shown in the scanner.
     private func handleScannedPayload(_ payload: String) async -> String {
         guard let id = AttendanceService.studentId(fromQRPayload: payload) else {
+            Analytics.shared.track(.ops, name: "qr_scan", properties: ["ok": .bool(false)])
             return String(localized: "Not a student QR code")
         }
+        Analytics.shared.track(.ops, name: "qr_scan", properties: ["ok": .bool(true)])
         guard let entry = entries.first(where: { $0.studentId == id }) else {
             return String(localized: "Student not found for today's classes")
         }

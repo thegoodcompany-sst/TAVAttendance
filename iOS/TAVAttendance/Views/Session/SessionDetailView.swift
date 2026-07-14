@@ -60,6 +60,7 @@ struct SessionDetailView: View {
             }
         }
         .navigationTitle(formattedDate(session.sessionDate))
+        .analyticsScreen("session_detail")
         .navigationBarTitleDisplayMode(.large)
         .task { await loadRoster() }
         .errorAlert(error: $error)
