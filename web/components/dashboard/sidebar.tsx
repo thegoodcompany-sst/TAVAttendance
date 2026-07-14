@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert, Trophy } from 'lucide-react'
+import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert, Trophy, Activity, HeartPulse } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from './avatar'
 
@@ -11,14 +11,16 @@ const NAV = [
   { href: '/', label: 'Today', Icon: CalendarDays },
   { href: '/overview', label: 'Overview', Icon: BarChart3 },
   { href: '/analytics', label: 'Analytics', Icon: LineChart },
+  { href: '/activity', label: 'Activity', Icon: Activity },
   { href: '/students', label: 'Students', Icon: Users },
   { href: '/users', label: 'Users', Icon: UserPlus },
 ]
 
-export function Sidebar({ userName, isSuperadmin = false, showAwards = false }: { userName: string; isSuperadmin?: boolean; showAwards?: boolean }) {
+export function Sidebar({ userName, isSuperadmin = false, showAwards = false, showHealth = false }: { userName: string; isSuperadmin?: boolean; showAwards?: boolean; showHealth?: boolean }) {
   const pathname = usePathname()
   const nav = [
     ...NAV,
+    ...(showHealth ? [{ href: '/health', label: 'Health', Icon: HeartPulse }] : []),
     ...(showAwards ? [{ href: '/awards', label: 'Awards', Icon: Trophy }] : []),
     ...(isSuperadmin
       ? [

@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
+import { redactAnalyticsText, trackAnalyticsEvent } from '@/lib/analytics'
+
 // Catches the errors that lib/queries.ts throws on Supabase failure, so a
 // transient blip renders a styled retry page instead of the raw Next error screen.
 export default function AdminError({
@@ -9,6 +12,14 @@ export default function AdminError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    trackAnalyticsEvent({
+      eventType: 'error',
+      name: 'admin_error_boundary',
+      properties: { message: redactAnalyticsText(error), screen: location.pathname },
+    })
+  }, [error])
+
   return (
     <div className="max-w-md mx-auto mt-24 text-center space-y-4 px-6">
       <h1 className="font-display text-xl font-semibold">Something went wrong</h1>
