@@ -122,17 +122,16 @@ UPDATE feature_flags SET enabled = true WHERE key = 'student_photos';     -- PRO
 UPDATE feature_flags SET enabled = true WHERE key = 'push_notifications'; -- PROD-02
 ```
 
-### ☐ 17. Provide APNs credentials for push (PROD-02)
-The APNs sender in `supabase/functions/notify-parent/index.ts` and the DB trigger
-(migration 021) are wired as of 2026-07-10 — three human steps remain:
-1. Function secrets: `supabase secrets set APNS_KEY="<p8 PEM>" APNS_KEY_ID=... APNS_TEAM_ID=...`
-   (optional: `APNS_TOPIC`, defaults to `com.tava.TAVAttendance`; `APNS_HOST`, set
-   `https://api.sandbox.push.apple.com` for dev builds).
-2. Arm the DB trigger — seed the Vault secret with the service-role key:
-   `SELECT vault.create_secret('<service-role-key>', 'notify_parent_service_key');`
-   Until this exists, `trg_notify_parent` is a no-op.
-3. Enable Push Notifications on the App ID (§38), then flip `push_notifications` per §16.
-FCM (Android) is deliberately unwired until the Android port lands (§18).
+### ☐ 17. Provide APNs credentials for push (PROD-02) — configs DONE 2026-07-14, flag still OFF
+1. ☑ Function secrets set 2026-07-14: `APNS_KEY` (AuthKey_U968QPQQ67.p8), `APNS_KEY_ID=U968QPQQ67`,
+   `APNS_TEAM_ID=DUU8J39BA7`. `APNS_TOPIC` defaults to `com.tava.TAVAttendance`; `APNS_HOST`
+   defaults to prod (`api.push.apple.com`) — set `https://api.sandbox.push.apple.com` for dev builds.
+2. ☑ Vault secret `notify_parent_service_key` seeded 2026-07-14 — the DB trigger is armed but the
+   edge function still no-ops while `push_notifications` is OFF.
+3. ☐ Enable Push Notifications on the App ID (§38), set `FCM_SERVICE_ACCOUNT` (download the
+   service-account JSON from Firebase Console → Project settings → Service accounts, then
+   `supabase secrets set FCM_SERVICE_ACCOUNT="$(cat <file>.json)"`), then flip
+   `push_notifications` per §16.
 
 ### ☐ 18. Finish the Android port UI follow-ups
 iOS, web, and Android all compile. Still to do: run a full `./gradlew assembleDebug` (exercises R8 +
