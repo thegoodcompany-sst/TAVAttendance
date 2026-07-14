@@ -117,9 +117,9 @@ the accepted WARNs. Prod now matches migrations 001–017.
 ### ☐ 16. Flip feature flags when each feature is ready
 Features ship OFF. Enable per platform-ready feature:
 ```sql
-UPDATE feature_flags SET enabled = true WHERE key = 'parent_portal';      -- PROD-01
-UPDATE feature_flags SET enabled = true WHERE key = 'student_photos';     -- PROD-04
-UPDATE feature_flags SET enabled = true WHERE key = 'push_notifications'; -- PROD-02
+UPDATE feature_flags SET enabled = true WHERE key = 'parent_portal';      -- PROD-01 — DONE 2026-07-14
+UPDATE feature_flags SET enabled = true WHERE key = 'student_photos';     -- PROD-04 — DONE 2026-07-14
+UPDATE feature_flags SET enabled = true WHERE key = 'push_notifications'; -- PROD-02 — still OFF: APNs keys/Vault secret pending (§17)
 ```
 
 ### ☐ 17. Provide APNs credentials for push (PROD-02)
@@ -197,13 +197,9 @@ The v1.1 notice names **Talent Beacon** as the controller and `admin@talentbeaco
 placeholder in `docs/pdpa/DATA_PROTECTION_NOTICE.md` and the seeded `policy_documents` v1.1 body.
 Fill it in and get legal/DPO sign-off (removes "DRAFT v1.1").
 
-### ☐ 26. Flip `study_space_tracking` when the Study Space feature is ready
-Ships OFF. Enable per §16 (or via the superadmin `/feature-flags` page) **only after** the
-Android + web ports land, so study-space sessions never exist before every reporting surface
-excludes them:
-```sql
-UPDATE feature_flags SET enabled = true WHERE key = 'study_space_tracking';
-```
+### ☑ 26. Flip `study_space_tracking` when the Study Space feature is ready — DONE (2026-07-14)
+Flipped ON: Android + web handle it (`StudySpaceScreen.kt`, web queries exclude
+`is_study_space` at every reporting surface).
 
 ### ☑ 28. Unblock the full Android build/test on this machine (environment) — DONE
 JDK 17/21 blocker resolved, see §34. `./gradlew testDebugUnitTest` (includes `DayAwareKioskTest`)
@@ -358,15 +354,14 @@ Signed in as an **admin** account (RLS makes a tutor login useless for the kiosk
 kiosk PIN set, AltStore refresh routine confirmed (personal-team signing expires
 every 7 days — keep AltServer reachable on the same Wi-Fi).
 
-### ☐ 43. Flip the new feature flags when ready (migration 026, all OFF)
-Shipped dark 2026-07-12; flip via the superadmin `/feature-flags` page when the
-preconditions hold. A flag is global — every platform must handle it first.
+### ☑ 43. Flip the new feature flags when ready (migration 026) — DONE (2026-07-14)
+All three flipped ON 2026-07-14.
 
-- [ ] `session_notes` — flip once tutors want it; iOS + Android + web all handle it.
-- [ ] `qr_sign_in` — print the student QR sheet from the dashboard first
-      (`/students` QR page, visible once the flag is ON — so flip, print, done).
-      iOS kiosk needs camera permission granted on the iPad on first scan.
-- [ ] `awards` — web-only admin page; flip whenever you want to start recording awards.
+- [x] `session_notes` — ON.
+- [x] `qr_sign_in` — ON. **Human follow-ups**: print the student QR sheet from the
+      dashboard (`/students` QR page, now visible), and grant camera permission on
+      the iPad kiosk on first scan.
+- [x] `awards` — ON.
 
 ### ☐ 44. App Store submission — remaining blockers (2026-07-13)
 Version 1.0 in App Store Connect is staged: metadata, age rating, free pricing (base SGP),
@@ -515,23 +510,11 @@ permission prompt (Android 13+).
 Migrations 031–033 are applied to prod. Web, iOS, and Android capture code is built behind
 the global `analytics` flag; raw events retain for 90 days.
 
-### ☐ 58. Flip `analytics` after the Android CI build is green
+### ☑ 58. Flip `analytics` after the Android CI build is green — DONE (2026-07-14)
 
-Preconditions met 2026-07-14: production web deploy is healthy, iOS XCTest passed 19/19,
-and PR #2 CI passed the Android build. The flag remains OFF pending a deliberate rollout.
-
-```sql
-UPDATE feature_flags
-SET enabled = TRUE, updated_at = NOW()
-WHERE key = 'analytics';
-```
-
-Verify:
-
-```sql
-SELECT key, enabled FROM feature_flags WHERE key = 'analytics';
-SELECT jobname, active FROM cron.job WHERE jobname = 'app-events-purge';
-```
+Flipped ON 2026-07-14 (preconditions were already met). Verified: flag `enabled = true`,
+`app-events-purge` cron job active, web deploy including the analytics pages is live at
+dash.thegoodcompanysg.dev.
 
 Then fully relaunch iOS and Android so their once-per-sign-in flag caches reload. Click through
 staff screens and confirm `/activity` receives events and `/health` renders without errors.
