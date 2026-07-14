@@ -22,7 +22,7 @@ export function HealthEventsChart({
   }
 
   return (
-    <ChartContainer config={config} className="h-[260px] w-full">
+    <ChartContainer config={config} className="h-[260px] w-full" role="img" aria-label="Daily app events and errors for the last 14 days">
       <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="3 3" />
         <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }} />

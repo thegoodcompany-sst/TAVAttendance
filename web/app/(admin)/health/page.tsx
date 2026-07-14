@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/dashboard/page-header'
 import { KpiTile } from '@/components/dashboard/kpi-tile'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { getHealthMetrics, getWeeklyAttendanceTrend } from '@/lib/queries'
+import { dateOffsetInTz, todayInTz, weekStartOf } from '@/lib/date'
 import { HealthEventsChart } from './health-client'
 
 export const dynamic = 'force-dynamic'
@@ -21,9 +22,9 @@ function crashStatus(value: number): Status {
   return 'amber'
 }
 
-function latencyStatus(delta: number): Status {
-  if (delta > 50) return 'red'
-  if (delta > 0) return 'amber'
+function latencyStatus(current: number, delta: number): Status {
+  if (current >= 5_000 || delta > 50) return 'red'
+  if (current >= 2_000 || delta > 0) return 'amber'
   return 'green'
 }
 
@@ -40,19 +41,25 @@ export default async function HealthPage() {
     getHealthMetrics(),
     getWeeklyAttendanceTrend(),
   ])
-  const currentAttendance = attendance.at(-1)?.attendancePct ?? 0
-  const previousAttendance = attendance.at(-2)?.attendancePct ?? 0
-  const attendanceDelta = Math.round((currentAttendance - previousAttendance) * 10) / 10
+  const currentWeek = weekStartOf(todayInTz())
+  const previousWeek = weekStartOf(dateOffsetInTz(-7))
+  const currentAttendance = attendance.find(point => point.weekStart === currentWeek)?.attendancePct
+  const previousAttendance = attendance.find(point => point.weekStart === previousWeek)?.attendancePct
+  const attendanceDelta = currentAttendance != null && previousAttendance != null
+    ? Math.round((currentAttendance - previousAttendance) * 10) / 10
+    : undefined
+  const hasEvents = health.eventCount.current > 0
+  const hasSync = health.syncAttempts.current > 0
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <PageHeader title="Health" subtitle="Software health and usage, last 7 days vs the prior 7" />
+      <PageHeader title="Health" subtitle="Software health and usage, current Singapore week vs the previous week" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiTile label="Error rate" value={`${health.errorRate.current}%`} delta={health.errorRate.delta} deltaLabel="% WoW" status={rateStatus(health.errorRate.current)} />
-        <KpiTile label="Crashes" value={health.crashes.current} delta={health.crashes.delta} deltaLabel="% WoW" status={crashStatus(health.crashes.current)} />
-        <KpiTile label="Sync failures" value={`${health.syncFailureRate.current}%`} delta={health.syncFailureRate.delta} deltaLabel="% WoW" status={rateStatus(health.syncFailureRate.current)} />
-        <KpiTile label="Attendance" value={`${currentAttendance}%`} delta={attendanceDelta} deltaLabel=" pp WoW" status={attendanceStatus(currentAttendance)} />
+        <KpiTile label="Error rate" value={hasEvents ? `${health.errorRate.current}%` : 'No data'} delta={hasEvents ? health.errorRate.delta : undefined} deltaLabel="% WoW" status={hasEvents ? rateStatus(health.errorRate.current) : undefined} lowerIsBetter />
+        <KpiTile label="Crashes" value={hasEvents ? health.crashes.current : 'No data'} delta={hasEvents ? health.crashes.delta : undefined} deltaLabel="% WoW" status={hasEvents ? crashStatus(health.crashes.current) : undefined} lowerIsBetter />
+        <KpiTile label="Sync failures" value={hasSync ? `${health.syncFailureRate.current}%` : 'No data'} delta={hasSync ? health.syncFailureRate.delta : undefined} deltaLabel="% WoW" status={hasSync ? rateStatus(health.syncFailureRate.current) : undefined} lowerIsBetter />
+        <KpiTile label="Attendance" value={currentAttendance == null ? 'No data' : `${currentAttendance}%`} delta={attendanceDelta} deltaLabel=" pp WoW" status={currentAttendance == null ? undefined : attendanceStatus(currentAttendance)} />
       </div>
 
       <div className="bg-white rounded-3xl p-6 shadow-card">
@@ -71,7 +78,8 @@ export default async function HealthPage() {
             <div className="divide-y divide-border">
               {health.latencies.map(item => (
                 <div key={item.name} className="flex items-center gap-3 py-3">
-                  <span className={`size-2 rounded-full ${latencyStatus(item.delta) === 'green' ? 'bg-emerald-500' : latencyStatus(item.delta) === 'amber' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                  <span className={`size-2 rounded-full ${latencyStatus(item.current, item.delta) === 'green' ? 'bg-emerald-500' : latencyStatus(item.current, item.delta) === 'amber' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                  <span className="sr-only">{latencyStatus(item.current, item.delta)} status</span>
                   <span className="flex-1 text-sm font-medium">{item.name.replaceAll('_', ' ')}</span>
                   <span className="text-sm tabular-nums">{Math.round(item.current)} ms</span>
                   <span className={`text-xs tabular-nums w-20 text-right ${item.delta > 0 ? 'text-rose-500' : item.delta < 0 ? 'text-emerald-600' : 'text-muted-foreground'}`}>

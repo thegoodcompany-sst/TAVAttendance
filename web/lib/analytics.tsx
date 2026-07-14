@@ -13,20 +13,18 @@ type EventInput = {
   properties?: Record<string, PropertyValue>
 }
 
-type AnalyticsContext = {
-  userId: string
-  role: string
-  sessionId: string
-  appVersion: string | null
-  device: string | null
-}
+type Enqueue = (event: EventInput) => void
 
-let context: AnalyticsContext | null = null
-const buffer: Array<Record<string, unknown>> = []
-let flushing = false
+let activeEnqueue: Enqueue | null = null
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi
 const EMAIL = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/g
+
+declare global {
+  interface Window {
+    __tavaNavigationStart?: number
+  }
+}
 
 function normalisePath(path: string): string {
   return path.replace(UUID, '{id}').replace(/\/\d+(?=\/|$)/g, '/{id}')
@@ -37,32 +35,8 @@ export function redactAnalyticsText(value: unknown): string {
   return message.replace(EMAIL, '[email]').replace(UUID, '{id}').slice(0, 200)
 }
 
-export function trackAnalyticsEvent({ eventType, name, properties = {} }: EventInput) {
-  if (!context) return
-  buffer.push({
-    user_id: context.userId,
-    role: context.role,
-    platform: 'web',
-    app_version: context.appVersion,
-    session_id: context.sessionId,
-    event_type: eventType,
-    name,
-    properties,
-    device: context.device,
-  })
-}
-
-async function flush() {
-  if (flushing || buffer.length === 0) return
-  flushing = true
-  const batch = buffer.splice(0)
-  try {
-    await createClient().from('app_events').insert(batch)
-  } catch {
-    // Analytics must never interfere with attendance work.
-  } finally {
-    flushing = false
-  }
+export function trackAnalyticsEvent(event: EventInput) {
+  activeEnqueue?.(event)
 }
 
 export function AnalyticsCapture({
@@ -80,45 +54,77 @@ export function AnalyticsCapture({
   useEffect(() => {
     if (!enabled) return
 
-    context = {
-      userId,
-      role,
-      sessionId,
-      appVersion: process.env.NEXT_PUBLIC_APP_VERSION ?? null,
-      device: navigator.platform || null,
+    const queue: Array<Record<string, unknown>> = []
+    const supabase = createClient()
+    let draining = false
+
+    const drain = async () => {
+      if (draining) return
+      draining = true
+      try {
+        do {
+          const batch = queue.splice(0)
+          if (batch.length > 0) await supabase.from('app_events').insert(batch)
+        } while (queue.length > 0)
+      } catch {
+        queue.splice(0)
+      } finally {
+        draining = false
+        if (queue.length > 0) void drain()
+      }
     }
 
-    trackAnalyticsEvent({ eventType: 'ops', name: 'app_launch', properties: { cold: true } })
+    const enqueue: Enqueue = ({ eventType, name, properties = {} }) => {
+      queue.push({
+        user_id: userId,
+        role,
+        platform: 'web',
+        app_version: process.env.NEXT_PUBLIC_APP_VERSION ?? null,
+        session_id: sessionId,
+        event_type: eventType,
+        name,
+        properties,
+        device: navigator.platform || null,
+      })
+    }
 
-    const interval = window.setInterval(flush, 15_000)
+    activeEnqueue = enqueue
+    enqueue({ eventType: 'ops', name: 'app_launch', properties: { cold: true } })
+
+    const interval = window.setInterval(drain, 15_000)
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') void flush()
+      if (document.visibilityState === 'hidden') void drain()
     }
     const onClick = (event: MouseEvent) => {
       const element = event.target instanceof Element
         ? event.target.closest<HTMLElement>('[data-analytics],button,a')
         : null
       if (!element) return
-      const label = element.dataset.analytics
+
+      let label = element.dataset.analytics
         ?? element.getAttribute('aria-label')
-        ?? element.textContent
-      const cleaned = label?.replace(/\s+/g, ' ').trim().slice(0, 80)
-      if (!cleaned) return
-      trackAnalyticsEvent({
+        ?? element.getAttribute('title')
+      if (!label && element instanceof HTMLAnchorElement) {
+        label = `route:${normalisePath(new URL(element.href, location.href).pathname)}`
+      }
+      if (!label && element instanceof HTMLButtonElement) label = `type:${element.type}`
+      if (!label) return
+
+      enqueue({
         eventType: 'tap',
-        name: `${element.tagName.toLowerCase()}:${cleaned}`,
+        name: `${element.tagName.toLowerCase()}:${label.slice(0, 80)}`,
         properties: { path: normalisePath(location.pathname) },
       })
     }
     const onError = (event: ErrorEvent) => {
-      trackAnalyticsEvent({
+      enqueue({
         eventType: 'crash',
         name: 'crash_detected',
         properties: { mechanism: 'window.onerror', reason: redactAnalyticsText(event.error ?? event.message) },
       })
     }
     const onRejection = (event: PromiseRejectionEvent) => {
-      trackAnalyticsEvent({
+      enqueue({
         eventType: 'error',
         name: 'unhandled_rejection',
         properties: { message: redactAnalyticsText(event.reason), screen: normalisePath(location.pathname) },
@@ -136,18 +142,23 @@ export function AnalyticsCapture({
       document.removeEventListener('click', onClick)
       window.removeEventListener('error', onError)
       window.removeEventListener('unhandledrejection', onRejection)
-      void flush()
-      context = null
+      if (activeEnqueue === enqueue) activeEnqueue = null
+      void drain()
     }
   }, [enabled, role, sessionId, userId])
 
   useEffect(() => {
     if (!enabled) return
     const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+    const routeStart = window.__tavaNavigationStart
+    const loadMs = routeStart == null
+      ? navigation?.duration ?? performance.now()
+      : performance.now() - routeStart
+    window.__tavaNavigationStart = undefined
     trackAnalyticsEvent({
       eventType: 'screen_view',
       name: normalisePath(pathname),
-      properties: { load_ms: Math.round(navigation?.duration ?? performance.now()) },
+      properties: { load_ms: Math.max(0, Math.round(loadMs)) },
     })
   }, [enabled, pathname])
 

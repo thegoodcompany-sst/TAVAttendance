@@ -659,11 +659,19 @@ export async function getAuditLog({
     .from('audit_log')
     .select('id, table_name, record_id, action, old_data, new_data, changed_by, changed_at')
     .order('changed_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(Math.min(Math.max(limit, 1), 100))
 
   if (user) query = query.eq('changed_by', user)
   if (table) query = query.eq('table_name', table)
-  if (before) query = query.lt('changed_at', before)
+  if (before) {
+    const separator = before.lastIndexOf('|')
+    const beforeAt = before.slice(0, separator)
+    const beforeId = before.slice(separator + 1)
+    if (separator > 0 && !Number.isNaN(Date.parse(beforeAt)) && /^[0-9a-f-]{36}$/i.test(beforeId)) {
+      query = query.or(`changed_at.lt.${beforeAt},and(changed_at.eq.${beforeAt},id.lt.${beforeId})`)
+    }
+  }
 
   const { data, error } = await query
   if (error) throw new Error(`getAuditLog: ${error.message}`)
@@ -763,8 +771,10 @@ export type HealthMetric = {
 }
 
 export type HealthMetrics = {
+  eventCount: HealthMetric
   errorRate: HealthMetric
   crashes: HealthMetric
+  syncAttempts: HealthMetric
   syncFailureRate: HealthMetric
   latencies: Array<{ name: string } & HealthMetric>
   syncTotals: { synced: number; skipped: number; blockedEndedSession: number; pendingBefore: number }
@@ -778,21 +788,22 @@ function percentDelta(current: number, previous: number): number {
 
 export async function getHealthMetrics(): Promise<HealthMetrics> {
   const supabase = await createClient()
-  const currentStart = dateOffsetInTz(-6)
-  const previousStart = dateOffsetInTz(-13)
-  const previousEnd = dateOffsetInTz(-7)
+  const today = todayInTz()
+  const currentStart = weekStartOf(today)
+  const previousStart = weekStartOf(dateOffsetInTz(-7))
+  const previousEnd = new Date(Date.parse(`${currentStart}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
 
   const [{ data: dailyRows, error: dailyError }, { data: syncRows, error: syncError }] = await Promise.all([
     supabase
       .from('app_events_daily')
       .select('event_date, event_type, name, event_count, duration_ms_p95')
       .gte('event_date', previousStart)
-      .lte('event_date', todayInTz()),
+      .lte('event_date', today),
     supabase
       .from('app_events')
       .select('occurred_at, name, properties')
       .in('name', ['sync_result', 'sync_failure'])
-      .gte('occurred_at', `${previousStart}T00:00:00Z`),
+      .gte('occurred_at', `${previousStart}T00:00:00+08:00`),
   ])
 
   if (dailyError) throw new Error(`getHealthMetrics daily: ${dailyError.message}`)
@@ -822,8 +833,14 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
   const previousCrashes = count(previousRows, row => row.event_type === 'crash')
 
   const sync = (syncRows ?? []) as any[]
+  const singaporeDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
   const syncInPeriod = (start: string, end?: string) => sync.filter(row => {
-    const date = String(row.occurred_at).slice(0, 10)
+    const date = singaporeDate.format(new Date(row.occurred_at))
     return date >= start && (!end || date <= end)
   })
   const syncFailureRate = (items: any[]) => {
@@ -849,15 +866,19 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
   })
 
   const currentSync = syncInPeriod(currentStart)
+  const previousSync = syncInPeriod(previousStart, previousEnd)
+  const syncAttempts = (items: any[]) => items.filter(row => row.name === 'sync_failure' || row.name === 'sync_result').length
   const numberProperty = (row: any, key: string) => Number(row.properties?.[key]) || 0
 
   return {
+    eventCount: metric(currentEvents, previousEvents),
     errorRate: metric(
       currentEvents > 0 ? Math.round((currentErrors / currentEvents) * 1000) / 10 : 0,
       previousEvents > 0 ? Math.round((previousErrors / previousEvents) * 1000) / 10 : 0,
     ),
     crashes: metric(currentCrashes, previousCrashes),
-    syncFailureRate: metric(syncFailureRate(currentSync), syncFailureRate(syncInPeriod(previousStart, previousEnd))),
+    syncAttempts: metric(syncAttempts(currentSync), syncAttempts(previousSync)),
+    syncFailureRate: metric(syncFailureRate(currentSync), syncFailureRate(previousSync)),
     latencies: latencyNames.map(name => {
       const current = latencyFor(currentRows, name)
       const previous = latencyFor(previousRows, name)

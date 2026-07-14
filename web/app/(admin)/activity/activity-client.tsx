@@ -50,7 +50,7 @@ export function ActivityClient({
     router.replace(`${pathname}?${next}`)
   }
 
-  const tables = [...new Set(audit.map(entry => entry.tableName))].sort()
+  const tables = ['attendance_records', 'classes', 'enrollments', 'profiles', 'sessions', 'students']
   const currentUser = searchParams.get('user') ?? ''
   const currentTable = searchParams.get('table') ?? ''
   const currentPlatform = searchParams.get('platform') ?? ''
@@ -107,7 +107,10 @@ export function ActivityClient({
 
         {audit.length === 50 && (
           <button
-            onClick={() => setFilter('before', audit.at(-1)?.changedAt)}
+            onClick={() => {
+              const last = audit.at(-1)
+              setFilter('before', last ? `${last.changedAt}|${last.id}` : undefined)
+            }}
             className="inline-flex items-center gap-1 text-sm font-medium text-brand-ink hover:underline"
           >
             Older changes <ChevronRight size={15} />
@@ -126,16 +129,18 @@ export function ActivityClient({
             <button
               key={platform || 'all'}
               onClick={() => setFilter('platform', platform)}
+              aria-pressed={currentPlatform === platform}
               className={cn('rounded-full px-3 py-1.5 text-xs font-medium border', currentPlatform === platform ? 'bg-brand-soft text-brand-ink border-brand/20' : 'border-border text-muted-foreground')}
             >
               {platform || 'All platforms'}
             </button>
           ))}
           <span className="w-px bg-border mx-1" />
-          {['', 'ops', 'screen_view', 'tap', 'error', 'crash'].map(type => (
+          {['', 'ops', 'screen_view', 'tap', 'error', 'crash', 'latency'].map(type => (
             <button
               key={type || 'all'}
               onClick={() => setFilter('type', type)}
+              aria-pressed={currentType === type}
               className={cn('rounded-full px-3 py-1.5 text-xs font-medium border', currentType === type ? 'bg-brand-soft text-brand-ink border-brand/20' : 'border-border text-muted-foreground')}
             >
               {type ? type.replace('_', ' ') : 'All types'}

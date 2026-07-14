@@ -6,6 +6,7 @@ type KpiTileProps = {
   delta?: number
   deltaLabel?: string
   status?: 'green' | 'amber' | 'red'
+  lowerIsBetter?: boolean
   accent?: boolean
 }
 
@@ -15,7 +16,7 @@ const STATUS_COLOR = {
   red: 'bg-rose-500',
 }
 
-export function KpiTile({ label, value, delta, deltaLabel, status, accent }: KpiTileProps) {
+export function KpiTile({ label, value, delta, deltaLabel, status, lowerIsBetter = false, accent }: KpiTileProps) {
   return (
     <div
       className={cn(
@@ -26,7 +27,12 @@ export function KpiTile({ label, value, delta, deltaLabel, status, accent }: Kpi
       )}
     >
       <div className="flex items-center gap-2 mb-2">
-        {status && <span className={cn('size-2 rounded-full', STATUS_COLOR[status])} />}
+        {status && (
+          <>
+            <span className={cn('size-2 rounded-full', STATUS_COLOR[status])} />
+            <span className="sr-only">{status} status</span>
+          </>
+        )}
         <p
           className={cn(
             'text-xs font-medium uppercase tracking-wide',
@@ -48,11 +54,11 @@ export function KpiTile({ label, value, delta, deltaLabel, status, accent }: Kpi
         <p
           className={cn(
             'text-xs mt-2 font-medium',
-            delta > 0
+            delta === 0
+              ? 'text-muted-foreground'
+              : (delta > 0) !== lowerIsBetter
               ? 'text-emerald-600'
-              : delta < 0
-              ? 'text-rose-500'
-              : 'text-muted-foreground'
+              : 'text-rose-500'
           )}
         >
           {delta > 0 ? '+' : ''}{delta}{deltaLabel ?? ' from yesterday'}
