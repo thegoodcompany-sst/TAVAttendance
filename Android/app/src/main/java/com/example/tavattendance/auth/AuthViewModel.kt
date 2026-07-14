@@ -3,6 +3,7 @@ package com.example.tavattendance.auth
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.tavattendance.core.Analytics
 import com.example.tavattendance.core.SupabaseClient
 import com.example.tavattendance.data.models.Profile
 import com.example.tavattendance.data.service.FeatureFlags
@@ -47,6 +48,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         if (userId != null) fetchProfile(userId)
                         viewModelScope.launch {
                             runCatching { FeatureFlags.load() }
+                            // Analytics is a no-op until the `analytics` flag is ON; start it
+                            // only after flags load so app_launch/crash events aren't dropped.
+                            Analytics.userId = userId
+                            Analytics.role = _currentProfile.value?.role
+                            runCatching { Analytics.start(getApplication<Application>()) }
                             // No-op unless the push_notifications flag is ON.
                             com.example.tavattendance.push.PushTokenRegistrar.registerIfEnabled()
                         }

@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.CorrectionRequest
 import com.example.tavattendance.data.service.AttendanceService
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -69,6 +70,7 @@ fun CorrectionRequestScreen(
     onBack: () -> Unit,
     vm: CorrectionRequestViewModel = viewModel()
 ) {
+    TrackScreen("corrections")
     val requests by vm.requests.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val error by vm.error.collectAsState()

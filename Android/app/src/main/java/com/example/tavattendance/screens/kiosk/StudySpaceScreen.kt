@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.RosterEntry
 import com.example.tavattendance.data.models.Session
@@ -29,6 +30,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun StudySpaceScreen(onDismiss: () -> Unit) {
+    TrackScreen("study_space")
     val scope = rememberCoroutineScope()
     var session by remember { mutableStateOf<Session?>(null) }
     var roster by remember { mutableStateOf<List<RosterEntry>>(emptyList()) }

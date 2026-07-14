@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceHistoryRecord
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.service.AttendanceService
@@ -57,6 +58,7 @@ fun StudentProfileSheet(
     onDismiss: () -> Unit,
     vm: StudentProfileViewModel = viewModel()
 ) {
+    TrackScreen("student_profile")
     LaunchedEffect(studentId) { vm.load(studentId) }
 
     val history by vm.history.collectAsState()

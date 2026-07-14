@@ -18,6 +18,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.core.ErrorRetry
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.core.asUserMessage
 import com.example.tavattendance.core.rememberSnackbarError
 import com.example.tavattendance.data.models.Student
@@ -93,6 +94,7 @@ class StudentManagementViewModel(app: Application) : AndroidViewModel(app) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
+    TrackScreen("student_management")
     val students by vm.students.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val loadError by vm.loadError.collectAsState()

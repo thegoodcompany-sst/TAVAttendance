@@ -16,6 +16,7 @@ object FeatureFlags {
     const val STUDY_SPACE_TRACKING = "study_space_tracking"
     const val SESSION_NOTES = "session_notes"
     const val QR_SIGN_IN = "qr_sign_in"
+    const val ANALYTICS = "analytics"
 
     private val _flags = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     val flags: StateFlow<Map<String, Boolean>> = _flags.asStateFlow()

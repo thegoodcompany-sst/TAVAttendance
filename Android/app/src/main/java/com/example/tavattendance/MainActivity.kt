@@ -79,4 +79,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Mirror iOS didEnterBackground — flush buffered analytics on background.
+        com.example.tavattendance.core.Analytics.flushNow()
+    }
 }

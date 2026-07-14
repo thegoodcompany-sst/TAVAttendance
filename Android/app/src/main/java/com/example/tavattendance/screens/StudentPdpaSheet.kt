@@ -15,6 +15,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.ConsentRecord
 import com.example.tavattendance.data.service.AttendanceService
 import kotlinx.coroutines.Dispatchers
@@ -137,6 +138,7 @@ fun StudentPdpaSheet(
     onStudentRemoved: () -> Unit,
     vm: StudentPdpaViewModel = viewModel()
 ) {
+    TrackScreen("export")
     val context = LocalContext.current
     LaunchedEffect(studentId) { vm.load(studentId) }
 

@@ -20,12 +20,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.Analytics
+import com.example.tavattendance.core.AnalyticsEventType
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.Session
 import com.example.tavattendance.data.models.TAVClass
 import com.example.tavattendance.data.service.AttendanceService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -125,6 +130,8 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
                 if (session.startedAt == null) {
                     AttendanceService.startSession(id = session.id)
                 }
+                Analytics.track(AnalyticsEventType.TAP, "start_session",
+                    buildJsonObject { put("screen", "session_list") })
                 runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
                 val fresh = _sessions.value.firstOrNull { it.id == session.id } ?: session
                 onSessionReady(fresh)
@@ -159,6 +166,8 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
             _isEnding.value = true
             runCatching {
                 AttendanceService.endSession(id = session.id)
+                Analytics.track(AnalyticsEventType.TAP, "end_session",
+                    buildJsonObject { put("screen", "session_list") })
                 runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
             }.onFailure { e ->
                 android.util.Log.e("SessionList", "endTodayClass failed: ${e.message}", e)
@@ -181,6 +190,7 @@ fun SessionListScreen(
     onBack: () -> Unit,
     vm: SessionListViewModel = viewModel()
 ) {
+    TrackScreen("session_list")
     LaunchedEffect(classId) { vm.init(classId) }
 
     // Reload when returning from RosterScreen; skip the first ON_RESUME which fires
