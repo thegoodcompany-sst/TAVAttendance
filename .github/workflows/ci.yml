@@ -39,11 +39,28 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Write secrets.properties
+      - name: Write build-time placeholders
         run: |
           cat > secrets.properties <<EOF
           SUPABASE_PROJECT_URL=https://example.supabase.co
           SUPABASE_ANON_KEY=ci-placeholder-anon-key
+          EOF
+          cat > app/google-services.json <<EOF
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "ci-placeholder",
+              "storage_bucket": "ci-placeholder.appspot.com"
+            },
+            "client": [{
+              "client_info": {
+                "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
+                "android_client_info": { "package_name": "com.example.tavattendance" }
+              },
+              "api_key": [{ "current_key": "ci-placeholder" }]
+            }],
+            "configuration_version": "1"
+          }
           EOF
       - run: ./gradlew assembleDebug --no-daemon
 
