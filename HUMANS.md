@@ -517,9 +517,8 @@ the global `analytics` flag; raw events retain for 90 days.
 
 ### ☐ 58. Flip `analytics` after the Android CI build is green
 
-Preconditions: production web deploy is healthy, iOS XCTest is green, and CI confirms the
-Android port compiles (the local Android SDK fingerprint step is currently broken before
-Kotlin compilation).
+Preconditions met 2026-07-14: production web deploy is healthy, iOS XCTest passed 19/19,
+and PR #2 CI passed the Android build. The flag remains OFF pending a deliberate rollout.
 
 ```sql
 UPDATE feature_flags
