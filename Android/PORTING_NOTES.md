@@ -10,6 +10,7 @@ here. Do **not** change Supabase migrations — they are shared across platforms
 | `Models/Models.swift` | `data/models/Models.kt` |
 | `Services/AttendanceService.swift` | `data/service/AttendanceService.kt` |
 | `Services/FeatureFlags.swift` | `data/service/FeatureFlags.kt` |
+| `Services/Analytics.swift` | `core/Analytics.kt` |
 | `Views/Kiosk/GlobalKioskView.swift` | `screens/kiosk/GlobalKioskScreen.kt` |
 | `Views/Parent/ParentDashboardView.swift` | `screens/ParentDashboardScreen.kt` |
 | `Views/Kiosk/QRScannerView.swift` | `screens/kiosk/QrScannerSheet.kt` |
