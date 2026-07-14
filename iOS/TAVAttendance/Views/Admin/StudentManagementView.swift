@@ -74,6 +74,7 @@ struct StudentManagementView: View {
                 }
             }
             .navigationTitle("Students")
+            .analyticsScreen("student_management")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Menu {

@@ -25,8 +25,11 @@ import androidx.compose.ui.unit.dp
  * roster/kiosk/session screens already build inline; centralised here so it is testable and every
  * screen reads the same. Pure — unit-tested in UiErrorTest.
  */
-fun Throwable.asUserMessage(prefix: String): String =
-    "$prefix: ${localizedMessage ?: javaClass.simpleName}"
+fun Throwable.asUserMessage(prefix: String): String {
+    // Single handled-error choke point — no-op unless the analytics flag is ON.
+    Analytics.trackError(prefix, this)
+    return "$prefix: ${localizedMessage ?: javaClass.simpleName}"
+}
 
 /**
  * Full-screen "load failed" state with a Retry button — the shared version of the box that the

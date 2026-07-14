@@ -95,6 +95,7 @@ struct ExportView: View {
             }
         }
         .errorAlert(error: $error)
+        .analyticsScreen("export")
     }
 
     // MARK: - Export logic
@@ -103,6 +104,9 @@ struct ExportView: View {
         guard let classId = selectedClassId else { return }
         isExporting = true
         defer { isExporting = false }
+        Analytics.shared.track(.tap, name: "export_\(format.rawValue.lowercased())",
+                               properties: ["screen": .string("export")])
+        let started = Date()
 
         do {
             // PERF-07: fetch students only now, when an export is actually requested.
@@ -124,6 +128,10 @@ struct ExportView: View {
             }
             exportURL = url
             showShare = true
+            Analytics.shared.track(.latency, name: "export_generate", properties: [
+                "record_count": .integer(records.count),
+                "duration_ms": Analytics.ms(since: started),
+            ])
         } catch {
             self.error = AppError("Export failed", underlyingError: error)
         }

@@ -507,3 +507,31 @@ project.yml; needs a paid Apple team) — the iOS client code (token registratio
 safely-home card) is already in place. iOS loads flags once at sign-in: relaunch
 after flipping. On first Android run, the parent must accept the notification
 permission prompt (Android 13+).
+
+---
+
+## N. Analytics and observability (2026-07-14, shipped dark)
+
+Migrations 031–033 are applied to prod. Web, iOS, and Android capture code is built behind
+the global `analytics` flag; raw events retain for 90 days.
+
+### ☐ 58. Flip `analytics` after the Android CI build is green
+
+Preconditions met 2026-07-14: production web deploy is healthy, iOS XCTest passed 19/19,
+and PR #2 CI passed the Android build. The flag remains OFF pending a deliberate rollout.
+
+```sql
+UPDATE feature_flags
+SET enabled = TRUE, updated_at = NOW()
+WHERE key = 'analytics';
+```
+
+Verify:
+
+```sql
+SELECT key, enabled FROM feature_flags WHERE key = 'analytics';
+SELECT jobname, active FROM cron.job WHERE jobname = 'app-events-purge';
+```
+
+Then fully relaunch iOS and Android so their once-per-sign-in flag caches reload. Click through
+staff screens and confirm `/activity` receives events and `/health` renders without errors.

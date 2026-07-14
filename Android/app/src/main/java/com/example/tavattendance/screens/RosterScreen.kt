@@ -24,6 +24,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.Analytics
+import com.example.tavattendance.core.AnalyticsEventType
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.RosterEntry
 import com.example.tavattendance.data.service.AttendanceService
@@ -32,6 +35,8 @@ import com.example.tavattendance.data.store.PendingAttendanceStore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.*
@@ -115,7 +120,10 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             _isSavingNotes.value = true
             val trimmed = text.trim().ifEmpty { null }
             runCatching { AttendanceService.updateSessionNotes(sessionId, trimmed) }
-                .onSuccess { _sessionNotes.value = trimmed; onDone() }
+                .onSuccess {
+                    _sessionNotes.value = trimmed; onDone()
+                    Analytics.track(AnalyticsEventType.TAP, "save_note", buildJsonObject { put("screen", "roster") })
+                }
                 .onFailure { e ->
                     android.util.Log.e("Roster", "saveSessionNotes failed: ${e.message}", e)
                     _snackbarMessage.value = "Failed to save session notes: ${e.localizedMessage ?: e.javaClass.simpleName}"
@@ -193,8 +201,16 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             val unsynced = pendingStore.allPending()
             if (unsynced.isEmpty()) return@launch
             _isSaving.value = true
+            val startMs = System.currentTimeMillis()
             runCatching {
                 val result = AttendanceService.syncPending(unsynced)
+                Analytics.track(AnalyticsEventType.OPS, "sync_result", buildJsonObject {
+                    put("synced", result.synced)
+                    put("skipped", result.skipped)
+                    put("blocked_ended_session", result.blockedEndedSession)
+                    put("pending_before", unsynced.size)
+                    put("duration_ms", System.currentTimeMillis() - startMs)
+                })
                 // Only mark the batch fully synced when the server accounted for every
                 // record (synced + skipped); a mismatch means some were blocked (ended
                 // session) and must stay pending — we can't tell which ones from the
@@ -214,6 +230,10 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }.onFailure { e ->
                 android.util.Log.e("Roster", "syncPending failed: ${e.message}", e)
+                Analytics.track(AnalyticsEventType.OPS, "sync_failure", buildJsonObject {
+                    put("message", e.message ?: e.javaClass.simpleName)
+                    put("pending_count", unsynced.size)
+                })
                 _snackbarMessage.value = "Failed to sync attendance: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isSaving.value = false
@@ -244,6 +264,10 @@ fun RosterScreen(
     onBack: () -> Unit,
     vm: RosterViewModel = viewModel()
 ) {
+    // Live marking of today's class is `roster`; a past session opened read-only is
+    // `session_detail` (mirrors iOS RosterView vs SessionDetailView).
+    val todayStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+    TrackScreen(if (sessionDate == todayStr) "roster" else "session_detail")
     LaunchedEffect(sessionId) { vm.init(sessionId) }
 
     val roster by vm.roster.collectAsState()

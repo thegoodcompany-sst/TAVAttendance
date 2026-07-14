@@ -57,6 +57,7 @@ final class AuthManager: ObservableObject {
                     .execute()
                     .value
                 currentProfile = profile
+                Analytics.shared.role = profile.role
                 // Refresh feature flags once we have an authenticated session.
                 await FeatureFlagStore.shared.load()
                 return

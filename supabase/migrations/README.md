@@ -90,3 +90,6 @@ applies forward only.
 | 028 | policy_documents_public_read  | anon SELECT on current policy docs (public /privacy page for App Review) | yes   |
 | 029 | user_delete_set_null          | provenance FKs to auth.users → ON DELETE SET NULL (admin user delete failed with 23503) | yes   |
 | 030 | safely_home                   | mark_safely_home parent RPC (once-only) + dismissal-insert notify trigger (inert like 021) | yes   |
+| 031 | app_events                    | Supabase-native analytics events, daily health view, 90-day purge, analytics flag | yes   |
+| 032 | app_events_hardening          | Safe duration aggregation, cron refresh, stronger analytics assertions | yes   |
+| 033 | app_events_singapore_day      | Group daily analytics by the Singapore centre calendar day | yes   |

@@ -68,6 +68,7 @@ struct ClassListView: View {
                 }
             }
             .navigationTitle("My Classes")
+            .analyticsScreen("class_list")
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     if !network.isConnected {

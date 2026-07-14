@@ -26,10 +26,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.Analytics
+import com.example.tavattendance.core.AnalyticsEventType
+import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.KioskEntry
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -144,8 +149,15 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _isLoading.value = true
             _loadError.value = null
+            val startMs = System.currentTimeMillis()
             runCatching { AttendanceService.fetchKioskEntries() }
-                .onSuccess { _entries.value = it }
+                .onSuccess {
+                    _entries.value = it
+                    Analytics.track(AnalyticsEventType.OPS, "kiosk_load", buildJsonObject {
+                        put("entry_count", it.size)
+                        put("duration_ms", System.currentTimeMillis() - startMs)
+                    })
+                }
                 .onFailure { e ->
                     android.util.Log.e("GlobalKioskVM", "Failed to load kiosk entries", e)
                     val msg = "Failed to load students: ${e.localizedMessage ?: e.javaClass.simpleName}"
@@ -273,6 +285,7 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         prefs.edit().putBoolean("locked", true).apply()
         _isLocked.value = true
         _isAdminUnlocked.value = false
+        Analytics.track(AnalyticsEventType.OPS, "admin_lock")
     }
 
     /**
@@ -318,6 +331,7 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
             prefs.edit().putBoolean("locked", false).apply()
             _isLocked.value = false
             _isAdminUnlocked.value = true
+            Analytics.track(AnalyticsEventType.OPS, "admin_unlock")
             // Reset lockout on successful unlock.
             prefs.edit().putInt("lockout_stage", 0).apply()
             persistFailedAttempts(0, 0L)
@@ -367,6 +381,7 @@ enum class KioskAction { SignIn, MarkPresent, MarkLate, MarkAbsent, MarkNotHere 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
+    TrackScreen("kiosk")
     val entries by vm.entries.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val pendingIds by vm.pendingIds.collectAsState()

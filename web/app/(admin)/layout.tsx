@@ -5,6 +5,7 @@ import { SignOutButton } from '@/components/sign-out-button'
 import { Sidebar } from '@/components/dashboard/sidebar'
 import { isSuperadmin } from '@/lib/superadmin'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+import { AnalyticsCapture } from '@/lib/analytics'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -35,11 +36,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const userName = profile.full_name ?? 'Admin'
   const superadmin = isSuperadmin(user)
-  const showAwards = await isFeatureEnabled('awards')
+  const [showAwards, showHealth] = await Promise.all([
+    isFeatureEnabled('awards'),
+    isFeatureEnabled('analytics'),
+  ])
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar userName={userName} isSuperadmin={superadmin} showAwards={showAwards} />
+      <AnalyticsCapture enabled={showHealth} userId={user.id} role={profile.role} />
+      <Sidebar userName={userName} isSuperadmin={superadmin} showAwards={showAwards} showHealth={showHealth} />
 
       <div className="flex-1 flex flex-col min-h-screen">
         {/* Mobile top nav */}
@@ -51,6 +56,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 { href: '/', label: 'Today' },
                 { href: '/overview', label: 'Overview' },
                 { href: '/analytics', label: 'Analytics' },
+                { href: '/activity', label: 'Activity' },
+                ...(showHealth ? [{ href: '/health', label: 'Health' }] : []),
                 ...(showAwards ? [{ href: '/awards', label: 'Awards' }] : []),
                 { href: '/students', label: 'Students' },
                 { href: '/users', label: 'Users' },

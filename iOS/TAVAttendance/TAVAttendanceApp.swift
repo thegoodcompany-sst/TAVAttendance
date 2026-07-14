@@ -27,6 +27,8 @@ struct TAVAttendanceApp: App {
                 .task {
                     // PROD-02: register for push once flags are loaded (no-op while off).
                     await PushManager.registerIfEnabled()
+                    // Analytics: start timer/observers + emit app_launch (no-op unless flag on).
+                    Analytics.shared.start()
                 }
             } else {
                 LoginView()
