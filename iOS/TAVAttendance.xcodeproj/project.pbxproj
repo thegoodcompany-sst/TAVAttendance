@@ -51,6 +51,7 @@
 		AF57EBBF290621198727D3D9 /* ParentLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DF1807148A196AA37C1204 /* ParentLinkView.swift */; };
 		BA86F67649226E9C79AA8C4C /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A44B53697EDDA16EB00544 /* PushManager.swift */; };
 		BAFF49E2F26D7AC1DD4937BB /* StudentAttendanceRateIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00D13ADBA1A88996D74858B4 /* StudentAttendanceRateIntent.swift */; };
+		BD08F834223826CC5C3FC832 /* Biometrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECA960A32398EB5F08E858AF /* Biometrics.swift */; };
 		C2DCEC585CCBC4BDAD601D61 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB273005930FAD09CC8AD1F7 /* Models.swift */; };
 		C2E9D3AF084BA4D847F9850D /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757DCC9F10B26459799B20D3 /* QRScannerView.swift */; };
 		D693F8B311CB2B7F6D73D158 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85DEA9F263B167CCEC35BFC /* LoginView.swift */; };
@@ -118,6 +119,7 @@
 		E118AE1693C05946C87E9552 /* IntentSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentSupport.swift; sourceTree = "<group>"; };
 		E9545022B35ECF9F7DF0E84D /* CheckStudentStatusIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckStudentStatusIntent.swift; sourceTree = "<group>"; };
 		EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorAssignmentView.swift; sourceTree = "<group>"; };
+		ECA960A32398EB5F08E858AF /* Biometrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Biometrics.swift; sourceTree = "<group>"; };
 		ED27D15B4D66F7FD06F56BF1 /* StudentResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentResultsView.swift; sourceTree = "<group>"; };
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F3063799091ACD1EB194B57C /* KioskRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskRouter.swift; sourceTree = "<group>"; };
@@ -126,7 +128,7 @@
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
 		FF5EC050D1FB11BF60A79BDD /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
-		"TEMP_10F6B97B-90DD-466F-9C13-ACC602944F9B" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_E4ED1D19-4E65-4715-94B3-7679F49E45F4" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -242,6 +244,7 @@
 			children = (
 				81CC1BD809880605E561BC0F /* AppError.swift */,
 				24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */,
+				ECA960A32398EB5F08E858AF /* Biometrics.swift */,
 				543023F8203B0054936C6A20 /* NetworkMonitor.swift */,
 				FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */,
 				90A44B53697EDDA16EB00544 /* PushManager.swift */,
@@ -329,10 +332,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_61161FF4-6727-4984-919B-C6A49AC04FE0" /* iOS */ = {
+		"TEMP_C79B3A38-8BA5-4E28-A341-275F56578444" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_10F6B97B-90DD-466F-9C13-ACC602944F9B" /* Config.xcconfig */,
+				"TEMP_E4ED1D19-4E65-4715-94B3-7679F49E45F4" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -447,6 +450,7 @@
 				45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */,
 				7A8E8AB674B8766A7D6C91C6 /* AttendanceStatusAppEnum.swift in Sources */,
 				6E41513F3BD4A9FB3BBC2722 /* AuthManager.swift in Sources */,
+				BD08F834223826CC5C3FC832 /* Biometrics.swift in Sources */,
 				AD5545A3F3C8DFC0847B191E /* CheckStudentStatusIntent.swift in Sources */,
 				313617761ED161A0A3D09850 /* ClassEntity.swift in Sources */,
 				7D3C850879FD3125ACFD677F /* ClassFormView.swift in Sources */,
@@ -624,7 +628,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_10F6B97B-90DD-466F-9C13-ACC602944F9B" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_E4ED1D19-4E65-4715-94B3-7679F49E45F4" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -644,7 +648,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_10F6B97B-90DD-466F-9C13-ACC602944F9B" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_E4ED1D19-4E65-4715-94B3-7679F49E45F4" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

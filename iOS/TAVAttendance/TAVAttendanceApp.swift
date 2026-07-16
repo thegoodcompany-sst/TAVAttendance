@@ -5,6 +5,9 @@ struct TAVAttendanceApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var authManager = AuthManager()
     @StateObject private var featureFlags = FeatureFlagStore.shared
+    @AppStorage("biometricUnlockEnabled") private var biometricUnlockEnabled = false
+    @State private var isBioUnlocked = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -12,14 +15,19 @@ struct TAVAttendanceApp: App {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if authManager.isAuthenticated {
-                Group {
-                    switch authManager.currentProfile?.role {
-                    case "admin":
-                        AdminTabView()
-                    case "parent":
-                        ParentDashboardView()
-                    default:
-                        TutorTabView()
+                ZStack {
+                    Group {
+                        switch authManager.currentProfile?.role {
+                        case "admin":
+                            AdminTabView()
+                        case "parent":
+                            ParentDashboardView()
+                        default:
+                            TutorTabView()
+                        }
+                    }
+                    if biometricUnlockEnabled && !isBioUnlocked {
+                        BiometricLockView(isUnlocked: $isBioUnlocked)
                     }
                 }
                 .environmentObject(authManager)
@@ -30,11 +38,50 @@ struct TAVAttendanceApp: App {
                     // Analytics: start timer/observers + emit app_launch (no-op unless flag on).
                     Analytics.shared.start()
                 }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .background { isBioUnlocked = false }
+                }
             } else {
                 LoginView()
                     .environmentObject(authManager)
             }
         }
+    }
+}
+
+private struct BiometricLockView: View {
+    @Binding var isUnlocked: Bool
+    @EnvironmentObject private var authManager: AuthManager
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Image(systemName: "lock.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("TAVA Attendance")
+                .font(.title2.bold())
+            Button {
+                Task { await attempt() }
+            } label: {
+                Label("Unlock with \(Biometrics.biometryName() ?? "Passcode")",
+                      systemImage: "faceid")
+                    .padding(.horizontal, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            Spacer()
+            Button("Sign Out", role: .destructive) {
+                Task { try? await authManager.signOut() }
+            }
+            .padding(.bottom, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
+        .task { await attempt() }
+    }
+
+    private func attempt() async {
+        isUnlocked = await Biometrics.authenticate(reason: "Unlock TAVA Attendance")
     }
 }
 

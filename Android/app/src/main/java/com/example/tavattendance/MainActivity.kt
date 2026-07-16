@@ -1,7 +1,6 @@
 package com.example.tavattendance
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
@@ -19,14 +18,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.fragment.app.FragmentActivity
 import com.example.tavattendance.auth.AuthViewModel
+import com.example.tavattendance.auth.BiometricGate
 import com.example.tavattendance.auth.LoginScreen
 import com.example.tavattendance.navigation.AdminApp
 import com.example.tavattendance.navigation.TutorApp
 import com.example.tavattendance.screens.ParentDashboardScreen
 import com.example.tavattendance.ui.theme.TAVAttendanceTheme
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (is-a ComponentActivity) is required by BiometricPrompt.
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // PDPA export files (contain a student UUID in the filename) are written to
@@ -72,9 +74,13 @@ class MainActivity : ComponentActivity() {
                     ) {
                         CircularProgressIndicator()
                     }
-                    profile?.role == "admin" -> AdminApp(authViewModel = authViewModel)
-                    profile?.role == "parent" -> ParentDashboardScreen(authViewModel = authViewModel)
-                    else -> TutorApp(authViewModel = authViewModel)
+                    else -> BiometricGate(onSignOut = { authViewModel.signOut() }) {
+                        when (profile?.role) {
+                            "admin" -> AdminApp(authViewModel = authViewModel)
+                            "parent" -> ParentDashboardScreen(authViewModel = authViewModel)
+                            else -> TutorApp(authViewModel = authViewModel)
+                        }
+                    }
                 }
             }
         }

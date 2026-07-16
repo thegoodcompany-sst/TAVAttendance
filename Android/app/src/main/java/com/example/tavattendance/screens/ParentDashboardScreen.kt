@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.tavattendance.auth.AuthViewModel
+import com.example.tavattendance.auth.BiometricToggleAction
 import com.example.tavattendance.data.models.Dismissal
 import com.example.tavattendance.data.models.Student
 import com.example.tavattendance.data.service.AttendanceService
@@ -102,7 +103,10 @@ fun ParentDashboardScreen(
         topBar = {
             TopAppBar(
                 title = { Text(if (portalEnabled) "My Children" else "TAVA Attendance") },
-                actions = { TextButton(onClick = { authViewModel.signOut() }) { Text("Sign Out") } }
+                actions = {
+                    BiometricToggleAction()
+                    TextButton(onClick = { authViewModel.signOut() }) { Text("Sign Out") }
+                }
             )
         }
     ) { padding ->

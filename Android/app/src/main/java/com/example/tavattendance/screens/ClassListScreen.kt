@@ -18,6 +18,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.auth.AuthViewModel
+import com.example.tavattendance.auth.BiometricToggleAction
 import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.core.ErrorRetry
 import com.example.tavattendance.core.asUserMessage
@@ -112,6 +113,7 @@ fun ClassListScreen(
                             Icon(Icons.Default.Add, contentDescription = "Add class")
                         }
                     }
+                    BiometricToggleAction()
                     TextButton(onClick = onSignOut) { Text("Sign Out") }
                 }
             )

@@ -14,6 +14,7 @@ struct ClassListView: View {
     @State private var showingExport = false
     @State private var showingImport = false
     @State private var showingParentLinks = false
+    @AppStorage("biometricUnlockEnabled") private var biometricUnlockEnabled = false
 
     private var isAdmin: Bool { authManager.currentProfile?.role == "admin" }
 
@@ -105,10 +106,30 @@ struct ClassListView: View {
                     }
                 }
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(role: .destructive) {
-                        Task { try? await authManager.signOut() }
+                    Menu {
+                        // ponytail: duplicated toggle (see ParentDashboardView), extract if a third role appears
+                        if let name = Biometrics.biometryName() {
+                            Button {
+                                Task {
+                                    if biometricUnlockEnabled {
+                                        biometricUnlockEnabled = false
+                                    } else if await Biometrics.authenticate(reason: "Enable \(name) unlock") {
+                                        biometricUnlockEnabled = true
+                                    }
+                                }
+                            } label: {
+                                Label("Require \(name) to Open",
+                                      systemImage: biometricUnlockEnabled ? "checkmark" : "faceid")
+                            }
+                            Divider()
+                        }
+                        Button(role: .destructive) {
+                            Task { try? await authManager.signOut() }
+                        } label: {
+                            Text("Sign Out")
+                        }
                     } label: {
-                        Text("Sign Out")
+                        Image(systemName: "person.circle")
                     }
                 }
             }

@@ -36,6 +36,7 @@ targets:
         SUPABASE_PROJECT_URL: "$(SUPABASE_PROJECT_URL)"
         SUPABASE_ANON_KEY: "$(SUPABASE_ANON_KEY)"
         NSCameraUsageDescription: "The camera scans student QR codes for kiosk sign-in."
+        NSFaceIDUsageDescription: "Face ID unlocks the app and kiosk admin mode."
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

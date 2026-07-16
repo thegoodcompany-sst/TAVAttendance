@@ -18,6 +18,7 @@ struct ParentDashboardView: View {
     @State private var selectedChild: Student?
     @State private var pendingDismissals: [Dismissal] = []
     @State private var error: AppError?
+    @AppStorage("biometricUnlockEnabled") private var biometricUnlockEnabled = false
 
     var body: some View {
         NavigationStack {
@@ -36,7 +37,31 @@ struct ParentDashboardView: View {
             .navigationTitle("My Children")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out") { Task { try? await authManager.signOut() } }
+                    Menu {
+                        // ponytail: duplicated toggle (see ClassListView), extract if a third role appears
+                        if let name = Biometrics.biometryName() {
+                            Button {
+                                Task {
+                                    if biometricUnlockEnabled {
+                                        biometricUnlockEnabled = false
+                                    } else if await Biometrics.authenticate(reason: "Enable \(name) unlock") {
+                                        biometricUnlockEnabled = true
+                                    }
+                                }
+                            } label: {
+                                Label("Require \(name) to Open",
+                                      systemImage: biometricUnlockEnabled ? "checkmark" : "faceid")
+                            }
+                            Divider()
+                        }
+                        Button(role: .destructive) {
+                            Task { try? await authManager.signOut() }
+                        } label: {
+                            Text("Sign Out")
+                        }
+                    } label: {
+                        Image(systemName: "person.circle")
+                    }
                 }
             }
             .sheet(item: $selectedChild) { child in

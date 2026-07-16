@@ -1,4 +1,5 @@
 import CommonCrypto
+import Combine
 import SwiftUI
 import UIKit
 
@@ -7,6 +8,7 @@ struct GlobalKioskView: View {
 
     @AppStorage("kioskPIN") private var storedPIN = ""
     @AppStorage("kioskLocked") private var isLocked = false
+    @AppStorage("kioskBiometricUnlock") private var kioskBiometricUnlock = false
 
     @State private var entries: [KioskEntry] = []
     @State private var isLoading = true
@@ -18,7 +20,7 @@ struct GlobalKioskView: View {
 
     // True when the admin unlocked the kiosk by entering a PIN this session.
     // Grants extra controls: absent marking, late→present override, present→late override.
-    @State private var isAdminUnlocked = false
+    @StateObject private var kioskSecurity = KioskSecurityState.shared
 
     @State private var isSelectionMode = false
     @State private var selectedIds: Set<UUID> = []
@@ -36,7 +38,7 @@ struct GlobalKioskView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 160, maximum: 220), spacing: 16)]
 
-    private var isAdminMode: Bool { !isLocked && (!storedPIN.isEmpty ? isAdminUnlocked : true) }
+    private var isAdminMode: Bool { !isLocked && (!storedPIN.isEmpty ? kioskSecurity.isAdminUnlocked : true) }
 
     enum PendingBulkAction: Equatable {
         case status(AttendanceStatus)
@@ -134,10 +136,10 @@ struct GlobalKioskView: View {
                     storedPIN = ""
                     isLocked = false
                     showPINResetAlert = true
-                }) { success in
+                }, allowBiometric: kioskBiometricUnlock) { success in
                     withAnimation(.easeInOut(duration: 0.2)) { showPINEntry = false }
                     if success {
-                        isLocked = false; isAdminUnlocked = true
+                        isLocked = false; kioskSecurity.isAdminUnlocked = true
                         Analytics.shared.track(.ops, name: "admin_unlock")
                     }
                 }
@@ -170,7 +172,7 @@ struct GlobalKioskView: View {
             // Guarded on !isAdminUnlocked so a .task re-run (e.g. returning to this tab)
             // never re-locks a kiosk the admin already unlocked this session — at launch
             // isAdminUnlocked is always false, so a PIN-set kiosk still boots locked.
-            if !storedPIN.isEmpty && !isAdminUnlocked {
+            if !storedPIN.isEmpty && !kioskSecurity.isAdminUnlocked {
                 isLocked = true
             }
             await load()
@@ -209,7 +211,7 @@ struct GlobalKioskView: View {
         }
         .onChange(of: isLocked) { _, locked in
             if locked {
-                isAdminUnlocked = false
+                kioskSecurity.isAdminUnlocked = false
                 isSelectionMode = false
                 selectedIds = []
                 Analytics.shared.track(.ops, name: "admin_lock")
@@ -1017,6 +1019,7 @@ private struct KioskSettingsSheet: View {
     @Binding var isLocked: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var showPINSetup = false
+    @AppStorage("kioskBiometricUnlock") private var kioskBiometricUnlock = false
 
     // SECURITY: Change PIN / Remove PIN both re-authenticate against the current PIN
     // before taking effect, so reaching this sheet is not enough to alter the PIN.
@@ -1048,6 +1051,15 @@ private struct KioskSettingsSheet: View {
                         Text("Kiosk Lock")
                     } footer: {
                         Text("When locked the tab bar is hidden and only the sign-in grid is shown. Tap the lock icon and enter the PIN to unlock and access admin controls.")
+                    }
+
+                    if !storedPIN.isEmpty,
+                       let name = Biometrics.biometryName(policy: .deviceOwnerAuthenticationWithBiometrics) {
+                        Section {
+                            Toggle("Allow \(name) Unlock", isOn: $kioskBiometricUnlock)
+                        } footer: {
+                            Text("Anyone enrolled in \(name) on this iPad can unlock admin mode. Enable only if this device's \(name) is staff-only. The PIN always remains available.")
+                        }
                     }
                 }
 
@@ -1163,6 +1175,9 @@ private struct PINUnlockOverlay: View {
     let storedPIN: String
     // QA-06 recovery: invoked from the lockout screen when the PIN can never validate.
     var onReset: (() -> Void)? = nil
+    // Kiosk-settings opt-in: offers Face ID/Touch ID as an alternative door. Success
+    // does not touch the PIN failure counters — it's simply another way in.
+    var allowBiometric = false
     let onDone: (Bool) -> Void
 
     // Persisted so a device restart can't reset the lockout counter.
@@ -1250,6 +1265,25 @@ private struct PINUnlockOverlay: View {
                                    .foregroundStyle(.white.opacity(0.7))
                                    .frame(width: 80, height: 80)
                            ) })
+
+                    // No auto-prompt: the overlay can be opened accidentally by a student,
+                    // so biometrics require an explicit tap.
+                    if allowBiometric,
+                       let name = Biometrics.biometryName(policy: .deviceOwnerAuthenticationWithBiometrics) {
+                        Button {
+                            Task {
+                                if await Biometrics.authenticate(
+                                    reason: "Unlock kiosk admin mode",
+                                    policy: .deviceOwnerAuthenticationWithBiometrics) {
+                                    onDone(true)
+                                }
+                            }
+                        } label: {
+                            Label("Unlock with \(name)",
+                                  systemImage: name == "Touch ID" ? "touchid" : "faceid")
+                                .foregroundStyle(.white)
+                        }
+                    }
                 }
             }
             .padding(48)
