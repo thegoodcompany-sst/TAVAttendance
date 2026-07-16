@@ -41,7 +41,7 @@ android {
         applicationId = "com.example.tavattendance"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
+        versionCode = 3
         versionName = "1.1"
 
         buildConfigField("String", "SUPABASE_PROJECT_URL", "\"${secret("SUPABASE_PROJECT_URL")}\"")

@@ -1,4 +1,4 @@
-TAVA Attendance — v1.1 (build 2)
-New (behind feature flags, off by default): parent portal, tutor session notes,
-kiosk QR sign-in, awards. Fixes: session list now shows load errors with retry
-instead of an empty list; release builds signed + minified.
+TAVA Attendance — v1.1 (build 3)
+Biometric unlock, and framework for user settings panel.
+Opt in from the account menu: fingerprint/face unlock protects the app when
+reopening. Off by default — nothing changes unless you enable it.
