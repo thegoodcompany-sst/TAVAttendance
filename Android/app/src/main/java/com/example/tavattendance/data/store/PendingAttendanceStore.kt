@@ -64,9 +64,15 @@ class PendingAttendanceStore(context: Context) {
     fun allPending(): List<PendingAttendanceRecord> = load().filter { !it.isSynced }
 
     fun markSynced(clientMutationIds: Set<String>) {
-        val records = load().map { r ->
-            if (r.clientMutationId in clientMutationIds) r.copy(isSynced = true) else r
-        }
-        save(records)
+        save(recordsAfterSync(load(), clientMutationIds))
     }
+}
+
+/** Synced attendance contains student identifiers and has no offline purpose.
+ * Remove it immediately, including legacy rows previously retained as synced. */
+internal fun recordsAfterSync(
+    records: List<PendingAttendanceRecord>,
+    clientMutationIds: Set<String>
+): List<PendingAttendanceRecord> = records.filterNot {
+    it.isSynced || it.clientMutationId in clientMutationIds
 }

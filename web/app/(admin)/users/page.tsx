@@ -4,6 +4,7 @@ import { RemoveUserButton } from './remove-button'
 import { UserPlus, ShieldCheck, BookOpen, Users } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { initials } from '@/lib/utils'
+import { isSuperadmin } from '@/lib/superadmin'
 
 const ROLE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   admin: { label: 'Admin', icon: ShieldCheck, color: 'text-brand bg-brand-soft' },
@@ -21,6 +22,8 @@ async function getTeamMembers() {
 }
 
 export default async function UsersPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
   const members = await getTeamMembers()
 
   return (
@@ -44,7 +47,7 @@ export default async function UsersPage() {
                 <p className="text-xs text-muted-foreground">They set their own password</p>
               </div>
             </div>
-            <InviteForm />
+            <InviteForm canInviteAdmin={isSuperadmin(user)} />
           </div>
         </div>
 

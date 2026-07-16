@@ -7,6 +7,7 @@ import Supabase
 enum AppIntentError: Error, CustomLocalizedStringResourceConvertible {
     case notSignedIn
     case notAdmin
+    case kioskLocked
     case studentNotInToday(String)
     case noClassesToday
 
@@ -16,6 +17,8 @@ enum AppIntentError: Error, CustomLocalizedStringResourceConvertible {
             return "Please open TAVAttendance and sign in as an admin first."
         case .notAdmin:
             return "This action is only available to admin accounts. Sign in to the kiosk as an admin."
+        case .kioskLocked:
+            return "Unlock the kiosk in TAVAttendance before using Siri or Shortcuts."
         case .studentNotInToday(let name):
             return "\(name) doesn't have a class today, so there's nothing to sign in."
         case .noClassesToday:
@@ -34,6 +37,7 @@ enum IntentSupport {
     /// requires an admin account (see CLAUDE.md).
     @discardableResult
     static func requireAdminSession() async throws -> Profile {
+        try await requireKioskAuthorization()
         let client = SupabaseManager.shared.client
 
         // `auth.session` throws when there is no stored/refreshable session.
@@ -65,11 +69,19 @@ enum IntentSupport {
 
     /// Confirms there is an authenticated session (any role) for read-only intents.
     static func requireSession() async throws {
+        try await requireKioskAuthorization()
         do {
             _ = try await SupabaseManager.shared.client.auth.session
         } catch {
             throw AppIntentError.notSignedIn
         }
+    }
+
+    /// The Supabase session persists across launches, while the kiosk PIN unlock
+    /// intentionally does not. Enforce both boundaries for every App Intent path.
+    static func requireKioskAuthorization() async throws {
+        let allowed = await MainActor.run { KioskSecurityState.shared.allowsAppIntents }
+        guard allowed else { throw AppIntentError.kioskLocked }
     }
 
     /// Finds today's kiosk entry for a student id, or nil if the student has no class today.

@@ -89,8 +89,9 @@ applied to prod** as of 2026-07-09). Upload size caps are **client-side**
 checks, not bucket settings (result slips 10 MB, photos 5 MB — per
 CONTRIBUTING.md §1; the photo check lives in iOS `AttendanceService.swift`).
 Path convention:
-`<student_id>/<file>`. Known gap: SQL-level erasure can't delete Storage
-objects (HUMANS.md §9).
+`<student_id>/<file>`. Explicit app-driven erase/anonymise sweeps both buckets
+before the database RPC. SQL-only scheduled retention still cannot delete
+Storage objects; HUMANS.md §9 tracks the orphan-cleanup gap.
 
 ## Scheduled jobs
 

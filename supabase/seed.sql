@@ -50,7 +50,13 @@ INSERT INTO auth.users (
     )
 ON CONFLICT (id) DO NOTHING;
 
--- Profiles created by trigger; add phone numbers
+-- Profiles are deliberately created least-privileged by handle_new_user. Seed
+-- roles are assigned explicitly here because this file runs as trusted local SQL.
+UPDATE profiles SET role = 'admin'  WHERE id = '00000000-0000-0000-0000-000000000001';
+UPDATE profiles SET role = 'tutor'  WHERE id = '00000000-0000-0000-0000-000000000002';
+UPDATE profiles SET role = 'parent' WHERE id = '00000000-0000-0000-0000-000000000003';
+
+-- Add seed phone numbers.
 UPDATE profiles SET phone = '+6591234567' WHERE id = '00000000-0000-0000-0000-000000000002';
 UPDATE profiles SET phone = '+6598765432' WHERE id = '00000000-0000-0000-0000-000000000003';
 

@@ -62,6 +62,9 @@ object Analytics {
     private const val PLATFORM = "android"
     internal const val MAX_BUFFERED = 500
     private val EMPTY = JsonObject(emptyMap())
+    private val EMAIL_RE = Regex("""\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b""", RegexOption.IGNORE_CASE)
+    private val UUID_RE = Regex("""\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b""", RegexOption.IGNORE_CASE)
+    private val NRIC_RE = Regex("""\b[STFGM]\d{7}[A-Z]\b""", RegexOption.IGNORE_CASE)
 
     private val lock = Any()
     /** Buffered events awaiting the next flush. Internal for tests. */
@@ -135,10 +138,18 @@ object Analytics {
     /** Handled-error funnel. `screen`/`message` are technical strings — never student names. */
     fun trackError(screen: String, error: Throwable) {
         track(AnalyticsEventType.ERROR, "handled_error", buildJsonObject {
-            put("message", error.message ?: error.javaClass.simpleName)
-            put("screen", screen)
+            // Exception messages can echo submitted row values. Keep only the
+            // non-PII error category in remote analytics.
+            put("message", error.javaClass.simpleName)
+            put("screen", redactText(screen))
         })
     }
+
+    internal fun redactText(value: String): String = value
+        .replace(EMAIL_RE, "[email]")
+        .replace(UUID_RE, "[id]")
+        .replace(NRIC_RE, "[identifier]")
+        .take(200)
 
     /** Fire-and-forget flush (app background / onStop). */
     fun flushNow() { scope.launch { flush() } }

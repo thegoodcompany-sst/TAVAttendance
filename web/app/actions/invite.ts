@@ -41,6 +41,9 @@ export async function inviteUser(
     .single()
 
   if (profile?.role !== 'admin') return { error: 'Only admins can send invites.' }
+  if (role === 'admin' && !isSuperadmin(user)) {
+    return { error: 'Only the superadmin can invite another admin account.' }
+  }
 
   const adminClient = createAdminClient()
 
@@ -70,7 +73,9 @@ export async function inviteUser(
   if (siteUrlError || !siteUrl) return { error: siteUrlError ?? 'SITE_URL misconfigured.' }
 
   const { data: invited, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-    data: { full_name: fullName, role },
+    // Role is assigned authoritatively below. Never copy a privileged role into
+    // user-editable metadata, even though handle_new_user currently ignores it.
+    data: { full_name: fullName },
     redirectTo: `${siteUrl}/auth/confirm`,
   })
 
@@ -109,11 +114,12 @@ export async function removeUser(userId: string): Promise<{ error: string | null
 
   // Guard: a plain admin must not be able to delete another admin (or the
   // superadmin who controls feature flags). Only the superadmin may remove admins.
-  const { data: target } = await adminClient
+  const { data: target, error: targetError } = await adminClient
     .from('profiles')
     .select('role')
     .eq('id', userId)
     .maybeSingle()
+  if (targetError) return { error: `Could not verify target role: ${targetError.message}` }
   if (target?.role === 'admin' && !isSuperadmin(user)) {
     return { error: 'Only the superadmin can remove another admin account.' }
   }

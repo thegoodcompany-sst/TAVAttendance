@@ -57,17 +57,14 @@ class StudentManagementViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun addStudent(student: StudentInsert, consentAttested: Boolean) {
+        if (!consentAttested) {
+            _snackbarMessage.value = "Confirm parent/guardian consent before adding a student."
+            return
+        }
         viewModelScope.launch {
             runCatching {
-                val created = AttendanceService.createStudent(student)
-                // PDPA consent gate: record parent/guardian consent attested by the admin.
-                if (consentAttested) {
-                    AttendanceService.recordConsent(
-                        studentId = created.id,
-                        status = "granted",
-                        sourceNote = "Admin attestation on create"
-                    )
-                }
+                AttendanceService.createStudentWithConsent(
+                    student, sourceNote = "Admin attestation on create")
             }.onSuccess { loadStudents() }
                 .onFailure { _snackbarMessage.value = it.asUserMessage("Couldn't add student") }
         }

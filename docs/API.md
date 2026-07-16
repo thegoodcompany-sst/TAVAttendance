@@ -329,6 +329,44 @@ func fetchRoster(sessionId: UUID) async throws -> [RosterEntry] {
 }
 ```
 
+### 4.5 Create a Student with Consent
+
+Student creation must use `create_student_with_consent`; direct authenticated
+inserts into `students` are denied. The admin-guarded RPC creates the student
+and mandatory consent-ledger entry atomically, stamps `auth.uid()` as the actor,
+and reads the current data-protection-notice version on the server.
+
+```swift
+struct CreateStudentWithConsentParams: Encodable {
+    let fullName: String
+    let school: String?
+    let yearOfStudy: String?
+    let sourceNote: String?
+
+    enum CodingKeys: String, CodingKey {
+        case fullName = "p_full_name"
+        case school = "p_school"
+        case yearOfStudy = "p_year_of_study"
+        case sourceNote = "p_source_note"
+    }
+}
+
+func createStudentWithConsent(
+    _ student: StudentInsert,
+    sourceNote: String
+) async throws -> Student {
+    try await SupabaseManager.shared.client
+        .rpc("create_student_with_consent", params: CreateStudentWithConsentParams(
+            fullName: student.fullName,
+            school: student.school,
+            yearOfStudy: student.yearOfStudy,
+            sourceNote: sourceNote
+        ))
+        .execute()
+        .value
+}
+```
+
 ---
 
 ## 5. Attendance Flow (Tutor)

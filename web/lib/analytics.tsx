@@ -18,7 +18,6 @@ type Enqueue = (event: EventInput) => void
 let activeEnqueue: Enqueue | null = null
 
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi
-const EMAIL = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/g
 
 declare global {
   interface Window {
@@ -31,8 +30,11 @@ function normalisePath(path: string): string {
 }
 
 export function redactAnalyticsText(value: unknown): string {
-  const message = value instanceof Error ? value.message : String(value ?? 'Unknown error')
-  return message.replace(EMAIL, '[email]').replace(UUID, '{id}').slice(0, 200)
+  // Browser/runtime error messages can echo submitted form values. Analytics
+  // needs the failure category, not the potentially personal description.
+  if (value instanceof Error) return value.name.slice(0, 80)
+  if (value && typeof value === 'object') return value.constructor?.name?.slice(0, 80) || 'Error'
+  return value == null ? 'UnknownError' : `${typeof value}Error`
 }
 
 export function trackAnalyticsEvent(event: EventInput) {

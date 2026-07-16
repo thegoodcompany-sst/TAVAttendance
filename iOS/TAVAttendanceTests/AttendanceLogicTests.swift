@@ -5,6 +5,16 @@ final class AttendanceLogicTests: XCTestCase {
 
     private let calendar = Calendar(identifier: .gregorian)
 
+    @MainActor
+    func testKioskPINBlocksAppIntentsUntilCurrentLaunchUnlock() {
+        XCTAssertFalse(KioskSecurityState.allowsAppIntents(
+            hasConfiguredPIN: true, isAdminUnlocked: false))
+        XCTAssertTrue(KioskSecurityState.allowsAppIntents(
+            hasConfiguredPIN: true, isAdminUnlocked: true))
+        XCTAssertTrue(KioskSecurityState.allowsAppIntents(
+            hasConfiguredPIN: false, isAdminUnlocked: false))
+    }
+
     private func at(_ hour: Int, _ minute: Int) -> Date {
         var c = DateComponents()
         c.year = 2026; c.month = 7; c.day = 10

@@ -53,16 +53,9 @@ class StudentImportViewModel(app: Application) : AndroidViewModel(app) {
             _result.value = null
             var ok = 0
             val failures = mutableListOf<String>()
-            val version = runCatching { AttendanceService.fetchPrivacyNotice()?.version }.getOrNull()
             for (row in rows) {
                 runCatching {
-                    val student = AttendanceService.createStudent(row)
-                    AttendanceService.recordConsent(
-                        studentId = student.id,
-                        status = "granted",
-                        noticeVersion = version,
-                        sourceNote = "Bulk CSV import"
-                    )
+                    AttendanceService.createStudentWithConsent(row, sourceNote = "Bulk CSV import")
                 }.onSuccess { ok++ }
                     .onFailure { failures.add("${row.fullName}: ${it.message ?: "failed"}") }
             }

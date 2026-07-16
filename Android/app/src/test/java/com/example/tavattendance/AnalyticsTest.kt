@@ -53,4 +53,15 @@ class AnalyticsTest {
         // The 10 oldest were shed, so the first survivor is e10.
         assertEquals("e10", Analytics.buffer.first().name)
     }
+
+    @Test
+    fun analyticsTextRedactsPersonalIdentifiersAndBoundsLength() {
+        val raw = "child@example.com S1234567D 123e4567-e89b-12d3-a456-426614174000 " + "x".repeat(250)
+        val redacted = Analytics.redactText(raw)
+
+        assertTrue("[email]" in redacted)
+        assertTrue("[identifier]" in redacted)
+        assertTrue("[id]" in redacted)
+        assertTrue(redacted.length <= 200)
+    }
 }
