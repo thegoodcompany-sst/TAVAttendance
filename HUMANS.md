@@ -114,6 +114,14 @@ world-readable profiles policy AND the self-role-escalation WITH CHECK) → `013
 Verified: all gate queries in `.claude/skills/tava-prod-drift-campaign` passed; advisors show only
 the accepted WARNs. Prod now matches migrations 001–017.
 
+### ☑ 59. Apply migration 034 (privacy/authorization hardening) to prod — DONE (2026-07-17)
+Applied via MCP `apply_migration` after verifying all 21 prerequisite functions and the current
+data-protection notice existed in prod. Adds `create_student_with_consent` RPC + restrictive
+insert/consent policies, removes the `handle_new_user` bootstrap-admin exception, excludes Study
+Space from the export/punctuality RPCs, scopes tutor grade access, and pins SECURITY DEFINER
+search_paths. Migration's own ASSERT block passed; unblocked the PR #3 drift detector (was failing
+on the missing RPC). Reverse script: `supabase/migrations/down/034_privacy_authorization_hardening.sql`.
+
 ### ☐ 16. Flip feature flags when each feature is ready
 Features ship OFF. Enable per platform-ready feature:
 ```sql
