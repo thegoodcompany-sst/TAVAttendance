@@ -60,6 +60,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 ...(showHealth ? [{ href: '/health', label: 'Health' }] : []),
                 ...(showAwards ? [{ href: '/awards', label: 'Awards' }] : []),
                 { href: '/students', label: 'Students' },
+                { href: '/messages', label: 'Messages' },
+                { href: '/result-slips', label: 'Slips' },
                 { href: '/users', label: 'Users' },
                 ...(superadmin ? [{ href: '/feature-flags', label: 'Flags' }, { href: '/danger', label: 'Wipe' }] : []),
               ].map(item => (

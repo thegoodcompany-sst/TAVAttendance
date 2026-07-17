@@ -5,6 +5,17 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web parent portal Phase 2 (behind `parent_portal` flag): parents upload
+  result slips and message the centre per child; admin gets `/messages` and
+  `/result-slips` pages (reply, mark read, acknowledge slips). Migration 035
+  adds the parent INSERT policies (result_slips + storage, messages) and
+  thread indexes.
+- Admin web `/users`: link/unlink students to parent accounts inline via the
+  existing `link_parent_student`/`unlink_parent_student` RPCs (first UI for
+  `parent_student_links`).
+- Admin web Activity feed now resolves entity names — entries read
+  "Edmund edited Class: Sec 2 Math" instead of raw table/column names, with
+  friendly changed-field subtitles.
 - Added atomic student creation with mandatory consent attestation across web,
   iOS, and Android; direct student inserts and consent-ledger mutations are now
   blocked.

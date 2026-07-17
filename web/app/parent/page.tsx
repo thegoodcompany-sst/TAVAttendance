@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { getAllStudents, getStudentClassSummary } from '@/lib/queries'
 import { Avatar } from '@/components/dashboard/avatar'
@@ -62,6 +63,20 @@ export default async function ParentPage() {
                     ))}
                   </ul>
                 )}
+                <div className="mt-4 flex gap-2">
+                  <Link
+                    href={`/parent/results/${child.id}`}
+                    className="inline-flex items-center text-xs font-medium text-brand-ink bg-brand-soft hover:bg-brand-soft/80 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Result slips
+                  </Link>
+                  <Link
+                    href={`/parent/messages/${child.id}`}
+                    className="inline-flex items-center text-xs font-medium text-brand-ink bg-brand-soft hover:bg-brand-soft/80 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    Messages
+                  </Link>
+                </div>
               </div>
             )
           }))}

@@ -11,14 +11,6 @@ const ACTION_COLOR = {
   DELETE: 'bg-rose-50 text-rose-700',
 }
 
-function changedKeys(entry: AuditLogEntry): string {
-  if (entry.action === 'INSERT') return 'Created record'
-  if (entry.action === 'DELETE') return 'Deleted record'
-  const keys = new Set([...Object.keys(entry.oldData ?? {}), ...Object.keys(entry.newData ?? {})])
-  const changed = [...keys].filter(key => JSON.stringify(entry.oldData?.[key]) !== JSON.stringify(entry.newData?.[key]))
-  return changed.length ? `Changed ${changed.slice(0, 5).join(', ')}${changed.length > 5 ? ` +${changed.length - 5}` : ''}` : 'Updated record'
-}
-
 function time(value: string): string {
   return new Date(value).toLocaleString('en-SG', {
     timeZone: 'Asia/Singapore',
@@ -95,11 +87,12 @@ export function ActivityClient({
               <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center gap-3 py-3.5">
                 <time className="text-xs text-muted-foreground sm:w-32 flex-shrink-0">{time(entry.changedAt)}</time>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{entry.actorName}</p>
-                  <p className="text-xs text-muted-foreground truncate">{changedKeys(entry)}</p>
+                  <p className="text-sm font-medium truncate">
+                    <span className="font-semibold">{entry.actorName}</span> {entry.verb} {entry.entityLabel}
+                  </p>
+                  {entry.detail && <p className="text-xs text-muted-foreground truncate">{entry.detail}</p>}
                 </div>
                 <span className={cn('text-[11px] font-semibold px-2 py-1 rounded-full', ACTION_COLOR[entry.action])}>{entry.action}</span>
-                <span className="text-xs font-mono text-muted-foreground sm:w-40 truncate">{entry.tableName}</span>
               </div>
             ))}
           </div>

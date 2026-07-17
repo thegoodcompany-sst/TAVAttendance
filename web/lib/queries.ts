@@ -641,6 +641,71 @@ export type AuditLogEntry = {
   changedAt: string
   actorName: string
   actorRole: string | null
+  verb: string
+  entityLabel: string
+  detail: string
+}
+
+const AUDIT_VERB = { INSERT: 'created', UPDATE: 'edited', DELETE: 'deleted' } as const
+
+const AUDIT_COLUMN_LABEL: Record<string, string> = {
+  schedule_time: 'schedule',
+  schedule_day: 'day',
+  recurrence_rule: 'recurrence',
+  full_name: 'name',
+  session_date: 'date',
+  late_reason: 'late reason',
+  marked_at: 'marked time',
+  is_active: 'active',
+  class_id: 'class',
+  student_id: 'student',
+}
+
+function auditDetail(row: any): string {
+  if (row.action !== 'UPDATE') return ''
+  const oldData = row.old_data ?? {}
+  const newData = row.new_data ?? {}
+  const keys = new Set([...Object.keys(oldData), ...Object.keys(newData)])
+  const changed = [...keys]
+    .filter(k => JSON.stringify(oldData[k]) !== JSON.stringify(newData[k]))
+    .map(k => AUDIT_COLUMN_LABEL[k] ?? k)
+  if (!changed.length) return ''
+  return `Changed ${changed.slice(0, 5).join(', ')}${changed.length > 5 ? ` +${changed.length - 5}` : ''}`
+}
+
+function auditEntityLabel(
+  row: any,
+  classNames: Map<string, string>,
+  studentNames: Map<string, string>,
+): string {
+  const snap = (row.new_data ?? row.old_data ?? {}) as Record<string, any>
+  const fallback = `${row.table_name} ${String(row.record_id).slice(0, 8)}`
+  switch (row.table_name) {
+    case 'students':
+      return snap.full_name ? `Student: ${snap.full_name}` : fallback
+    case 'classes':
+      return snap.name ? `Class: ${snap.name}` : fallback
+    case 'profiles':
+      return snap.full_name ? `User: ${snap.full_name}` : fallback
+    case 'sessions': {
+      const name = classNames.get(snap.class_id)
+      if (!name) return fallback
+      return snap.session_date ? `Session: ${name} — ${snap.session_date}` : `Session: ${name}`
+    }
+    case 'enrollments': {
+      const student = studentNames.get(snap.student_id)
+      const cls = classNames.get(snap.class_id)
+      if (!student && !cls) return fallback
+      return `Enrolment: ${student ?? 'student'} in ${cls ?? 'class'}`
+    }
+    case 'attendance_records': {
+      const student = studentNames.get(snap.student_id)
+      if (!student) return fallback
+      return snap.status ? `Attendance: ${student} (${snap.status})` : `Attendance: ${student}`
+    }
+    default:
+      return fallback
+  }
 }
 
 export async function getAuditLog({
@@ -689,6 +754,29 @@ export async function getAuditLog({
     }
   }
 
+  const classIds = new Set<string>()
+  const studentIds = new Set<string>()
+  for (const row of data ?? []) {
+    const snap = (row.new_data ?? row.old_data ?? {}) as Record<string, any>
+    if (row.table_name === 'sessions' || row.table_name === 'enrollments') {
+      if (snap.class_id) classIds.add(snap.class_id)
+    }
+    if (row.table_name === 'enrollments' || row.table_name === 'attendance_records') {
+      if (snap.student_id) studentIds.add(snap.student_id)
+    }
+  }
+
+  const classNames = new Map<string, string>()
+  const studentNames = new Map<string, string>()
+  if (classIds.size > 0) {
+    const { data: classes } = await supabase.from('classes').select('id, name').in('id', [...classIds])
+    for (const c of classes ?? []) classNames.set(c.id, c.name)
+  }
+  if (studentIds.size > 0) {
+    const { data: students } = await supabase.from('students').select('id, full_name').in('id', [...studentIds])
+    for (const s of students ?? []) studentNames.set(s.id, s.full_name)
+  }
+
   return (data ?? []).map((row: any) => {
     const actor = row.changed_by ? actors.get(row.changed_by) : null
     return {
@@ -702,6 +790,9 @@ export async function getAuditLog({
       changedAt: row.changed_at,
       actorName: actor?.fullName ?? 'System',
       actorRole: actor?.role ?? null,
+      verb: AUDIT_VERB[row.action as keyof typeof AUDIT_VERB] ?? 'changed',
+      entityLabel: auditEntityLabel(row, classNames, studentNames),
+      detail: auditDetail(row),
     }
   })
 }

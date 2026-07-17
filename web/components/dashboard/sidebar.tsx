@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert, Trophy, Activity, HeartPulse } from 'lucide-react'
+import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert, Trophy, Activity, HeartPulse, MessageSquare, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from './avatar'
 
@@ -13,6 +13,8 @@ const NAV = [
   { href: '/analytics', label: 'Analytics', Icon: LineChart },
   { href: '/activity', label: 'Activity', Icon: Activity },
   { href: '/students', label: 'Students', Icon: Users },
+  { href: '/messages', label: 'Messages', Icon: MessageSquare },
+  { href: '/result-slips', label: 'Result Slips', Icon: FileText },
   { href: '/users', label: 'Users', Icon: UserPlus },
 ]
 

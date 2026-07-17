@@ -94,3 +94,4 @@ applies forward only.
 | 032 | app_events_hardening          | Safe duration aggregation, cron refresh, stronger analytics assertions | yes   |
 | 033 | app_events_singapore_day      | Group daily analytics by the Singapore centre calendar day | yes   |
 | 034 | privacy_authorization_hardening | Atomic consent, append-only ledger, report/export and tutor authorization hardening | yes   |
+| 035 | parent_portal_writes          | Parent INSERT policies for result_slips (+storage) and messages, thread indexes | yes   |

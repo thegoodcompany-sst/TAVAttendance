@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { InviteForm } from './invite-form'
 import { RemoveUserButton } from './remove-button'
+import { ManageChildren } from './manage-children'
 import { UserPlus, ShieldCheck, BookOpen, Users } from 'lucide-react'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { initials } from '@/lib/utils'
 import { isSuperadmin } from '@/lib/superadmin'
+import { getAllStudents } from '@/lib/queries'
 
 const ROLE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   admin: { label: 'Admin', icon: ShieldCheck, color: 'text-brand bg-brand-soft' },
@@ -21,10 +23,20 @@ async function getTeamMembers() {
   return data ?? []
 }
 
+async function getParentStudentLinks() {
+  const supabase = await createClient()
+  const { data } = await supabase.from('parent_student_links').select('parent_id, student_id')
+  return data ?? []
+}
+
 export default async function UsersPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  const members = await getTeamMembers()
+  const [members, students, links] = await Promise.all([
+    getTeamMembers(),
+    getAllStudents(),
+    getParentStudentLinks(),
+  ])
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -75,6 +87,8 @@ export default async function UsersPage() {
                   month: 'short',
                   year: 'numeric',
                 })
+                const linkedStudentIds = links.filter(l => l.parent_id === member.id).map(l => l.student_id)
+                const childNames = students.filter(s => linkedStudentIds.includes(s.id)).map(s => s.fullName)
                 return (
                   <li key={member.id} className="group flex items-center gap-4 px-6 py-3.5">
                     {/* Avatar */}
@@ -87,6 +101,18 @@ export default async function UsersPage() {
                         {member.full_name ?? '—'}
                       </p>
                       <p className="text-xs text-muted-foreground">Joined {joinedAt}</p>
+                      {member.role === 'parent' && (
+                        <div className="mt-1.5">
+                          {childNames.length > 0 && (
+                            <p className="text-xs text-muted-foreground mb-1">{childNames.join(', ')}</p>
+                          )}
+                          <ManageChildren
+                            parentId={member.id}
+                            students={students}
+                            linkedStudentIds={linkedStudentIds}
+                          />
+                        </div>
+                      )}
                     </div>
                     {/* Role badge */}
                     <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${meta.color}`}>
