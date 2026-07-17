@@ -611,7 +611,7 @@ final class AttendanceService {
             .execute()
     }
 
-    // MARK: - Result slips (#20)
+    // MARK: - Result slips (#20 / parent portal Phase 2)
 
     func fetchResultSlips(studentId: UUID) async throws -> [ResultSlip] {
         return try await db.from("result_slips")
@@ -619,6 +619,94 @@ final class AttendanceService {
             .eq("student_id", value: studentId)
             .order("uploaded_at", ascending: false)
             .execute().value
+    }
+
+    /// Text-only result insert (no file_path). Parent RLS requires uploaded_by = auth.uid().
+    func submitResultSlip(
+        studentId: UUID,
+        examName: String,
+        examDate: String,
+        subject: String,
+        score: Double,
+        maxScore: Double,
+        uploadedBy: UUID
+    ) async throws -> ResultSlip {
+        struct Insert: Encodable {
+            let studentId: UUID
+            let examName: String
+            let examDate: String
+            let subject: String
+            let score: Double
+            let maxScore: Double
+            let uploadedBy: UUID
+
+            enum CodingKeys: String, CodingKey {
+                case subject, score
+                case studentId  = "student_id"
+                case examName   = "exam_name"
+                case examDate   = "exam_date"
+                case maxScore   = "max_score"
+                case uploadedBy = "uploaded_by"
+            }
+        }
+        return try await db.from("result_slips")
+            .insert(Insert(
+                studentId: studentId,
+                examName: examName,
+                examDate: examDate,
+                subject: subject,
+                score: score,
+                maxScore: maxScore,
+                uploadedBy: uploadedBy
+            ))
+            .select()
+            .single()
+            .execute()
+            .value
+    }
+
+    // MARK: - Parent messages (Phase 2)
+
+    func fetchMessages(studentId: UUID) async throws -> [ParentMessage] {
+        return try await db.from("messages")
+            .select()
+            .eq("student_id", value: studentId)
+            .order("sent_at", ascending: true)
+            .execute().value
+    }
+
+    func sendParentMessage(
+        studentId: UUID,
+        senderId: UUID,
+        subject: String?,
+        body: String
+    ) async throws -> ParentMessage {
+        struct Insert: Encodable {
+            let senderId: UUID
+            let studentId: UUID
+            let recipientId: UUID?
+            let subject: String?
+            let body: String
+
+            enum CodingKeys: String, CodingKey {
+                case subject, body
+                case senderId    = "sender_id"
+                case studentId   = "student_id"
+                case recipientId = "recipient_id"
+            }
+        }
+        return try await db.from("messages")
+            .insert(Insert(
+                senderId: senderId,
+                studentId: studentId,
+                recipientId: nil,
+                subject: subject,
+                body: body
+            ))
+            .select()
+            .single()
+            .execute()
+            .value
     }
 
     // MARK: - Parent linking (#13)

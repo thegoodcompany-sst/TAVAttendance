@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Native parent portal Phase 2 (iOS + Android, behind `parent_portal`): each
+  child opens with Attendance / Results / Messages tabs; parents submit
+  text-only result slips (pending/acknowledged), and message TAVA per child.
+  No native file upload; study-space attendance stays excluded.
 - Web parent portal Phase 2 (behind `parent_portal` flag): parents upload
   result slips and message the centre per child; admin gets `/messages` and
   `/result-slips` pages (reply, mark read, acknowledge slips). Migration 035

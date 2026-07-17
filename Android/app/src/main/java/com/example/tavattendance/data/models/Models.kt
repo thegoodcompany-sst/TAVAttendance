@@ -266,3 +266,88 @@ data class Dismissal(
     @SerialName("dismissed_at") val dismissedAt: String? = null,
     @SerialName("safely_home_at") val safelyHomeAt: String? = null
 )
+
+// ---- Parent portal Phase 2: result slips + messages ----
+
+@Serializable
+data class ResultSlip(
+    val id: String,
+    @SerialName("student_id") val studentId: String,
+    @SerialName("exam_name") val examName: String? = null,
+    @SerialName("exam_date") val examDate: String? = null,
+    val subject: String? = null,
+    val score: Double? = null,
+    @SerialName("max_score") val maxScore: Double? = null,
+    @SerialName("uploaded_at") val uploadedAt: String? = null,
+    @SerialName("acknowledged_at") val acknowledgedAt: String? = null
+) {
+    val isAcknowledged: Boolean get() = acknowledgedAt != null
+
+    val fractionDisplay: String? get() {
+        val s = score ?: return null
+        val m = maxScore ?: return null
+        val sStr = if (s == s.toLong().toDouble()) s.toLong().toString() else s.toString()
+        val mStr = if (m == m.toLong().toDouble()) m.toLong().toString() else m.toString()
+        return "$sStr / $mStr"
+    }
+}
+
+@Serializable
+data class ResultSlipInsert(
+    @SerialName("student_id") val studentId: String,
+    @SerialName("exam_name") val examName: String,
+    @SerialName("exam_date") val examDate: String,
+    val subject: String,
+    val score: Double,
+    @SerialName("max_score") val maxScore: Double,
+    @SerialName("uploaded_by") val uploadedBy: String
+)
+
+/** Client-side validation for text-only result-slip inserts. */
+object ResultSlipInputValidation {
+    enum class Failure {
+        EMPTY_EXAM_NAME,
+        INVALID_SCORE,
+        INVALID_MAX_SCORE,
+        SCORE_EXCEEDS_MAX;
+
+        val message: String get() = when (this) {
+            EMPTY_EXAM_NAME -> "Exam name is required."
+            INVALID_SCORE -> "Score must be zero or greater."
+            INVALID_MAX_SCORE -> "Maximum score must be greater than zero."
+            SCORE_EXCEEDS_MAX -> "Score cannot exceed the maximum."
+        }
+    }
+
+    fun validate(examName: String, score: Double?, maxScore: Double?): Failure? {
+        if (examName.trim().isEmpty()) return Failure.EMPTY_EXAM_NAME
+        if (score == null || !score.isFinite() || score < 0) return Failure.INVALID_SCORE
+        if (maxScore == null || !maxScore.isFinite() || maxScore <= 0) return Failure.INVALID_MAX_SCORE
+        if (score > maxScore) return Failure.SCORE_EXCEEDS_MAX
+        return null
+    }
+}
+
+@Serializable
+data class ParentMessage(
+    val id: String,
+    @SerialName("sender_id") val senderId: String? = null,
+    @SerialName("recipient_id") val recipientId: String? = null,
+    @SerialName("student_id") val studentId: String? = null,
+    val subject: String? = null,
+    val body: String,
+    @SerialName("sent_at") val sentAt: String? = null,
+    @SerialName("read_at") val readAt: String? = null
+) {
+    /** Parent-originated when recipient is null (centre is the implicit recipient). */
+    val isFromParent: Boolean get() = recipientId == null
+}
+
+@Serializable
+data class ParentMessageInsert(
+    @SerialName("sender_id") val senderId: String,
+    @SerialName("student_id") val studentId: String,
+    @SerialName("recipient_id") val recipientId: String? = null,
+    val subject: String? = null,
+    val body: String
+)

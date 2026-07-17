@@ -630,6 +630,58 @@ object AttendanceService {
         }) { filter { eq("id", request.id) } }
     }
 
+    // ---- Result slips + parent messages (Phase 2 parent portal) ----
+
+    suspend fun fetchResultSlips(studentId: String): List<ResultSlip> =
+        db.from("result_slips").select {
+            filter { eq("student_id", studentId) }
+            order("uploaded_at", Order.DESCENDING)
+        }.decodeList()
+
+    /** Text-only result insert (no file_path). Parent RLS requires uploaded_by = auth.uid(). */
+    suspend fun submitResultSlip(
+        studentId: String,
+        examName: String,
+        examDate: String,
+        subject: String,
+        score: Double,
+        maxScore: Double,
+        uploadedBy: String
+    ): ResultSlip =
+        db.from("result_slips").insert(
+            ResultSlipInsert(
+                studentId = studentId,
+                examName = examName,
+                examDate = examDate,
+                subject = subject,
+                score = score,
+                maxScore = maxScore,
+                uploadedBy = uploadedBy
+            )
+        ) { select() }.decodeSingle()
+
+    suspend fun fetchMessages(studentId: String): List<ParentMessage> =
+        db.from("messages").select {
+            filter { eq("student_id", studentId) }
+            order("sent_at", Order.ASCENDING)
+        }.decodeList()
+
+    suspend fun sendParentMessage(
+        studentId: String,
+        senderId: String,
+        subject: String?,
+        body: String
+    ): ParentMessage =
+        db.from("messages").insert(
+            ParentMessageInsert(
+                senderId = senderId,
+                studentId = studentId,
+                recipientId = null,
+                subject = subject,
+                body = body
+            )
+        ) { select() }.decodeSingle()
+
     // ---- PDPA: result-slip uploads (private bucket, "<student_id>/<filename>" path) ----
 
     /**

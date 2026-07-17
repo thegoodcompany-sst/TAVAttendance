@@ -162,7 +162,8 @@ fun ParentDashboardScreen(
         StudentProfileSheet(
             studentId = child.id,
             fullName = child.fullName,
-            onDismiss = { selectedChild = null }
+            onDismiss = { selectedChild = null },
+            isParentMode = true
         )
     }
 }

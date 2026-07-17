@@ -65,7 +65,7 @@ struct ParentDashboardView: View {
                 }
             }
             .sheet(item: $selectedChild) { child in
-                StudentProfileView(studentId: child.id, fullName: child.fullName)
+                StudentProfileView(studentId: child.id, fullName: child.fullName, isParentMode: true)
                     .environmentObject(authManager)
             }
             .errorAlert(error: $error)

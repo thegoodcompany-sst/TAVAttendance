@@ -3,11 +3,22 @@ import SwiftUI
 struct StudentProfileView: View {
     let studentId: UUID
     let fullName: String
+    /// Parent mode adds Attendance / Results / Messages tabs.
+    var isParentMode: Bool = false
 
+    private enum ParentTab: String, CaseIterable, Identifiable {
+        case attendance = "Attendance"
+        case results = "Results"
+        case messages = "Messages"
+        var id: String { rawValue }
+    }
+
+    @State private var selectedTab: ParentTab = .attendance
     @State private var history: [AttendanceHistoryRecord] = []
     @State private var slips: [ResultSlip] = []
-    @State private var isLoading = true
-    @State private var loadError: String?
+    @State private var isLoadingHistory = true
+    @State private var historyError: AppError?
+    @State private var slipsError: AppError?
     @State private var showingAddSlip = false
 
     @Environment(\.dismiss) private var dismiss
@@ -25,7 +36,9 @@ struct StudentProfileView: View {
     }()
 
     private var canUploadSlips: Bool {
-        authManager.currentProfile?.role == "admin" || authManager.currentProfile?.role == "tutor"
+        isParentMode
+            || authManager.currentProfile?.role == "admin"
+            || authManager.currentProfile?.role == "tutor"
     }
 
     private var sinceDate: Date {
@@ -38,80 +51,17 @@ struct StudentProfileView: View {
     private var excusedCount: Int { history.filter { $0.status == .excused }.count }
     private var attendanceRate: Double {
         guard !history.isEmpty else { return 0 }
-        // QA-08 / PROD-05: match the Postgres `attendance_summary` view, which
-        // counts present + late + excused toward attendance. An excused absence
-        // has a valid reason and should not be penalised; keeping this in sync
-        // means the iOS profile and the web dashboard show the same rate.
+        // QA-08 / PROD-05: match the Postgres `attendance_summary` view.
         return Double(presentCount + lateCount + excusedCount) / Double(history.count)
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if isLoading {
-                    ProgressView("Loading history…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let err = loadError {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle).foregroundStyle(.orange)
-                        Text(err).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        Button("Retry") { Task { await loadHistory() } }
-                            .buttonStyle(.borderedProminent)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if isParentMode {
+                    parentBody
                 } else {
-                    List {
-                        if history.isEmpty {
-                            Section {
-                                ContentUnavailableView(
-                                    "No Records (Last 30 Days)",
-                                    systemImage: "calendar.badge.exclamationmark",
-                                    description: Text("No sessions recorded for this student in the past month.")
-                                )
-                            }
-                        } else {
-                            Section {
-                                statsCard
-                            }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                            .listRowBackground(Color.clear)
-
-                            Section("Sessions (last 30 days)") {
-                                ForEach(history) { record in
-                                    historyRow(record)
-                                }
-                            }
-                        }
-
-                        Section {
-                            if slips.isEmpty {
-                                Text("No result slips yet.")
-                                    .foregroundStyle(.secondary)
-                                    .font(.subheadline)
-                            } else {
-                                ForEach(slips) { slip in
-                                    resultSlipRow(slip)
-                                }
-                            }
-                            if canUploadSlips {
-                                Button {
-                                    showingAddSlip = true
-                                } label: {
-                                    Label("Add Result Slip", systemImage: "plus.circle")
-                                }
-                            }
-                        } header: {
-                            Text("Result Slips")
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                    .sheet(isPresented: $showingAddSlip) {
-                        ResultSlipUploadSheet(studentId: studentId) {
-                            await loadSlips()
-                        }
-                    }
+                    staffBody
                 }
             }
             .navigationTitle(fullName)
@@ -122,12 +72,148 @@ struct StudentProfileView: View {
                     Button("Done") { dismiss() }
                 }
             }
+            .sheet(isPresented: $showingAddSlip) {
+                ResultSlipUploadSheet(
+                    studentId: studentId,
+                    requireParentFields: isParentMode
+                ) {
+                    await loadSlips()
+                }
+                .environmentObject(authManager)
+            }
+            .errorAlertWithRetry(error: $historyError) {
+                Task { await loadHistory() }
+            }
+            .errorAlertWithRetry(error: $slipsError) {
+                Task { await loadSlips() }
+            }
         }
         .task {
-            // Load history and slips in parallel — they are independent queries.
             async let historyFetch: Void = loadHistory()
             async let slipsFetch: Void = loadSlips()
             _ = await (historyFetch, slipsFetch)
+        }
+    }
+
+    // MARK: - Parent tabs
+
+    private var parentBody: some View {
+        VStack(spacing: 0) {
+            Picker("Section", selection: $selectedTab) {
+                ForEach(ParentTab.allCases) { tab in
+                    Text(LocalizedStringKey(tab.rawValue)).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding()
+
+            switch selectedTab {
+            case .attendance:
+                attendanceContent
+            case .results:
+                resultsContent
+            case .messages:
+                if let userId = authManager.currentProfile?.id {
+                    ParentMessagesView(studentId: studentId, currentUserId: userId)
+                } else {
+                    ContentUnavailableView(
+                        "Not Signed In",
+                        systemImage: "person.crop.circle.badge.exclamationmark",
+                        description: Text("Sign in again to message TAVA.")
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Staff (single list: attendance + slips)
+
+    private var staffBody: some View {
+        attendanceContent(includeResultsSection: true)
+    }
+
+    // MARK: - Attendance
+
+    private var attendanceContent: some View {
+        attendanceContent(includeResultsSection: false)
+    }
+
+    @ViewBuilder
+    private func attendanceContent(includeResultsSection: Bool) -> some View {
+        if isLoadingHistory {
+            ProgressView("Loading history…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let err = historyError, history.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.largeTitle).foregroundStyle(.orange)
+                Text(err.message).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Button("Retry") { Task { await loadHistory() } }
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List {
+                if history.isEmpty {
+                    Section {
+                        ContentUnavailableView(
+                            "No Records (Last 30 Days)",
+                            systemImage: "calendar.badge.exclamationmark",
+                            description: Text("No sessions recorded for this student in the past month.")
+                        )
+                    }
+                } else {
+                    Section {
+                        statsCard
+                    }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .listRowBackground(Color.clear)
+
+                    Section("Sessions (last 30 days)") {
+                        ForEach(history) { record in
+                            historyRow(record)
+                        }
+                    }
+                }
+
+                if includeResultsSection {
+                    resultsSection
+                }
+            }
+            .listStyle(.insetGrouped)
+        }
+    }
+
+    // MARK: - Results tab / section
+
+    private var resultsContent: some View {
+        List {
+            resultsSection
+        }
+        .listStyle(.insetGrouped)
+    }
+
+    private var resultsSection: some View {
+        Section {
+            if slips.isEmpty {
+                Text("No result slips yet.")
+                    .foregroundStyle(.secondary)
+                    .font(.subheadline)
+            } else {
+                ForEach(slips) { slip in
+                    resultSlipRow(slip)
+                }
+            }
+            if canUploadSlips {
+                Button {
+                    showingAddSlip = true
+                } label: {
+                    Label("Add Result Slip", systemImage: "plus.circle")
+                }
+            }
+        } header: {
+            Text("Result Slips")
         }
     }
 
@@ -229,28 +315,6 @@ struct StudentProfileView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Data
-
-    private func loadHistory() async {
-        isLoading = true
-        loadError = nil
-        do {
-            history = try await AttendanceService.shared.fetchStudentAttendanceHistory(
-                studentId: studentId, limit: 100, since: sinceDate)
-        } catch {
-            loadError = error.localizedDescription
-        }
-        isLoading = false
-    }
-
-    private func loadSlips() async {
-        do {
-            slips = try await AttendanceService.shared.fetchResultSlips(studentId: studentId)
-        } catch {
-            // Slips are supplementary; surface error inline rather than replacing the whole view
-        }
-    }
-
     // MARK: - Result slip row
 
     private func resultSlipRow(_ slip: ResultSlip) -> some View {
@@ -277,7 +341,13 @@ struct StudentProfileView: View {
                     Text(fraction)
                         .font(.subheadline.weight(.medium))
                 }
-                if let pct = slip.percentageDisplay {
+                if isParentMode {
+                    Text(slip.isAcknowledged
+                         ? String(localized: "Acknowledged")
+                         : String(localized: "Pending review"))
+                        .font(.caption)
+                        .foregroundStyle(slip.isAcknowledged ? .green : .orange)
+                } else if let pct = slip.percentageDisplay {
                     Text(pct)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -285,6 +355,35 @@ struct StudentProfileView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Data
+
+    private func loadHistory() async {
+        isLoadingHistory = true
+        historyError = nil
+        do {
+            history = try await AttendanceService.shared.fetchStudentAttendanceHistory(
+                studentId: studentId, limit: 100, since: sinceDate)
+        } catch {
+            historyError = AppError(
+                String(localized: "Couldn't load attendance. Check your connection and try again."),
+                underlyingError: error
+            )
+        }
+        isLoadingHistory = false
+    }
+
+    private func loadSlips() async {
+        do {
+            slips = try await AttendanceService.shared.fetchResultSlips(studentId: studentId)
+            slipsError = nil
+        } catch {
+            slipsError = AppError(
+                String(localized: "Couldn't load result slips. Check your connection and try again."),
+                underlyingError: error
+            )
+        }
     }
 
     private func formattedDate(_ iso: String) -> String {

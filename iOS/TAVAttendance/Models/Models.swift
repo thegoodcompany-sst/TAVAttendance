@@ -316,17 +316,21 @@ struct ResultSlip: Codable, Identifiable {
     let score: Double?
     let maxScore: Double?
     let uploadedAt: Date?
+    let acknowledgedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
-        case studentId  = "student_id"
-        case examName   = "exam_name"
-        case examDate   = "exam_date"
+        case studentId       = "student_id"
+        case examName        = "exam_name"
+        case examDate        = "exam_date"
         case subject
         case score
-        case maxScore   = "max_score"
-        case uploadedAt = "uploaded_at"
+        case maxScore        = "max_score"
+        case uploadedAt      = "uploaded_at"
+        case acknowledgedAt  = "acknowledged_at"
     }
+
+    var isAcknowledged: Bool { acknowledgedAt != nil }
 
     // Fraction string for display, e.g. "25 / 35"
     var fractionDisplay: String? {
@@ -340,6 +344,60 @@ struct ResultSlip: Codable, Identifiable {
         guard let s = score, let m = maxScore, m > 0 else { return nil }
         return "\(Int((s / m * 100).rounded()))%"
     }
+}
+
+/// Client-side validation for text-only result-slip inserts (native parent portal).
+enum ResultSlipInputValidation {
+    enum Failure: Equatable {
+        case emptyExamName
+        case invalidScore
+        case invalidMaxScore
+        case scoreExceedsMax
+
+        var message: String {
+            switch self {
+            case .emptyExamName:   return String(localized: "Exam name is required.")
+            case .invalidScore:    return String(localized: "Score must be zero or greater.")
+            case .invalidMaxScore: return String(localized: "Maximum score must be greater than zero.")
+            case .scoreExceedsMax: return String(localized: "Score cannot exceed the maximum.")
+            }
+        }
+    }
+
+    static func validate(examName: String, score: Double?, maxScore: Double?) -> Failure? {
+        if examName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .emptyExamName
+        }
+        guard let score, score.isFinite, score >= 0 else { return .invalidScore }
+        guard let maxScore, maxScore.isFinite, maxScore > 0 else { return .invalidMaxScore }
+        if score > maxScore { return .scoreExceedsMax }
+        return nil
+    }
+}
+
+// MARK: - Parent messages (Phase 2)
+
+struct ParentMessage: Codable, Identifiable {
+    let id: UUID
+    let senderId: UUID?
+    let recipientId: UUID?
+    let studentId: UUID?
+    let subject: String?
+    let body: String
+    let sentAt: Date?
+    let readAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id, subject, body
+        case senderId    = "sender_id"
+        case recipientId = "recipient_id"
+        case studentId   = "student_id"
+        case sentAt      = "sent_at"
+        case readAt      = "read_at"
+    }
+
+    /// Parent-originated when recipient is null (centre is the implicit recipient).
+    var isFromParent: Bool { recipientId == nil }
 }
 
 // MARK: - PDPA: policy documents (privacy notice)

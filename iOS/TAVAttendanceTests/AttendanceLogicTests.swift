@@ -164,4 +164,49 @@ final class AttendanceLogicTests: XCTestCase {
         let result = AttendanceService.awaitingSafelyHome([confirmed, awaiting, noTimestamp])
         XCTAssertEqual(result.map(\.id), [awaiting.id])
     }
+
+    // MARK: result-slip input validation (native parent portal Phase 2)
+
+    func testResultSlipValidationAcceptsValid() {
+        XCTAssertNil(ResultSlipInputValidation.validate(examName: "CA1", score: 25, maxScore: 35))
+        XCTAssertNil(ResultSlipInputValidation.validate(examName: "  Mid-year  ", score: 0, maxScore: 100))
+    }
+
+    func testResultSlipValidationRejectsEmptyExamName() {
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "  ", score: 10, maxScore: 20),
+            .emptyExamName
+        )
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "", score: 10, maxScore: 20),
+            .emptyExamName
+        )
+    }
+
+    func testResultSlipValidationRejectsInvalidScores() {
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "CA1", score: -1, maxScore: 20),
+            .invalidScore
+        )
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "CA1", score: nil, maxScore: 20),
+            .invalidScore
+        )
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "CA1", score: .nan, maxScore: 20),
+            .invalidScore
+        )
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "CA1", score: 10, maxScore: 0),
+            .invalidMaxScore
+        )
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "CA1", score: 10, maxScore: -5),
+            .invalidMaxScore
+        )
+        XCTAssertEqual(
+            ResultSlipInputValidation.validate(examName: "CA1", score: 21, maxScore: 20),
+            .scoreExceedsMax
+        )
+    }
 }
