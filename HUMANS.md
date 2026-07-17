@@ -129,6 +129,10 @@ UPDATE feature_flags SET enabled = true WHERE key = 'parent_portal';      -- PRO
 UPDATE feature_flags SET enabled = true WHERE key = 'student_photos';     -- PROD-04
 UPDATE feature_flags SET enabled = true WHERE key = 'push_notifications'; -- PROD-02
 ```
+Before enabling `parent_portal`, verify with a real parent account: assigned children appear;
+attendance excludes Study Space; a PDF/JPG/PNG result slip uploads and opens; a parent message
+appears at admin `/messages`; an admin reply appears in the parent thread; acknowledgement appears
+on the parent slip. Migrations 035–036 and the web deployment are live as of 2026-07-17.
 
 ### ☐ 17. Provide APNs credentials for push (PROD-02) — configs DONE 2026-07-14, flag still OFF
 1. ☑ Function secrets set 2026-07-14: `APNS_KEY` (AuthKey_U968QPQQ67.p8), `APNS_KEY_ID=U968QPQQ67`,

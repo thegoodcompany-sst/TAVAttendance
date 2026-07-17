@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 
 export function MessageComposer({
   studentId,
+  recipientId,
   action,
 }: {
   studentId: string
-  action: (studentId: string, subject: string, body: string) => Promise<{ error: string | null }>
+  recipientId?: string
+  action: (studentId: string, subject: string, body: string, recipientId?: string) => Promise<{ error: string | null }>
 }) {
   const router = useRouter()
   const [subject, setSubject] = useState('')
@@ -19,7 +21,7 @@ export function MessageComposer({
   const handleSend = () => {
     setError(null)
     startTransition(async () => {
-      const { error } = await action(studentId, subject, body)
+      const { error } = await action(studentId, subject, body, recipientId)
       if (error) setError(error)
       else {
         setSubject('')

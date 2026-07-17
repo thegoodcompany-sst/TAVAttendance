@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
@@ -19,11 +20,16 @@ export async function uploadResultSlip(
   const subject = (formData.get('subject') as string | null)?.trim() || null
   const scoreRaw = (formData.get('score') as string | null)?.trim()
   const maxScoreRaw = (formData.get('max_score') as string | null)?.trim()
+  const score = scoreRaw ? Number(scoreRaw) : null
+  const maxScore = maxScoreRaw ? Number(maxScoreRaw) : null
 
   if (!examName) return { error: 'Exam name is required.' }
   if (!file || file.size === 0) return { error: 'A file is required.' }
   if (!ALLOWED_TYPES.has(file.type)) return { error: 'File must be a PDF, JPG, or PNG.' }
   if (file.size > MAX_BYTES) return { error: 'File must be under 10MB.' }
+  if (score !== null && (!Number.isFinite(score) || score < 0)) return { error: 'Score must be zero or greater.' }
+  if (maxScore !== null && (!Number.isFinite(maxScore) || maxScore <= 0)) return { error: 'Maximum score must be greater than zero.' }
+  if (score !== null && maxScore !== null && score > maxScore) return { error: 'Score cannot exceed the maximum.' }
 
   // First folder segment must equal the student_id for the storage RLS check —
   // sanitise the filename so it can never break out of that segment.
@@ -37,12 +43,15 @@ export async function uploadResultSlip(
     student_id: studentId,
     exam_name: examName,
     subject,
-    score: scoreRaw ? Number(scoreRaw) : null,
-    max_score: maxScoreRaw ? Number(maxScoreRaw) : null,
+    score,
+    max_score: maxScore,
     file_path: path,
     uploaded_by: user.id,
   })
-  if (error) return { error: error.message }
+  if (error) {
+    await createAdminClient().storage.from('result-slips').remove([path])
+    return { error: error.message }
+  }
 
   revalidatePath(`/parent/results/${studentId}`)
   return { error: null }

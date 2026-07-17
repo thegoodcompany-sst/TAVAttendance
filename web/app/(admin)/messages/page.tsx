@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 type MessageRow = {
   id: string
   sender_id: string | null
+  recipient_id: string | null
   student_id: string | null
   subject: string | null
   body: string
@@ -17,23 +18,32 @@ type MessageRow = {
 
 export default async function AdminMessagesPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
   const { data: messages } = await supabase
     .from('messages')
-    .select('id, sender_id, student_id, subject, body, sent_at, read_at, student:students(full_name)')
+    .select('id, sender_id, recipient_id, student_id, subject, body, sent_at, read_at, student:students(full_name)')
     .order('sent_at', { ascending: false })
     .returns<MessageRow[]>()
 
-  // Latest message per student = the thread preview; unread = inbound & not yet read.
-  const threads = new Map<string, { name: string; latest: MessageRow; unread: number }>()
+  const participantIds = [...new Set((messages ?? []).flatMap(m => [m.sender_id, m.recipient_id].filter((id): id is string => Boolean(id))))]
+  const profiles = new Map<string, { role: string; name: string }>()
+  if (participantIds.length > 0) {
+    const { data } = await supabase.from('profiles').select('id, role, full_name').in('id', participantIds)
+    for (const profile of data ?? []) profiles.set(profile.id, { role: profile.role, name: profile.full_name })
+  }
+
+  const threads = new Map<string, { studentId: string; parentId: string; name: string; latest: MessageRow; unread: number }>()
   for (const m of messages ?? []) {
     if (!m.student_id) continue
-    const existing = threads.get(m.student_id)
-    const isUnread = m.read_at === null && m.sender_id !== user?.id
+    const parentId = m.sender_id && profiles.get(m.sender_id)?.role === 'parent' ? m.sender_id : m.recipient_id
+    if (!parentId) continue
+    const key = `${m.student_id}:${parentId}`
+    const existing = threads.get(key)
+    const isUnread = m.read_at === null && m.sender_id === parentId
     if (!existing) {
-      threads.set(m.student_id, {
-        name: m.student?.full_name ?? 'Unknown student',
+      threads.set(key, {
+        studentId: m.student_id,
+        parentId,
+        name: `${m.student?.full_name ?? 'Unknown student'} · ${profiles.get(parentId)?.name ?? 'Parent'}`,
         latest: m,
         unread: isUnread ? 1 : 0,
       })
@@ -57,10 +67,10 @@ export default async function AdminMessagesPage() {
         </div>
       ) : (
         <div className="bg-white rounded-3xl shadow-card divide-y divide-border">
-          {list.map(([studentId, thread]) => (
+          {list.map(([key, thread]) => (
             <Link
-              key={studentId}
-              href={`/messages/${studentId}`}
+              key={key}
+              href={`/messages/${thread.studentId}?parentId=${thread.parentId}`}
               prefetch
               className="flex items-center justify-between gap-4 p-5 hover:bg-muted/50 transition-colors"
             >

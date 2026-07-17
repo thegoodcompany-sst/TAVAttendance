@@ -95,3 +95,4 @@ applies forward only.
 | 033 | app_events_singapore_day      | Group daily analytics by the Singapore centre calendar day | yes   |
 | 034 | privacy_authorization_hardening | Atomic consent, append-only ledger, report/export and tutor authorization hardening | yes   |
 | 035 | parent_portal_writes          | Parent INSERT policies for result_slips (+storage) and messages, thread indexes | yes   |
+| 036 | parent_message_privacy        | Scope direct messages to the sending/receiving parent when siblings share a child | yes   |

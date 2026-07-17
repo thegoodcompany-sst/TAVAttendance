@@ -8,8 +8,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 - Web parent portal Phase 2 (behind `parent_portal` flag): parents upload
   result slips and message the centre per child; admin gets `/messages` and
   `/result-slips` pages (reply, mark read, acknowledge slips). Migration 035
-  adds the parent INSERT policies (result_slips + storage, messages) and
-  thread indexes.
+  adds the parent INSERT policies (result_slips + storage, messages),
+  thread indexes, and per-parent message privacy when siblings share a child.
 - Admin web `/users`: link/unlink students to parent accounts inline via the
   existing `link_parent_student`/`unlink_parent_student` RPCs (first UI for
   `parent_student_links`).

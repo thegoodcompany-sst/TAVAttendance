@@ -21,6 +21,10 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 | Class management (create / edit / deactivate) | Admin |
 | Student enrolment per class | Admin |
 | Tutor assignment per class | Admin |
+| Parent↔student account linking | Admin |
+| Parent attendance, result-slip upload, and centre messaging (flag-gated) | Parents |
+| Result-slip acknowledgement and parent-message replies | Admin |
+| Human-readable audit activity (actor + action + entity) | Admin |
 | Offline marking with automatic sync on reconnect | Everyone |
 
 ## Stack
@@ -63,7 +67,7 @@ iOS/TAVAttendance/
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
 supabase/
-  migrations/     001…027 (see supabase/migrations/README.md for the down-migration convention)
+  migrations/     001…036 (see supabase/migrations/README.md for the down-migration convention)
   functions/      notify-parent edge function (PROD-02, flag-gated)
   seed.sql
 ```
@@ -99,19 +103,22 @@ Supabase invite that lands on the set-password page). The Supabase Dashboard
 `{ "full_name": "Teacher Name", "role": "tutor" }`) remains the manual fallback.
 
 Roles: `admin`, `tutor`, `parent`. A trigger (`handle_new_user`) auto-creates the `profiles` row.
-Linking parents to children (`parent_student_links`) is still a manual SQL insert.
+Admins link parent accounts to children from **/users**; the UI calls the existing
+`link_parent_student` / `unlink_parent_student` RPCs.
 
 ---
 
 ## Roadmap
 
-### Phase 2 — Parent Portal
-Tables already exist in the schema (`result_slips`, `messages`). RLS is admin-only until implemented.
+### Phase 2 — Parent Portal — BUILT, FLAG-GATED 2026-07-17
+The `parent_portal` flag remains OFF until centre verification. Migrations 035–036
+were applied to prod on 2026-07-17 before the final web deployment.
 
-- **Attendance visibility**: parents see their child's attendance history (RLS policy already written)
-- **Result slip uploads**: parents upload exam score slips → admin/tutor acknowledges → stored in Supabase Storage via `result_slips` table
-- **Messaging**: direct messaging between centre and parent via `messages` table
-- **Parent app tab**: new tab visible only to `parent` role accounts
+- **Attendance visibility**: parents see each linked child's attendance summary
+- **Result slip uploads**: parents upload PDF/JPG/PNG slips; admins view and acknowledge them at **/result-slips**
+- **Messaging**: per-child centre↔parent threads; admins reply at **/messages**
+- **Account linking**: admins assign/unassign children from parent accounts at **/users**
+- **Parent apps**: iOS, Android, and web parent areas remain gated by `parent_portal`
 
 ### Phase 2 — Analytics Dashboard (admin) — SHIPPED 2026-07-10
 - Web **/analytics**: per-student-per-class attendance % (from `attendance_summary`) + monthly-drop watchlist
