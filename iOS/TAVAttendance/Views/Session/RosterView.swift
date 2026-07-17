@@ -390,7 +390,8 @@ struct RosterView: View {
             // Only reached on a transport failure (the RPC never returned). Keep the
             // records and retry on next reconnect.
             Analytics.shared.track(.ops, name: "sync_failure", properties: [
-                "message": .string("\(error)"),
+                // Exception descriptions may echo submitted row values.
+                "message": .string(String(describing: type(of: error))),
                 "pending_count": .integer(pendingBefore),
             ])
         }

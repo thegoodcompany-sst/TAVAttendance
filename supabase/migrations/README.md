@@ -93,3 +93,4 @@ applies forward only.
 | 031 | app_events                    | Supabase-native analytics events, daily health view, 90-day purge, analytics flag | yes   |
 | 032 | app_events_hardening          | Safe duration aggregation, cron refresh, stronger analytics assertions | yes   |
 | 033 | app_events_singapore_day      | Group daily analytics by the Singapore centre calendar day | yes   |
+| 034 | privacy_authorization_hardening | Atomic consent, append-only ledger, report/export and tutor authorization hardening | yes   |

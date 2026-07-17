@@ -35,6 +35,8 @@ Android/.kotlin/
 
 # Tooling / IDE artefacts
 .mcp.json
+.demo-staging/
+*.vsix
 .claude/worktrees/
 iOS/io/
 iOS/TAVAttendance.xcodeproj/-Xcc/

@@ -67,8 +67,13 @@ object AttendanceService {
             order("full_name", Order.ASCENDING)
         }.decodeList<Student>()
 
-    suspend fun createStudent(student: StudentInsert): Student =
-        db.from("students").insert(student) { select() }.decodeSingle<Student>()
+    suspend fun createStudentWithConsent(student: StudentInsert, sourceNote: String? = null): Student =
+        db.postgrest.rpc("create_student_with_consent", buildJsonObject {
+            put("p_full_name", student.fullName)
+            student.school?.let { put("p_school", it) }
+            student.yearOfStudy?.let { put("p_year_of_study", it) }
+            sourceNote?.let { put("p_source_note", it) }
+        }).decodeSingle<Student>()
 
     suspend fun updateStudent(id: String, student: StudentInsert) {
         db.from("students").update({
@@ -538,11 +543,32 @@ object AttendanceService {
     // ---- PDPA: erase / anonymise ----
 
     suspend fun anonymiseStudent(studentId: String) {
+        removeStudentStorage(studentId)
         db.postgrest.rpc("anonymise_student", buildJsonObject { put("p_student_id", studentId) })
     }
 
     suspend fun eraseStudent(studentId: String) {
+        removeStudentStorage(studentId)
         db.postgrest.rpc("erase_student", buildJsonObject { put("p_student_id", studentId) })
+    }
+
+    /** PostgreSQL cascades cannot remove Storage objects. Delete every object in
+     * both student-scoped folders before erasing the database identity. */
+    private suspend fun removeStudentStorage(studentId: String) {
+        for (bucketName in listOf("result-slips", "student-photos")) {
+            val bucket = db.storage.from(bucketName)
+            for (folder in setOf(studentId.lowercase(), studentId.uppercase())) {
+                while (true) {
+                    val objects = bucket.list(folder) {
+                        limit = 100
+                        offset = 0
+                    }
+                    val paths = objects.filter { it.id != null }.map { "$folder/${it.name}" }
+                    if (paths.isNotEmpty()) bucket.delete(paths)
+                    if (objects.size < 100 || paths.isEmpty()) break
+                }
+            }
+        }
     }
 
     // ---- PDPA: subject-access export ----

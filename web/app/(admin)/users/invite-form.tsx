@@ -28,7 +28,7 @@ const ROLES: { value: Role; label: string; description: string; Icon: React.Elem
   },
 ]
 
-export function InviteForm() {
+export function InviteForm({ canInviteAdmin = false }: { canInviteAdmin?: boolean }) {
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [role, setRole] = useState<Role>('tutor')
@@ -92,7 +92,7 @@ export function InviteForm() {
       <div className="space-y-2">
         <span className="text-sm font-medium text-foreground">Role</span>
         <div className="grid gap-2">
-          {ROLES.map(({ value, label, description, Icon }) => (
+          {ROLES.filter(({ value }) => value !== 'admin' || canInviteAdmin).map(({ value, label, description, Icon }) => (
             <button
               key={value}
               type="button"

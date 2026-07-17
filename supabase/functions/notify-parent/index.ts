@@ -88,7 +88,10 @@ async function fcmAccessToken(sa: { client_email: string; private_key: string; t
 
 Deno.serve(async (req: Request) => {
   try {
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!serviceKey) {
+      return Response.json({ error: 'service unavailable' }, { status: 503 })
+    }
 
     // This function is server-to-server only: it is invoked by the DB trigger
     // (pg_net) with the service-role key, and it exposes which students have
@@ -147,21 +150,15 @@ Deno.serve(async (req: Request) => {
       : null
 
     if (!apnsConfigured && !fcmSa) {
-      console.log(`notify-parent: would send ${sent} push(es) for ${body.student_id} (${body.status})`)
+      console.log(`notify-parent: would send ${sent} push(es); sender credentials not configured`)
       return Response.json({ sent, delivered: 0, note: 'senders not configured' }, { status: 200 })
     }
 
-    const { data: student } = await supabase
-      .from('students')
-      .select('full_name')
-      .eq('id', body.student_id)
-      .single()
-    const name = student?.full_name ?? 'Your child'
-    const alertBody = body.status === 'late'
-      ? `${name} was marked late today.`
-      : body.status === 'absent'
-      ? `${name} was marked absent today.`
-      : `${name} has been dismissed. Tap to confirm they got home safely.`
+    // Lock-screen notifications must not disclose a child's identity or status.
+    // The authenticated parent dashboard contains the detailed update.
+    const alertBody = body.status === 'dismissed'
+      ? 'There is a dismissal update. Open TAVAttendance to review it.'
+      : 'There is an attendance update. Open TAVAttendance to review it.'
 
     const apnsAuth = apnsConfigured ? await apnsJwt(apnsKey!, apnsKeyId!, apnsTeamId!) : null
     const topic = Deno.env.get('APNS_TOPIC') ?? 'com.tava.TAVAttendance'
@@ -212,7 +209,6 @@ Deno.serve(async (req: Request) => {
               // (and dismissal_id, when present) to land on the safely-home card.
               data: {
                 type: body.status,
-                student_id: body.student_id,
                 ...(body.dismissal_id ? { dismissal_id: body.dismissal_id } : {}),
               },
             },

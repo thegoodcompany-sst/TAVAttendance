@@ -211,12 +211,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                     put("pending_before", unsynced.size)
                     put("duration_ms", System.currentTimeMillis() - startMs)
                 })
-                // Only mark the batch fully synced when the server accounted for every
-                // record (synced + skipped); a mismatch means some were blocked (ended
-                // session) and must stay pending — we can't tell which ones from the
-                // aggregate counts, so leave the whole batch in the store rather than
-                // silently drop the blocked ones.
-                if (result.synced + result.skipped == unsynced.size) {
+                // All three outcomes are terminal. Blocked ended-session marks cannot
+                // ever succeed on retry, so remove the batch once every row is accounted for.
+                if (result.synced + result.skipped + result.blockedEndedSession == unsynced.size) {
                     pendingStore.markSynced(unsynced.map { it.clientMutationId }.toSet())
                     for (r in unsynced.filter { it.sessionId == sessionId }) {
                         _localStatus.value = _localStatus.value - r.studentId
@@ -229,9 +226,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                         "${result.blockedEndedSession} mark${if (result.blockedEndedSession == 1) "" else "s"} rejected — session already ended."
                 }
             }.onFailure { e ->
-                android.util.Log.e("Roster", "syncPending failed: ${e.message}", e)
+                android.util.Log.e("Roster", "syncPending failed: ${e.javaClass.simpleName}")
                 Analytics.track(AnalyticsEventType.OPS, "sync_failure", buildJsonObject {
-                    put("message", e.message ?: e.javaClass.simpleName)
+                    put("message", e.javaClass.simpleName)
                     put("pending_count", unsynced.size)
                 })
                 _snackbarMessage.value = "Failed to sync attendance: ${e.localizedMessage ?: e.javaClass.simpleName}"

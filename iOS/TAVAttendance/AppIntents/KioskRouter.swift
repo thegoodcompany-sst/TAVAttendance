@@ -19,3 +19,24 @@ final class KioskRouter: ObservableObject {
     @Published var selectedTab: AppTab = .classes
     private init() {}
 }
+
+/// Process-local kiosk authorization shared with App Intents. A configured PIN
+/// never authorizes Siri/Shortcuts until it has been entered in this app launch.
+@MainActor
+final class KioskSecurityState: ObservableObject {
+    static let shared = KioskSecurityState()
+    @Published var isAdminUnlocked = false
+
+    var allowsAppIntents: Bool {
+        Self.allowsAppIntents(
+            hasConfiguredPIN: !(UserDefaults.standard.string(forKey: "kioskPIN") ?? "").isEmpty,
+            isAdminUnlocked: isAdminUnlocked
+        )
+    }
+
+    static func allowsAppIntents(hasConfiguredPIN: Bool, isAdminUnlocked: Bool) -> Bool {
+        !hasConfiguredPIN || isAdminUnlocked
+    }
+
+    private init() {}
+}

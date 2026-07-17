@@ -118,7 +118,7 @@ struct ClassListView: View {
                                     }
                                 }
                             } label: {
-                                Label("Require \(name) to Open",
+                                Label("Use \(name) to unlock",
                                       systemImage: biometricUnlockEnabled ? "checkmark" : "faceid")
                             }
                             Divider()

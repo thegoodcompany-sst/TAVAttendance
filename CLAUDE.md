@@ -186,6 +186,18 @@ On this machine iOS builds **must** set `DEVELOPER_DIR` to Xcode-beta and pass
 `CODE_SIGNING_ALLOWED=NO`. A failure at `CodeSign swift-crypto_Crypto.bundle` is a
 pre-existing local keychain issue, not a code problem — do not try to "fix" it.
 
+## Release change ledger
+
+`RELEASE_NOTES.md` is the staging area for changes between mobile releases.
+Every completed product, behaviour, schema, security, operational, test, or
+release-process change must add a concise bullet under `Unreleased` in the same
+change set. Do not rely only on memory or commit subjects. The `release` skill
+audits this ledger against Git changes since the previous release, shows the
+combined summary and current Android/iOS versions, then **must ask the user for
+the next marketing version and stop before changing version files or shipping**.
+After a verified release, archive the bullets under that version and date; keep
+an empty `Unreleased` section ready for the next change.
+
 ---
 
 ## Cross-platform parity workflow

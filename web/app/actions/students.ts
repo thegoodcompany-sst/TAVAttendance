@@ -1,22 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { requireAdmin, NRIC_RE } from '@/lib/admin'
-
-async function currentNoticeVersion(
-  supabase: Awaited<ReturnType<typeof createClient>>
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('policy_documents')
-    .select('version')
-    .eq('doc_type', 'data_protection_notice')
-    .eq('is_current', true)
-    .order('published_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return data?.version ?? null
-}
 
 export type StudentInput = {
   fullName: string
@@ -35,7 +20,7 @@ export async function createStudent(
   input: StudentInput,
   consentAttested: boolean
 ): Promise<{ error: string | null }> {
-  const { error: authErr, supabase, user } = await requireAdmin()
+  const { error: authErr, supabase } = await requireAdmin()
   if (authErr) return { error: authErr }
 
   const fullName = input.fullName.trim()
@@ -49,30 +34,15 @@ export async function createStudent(
     return { error: 'Notes appear to contain an NRIC/FIN. Do not store national identifiers (PDPA).' }
   }
 
-  const { data: student, error: insertErr } = await supabase
-    .from('students')
-    .insert({
-      full_name: fullName,
-      date_of_birth: input.dateOfBirth || null,
-      school: input.school?.trim() || null,
-      year_of_study: input.yearOfStudy?.trim() || null,
-      notes: input.notes?.trim() || null,
-    })
-    .select('id')
-    .single()
-
-  if (insertErr) return { error: insertErr.message }
-
-  const noticeVersion = await currentNoticeVersion(supabase)
-  const { error: consentErr } = await supabase.from('consent_records').insert({
-    student_id: student.id,
-    consent_type: 'data_collection',
-    status: 'granted',
-    method: 'admin_attestation',
-    notice_version: noticeVersion,
-    granted_by: user!.id,
+  const { error } = await supabase.rpc('create_student_with_consent', {
+    p_full_name: fullName,
+    p_date_of_birth: input.dateOfBirth || null,
+    p_school: input.school?.trim() || null,
+    p_year_of_study: input.yearOfStudy?.trim() || null,
+    p_notes: input.notes?.trim() || null,
+    p_source_note: 'Admin attestation on create',
   })
-  if (consentErr) return { error: `Student created but consent log failed: ${consentErr.message}` }
+  if (error) return { error: error.message }
 
   revalidatePath('/students')
   return { error: null }
@@ -93,7 +63,7 @@ export async function bulkImportStudents(
   rows: StudentInput[],
   consentAttested: boolean
 ): Promise<BulkImportResult> {
-  const { error: authErr, supabase, user } = await requireAdmin()
+  const { error: authErr, supabase } = await requireAdmin()
   if (authErr) return { error: authErr, created: 0, skipped: [] }
 
   if (!consentAttested) {
@@ -104,7 +74,6 @@ export async function bulkImportStudents(
     }
   }
 
-  const noticeVersion = await currentNoticeVersion(supabase)
   const skipped: { row: number; reason: string }[] = []
   let created = 0
 
@@ -120,34 +89,16 @@ export async function bulkImportStudents(
       continue
     }
 
-    const { data: student, error: insertErr } = await supabase
-      .from('students')
-      .insert({
-        full_name: fullName,
-        date_of_birth: r.dateOfBirth || null,
-        school: r.school?.trim() || null,
-        year_of_study: r.yearOfStudy?.trim() || null,
-        notes: r.notes?.trim() || null,
-      })
-      .select('id')
-      .single()
-
-    if (insertErr || !student) {
-      skipped.push({ row: i + 1, reason: insertErr?.message ?? 'Insert failed' })
-      continue
-    }
-
-    const { error: consentErr } = await supabase.from('consent_records').insert({
-      student_id: student.id,
-      consent_type: 'data_collection',
-      status: 'granted',
-      method: 'admin_attestation',
-      notice_version: noticeVersion,
-      granted_by: user!.id,
-      source_note: 'bulk_import',
+    const { error } = await supabase.rpc('create_student_with_consent', {
+      p_full_name: fullName,
+      p_date_of_birth: r.dateOfBirth || null,
+      p_school: r.school?.trim() || null,
+      p_year_of_study: r.yearOfStudy?.trim() || null,
+      p_notes: r.notes?.trim() || null,
+      p_source_note: 'bulk_import',
     })
-    if (consentErr) {
-      skipped.push({ row: i + 1, reason: `Consent log failed: ${consentErr.message}` })
+    if (error) {
+      skipped.push({ row: i + 1, reason: error.message })
       continue
     }
     created++
@@ -188,6 +139,9 @@ export async function anonymiseStudent(studentId: string): Promise<{ error: stri
   const { error: authErr, supabase } = await requireAdmin()
   if (authErr) return { error: authErr }
 
+  const storageError = await removeStudentStorage(supabase, studentId)
+  if (storageError) return { error: storageError }
+
   const { error } = await supabase.rpc('anonymise_student', { p_student_id: studentId })
   if (error) return { error: error.message }
 
@@ -203,11 +157,42 @@ export async function eraseStudent(studentId: string): Promise<{ error: string |
   const { error: authErr, supabase } = await requireAdmin()
   if (authErr) return { error: authErr }
 
+  const storageError = await removeStudentStorage(supabase, studentId)
+  if (storageError) return { error: storageError }
+
   const { error } = await supabase.rpc('erase_student', { p_student_id: studentId })
   if (error) return { error: error.message }
 
   revalidatePath('/students')
   return { error: null }
+}
+
+async function removeStudentStorage(
+  supabase: Awaited<ReturnType<typeof requireAdmin>>['supabase'],
+  studentId: string
+): Promise<string | null> {
+  for (const bucketName of ['result-slips', 'student-photos']) {
+    const bucket = supabase.storage.from(bucketName)
+    for (const folder of new Set([studentId.toLowerCase(), studentId.toUpperCase()])) {
+      while (true) {
+        const { data: objects, error: listError } = await bucket.list(folder, {
+          limit: 100,
+          offset: 0,
+        })
+        if (listError) return `Could not inspect ${bucketName}: ${listError.message}`
+
+        const files = (objects ?? [])
+          .filter((object) => object.id)
+          .map((object) => `${folder}/${object.name}`)
+        if (files.length > 0) {
+          const { error: removeError } = await bucket.remove(files)
+          if (removeError) return `Could not erase ${bucketName}: ${removeError.message}`
+        }
+        if ((objects?.length ?? 0) < 100 || files.length === 0) break
+      }
+    }
+  }
+  return null
 }
 
 /**

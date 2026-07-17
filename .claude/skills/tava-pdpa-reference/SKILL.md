@@ -44,10 +44,11 @@ SELECT anonymise_student('<student_uuid>');             -- redacts PII, KEEPS an
 SELECT erase_student('<student_uuid>');                 -- hard delete + audit scrub (right to erasure)
 ```
 
-All three are SECURITY DEFINER with an `is_admin()` guard. **Known gap:**
-they delete result-slip **rows** but cannot delete Storage **objects**
-(`result-slips` bucket, path `<student_id>/<file>`) — HUMANS.md §9. If you
-build erasure UI, handle Storage from the app layer.
+All three are SECURITY DEFINER with an `is_admin()` guard. Explicit web/iOS/
+Android erase and anonymise flows first delete objects under the student's
+`result-slips` and `student-photos` Storage folders. **Remaining gap:** the
+database-only daily retention purge cannot call Storage and may leave orphaned
+files; HUMANS.md §9 tracks the required server-side cleanup.
 
 ### Consent model (agreed, do not redesign)
 

@@ -50,8 +50,31 @@ final class AttendanceService {
             .execute().value
     }
 
-    func createStudent(_ student: StudentInsert) async throws -> Student {
-        return try await db.from("students").insert(student).select().single().execute().value
+    private struct CreateStudentWithConsentParams: Encodable {
+        let fullName: String
+        let school: String?
+        let yearOfStudy: String?
+        let sourceNote: String?
+
+        enum CodingKeys: String, CodingKey {
+            case fullName = "p_full_name"
+            case school = "p_school"
+            case yearOfStudy = "p_year_of_study"
+            case sourceNote = "p_source_note"
+        }
+    }
+
+    /// Creates the student and mandatory consent ledger row in one DB transaction.
+    func createStudentWithConsent(_ student: StudentInsert, sourceNote: String? = nil) async throws -> Student {
+        return try await db.rpc(
+            "create_student_with_consent",
+            params: CreateStudentWithConsentParams(
+                fullName: student.fullName,
+                school: student.school,
+                yearOfStudy: student.yearOfStudy,
+                sourceNote: sourceNote
+            )
+        ).execute().value
     }
 
     func updateStudent(id: UUID, _ student: StudentInsert) async throws {
@@ -566,8 +589,13 @@ final class AttendanceService {
 
     // MARK: - Bulk student import (#12)
 
-    func bulkCreateStudents(_ rows: [StudentInsert]) async throws -> [Student] {
-        return try await db.from("students").insert(rows).select().execute().value
+    func bulkCreateStudentsWithConsent(_ rows: [StudentInsert]) async throws -> [Student] {
+        var created: [Student] = []
+        created.reserveCapacity(rows.count)
+        for row in rows {
+            created.append(try await createStudentWithConsent(row, sourceNote: "Bulk CSV import"))
+        }
+        return created
     }
 
     // MARK: - Substitution (#16)
@@ -649,6 +677,7 @@ final class AttendanceService {
         let method: String
         let noticeVersion: String?
         let sourceNote: String?
+        let grantedBy: UUID?
 
         enum CodingKeys: String, CodingKey {
             case status, method
@@ -656,12 +685,12 @@ final class AttendanceService {
             case consentType   = "consent_type"
             case noticeVersion = "notice_version"
             case sourceNote    = "source_note"
+            case grantedBy     = "granted_by"
         }
     }
 
-    /// Appends a consent row for a single student. `granted_by` is stamped server-side
-    /// from auth.uid() defaults are not set, so we rely on RLS + the column being nullable;
-    /// the DB records the acting admin via the row's RLS context where available.
+    /// Appends a consent row for a single student and records the authenticated
+    /// admin as the actor. Creation consent uses the atomic server-side RPC above.
     func recordConsent(
         studentId: UUID,
         consentType: String = "data_collection",
@@ -677,7 +706,8 @@ final class AttendanceService {
                 status: status.rawValue,
                 method: method,
                 noticeVersion: noticeVersion,
-                sourceNote: sourceNote))
+                sourceNote: sourceNote,
+                grantedBy: db.auth.currentSession?.user.id))
             .execute()
     }
 
@@ -692,7 +722,8 @@ final class AttendanceService {
         let rows = studentIds.map {
             ConsentInsert(studentId: $0, consentType: consentType,
                           status: ConsentStatus.granted.rawValue, method: method,
-                          noticeVersion: noticeVersion, sourceNote: "Bulk CSV import attestation")
+                          noticeVersion: noticeVersion, sourceNote: "Bulk CSV import attestation",
+                          grantedBy: db.auth.currentSession?.user.id)
         }
         try await db.from("consent_records").insert(rows).execute()
     }
@@ -717,11 +748,36 @@ final class AttendanceService {
     // MARK: - PDPA: erase / anonymise (#R1/#R2)
 
     func anonymiseStudent(id: UUID) async throws {
+        try await removeStudentStorage(id: id)
         try await db.rpc("anonymise_student", params: ["p_student_id": id.uuidString]).execute()
     }
 
     func eraseStudent(id: UUID) async throws {
+        try await removeStudentStorage(id: id)
         try await db.rpc("erase_student", params: ["p_student_id": id.uuidString]).execute()
+    }
+
+    /// Storage objects are not covered by PostgreSQL cascades. Remove every
+    /// object under the student's folder before deleting the DB identity.
+    private func removeStudentStorage(id: UUID) async throws {
+        for bucketName in ["result-slips", "student-photos"] {
+            let bucket = db.storage.from(bucketName)
+            // Older iOS builds used UUID.uuidString (uppercase); web/Android and
+            // newer iOS paths are lowercase. Sweep both prefixes during erasure.
+            for folder in Set([id.uuidString.lowercased(), id.uuidString.uppercased()]) {
+                while true {
+                    let objects = try await bucket.list(
+                        path: folder,
+                        options: SearchOptions(limit: 100, offset: 0)
+                    )
+                    let paths = objects.filter { $0.id != nil }.map { "\(folder)/\($0.name)" }
+                    if !paths.isEmpty {
+                        _ = try await bucket.remove(paths: paths)
+                    }
+                    if objects.count < 100 || paths.isEmpty { break }
+                }
+            }
+        }
     }
 
     // MARK: - PDPA: subject-access export (#A2)
@@ -809,7 +865,7 @@ final class AttendanceService {
         guard fileData.count <= maxBytes else {
             throw AppError("This photo is too large. Please choose an image under 5 MB.")
         }
-        let path = "\(studentId.uuidString)/\(UUID().uuidString)-\(fileName)"
+        let path = "\(studentId.uuidString.lowercased())/\(UUID().uuidString)-\(fileName)"
         try await db.storage.from("student-photos")
             .upload(path: path, file: fileData, options: .init(contentType: mime, upsert: true))
         try await db.from("students")

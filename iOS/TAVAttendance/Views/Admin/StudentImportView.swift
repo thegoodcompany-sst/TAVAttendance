@@ -12,7 +12,6 @@ struct StudentImportView: View {
 
     // PDPA consent attestation
     @State private var consentObtained = false
-    @State private var noticeVersion: String?
 
     var body: some View {
         NavigationStack {
@@ -92,9 +91,6 @@ struct StudentImportView: View {
                 if case .success(let url) = result {
                     parseCSV(url: url)
                 }
-            }
-            .task {
-                noticeVersion = try? await AttendanceService.shared.fetchPrivacyNotice()?.version
             }
         }
     }
@@ -193,10 +189,7 @@ struct StudentImportView: View {
         isImporting = true
         defer { isImporting = false }
         do {
-            let created = try await AttendanceService.shared.bulkCreateStudents(parsedRows)
-            // Log a consent record for each newly-created student.
-            try await AttendanceService.shared.recordConsentBulk(
-                studentIds: created.map(\.id), noticeVersion: noticeVersion)
+            let created = try await AttendanceService.shared.bulkCreateStudentsWithConsent(parsedRows)
             importResult = "Successfully imported \(created.count) student(s) and logged consent."
             parsedRows = []
             consentObtained = false

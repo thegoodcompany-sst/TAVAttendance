@@ -26,7 +26,6 @@ struct StudentFormView: View {
 
     // PDPA consent attestation (create mode only)
     @State private var consentObtained = false
-    @State private var noticeVersion: String?
 
     init(mode: Mode, onSave: @escaping () -> Void) {
         self.mode = mode
@@ -84,11 +83,6 @@ struct StudentFormView: View {
             }
             .navigationTitle(isEditing ? "Edit Student" : "New Student")
             .navigationBarTitleDisplayMode(.inline)
-            .task {
-                if !isEditing {
-                    noticeVersion = try? await AttendanceService.shared.fetchPrivacyNotice()?.version
-                }
-            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -151,11 +145,8 @@ struct StudentFormView: View {
             if case .edit(let student) = mode {
                 try await AttendanceService.shared.updateStudent(id: student.id, insert)
             } else {
-                let created = try await AttendanceService.shared.createStudent(insert)
-                // Append the consent ledger row. If this fails the student already exists;
-                // surface the error so the admin can retry the consent step.
-                try await AttendanceService.shared.recordConsent(
-                    studentId: created.id, noticeVersion: noticeVersion)
+                _ = try await AttendanceService.shared.createStudentWithConsent(
+                    insert, sourceNote: "Admin attestation on create")
             }
             onSave()
             dismiss()

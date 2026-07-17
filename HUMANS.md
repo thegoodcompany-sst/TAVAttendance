@@ -62,13 +62,13 @@ SELECT purge_expired_personal_data();  -- safe to run manually; returns counts
 If the project is ever restored/migrated and pg_cron is missing, re-run `011_pdpa_compliance.sql`
 or schedule the job manually.
 
-### ☐ 9. Result-slip Storage object cleanup
-`erase_student` / `anonymise_student` delete result-slip **rows**, but Storage **objects** under the
-`result-slips` bucket are not deleted from SQL. Either delete objects from the app at erasure time,
-or run a periodic Storage cleanup of orphaned objects (path convention: `<student_id>/<file>`).
-A draft implementation exists on the unmerged local branch `worktree-agent-a0964c91cbe6e7bb4`
-(commit `cc63405`, 2026-06); its migration is numbered `013` which now clashes with main — renumber
-before merging, or treat it as reference only.
+### ◐ 9. Finish scheduled Storage object cleanup
+Explicit admin-driven erase/anonymise now deletes objects from both private
+`result-slips` and `student-photos` buckets in the web, iOS, and Android clients
+before calling the database RPC (implemented 2026-07-16; path convention:
+`<student_id>/<file>`). The daily seven-year `pg_cron` purge still runs entirely
+inside Postgres and cannot call Supabase Storage, so it can leave orphaned files.
+Add and monitor a server-side orphan cleanup before marking this item complete.
 
 ### ☐ 10. Turn on Supabase log/security alerting
 Enable log drains/alerts and review `get_advisors` (security + performance) regularly — this backs
