@@ -21,3 +21,21 @@ export async function requireAdmin() {
   }
   return { error: null, supabase, user }
 }
+
+/** Shared auth gate for attendance and tutor-facing mobile actions. */
+export async function requireStaff() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not authenticated.' as const, supabase, user: null, role: null }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin' && profile?.role !== 'tutor') {
+    return { error: 'Only staff can perform this action.' as const, supabase, user: null, role: null }
+  }
+  return { error: null, supabase, user, role: profile.role as 'admin' | 'tutor' }
+}

@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Added a mobile-first staff web app under `/mobile/*` with role-aware class
+  and student management, session start/resume/end controls, live attendance
+  marking, session notes, grades, enrolments, and an admin sign-in board with
+  the native app's automatic late/on-time decision.
 - Native parent portal Phase 2 (iOS + Android, behind `parent_portal`): each
   child opens with Attendance / Results / Messages tabs; parents submit
   text-only result slips (pending/acknowledged), and message TAVA per child.

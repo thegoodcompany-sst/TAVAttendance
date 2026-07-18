@@ -10,7 +10,7 @@ import { NricWarning } from '@/components/nric-warning'
 const inputClass =
   'w-full rounded-lg border border-input bg-white px-3 py-2.5 text-sm shadow-xs focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 transition-shadow'
 
-export function NewStudentForm() {
+export function NewStudentForm({ returnPath = '/students' }: { returnPath?: string }) {
   const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
@@ -38,7 +38,7 @@ export function NewStudentForm() {
       if (error) {
         setError(error)
       } else {
-        router.push('/students')
+        router.push(returnPath)
         router.refresh()
       }
     })
