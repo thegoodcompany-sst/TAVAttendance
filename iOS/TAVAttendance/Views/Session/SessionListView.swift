@@ -4,10 +4,11 @@ import SwiftUI
 private enum SessionRoute: Identifiable {
     case live(Session)
     case detail(Session)
+    case edit(Session)
 
     var id: UUID {
         switch self {
-        case .live(let s), .detail(let s): return s.id
+        case .live(let s), .detail(let s), .edit(let s): return s.id
         }
     }
 }
@@ -16,6 +17,7 @@ struct SessionListView: View {
     let tavClass: TAVClass
 
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject private var featureFlags: FeatureFlagStore
     @State private var sessions: [Session] = []
     @State private var isLoading = true
     @State private var isStartingClass = false
@@ -23,6 +25,7 @@ struct SessionListView: View {
     @State private var route: SessionRoute? = nil
     @State private var showingEnrollment = false
     @State private var showingTutorAssignment = false
+    @State private var showingPastSessionForm = false
     @StateObject private var network = NetworkMonitor()
     @State private var error: AppError? = nil
 
@@ -106,12 +109,21 @@ struct SessionListView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .swipeActions(edge: .leading) {
-                                    Button {
-                                        sessionForSubstitute = session
-                                    } label: {
-                                        Label("Substitute", systemImage: "person.2.badge.key")
+                                    if featureFlags.isEnabled(.retrospectiveSessions) {
+                                        Button {
+                                            route = .edit(session)
+                                        } label: {
+                                            Label("Edit Session", systemImage: "pencil")
+                                        }
+                                        .tint(.blue)
+                                    } else {
+                                        Button {
+                                            sessionForSubstitute = session
+                                        } label: {
+                                            Label("Substitute", systemImage: "person.2.badge.key")
+                                        }
+                                        .tint(.indigo)
                                     }
-                                    .tint(.indigo)
                                 }
                             }
                         }
@@ -131,11 +143,24 @@ struct SessionListView: View {
                 RosterView(session: s, tavClass: tavClass)
             case .detail(let s):
                 SessionDetailView(session: s, tavClass: tavClass)
+            case .edit(let s):
+                HistoricalSessionEditorView(session: s, tavClass: tavClass) { _ in
+                    Task { await loadSessions() }
+                }
             case nil:
                 EmptyView()
             }
         }
         .toolbar {
+            if featureFlags.isEnabled(.retrospectiveSessions) {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingPastSessionForm = true
+                    } label: {
+                        Label("Add Past Session", systemImage: "calendar.badge.plus")
+                    }
+                }
+            }
             if isAdmin {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
@@ -156,6 +181,15 @@ struct SessionListView: View {
         }
         .sheet(isPresented: $showingTutorAssignment) {
             TutorAssignmentView(tavClass: tavClass)
+        }
+        .sheet(isPresented: $showingPastSessionForm) {
+            PastSessionFormView(
+                tavClass: tavClass, sessions: sessions, tutors: tutors,
+                onCreated: { session in
+                    route = .edit(session)
+                    Task { await loadSessions() }
+                },
+                onExisting: { session in route = .edit(session) })
         }
         .sheet(item: $sessionForSubstitute) { session in
             SubstituteTutorSheet(session: session, tutors: tutors) {
@@ -300,7 +334,7 @@ struct SessionListView: View {
     }
 
     private var pastSessions: [Session] {
-        sessions.filter { $0.sessionDate != todayDateString() }
+        sessions.filter { $0.sessionDate < todayDateString() }
     }
 
     private func sessionRow(_ session: Session) -> some View {

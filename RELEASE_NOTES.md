@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Added feature-flagged retrospective session management on iOS: authorised
+  staff can create and edit past sessions, correct ended attendance online,
+  and add visible students to one session without changing enrolment.
 - Added a mobile-first staff web app under `/mobile/*` with role-aware class
   and student management, session start/resume/end controls, live attendance
   marking, session notes, grades, enrolments, and an admin sign-in board with

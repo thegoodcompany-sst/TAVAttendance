@@ -209,4 +209,39 @@ final class AttendanceLogicTests: XCTestCase {
             .scoreExceedsMax
         )
     }
+
+    // MARK: retrospective sessions (migration 037)
+
+    private func retrospectiveSession(date: String) -> Session {
+        Session(id: UUID(), classId: UUID(), sessionDate: date, topic: nil,
+                notes: nil, startedAt: nil, endedAt: Date(), subTutorId: nil)
+    }
+
+    func testRetrospectiveDateMustBeBeforeToday() {
+        let today = at(12, 0)
+        XCTAssertTrue(RetrospectiveSessionRules.isPastDate(at(0, 0).addingTimeInterval(-86_400),
+                                                           today: today, calendar: calendar))
+        XCTAssertFalse(RetrospectiveSessionRules.isPastDate(at(0, 0),
+                                                            today: today, calendar: calendar))
+        XCTAssertFalse(RetrospectiveSessionRules.isPastDate(at(0, 0).addingTimeInterval(86_400),
+                                                            today: today, calendar: calendar))
+    }
+
+    func testRetrospectiveExistingSessionDetectionUsesClassDateList() {
+        let target = at(0, 0)
+        let expected = retrospectiveSession(date: "2026-07-10")
+        let sessions = [retrospectiveSession(date: "2026-07-09"), expected]
+        XCTAssertEqual(RetrospectiveSessionRules.existingSession(on: target, in: sessions)?.id,
+                       expected.id)
+    }
+
+    func testHistoricalEditorRequiresFlagAndPastDate() {
+        let today = at(12, 0)
+        XCTAssertTrue(RetrospectiveSessionRules.editorEnabled(
+            for: retrospectiveSession(date: "2026-07-09"), flagEnabled: true, today: today))
+        XCTAssertFalse(RetrospectiveSessionRules.editorEnabled(
+            for: retrospectiveSession(date: "2026-07-10"), flagEnabled: true, today: today))
+        XCTAssertFalse(RetrospectiveSessionRules.editorEnabled(
+            for: retrospectiveSession(date: "2026-07-09"), flagEnabled: false, today: today))
+    }
 }

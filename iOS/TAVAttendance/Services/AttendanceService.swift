@@ -267,12 +267,91 @@ final class AttendanceService {
             .execute()
     }
 
+    private struct CreateRetrospectiveSessionParams: Encodable {
+        let classId: UUID
+        let sessionDate: String
+        let topic: String?
+        let notes: String?
+        let subTutorId: UUID?
+
+        enum CodingKeys: String, CodingKey {
+            case topic, notes
+            case classId = "class_id"
+            case sessionDate = "session_date"
+            case subTutorId = "sub_tutor_id"
+        }
+    }
+
+    private struct UpdateRetrospectiveSessionParams: Encodable {
+        let sessionId: UUID
+        let topic: String?
+        let notes: String?
+        let subTutorId: UUID?
+
+        enum CodingKeys: String, CodingKey {
+            case topic, notes
+            case sessionId = "session_id"
+            case subTutorId = "sub_tutor_id"
+        }
+    }
+
+    func createRetrospectiveSession(
+        classId: UUID, sessionDate: String, topic: String?, notes: String?, subTutorId: UUID?
+    ) async throws -> Session {
+        try await db.rpc(
+            "create_retrospective_session",
+            params: CreateRetrospectiveSessionParams(
+                classId: classId, sessionDate: sessionDate, topic: topic,
+                notes: notes, subTutorId: subTutorId)
+        ).execute().value
+    }
+
+    func updateRetrospectiveSession(
+        sessionId: UUID, topic: String?, notes: String?, subTutorId: UUID?
+    ) async throws -> Session {
+        try await db.rpc(
+            "update_retrospective_session",
+            params: UpdateRetrospectiveSessionParams(
+                sessionId: sessionId, topic: topic, notes: notes,
+                subTutorId: subTutorId)
+        ).execute().value
+    }
+
     // MARK: - Roster & Attendance
 
     func fetchRoster(sessionId: UUID) async throws -> [RosterEntry] {
         return try await db
             .rpc("get_session_roster", params: ["p_session_id": sessionId.uuidString])
             .execute().value
+    }
+
+    func fetchRetrospectiveRoster(sessionId: UUID) async throws -> [RosterEntry] {
+        struct Params: Encodable {
+            let sessionId: UUID
+            enum CodingKeys: String, CodingKey { case sessionId = "session_id" }
+        }
+        return try await db
+            .rpc("get_retrospective_session_roster", params: Params(sessionId: sessionId))
+            .execute().value
+    }
+
+    func markRetrospectiveAttendance(
+        sessionId: UUID, studentId: UUID, status: AttendanceStatus
+    ) async throws {
+        struct Params: Encodable {
+            let sessionId: UUID
+            let studentId: UUID
+            let status: String
+            enum CodingKeys: String, CodingKey {
+                case status
+                case sessionId = "session_id"
+                case studentId = "student_id"
+            }
+        }
+        try await db.rpc(
+            "mark_retrospective_attendance",
+            params: Params(sessionId: sessionId, studentId: studentId, status: status.rawValue)
+        ).execute()
     }
 
     func markAttendance(sessionId: UUID, studentId: UUID, status: AttendanceStatus, notes: String? = nil, lateReason: String? = nil) async throws {

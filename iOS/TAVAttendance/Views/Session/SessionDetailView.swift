@@ -4,10 +4,13 @@ struct SessionDetailView: View {
     let session: Session
     let tavClass: TAVClass
 
+    @EnvironmentObject private var featureFlags: FeatureFlagStore
     @State private var roster: [RosterEntry] = []
     @State private var isLoading = true
     @State private var selectedStudent: RosterEntry? = nil
     @State private var error: AppError? = nil
+    @State private var showingEditor = false
+    @State private var editedSession: Session?
 
     private let displayFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -50,6 +53,13 @@ struct SessionDetailView: View {
                 )
             } else {
                 List {
+                    if let topic = currentSession.topic, !topic.isEmpty {
+                        Section("Topic") { Text(topic) }
+                    }
+                    if featureFlags.isEnabled(.sessionNotes),
+                       let notes = currentSession.notes, !notes.isEmpty {
+                        Section("Notes") { Text(notes) }
+                    }
                     summarySection
                     studentSection
                 }
@@ -62,7 +72,22 @@ struct SessionDetailView: View {
         .navigationTitle(formattedDate(session.sessionDate))
         .analyticsScreen("session_detail")
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            if RetrospectiveSessionRules.editorEnabled(
+                for: currentSession,
+                flagEnabled: featureFlags.isEnabled(.retrospectiveSessions)) {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Edit Session") { showingEditor = true }
+                }
+            }
+        }
         .task { await loadRoster() }
+        .sheet(isPresented: $showingEditor) {
+            HistoricalSessionEditorView(session: currentSession, tavClass: tavClass) { updated in
+                editedSession = updated
+                Task { await loadRoster() }
+            }
+        }
         .errorAlert(error: $error)
     }
 
@@ -81,13 +106,13 @@ struct SessionDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
 
-                if let startedAt = session.startedAt {
+                if let startedAt = currentSession.startedAt {
                     HStack(spacing: 6) {
                         Image(systemName: "clock")
                             .foregroundStyle(.secondary)
                         Text("Started \(timeFormatter.string(from: startedAt))")
                             .foregroundStyle(.secondary)
-                        if let endedAt = session.endedAt {
+                        if let endedAt = currentSession.endedAt {
                             Text("· Ended \(timeFormatter.string(from: endedAt))")
                                 .foregroundStyle(.secondary)
                         }
@@ -142,6 +167,8 @@ struct SessionDetailView: View {
         }
     }
 
+    private var currentSession: Session { editedSession ?? session }
+
     private func statusSortOrder(_ status: AttendanceStatus?) -> Int {
         switch status {
         case .present: return 0
@@ -195,7 +222,13 @@ struct SessionDetailView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+            if RetrospectiveSessionRules.editorEnabled(
+                for: currentSession,
+                flagEnabled: featureFlags.isEnabled(.retrospectiveSessions)) {
+                roster = try await AttendanceService.shared.fetchRetrospectiveRoster(sessionId: currentSession.id)
+            } else {
+                roster = try await AttendanceService.shared.fetchRoster(sessionId: currentSession.id)
+            }
         } catch {
             self.error = AppError("Failed to load roster", underlyingError: error)
         }
