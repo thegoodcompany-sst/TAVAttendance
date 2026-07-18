@@ -546,3 +546,33 @@ SELECT jobname, active FROM cron.job WHERE jobname = 'app-events-purge';
 
 Then fully relaunch iOS and Android so their once-per-sign-in flag caches reload. Click through
 staff screens and confirm `/activity` receives events and `/health` renders without errors.
+
+---
+
+## O. Retrospective sessions (2026-07-18, iOS built dark)
+
+### ☐ 59. Apply migration 037, complete platform ports, device-QA, then enable
+
+Apply `supabase/migrations/037_retrospective_sessions.sql` before shipping any
+client that calls its RPCs. Verify the ledger, flag, and functions:
+
+```sql
+SELECT version FROM supabase_migrations.schema_migrations WHERE version = '037';
+SELECT key, enabled FROM feature_flags WHERE key = 'retrospective_sessions';
+SELECT to_regprocedure('create_retrospective_session(uuid,date,text,text,uuid)'),
+       to_regprocedure('update_retrospective_session(uuid,text,text,uuid)'),
+       to_regprocedure('get_retrospective_session_roster(uuid)'),
+       to_regprocedure('mark_retrospective_attendance(uuid,uuid,text)');
+```
+
+Keep the flag OFF until the Android and web handoffs are implemented and an admin
+and assigned tutor complete physical-device QA: create a past non-Study-Space
+session, hit duplicate handling, edit topic/notes/substitute, correct attendance
+after the session ended, add a visible session-only student, verify enrolment is
+unchanged, verify audit/report updates, and confirm offline writes show an error.
+Then enable and fully relaunch clients so their flag caches reload:
+
+```sql
+UPDATE feature_flags SET enabled = TRUE, updated_at = NOW()
+WHERE key = 'retrospective_sessions';
+```

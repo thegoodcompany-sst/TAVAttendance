@@ -96,3 +96,4 @@ applies forward only.
 | 034 | privacy_authorization_hardening | Atomic consent, append-only ledger, report/export and tutor authorization hardening | yes   |
 | 035 | parent_portal_writes          | Parent INSERT policies for result_slips (+storage) and messages, thread indexes | yes   |
 | 036 | parent_message_privacy        | Scope direct messages to the sending/receiving parent when siblings share a child | yes   |
+| 037 | retrospective_sessions        | Flagged past-session create/edit, historical roster, and ended-attendance correction RPCs | yes   |

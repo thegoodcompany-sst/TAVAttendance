@@ -707,3 +707,22 @@ audit_log          table_name, record_id, action, old_data, new_data, changed_at
 
 Phase 2 tables (schema exists, not yet wired): `result_slips`, `messages`, `awards`
 Phase 3 tables (schema exists, not yet wired): `dismissals`, `food_polls`, `food_poll_responses`
+
+## Retrospective sessions (migration 037; flag `retrospective_sessions`)
+
+Past-session management is server-gated and available only to admins and tutors
+assigned to the session's class. All functions reject Study Space and dates on or
+after today. Historical attendance is online-only and server-timestamped; clients
+must not send these writes through `sync_attendance` or the offline pending queue.
+
+| RPC | Purpose |
+|---|---|
+| `create_retrospective_session(class_id, session_date, topic, notes, sub_tutor_id)` | Create one session before today; class/date duplicates fail. |
+| `update_retrospective_session(session_id, topic, notes, sub_tutor_id)` | Update mutable details only; class/date remain immutable. |
+| `get_retrospective_session_roster(session_id)` | Enrollment-on-date roster unioned with attendance-only students. |
+| `mark_retrospective_attendance(session_id, student_id, status)` | Upsert attendance on an ended past session using the server clock. |
+
+The notes argument additionally requires the `session_notes` flag. Adding a
+student through attendance never inserts or updates an `enrollments` row. Admins
+may add any active student; tutors are limited to students visible under the
+existing student policy.

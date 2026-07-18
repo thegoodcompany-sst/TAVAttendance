@@ -17,6 +17,7 @@ here. Do **not** change Supabase migrations — they are shared across platforms
 | `Views/Session/StudentProfileView.swift` | `screens/StudentProfileSheet.kt` |
 | `Views/Session/RosterView.swift` | `screens/RosterScreen.kt` |
 | `Views/Session/SessionListView.swift` | `screens/SessionListScreen.kt` |
+| `Views/Session/RetrospectiveSessionView.swift` | `screens/RetrospectiveSessionScreen.kt` |
 | `Views/Admin/ClassFormView.swift` | `screens/ClassFormDialog.kt` |
 | `Views/Admin/StudentManagementView.swift` | `screens/StudentManagementScreen.kt` |
 | `Views/Admin/StudentFormView.swift` | `screens/StudentFormDialog.kt` |

@@ -19,6 +19,7 @@
 		313617761ED161A0A3D09850 /* ClassEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA18DB9555C7936A4D227EC /* ClassEntity.swift */; };
 		31636D2E1F1C8997DE8A17E3 /* ParentMessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8D9724A2BCE44930A21608 /* ParentMessagesView.swift */; };
 		3403F3045A1C551C3809F033 /* StudentResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED27D15B4D66F7FD06F56BF1 /* StudentResultsView.swift */; };
+		343F4579FD27DA660DDEBAB5 /* RetrospectiveSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4864A8592820E8FDA3D5ACE7 /* RetrospectiveSessionView.swift */; };
 		38FE42903F12B183D53D2AA6 /* StudySpaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109CE89C8684265033D609D6 /* StudySpaceView.swift */; };
 		444135573C1FE2B662F582F6 /* TodayAttendanceSummaryIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEC7D4C66DA385710F81DC6 /* TodayAttendanceSummaryIntent.swift */; };
 		45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64ADFF510704F740AA4F9A37 /* AttendanceService.swift */; };
@@ -89,6 +90,7 @@
 		385F3C087DCCACB84D814052 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 		391868E2E92497E6CDFA922C /* ParentDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentDashboardView.swift; sourceTree = "<group>"; };
 		42E65CF322BFF554E531CA30 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
+		4864A8592820E8FDA3D5ACE7 /* RetrospectiveSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetrospectiveSessionView.swift; sourceTree = "<group>"; };
 		4EC7DC93588149D2B2912D0C /* StudentFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentFormView.swift; sourceTree = "<group>"; };
 		4F44A35FCED4364A1434BFDC /* RosterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RosterView.swift; sourceTree = "<group>"; };
 		5203C5DAD18245C177E027F0 /* SignInStudentIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInStudentIntent.swift; sourceTree = "<group>"; };
@@ -130,7 +132,7 @@
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
 		FF5EC050D1FB11BF60A79BDD /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
-		"TEMP_9A83B547-9156-4E7F-8005-71EF80737B77" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -191,6 +193,7 @@
 			isa = PBXGroup;
 			children = (
 				9A9752006163424A558ECFE6 /* ResultSlipUploadSheet.swift */,
+				4864A8592820E8FDA3D5ACE7 /* RetrospectiveSessionView.swift */,
 				4F44A35FCED4364A1434BFDC /* RosterView.swift */,
 				1A13F07251D1EC6DF75C6E76 /* SessionDetailView.swift */,
 				A296E59FB31DDA29EF190F3F /* SessionListView.swift */,
@@ -335,10 +338,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_0B18E708-35AA-47BF-842E-FA1770250AFC" /* iOS */ = {
+		"TEMP_156FDD30-0763-4773-B4C6-A5B8D525C11F" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_9A83B547-9156-4E7F-8005-71EF80737B77" /* Config.xcconfig */,
+				"TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -479,6 +482,7 @@
 				BA86F67649226E9C79AA8C4C /* PushManager.swift in Sources */,
 				C2E9D3AF084BA4D847F9850D /* QRScannerView.swift in Sources */,
 				746AABDC906A3C1E149B747A /* ResultSlipUploadSheet.swift in Sources */,
+				343F4579FD27DA660DDEBAB5 /* RetrospectiveSessionView.swift in Sources */,
 				0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */,
 				5F60A9C0CC3678AEC4069EEA /* SessionDetailView.swift in Sources */,
 				79A73C09091FD25379D235F8 /* SessionListView.swift in Sources */,
@@ -632,7 +636,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_9A83B547-9156-4E7F-8005-71EF80737B77" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -652,7 +656,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_9A83B547-9156-4E7F-8005-71EF80737B77" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

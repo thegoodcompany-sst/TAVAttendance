@@ -138,6 +138,25 @@ struct Session: Codable, Identifiable, Hashable {
     }
 }
 
+enum RetrospectiveSessionRules {
+    static func isPastDate(_ date: Date, today: Date = Date(), calendar: Calendar = .current) -> Bool {
+        calendar.startOfDay(for: date) < calendar.startOfDay(for: today)
+    }
+
+    static func existingSession(on date: Date, in sessions: [Session]) -> Session? {
+        let value = AttendanceService.ymdFormatter.string(from: date)
+        return sessions.first { $0.sessionDate == value }
+    }
+
+    static func editorEnabled(
+        for session: Session, flagEnabled: Bool, today: Date = Date()
+    ) -> Bool {
+        guard flagEnabled,
+              let date = AttendanceService.ymdFormatter.date(from: session.sessionDate) else { return false }
+        return isPastDate(date, today: today, calendar: AttendanceService.ymdFormatter.calendar)
+    }
+}
+
 enum AttendanceStatus: String, Codable, CaseIterable {
     case present, absent, late, excused
 }

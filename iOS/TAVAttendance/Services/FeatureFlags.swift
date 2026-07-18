@@ -13,6 +13,7 @@ enum FeatureFlag: String {
     case sessionNotes       = "session_notes"
     case qrSignIn           = "qr_sign_in"
     case analytics          = "analytics"
+    case retrospectiveSessions = "retrospective_sessions"
 }
 
 @MainActor
