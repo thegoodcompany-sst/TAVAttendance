@@ -16,7 +16,9 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
@@ -257,6 +259,32 @@ object AttendanceService {
         }
     }
 
+    suspend fun createRetrospectiveSession(
+        classId: String,
+        sessionDate: String,
+        topic: String?,
+        notes: String?,
+        subTutorId: String?
+    ): Session = db.postgrest.rpc("create_retrospective_session", buildJsonObject {
+        put("class_id", classId)
+        put("session_date", sessionDate)
+        put("topic", topic?.let(::JsonPrimitive) ?: JsonNull)
+        put("notes", notes?.let(::JsonPrimitive) ?: JsonNull)
+        put("sub_tutor_id", subTutorId?.let(::JsonPrimitive) ?: JsonNull)
+    }).decodeSingle<Session>()
+
+    suspend fun updateRetrospectiveSession(
+        sessionId: String,
+        topic: String?,
+        notes: String?,
+        subTutorId: String?
+    ): Session = db.postgrest.rpc("update_retrospective_session", buildJsonObject {
+        put("session_id", sessionId)
+        put("topic", topic?.let(::JsonPrimitive) ?: JsonNull)
+        put("notes", notes?.let(::JsonPrimitive) ?: JsonNull)
+        put("sub_tutor_id", subTutorId?.let(::JsonPrimitive) ?: JsonNull)
+    }).decodeSingle<Session>()
+
     @Serializable
     private data class NotesPatch(
         // ALWAYS encode so an emptied note is sent as `"notes": null` (SQL NULL)
@@ -279,6 +307,24 @@ object AttendanceService {
     suspend fun fetchRoster(sessionId: String): List<RosterEntry> =
         db.postgrest.rpc("get_session_roster", buildJsonObject { put("p_session_id", sessionId) })
             .decodeList<RosterEntry>()
+
+    suspend fun fetchRetrospectiveRoster(sessionId: String): List<RosterEntry> =
+        db.postgrest.rpc(
+            "get_retrospective_session_roster",
+            buildJsonObject { put("session_id", sessionId) }
+        ).decodeList<RosterEntry>()
+
+    suspend fun markRetrospectiveAttendance(
+        sessionId: String,
+        studentId: String,
+        status: AttendanceStatus
+    ) {
+        db.postgrest.rpc("mark_retrospective_attendance", buildJsonObject {
+            put("session_id", sessionId)
+            put("student_id", studentId)
+            put("status", status.name)
+        })
+    }
 
     suspend fun markAttendance(
         sessionId: String, studentId: String, status: AttendanceStatus, notes: String? = null

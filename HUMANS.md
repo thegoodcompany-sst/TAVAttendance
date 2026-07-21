@@ -549,15 +549,22 @@ staff screens and confirm `/activity` receives events and `/health` renders with
 
 ---
 
-## O. Retrospective sessions (2026-07-18, iOS built dark)
+## O. Retrospective sessions (2026-07-21, mobile clients shipped dark)
 
-### ☐ 59. Apply migration 037, complete platform ports, device-QA, then enable
+### ◐ 59. Complete physical-device QA, then enable
 
-Apply `supabase/migrations/037_retrospective_sessions.sql` before shipping any
-client that calls its RPCs. Verify the ledger, flag, and functions:
+Verified 2026-07-21: migration 037 is applied to prod, its self-checks pass,
+the flag remains OFF, and iOS 1.1.1 build 6 plus Android 1.1.1 build 4 were
+released to TestFlight beta review and Firebase App Distribution respectively.
+Android retrospective-session parity is included. Physical-device QA and the
+global flag enable remain human-gated.
+
+Migration `supabase/migrations/037_retrospective_sessions.sql` was applied to
+prod through the Supabase Management API (`supabase db query --linked --file`),
+not `db push`; the historical prod migration ledger remains intentionally
+sparse. Verify the live flag and functions directly:
 
 ```sql
-SELECT version FROM supabase_migrations.schema_migrations WHERE version = '037';
 SELECT key, enabled FROM feature_flags WHERE key = 'retrospective_sessions';
 SELECT to_regprocedure('create_retrospective_session(uuid,date,text,text,uuid)'),
        to_regprocedure('update_retrospective_session(uuid,text,text,uuid)'),

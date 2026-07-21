@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,8 +25,10 @@ import com.example.tavattendance.core.Analytics
 import com.example.tavattendance.core.AnalyticsEventType
 import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.Session
+import com.example.tavattendance.data.models.RetrospectiveSessionRules
 import com.example.tavattendance.data.models.TAVClass
 import com.example.tavattendance.data.service.AttendanceService
+import com.example.tavattendance.data.service.FeatureFlags
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -185,6 +188,8 @@ fun SessionListScreen(
     className: String,
     isAdmin: Boolean,
     onSessionClick: (Session) -> Unit,
+    onHistoricalSessionClick: (Session) -> Unit,
+    onAddPastSession: () -> Unit,
     onManageEnrollment: () -> Unit,
     onManageTutors: () -> Unit,
     onBack: () -> Unit,
@@ -213,6 +218,8 @@ fun SessionListScreen(
     val isEnding by vm.isEnding.collectAsState()
     val snackbarMessage by vm.snackbarMessage.collectAsState()
     val loadError by vm.loadError.collectAsState()
+    val flags by FeatureFlags.flags.collectAsState()
+    val retrospectiveEnabled = flags[FeatureFlags.RETROSPECTIVE_SESSIONS] == true
 
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(snackbarMessage) {
@@ -244,6 +251,11 @@ fun SessionListScreen(
                     }
                 },
                 actions = {
+                    if (retrospectiveEnabled) {
+                        IconButton(onClick = onAddPastSession) {
+                            Icon(Icons.Default.Add, contentDescription = "Add past session")
+                        }
+                    }
                     if (isAdmin) {
                         IconButton(onClick = onManageTutors) {
                             Icon(Icons.Default.Person, contentDescription = "Assign tutors")
@@ -306,7 +318,13 @@ fun SessionListScreen(
                             supportingContent = {
                                 session.topic?.takeIf { it.isNotBlank() }?.let { Text(it) }
                             },
-                            modifier = Modifier.clickable { onSessionClick(session) }
+                            modifier = Modifier.clickable {
+                                if (RetrospectiveSessionRules.editorEnabled(session, retrospectiveEnabled)) {
+                                    onHistoricalSessionClick(session)
+                                } else {
+                                    onSessionClick(session)
+                                }
+                            }
                         )
                         HorizontalDivider()
                     }

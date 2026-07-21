@@ -17,6 +17,7 @@ object FeatureFlags {
     const val SESSION_NOTES = "session_notes"
     const val QR_SIGN_IN = "qr_sign_in"
     const val ANALYTICS = "analytics"
+    const val RETROSPECTIVE_SESSIONS = "retrospective_sessions"
 
     private val _flags = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     val flags: StateFlow<Map<String, Boolean>> = _flags.asStateFlow()

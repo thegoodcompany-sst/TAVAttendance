@@ -1,4 +1,5 @@
-TAVA Attendance — v1.1 (build 3)
-Biometric unlock, and framework for user settings panel.
-Opt in from the account menu: fingerprint/face unlock protects the app when
-reopening. Off by default — nothing changes unless you enable it.
+TAVA Attendance — v1.1.1 (build 4)
+- Adds the native parent Results and Messages experience.
+- Adds consent-attested student creation and privacy/security hardening.
+- Improves offline attendance cleanup and protects sensitive diagnostics.
+- Adds feature-flagged past-session creation and attendance correction.

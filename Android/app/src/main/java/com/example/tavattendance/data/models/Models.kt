@@ -2,6 +2,8 @@ package com.example.tavattendance.data.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Serializable
 data class Profile(
@@ -105,8 +107,28 @@ data class Session(
     val topic: String? = null,
     val notes: String? = null,
     @SerialName("started_at") val startedAt: String? = null,
-    @SerialName("ended_at") val endedAt: String? = null
+    @SerialName("ended_at") val endedAt: String? = null,
+    @SerialName("sub_tutor_id") val subTutorId: String? = null
 )
+
+/** Pure client-side gates for migration 037's historical-session workflow. */
+object RetrospectiveSessionRules {
+    private val singapore = ZoneId.of("Asia/Singapore")
+
+    fun today(): LocalDate = LocalDate.now(singapore)
+
+    fun isPastDate(date: String, today: LocalDate = today()): Boolean =
+        runCatching { LocalDate.parse(date).isBefore(today) }.getOrDefault(false)
+
+    fun existingSession(date: String, sessions: List<Session>): Session? =
+        sessions.firstOrNull { it.sessionDate == date }
+
+    fun editorEnabled(
+        session: Session,
+        flagEnabled: Boolean,
+        today: LocalDate = today()
+    ): Boolean = flagEnabled && isPastDate(session.sessionDate, today)
+}
 
 @Serializable
 enum class AttendanceStatus { present, absent, late, excused }

@@ -33,6 +33,14 @@ sealed class Screen(val route: String) {
         fun createRoute(sessionId: String, sessionDate: String, classId: String, className: String) =
             "roster/${encode(sessionId)}/${encode(sessionDate)}/${encode(classId)}/${encode(className)}"
     }
+    object AddPastSession : Screen("past_session/{classId}/{className}") {
+        fun createRoute(classId: String, className: String) =
+            "past_session/${encode(classId)}/${encode(className)}"
+    }
+    object HistoricalSession : Screen("historical_session/{sessionId}/{classId}/{className}") {
+        fun createRoute(sessionId: String, classId: String, className: String) =
+            "historical_session/${encode(sessionId)}/${encode(classId)}/${encode(className)}"
+    }
     object Enrollment : Screen("enrollment/{classId}/{className}") {
         fun createRoute(classId: String, className: String) =
             "enrollment/${encode(classId)}/${encode(className)}"
@@ -178,12 +186,64 @@ fun AppNavHost(
                         Screen.Roster.createRoute(session.id, session.sessionDate, classId, className)
                     )
                 },
+                onHistoricalSessionClick = { session ->
+                    navController.navigate(
+                        Screen.HistoricalSession.createRoute(session.id, classId, className)
+                    )
+                },
+                onAddPastSession = {
+                    navController.navigate(Screen.AddPastSession.createRoute(classId, className))
+                },
                 onManageEnrollment = {
                     navController.navigate(Screen.Enrollment.createRoute(classId, className))
                 },
                 onManageTutors = {
                     navController.navigate(Screen.TutorAssignment.createRoute(classId, className))
                 },
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.AddPastSession.route,
+            arguments = listOf(
+                navArgument("classId") { type = NavType.StringType },
+                navArgument("className") { type = NavType.StringType }
+            )
+        ) { backStack ->
+            val classId = decode(backStack.arguments?.getString("classId") ?: "")
+            val className = decode(backStack.arguments?.getString("className") ?: "")
+            PastSessionScreen(
+                classId = classId,
+                className = className,
+                onBack = { navController.popBackStack() },
+                onCreated = { session ->
+                    navController.popBackStack()
+                    navController.navigate(
+                        Screen.HistoricalSession.createRoute(session.id, classId, className)
+                    )
+                },
+                onExisting = { session ->
+                    navController.popBackStack()
+                    navController.navigate(
+                        Screen.HistoricalSession.createRoute(session.id, classId, className)
+                    )
+                }
+            )
+        }
+
+        composable(
+            route = Screen.HistoricalSession.route,
+            arguments = listOf(
+                navArgument("sessionId") { type = NavType.StringType },
+                navArgument("classId") { type = NavType.StringType },
+                navArgument("className") { type = NavType.StringType }
+            )
+        ) { backStack ->
+            HistoricalSessionScreen(
+                sessionId = decode(backStack.arguments?.getString("sessionId") ?: ""),
+                classId = decode(backStack.arguments?.getString("classId") ?: ""),
+                className = decode(backStack.arguments?.getString("className") ?: ""),
                 onBack = { navController.popBackStack() }
             )
         }

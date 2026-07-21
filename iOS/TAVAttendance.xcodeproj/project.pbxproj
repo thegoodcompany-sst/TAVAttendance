@@ -132,7 +132,7 @@
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
 		FF5EC050D1FB11BF60A79BDD /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
-		"TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_CB911F57-D80C-452C-9C8B-03F648A463B4" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -338,10 +338,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_156FDD30-0763-4773-B4C6-A5B8D525C11F" /* iOS */ = {
+		"TEMP_4C0932FD-BDEF-422D-91BE-EBBED07D4139" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */,
+				"TEMP_CB911F57-D80C-452C-9C8B-03F648A463B4" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -636,10 +636,11 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_CB911F57-D80C-452C-9C8B-03F648A463B4" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_IDENTITY = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -648,6 +649,7 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tava.TAVAttendance;
+				PROVISIONING_PROFILE_SPECIFIER = "TAVAttendance App Store Codex 20260721";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -656,7 +658,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2F229BA5-CC60-4CF7-974C-2B7C3CAA54F3" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_CB911F57-D80C-452C-9C8B-03F648A463B4" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
