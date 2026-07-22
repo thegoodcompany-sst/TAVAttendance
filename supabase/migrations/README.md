@@ -111,3 +111,4 @@ applies forward only.
 | 049 | record_result_upload_service_grants | Record trusted result-upload read/update privileges | yes   |
 | 050 | record_student_update_grant | Record the RLS-bounded student update privilege used by avatar assignment | yes   |
 | 051 | record_award_insert_grant | Record the admin-only, feature-gated award insert privilege | yes   |
+| 052 | record_public_policy_read_grant | Record the RLS-bounded public policy-document read privilege | yes   |
