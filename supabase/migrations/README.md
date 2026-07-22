@@ -112,3 +112,4 @@ applies forward only.
 | 050 | record_student_update_grant | Record the RLS-bounded student update privilege used by avatar assignment | yes   |
 | 051 | record_award_insert_grant | Record the admin-only, feature-gated award insert privilege | yes   |
 | 052 | record_public_policy_read_grant | Record the RLS-bounded public policy-document read privilege | yes   |
+| 053 | record_authenticated_policy_read_grant | Record the RLS-bounded authenticated policy-document read privilege | yes   |

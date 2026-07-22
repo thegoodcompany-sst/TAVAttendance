@@ -677,7 +677,9 @@ BEGIN
     ), 'awards RLS boundary lacks authenticated INSERT privilege';
     ASSERT has_table_privilege(
         'anon', 'public.policy_documents', 'SELECT'
-    ), 'public policy-document RLS boundary lacks anon SELECT privilege';
+    ) AND has_table_privilege(
+        'authenticated', 'public.policy_documents', 'SELECT'
+    ), 'policy-document RLS boundary lacks anon/authenticated SELECT privileges';
     ASSERT has_table_privilege(
         'service_role', 'public.result_slips', 'SELECT'
     ) AND has_table_privilege(
