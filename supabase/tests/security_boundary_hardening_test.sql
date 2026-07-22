@@ -656,7 +656,7 @@ INSERT INTO storage.objects (bucket_id, name) VALUES
     ),
     (
         'student-photos',
-        '38000000-0000-0000-0000-000000000020/staff-photo.png'
+        '38000000-0000-0000-0000-000000000026/too-late-photo.png'
     ),
     (
         'student-photos',
@@ -688,7 +688,7 @@ SELECT pg_temp.assert_true(
         SELECT 1
         FROM enrollments e
         JOIN class_tutor_assignments cta ON cta.class_id = e.class_id
-        WHERE e.student_id = '38000000-0000-0000-0000-000000000020'
+        WHERE e.student_id = '38000000-0000-0000-0000-000000000026'
           AND cta.tutor_id = auth.uid()
           AND cta.assigned_from <=
               (NOW() AT TIME ZONE 'Asia/Singapore')::DATE
@@ -702,7 +702,7 @@ SELECT pg_temp.assert_true(
         SELECT 1
         FROM enrollments e
         JOIN sessions s ON s.class_id = e.class_id
-        WHERE e.student_id = '38000000-0000-0000-0000-000000000020'
+        WHERE e.student_id = '38000000-0000-0000-0000-000000000026'
           AND s.sub_tutor_id = auth.uid()
           AND s.session_date BETWEEN
               (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 7
@@ -716,7 +716,7 @@ SELECT pg_temp.assert_true(
     'future enrollment unexpectedly qualifies for substitute photo scope'
 );
 SELECT pg_temp.assert_true(
-    NOT tutor_can_read_student_photo('38000000-0000-0000-0000-000000000020'),
+    NOT tutor_can_read_student_photo('38000000-0000-0000-0000-000000000026'),
     'photo predicate accepted enrollment starting after covered session'
 );
 SELECT pg_temp.assert_true(
@@ -731,7 +731,7 @@ SELECT pg_temp.assert_true(
     NOT EXISTS (
         SELECT 1 FROM storage.objects
         WHERE bucket_id = 'student-photos'
-          AND name = '38000000-0000-0000-0000-000000000020/staff-photo.png'
+          AND name = '38000000-0000-0000-0000-000000000026/too-late-photo.png'
     ),
     'substitute can read photo for enrollment starting after covered session'
 );
