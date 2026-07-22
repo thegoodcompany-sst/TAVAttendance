@@ -110,3 +110,4 @@ applies forward only.
 | 048 | record_parent_boundary_read_grants | Record RLS-bounded reads exercised by the parent portal boundary | yes   |
 | 049 | record_result_upload_service_grants | Record trusted result-upload read/update privileges | yes   |
 | 050 | record_student_update_grant | Record the RLS-bounded student update privilege used by avatar assignment | yes   |
+| 051 | record_award_insert_grant | Record the admin-only, feature-gated award insert privilege | yes   |

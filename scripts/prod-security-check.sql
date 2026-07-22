@@ -673,6 +673,9 @@ BEGIN
         ) AS parent_boundary(table_name)
     ), 'parent RLS boundary dependencies lack authenticated SELECT privileges';
     ASSERT has_table_privilege(
+        'authenticated', 'public.awards', 'INSERT'
+    ), 'awards RLS boundary lacks authenticated INSERT privilege';
+    ASSERT has_table_privilege(
         'service_role', 'public.result_slips', 'SELECT'
     ) AND has_table_privilege(
         'service_role', 'public.result_slip_upload_intents', 'SELECT'
