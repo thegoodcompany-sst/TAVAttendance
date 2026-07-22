@@ -108,3 +108,4 @@ applies forward only.
 | 046 | pin_student_photo_scope_to_actor | Pin tutor/substitute photo scope directly to the JWT actor and enrollment dates | yes   |
 | 047 | bind_student_photo_scope_argument | Bind the student-photo predicate identifier positionally to prevent SQL name ambiguity | yes   |
 | 048 | record_parent_boundary_read_grants | Record RLS-bounded reads exercised by the parent portal boundary | yes   |
+| 049 | record_result_upload_service_grants | Record trusted result-upload read/update privileges | yes   |

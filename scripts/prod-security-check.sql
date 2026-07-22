@@ -670,6 +670,13 @@ BEGIN
             ('messages'), ('dismissals'), ('awards')
         ) AS parent_boundary(table_name)
     ), 'parent RLS boundary dependencies lack authenticated SELECT privileges';
+    ASSERT has_table_privilege(
+        'service_role', 'public.result_slips', 'SELECT'
+    ) AND has_table_privilege(
+        'service_role', 'public.result_slip_upload_intents', 'SELECT'
+    ) AND has_table_privilege(
+        'service_role', 'public.result_slip_upload_intents', 'UPDATE'
+    ), 'trusted result-upload table privileges are incomplete';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies
