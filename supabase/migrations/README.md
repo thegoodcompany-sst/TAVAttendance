@@ -100,3 +100,4 @@ applies forward only.
 | 038 | security_boundary_hardening   | Tutor/substitute/session capabilities, safe parent projections, bounded analytics/push, DB-managed superadmin/role gates, service-only erasure, durable Storage cleanup, identifier-rotating pseudonymisation, and upload boundaries | yes   |
 | 039 | feature_flag_superadmin_update_grant | Restore authenticated UPDATE table privilege while retaining the superadmin-only RLS boundary | yes   |
 | 040 | record_tutor_policy_read_grants | Record RLS-bounded enrollment and tutor-assignment read privileges required by tutor policy evaluation | yes   |
+| 041 | record_student_policy_read_grant | Record the RLS-bounded student read privilege required by tutor policy evaluation | yes   |

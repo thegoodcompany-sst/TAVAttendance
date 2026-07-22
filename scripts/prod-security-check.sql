@@ -638,6 +638,9 @@ BEGIN
     ) AND has_table_privilege(
         'authenticated', 'public.class_tutor_assignments', 'SELECT'
     ), 'tutor RLS policy dependencies lack authenticated SELECT privileges';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.students', 'SELECT'
+    ), 'students RLS boundary lacks authenticated SELECT privilege';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies
