@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Restored superadmin feature-flag updates behind the database RLS boundary and
+  refreshed vulnerable transitive web dependencies used by CI/build tooling.
+- Added a superadmin-only dashboard export that downloads a full operational
+  data snapshot as a ZIP of CSV files, while excluding internal Study Space
+  attendance and private file contents.
+
 - Closed database authorization gaps around future tutor assignments,
   substitute tutors, attendance rosters/actor timestamps, historical edits,
   delayed offline replays, parent safe-column RPCs, account-role escalation,

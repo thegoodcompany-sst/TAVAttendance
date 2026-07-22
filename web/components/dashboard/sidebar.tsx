@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert, Trophy, Activity, HeartPulse, MessageSquare, FileText } from 'lucide-react'
+import { CalendarDays, BarChart3, LineChart, Users, UserPlus, Flag, TriangleAlert, Trophy, Activity, HeartPulse, MessageSquare, FileText, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Avatar } from './avatar'
 
@@ -26,6 +26,7 @@ export function Sidebar({ userName, isSuperadmin = false, showAwards = false, sh
     ...(showAwards ? [{ href: '/awards', label: 'Awards', Icon: Trophy }] : []),
     ...(isSuperadmin
       ? [
+          { href: '/api/export', label: 'Export all data', Icon: Download },
           { href: '/feature-flags', label: 'Feature Flags', Icon: Flag },
           { href: '/danger', label: 'Data Wipe', Icon: TriangleAlert },
         ]
@@ -51,24 +52,39 @@ export function Sidebar({ userName, isSuperadmin = false, showAwards = false, sh
       <nav className="flex flex-col gap-1 flex-1 w-full px-2">
         {nav.map(({ href, label, Icon }) => {
           const active = pathname === href
+          const isExport = href === '/api/export'
           return (
-            <Link
-              key={href}
-              href={href}
-              prefetch
-              title={label}
-              className={cn(
-                'flex items-center h-11 rounded-xl transition-colors w-full pl-[10px] pr-3 gap-3',
-                active
-                  ? 'bg-brand-soft text-brand-ink'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              <Icon size={22} className="flex-shrink-0" />
-              <span className="whitespace-nowrap text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-[60ms]">
-                {label}
-              </span>
-            </Link>
+            isExport ? (
+              <a
+                key={href}
+                href={href}
+                title={label}
+                className="flex items-center h-11 rounded-xl transition-colors w-full pl-[10px] pr-3 gap-3 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Icon size={22} className="flex-shrink-0" />
+                <span className="whitespace-nowrap text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-[60ms]">
+                  {label}
+                </span>
+              </a>
+            ) : (
+              <Link
+                key={href}
+                href={href}
+                prefetch
+                title={label}
+                className={cn(
+                  'flex items-center h-11 rounded-xl transition-colors w-full pl-[10px] pr-3 gap-3',
+                  active
+                    ? 'bg-brand-soft text-brand-ink'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                )}
+              >
+                <Icon size={22} className="flex-shrink-0" />
+                <span className="whitespace-nowrap text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-150 delay-[60ms]">
+                  {label}
+                </span>
+              </Link>
+            )
           )
         })}
       </nav>

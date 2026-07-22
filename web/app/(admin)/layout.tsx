@@ -63,8 +63,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 { href: '/messages', label: 'Messages' },
                 { href: '/result-slips', label: 'Slips' },
                 { href: '/users', label: 'Users' },
-                ...(superadmin ? [{ href: '/feature-flags', label: 'Flags' }, { href: '/danger', label: 'Wipe' }] : []),
-              ].map(item => (
+                ...(superadmin ? [{ href: '/api/export', label: 'Export' }, { href: '/feature-flags', label: 'Flags' }, { href: '/danger', label: 'Wipe' }] : []),
+              ].map(item => item.href === '/api/export' ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground rounded-lg hover:bg-muted transition-colors"
+                >
+                  {item.label}
+                </a>
+              ) : (
                 <Link
                   key={item.href}
                   href={item.href}
