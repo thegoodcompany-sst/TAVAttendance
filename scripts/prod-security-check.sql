@@ -661,6 +661,15 @@ BEGIN
     ) AND has_table_privilege(
         'authenticated', 'public.attendance_records', 'UPDATE'
     ), 'attendance RLS boundary lacks authenticated SELECT/INSERT/UPDATE privileges';
+    ASSERT (
+        SELECT BOOL_AND(has_table_privilege(
+            'authenticated', 'public.' || table_name, 'SELECT'
+        ))
+        FROM (VALUES
+            ('parent_student_links'), ('classes'), ('result_slips'),
+            ('messages'), ('dismissals'), ('awards')
+        ) AS parent_boundary(table_name)
+    ), 'parent RLS boundary dependencies lack authenticated SELECT privileges';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies
