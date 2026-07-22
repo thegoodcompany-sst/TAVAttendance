@@ -15,7 +15,7 @@ coroutines = "1.9.0"
 camerax = "1.4.1"
 biometric = "1.1.0"
 mlkitBarcode = "17.3.0"
-googleServices = "4.4.3"
+googleServices = "4.5.0"
 firebaseBom = "34.3.0"
 
 [libraries]
