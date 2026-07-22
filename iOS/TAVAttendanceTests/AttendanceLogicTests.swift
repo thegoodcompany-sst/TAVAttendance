@@ -1,3 +1,4 @@
+import AppIntents
 import XCTest
 @testable import TAVAttendance
 
@@ -13,6 +14,63 @@ final class AttendanceLogicTests: XCTestCase {
             hasConfiguredPIN: true, isAdminUnlocked: true))
         XCTAssertTrue(KioskSecurityState.allowsAppIntents(
             hasConfiguredPIN: false, isAdminUnlocked: false))
+        XCTAssertFalse(KioskSecurityState.allowsSensitiveEntityQueries(isAdminUnlocked: false))
+        XCTAssertTrue(KioskSecurityState.allowsSensitiveEntityQueries(isAdminUnlocked: true))
+    }
+
+    func testLockedKioskOnlyAuthorizesStudentSignIn() {
+        XCTAssertTrue(GlobalKioskView.isActionAuthorized(.signIn, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markLate, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markPresent, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markAbsent, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markNotHere, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markDismissed, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.undoDismissal, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.addLateReason("traffic"), isAdminMode: false))
+        XCTAssertTrue(GlobalKioskView.isActionAuthorized(.markAbsent, isAdminMode: true))
+    }
+
+    func testMalformedStoredPINRequiresAuthenticatedReset() {
+        XCTAssertEqual(storedKioskPINDisposition(""), .none)
+        XCTAssertEqual(storedKioskPINDisposition("1234"), .legacyPlaintext)
+        XCTAssertEqual(storedKioskPINDisposition("v1:" + String(repeating: "a", count: 64)), .currentHash)
+        XCTAssertEqual(storedKioskPINDisposition("v1:not-a-hash"), .requiresAuthenticatedReset)
+        XCTAssertEqual(storedKioskPINDisposition("corrupt"), .requiresAuthenticatedReset)
+    }
+
+    func testAttendanceAppIntentsRequireLocalDeviceAuthentication() {
+        let protectedPolicies: [IntentAuthenticationPolicy] = [
+            SignInStudentIntent.authenticationPolicy,
+            MarkAttendanceIntent.authenticationPolicy,
+            CheckStudentStatusIntent.authenticationPolicy,
+            TodayAttendanceSummaryIntent.authenticationPolicy,
+            StudentAttendanceRateIntent.authenticationPolicy,
+            ClassPunctualityIntent.authenticationPolicy,
+        ]
+        XCTAssertTrue(protectedPolicies.allSatisfy { $0 == .requiresLocalDeviceAuthentication })
+        XCTAssertEqual(OpenKioskIntent.authenticationPolicy, .alwaysAllowed)
+    }
+
+    func testPrivacyShieldCoversEveryNonActiveScenePhase() {
+        XCTAssertFalse(shouldShowPrivacyShield(for: .active))
+        XCTAssertTrue(shouldShowPrivacyShield(for: .inactive))
+        XCTAssertTrue(shouldShowPrivacyShield(for: .background))
+    }
+
+    func testCSVCellsNeutralizeSpreadsheetFormulas() {
+        XCTAssertEqual(escapedCSVCell("=2+3"), "'=2+3")
+        XCTAssertEqual(escapedCSVCell("+1+1"), "'+1+1")
+        XCTAssertEqual(escapedCSVCell("-2+3"), "'-2+3")
+        XCTAssertEqual(escapedCSVCell("@SUM(A1:A2)"), "'@SUM(A1:A2)")
+        XCTAssertEqual(escapedCSVCell("\t=1+1"), "'\t=1+1")
+        XCTAssertEqual(escapedCSVCell("\r=1+1"), "\"'\r=1+1\"")
+        XCTAssertEqual(escapedCSVCell("\n=1+1"), "\"'\n=1+1\"")
+    }
+
+    func testCSVCellsStillApplyRFC4180Escaping() {
+        XCTAssertEqual(escapedCSVCell("Doe, Jane"), "\"Doe, Jane\"")
+        XCTAssertEqual(escapedCSVCell("Jane \"JJ\" Doe"), "\"Jane \"\"JJ\"\" Doe\"")
+        XCTAssertEqual(escapedCSVCell("ordinary text"), "ordinary text")
     }
 
     private func at(_ hour: Int, _ minute: Int) -> Date {
@@ -83,7 +141,8 @@ final class AttendanceLogicTests: XCTestCase {
         TAVClass(id: UUID(), name: "Test", subject: nil, level: nil,
                  scheduleDay: scheduleDay, scheduleTime: nil, durationMinutes: 60,
                  isActive: true, recurrenceRule: recurrenceRule,
-                 recurrenceEndDate: nil, isStudySpace: nil)
+                 recurrenceEndDate: nil, isStudySpace: nil,
+                 canManageSessions: nil, canOperateTodaySession: nil)
     }
 
     func testBydayRuleMatchesWeekday() {
@@ -163,6 +222,89 @@ final class AttendanceLogicTests: XCTestCase {
         let noTimestamp = dismissal(dismissedAt: nil, safelyHomeAt: nil)
         let result = AttendanceService.awaitingSafelyHome([confirmed, awaiting, noTimestamp])
         XCTAssertEqual(result.map(\.id), [awaiting.id])
+    }
+
+    func testPushNotificationsDisabledHidesDismissals() {
+        let awaiting = dismissal(dismissedAt: at(9, 0), safelyHomeAt: nil)
+        XCTAssertTrue(ParentDismissalVisibility.visible(
+            pushNotificationsEnabled: false,
+            dismissals: [awaiting]
+        ).isEmpty)
+    }
+
+    // MARK: offline queue account binding
+
+    private func pendingRecord(ownerUserId: UUID, mutationId: String = "pending") -> PendingAttendanceRecord {
+        PendingAttendanceRecord(
+            ownerUserId: ownerUserId,
+            sessionId: UUID(),
+            studentId: UUID(),
+            status: .present,
+            notes: nil,
+            clientMutationId: mutationId,
+            markedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            isSynced: false
+        )
+    }
+
+    func testPendingQueueRoundTripRequiresMatchingEnvelopeAndRecordOwner() throws {
+        let owner = UUID()
+        let foreignOwner = UUID()
+        let data = try XCTUnwrap(PendingAttendanceQueueCodec.encode(
+            ownerUserId: owner,
+            records: [pendingRecord(ownerUserId: owner)]
+        ))
+
+        XCTAssertEqual(
+            PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: owner)?.map(\.clientMutationId),
+            ["pending"]
+        )
+        XCTAssertNil(PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: foreignOwner))
+    }
+
+    func testPendingQueueRejectsLegacyAndMixedOwnerData() {
+        let owner = UUID()
+        let foreign = pendingRecord(ownerUserId: UUID(), mutationId: "foreign")
+        XCTAssertNil(PendingAttendanceQueueCodec.decode(Data("[]".utf8), expectedOwnerUserId: owner))
+        XCTAssertNil(PendingAttendanceQueueCodec.encode(
+            ownerUserId: owner,
+            records: [foreign]
+        ))
+        XCTAssertFalse(PendingAttendanceQueueCodec.recordsBelongToOwner(
+            [foreign],
+            ownerUserId: owner
+        ))
+    }
+
+    func testParentRpcShapesOmitActorSessionAndStorageFields() throws {
+        let parentMessage = try JSONDecoder().decode(
+            ParentMessage.self,
+            from: Data(#"{"id":"10000000-0000-0000-0000-000000000001","student_id":"20000000-0000-0000-0000-000000000002","subject":null,"body":"Hello","sent_at":null,"read_at":null,"is_from_parent":true}"#.utf8)
+        )
+        let centreMessage = try JSONDecoder().decode(
+            ParentMessage.self,
+            from: Data(#"{"id":"30000000-0000-0000-0000-000000000003","student_id":"20000000-0000-0000-0000-000000000002","subject":null,"body":"Reply","sent_at":null,"read_at":null,"is_from_parent":false}"#.utf8)
+        )
+        let dismissal = try JSONDecoder().decode(
+            Dismissal.self,
+            from: Data(#"{"id":"40000000-0000-0000-0000-000000000004","student_id":"20000000-0000-0000-0000-000000000002","dismissed_at":null,"safely_home_at":null}"#.utf8)
+        )
+        let child = try JSONDecoder().decode(
+            Student.self,
+            from: Data(#"{"id":"20000000-0000-0000-0000-000000000002","full_name":"Child","school":null,"year_of_study":null,"is_active":true}"#.utf8)
+        )
+        let result = try JSONDecoder().decode(
+            ResultSlip.self,
+            from: Data(#"{"id":"50000000-0000-0000-0000-000000000005","student_id":"20000000-0000-0000-0000-000000000002","exam_name":"CA1","exam_date":"2026-07-01","subject":"Math","score":9,"max_score":10,"file_path":null,"uploaded_at":null,"acknowledged_at":null}"#.utf8)
+        )
+
+        XCTAssertTrue(parentMessage.isFromParent)
+        XCTAssertFalse(centreMessage.isFromParent)
+        XCTAssertNil(parentMessage.senderId)
+        XCTAssertNil(parentMessage.recipientId)
+        XCTAssertNil(dismissal.sessionId)
+        XCTAssertNil(child.avatarUrl)
+        XCTAssertFalse(result.isAcknowledged)
     }
 
     // MARK: result-slip input validation (native parent portal Phase 2)

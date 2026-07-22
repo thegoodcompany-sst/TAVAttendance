@@ -1,0 +1,65 @@
+title = "TAVA current-tree secret scanning"
+
+[extend]
+useDefault = true
+
+# The built-in rules cover provider tokens and private keys. This additional
+# low-entropy rule catches human-selected passwords in docs/configuration too;
+# unlike the default generic rule it does not require a random-looking value.
+[[rules]]
+id = "tava-human-password"
+description = "Human-readable password assignment"
+regex = '''(?i)\b(?:password|passwd|passphrase|pwd)\b[\t ]{0,24}(?:=|:|=>|\bis\b)[\t ]*["'`]?([^\s"'`]{8,})'''
+secretGroup = 1
+keywords = [
+  "passphrase",
+  "passwd",
+  "password",
+  "pwd",
+]
+
+# Connection URLs are especially easy to paste into private notes and then
+# accidentally commit. Capture only the password component for redaction.
+[[rules]]
+id = "tava-password-in-connection-url"
+description = "Password embedded in a database or broker URL"
+regex = '''(?i)\b(?:postgres(?:ql)?|mysql|mariadb|mongodb(?:\+srv)?|redis|amqps?)://[^\s:/@]+:([^\s/@]{8,})@'''
+secretGroup = 1
+keywords = [
+  "amqp://",
+  "amqps://",
+  "mariadb://",
+  "mongodb+srv://",
+  "mongodb://",
+  "mysql://",
+  "postgres://",
+  "postgresql://",
+  "redis://",
+]
+
+# Keep obvious documentation/test sentinels usable without globally suppressing
+# either rule. Real-looking test credentials must be marked `gitleaks:allow`
+# on that exact line with an explanation in review.
+[[allowlists]]
+description = "Known non-secret sentinels for TAVA custom rules"
+targetRules = [
+  "tava-human-password",
+  "tava-password-in-connection-url",
+]
+regexTarget = "secret"
+regexes = [
+  '''(?i)^(?:change-?me|ci-?placeholder(?:-[a-z0-9_-]+)?|dummy|example|fake|not-a-secret|placeholder|postgres|redacted|test-?only|test-?password|your-?password)$''',
+  '''(?i)^<?(?:credential|credentials|invalid|minimum|missing|must|optional|passphrase|passwd|password|provided|pwd|required|should|string|text)>?[,;:?.)\]}]*$''',
+  '''^[A-Z][A-Z0-9_]*(?:CREDENTIALS?|KEY|PASSWORD|SECRET|TOKEN)[,;:?.)\]}]*$''',
+  '''^<[^>]+>$''',
+  '''^\$\{[^}]+\}$''',
+  '''(?i)^(?:deno\.env|env\[|os\.environ|process\.env|secrets\.|system\.getenv)''',
+]
+
+[[allowlists]]
+description = "Scanner configuration contains detection expressions, not credentials"
+paths = [
+  '''(^|/)\.git/''',
+  '''(^|/)\.gitleaks\.toml$''',
+  '''(^|/)\.gitleaks-report\.tmpl$''',
+]

@@ -6,19 +6,29 @@ import path from "path";
 // tightening this with nonces (next/headers + generateBuildId) in a future
 // hardening pass once the app stabilises.
 //
-// Supabase origin is read from the env var at build time; the wildcard
-// *.supabase.co covers the project API, Auth, Realtime, and Storage endpoints.
-const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL
-  ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
-  : 'https://*.supabase.co'
+// Supabase origins are read from the environment at build time. When the
+// variable is absent, the policy fails closed rather than trusting every
+// project on the shared supabase.co domain.
+const configuredSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL)
+  : null
+const supabaseOrigin = configuredSupabaseUrl?.origin
+const supabaseWebsocketOrigin = configuredSupabaseUrl
+  ? `${configuredSupabaseUrl.protocol === 'https:' ? 'wss:' : 'ws:'}//${configuredSupabaseUrl.host}`
+  : null
+
+function sources(...values: Array<string | null | undefined>) {
+  return values.filter((value): value is string => Boolean(value)).join(' ')
+}
 
 const cspDirectives = [
   `default-src 'self'`,
   `script-src 'self' 'unsafe-inline'`,
   `style-src 'self' 'unsafe-inline'`,
-  `img-src 'self' data: blob: https://*.supabase.co`,
+  `img-src ${sources("'self'", 'data:', 'blob:', supabaseOrigin)}`,
   `font-src 'self'`,
-  `connect-src 'self' ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co`,
+  `connect-src ${sources("'self'", supabaseOrigin, supabaseWebsocketOrigin)}`,
+  `frame-src 'none'`,
   `frame-ancestors 'none'`,
   `object-src 'none'`,
   `base-uri 'self'`,
@@ -26,13 +36,19 @@ const cspDirectives = [
 ].join('; ')
 
 const securityHeaders = [
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-DNS-Prefetch-Control', value: 'off' },
+  { key: 'X-Permitted-Cross-Domain-Policies', value: 'none' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   { key: 'Content-Security-Policy', value: cspDirectives },
 ]
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   turbopack: {
     root: path.resolve(__dirname),
   },

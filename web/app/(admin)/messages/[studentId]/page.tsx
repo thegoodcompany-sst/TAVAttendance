@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { MessageComposer } from '@/components/message-composer'
 import { replyToThread } from '@/app/actions/messages'
+import { MarkThreadRead } from './mark-thread-read'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,13 +28,6 @@ export default async function AdminThreadPage({
     .maybeSingle()
   if (!link) notFound()
 
-  await supabase
-    .from('messages')
-    .update({ read_at: new Date().toISOString() })
-    .eq('student_id', studentId)
-    .eq('sender_id', parentId)
-    .is('read_at', null)
-
   const { data: student } = await supabase
     .from('students')
     .select('full_name')
@@ -49,6 +43,7 @@ export default async function AdminThreadPage({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <MarkThreadRead studentId={studentId} parentId={parentId} />
       <PageHeader title={student?.full_name ?? 'Conversation'} subtitle="Message thread" />
 
       <Link

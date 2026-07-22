@@ -60,7 +60,11 @@ fun AdminApp(authViewModel: AuthViewModel) {
     val navBackStack by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStack?.destination?.route
 
-    val topLevelRoutes = listOf(Screen.Classes.route, Screen.Students.route, Screen.Kiosk.route)
+    // Kiosk is deliberately not a top-level destination while it is on screen. The kiosk
+    // device holds an admin session, so leaving the navigation bar visible would let anyone
+    // bypass the kiosk PIN and navigate straight into admin screens. Admins leave through the
+    // explicit, PIN-gated "Exit Kiosk" action inside GlobalKioskScreen instead.
+    val topLevelRoutes = listOf(Screen.Classes.route, Screen.Students.route)
     val showBottomBar = currentRoute in topLevelRoutes
 
     Scaffold(
@@ -264,7 +268,9 @@ fun AppNavHost(
             RosterScreen(
                 sessionId = sessionId,
                 sessionDate = sessionDate,
+                classId = classId,
                 className = className,
+                isAdmin = isAdmin,
                 onBack = { navController.popBackStack() }
             )
         }
@@ -276,7 +282,14 @@ fun AppNavHost(
 
         if (isAdmin) {
             composable(Screen.Kiosk.route) {
-                GlobalKioskScreen()
+                GlobalKioskScreen(
+                    onExitKiosk = {
+                        navController.navigate(Screen.Classes.route) {
+                            popUpTo(Screen.Kiosk.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
 
             composable(

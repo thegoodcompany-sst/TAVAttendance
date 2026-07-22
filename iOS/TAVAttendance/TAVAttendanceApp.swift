@@ -1,5 +1,9 @@
 import SwiftUI
 
+func shouldShowPrivacyShield(for scenePhase: ScenePhase) -> Bool {
+    scenePhase != .active
+}
+
 @main
 struct TAVAttendanceApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -11,41 +15,72 @@ struct TAVAttendanceApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if authManager.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if authManager.isAuthenticated {
-                ZStack {
-                    Group {
-                        switch authManager.currentProfile?.role {
-                        case "admin":
-                            AdminTabView()
-                        case "parent":
-                            ParentDashboardView()
-                        default:
-                            TutorTabView()
+            ZStack {
+                Group {
+                    if authManager.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if authManager.isAuthenticated {
+                        ZStack {
+                            Group {
+                                switch authManager.currentProfile?.role {
+                                case "admin":
+                                    AdminTabView()
+                                case "parent":
+                                    ParentDashboardView()
+                                default:
+                                    TutorTabView()
+                                }
+                            }
+                            if biometricUnlockEnabled && !isBioUnlocked {
+                                BiometricLockView(isUnlocked: $isBioUnlocked)
+                            }
                         }
+                        .environmentObject(authManager)
+                        .environmentObject(featureFlags)
+                        .task {
+                            // PROD-02: register for push once flags are loaded (no-op while off).
+                            await PushManager.registerIfEnabled()
+                            // Analytics: start timer/observers + emit app_launch (no-op unless flag on).
+                            Analytics.shared.start()
+                        }
+                    } else {
+                        LoginView()
+                            .environmentObject(authManager)
                     }
-                    if biometricUnlockEnabled && !isBioUnlocked {
-                        BiometricLockView(isUnlocked: $isBioUnlocked)
-                    }
                 }
-                .environmentObject(authManager)
-                .environmentObject(featureFlags)
-                .task {
-                    // PROD-02: register for push once flags are loaded (no-op while off).
-                    await PushManager.registerIfEnabled()
-                    // Analytics: start timer/observers + emit app_launch (no-op unless flag on).
-                    Analytics.shared.start()
+
+                // iOS snapshots the window as soon as a scene becomes inactive. Install an
+                // opaque cover synchronously so app-switcher previews never contain child PII.
+                if shouldShowPrivacyShield(for: scenePhase) {
+                    PrivacyShield()
+                        .zIndex(10_000)
+                        .transition(.identity)
                 }
-                .onChange(of: scenePhase) { _, phase in
-                    if phase == .background { isBioUnlocked = false }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .background {
+                    isBioUnlocked = false
+                    KioskSecurityState.shared.relockIfConfigured()
                 }
-            } else {
-                LoginView()
-                    .environmentObject(authManager)
             }
         }
+    }
+}
+
+private struct PrivacyShield: View {
+    var body: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            VStack(spacing: 12) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 42))
+                Text("TAVA Attendance")
+                    .font(.headline)
+            }
+            .foregroundStyle(.secondary)
+        }
+        .accessibilityHidden(true)
     }
 }
 

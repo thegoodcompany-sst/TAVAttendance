@@ -5,6 +5,36 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Closed database authorization gaps around future tutor assignments,
+  substitute tutors, attendance rosters/actor timestamps, historical edits,
+  delayed offline replays, parent safe-column RPCs, account-role escalation,
+  messages/result slips, atomic correction review, and feature-flagged writes;
+  rotated identifiers during student pseudonymisation while documenting that
+  retained session chronology is not guaranteed anonymous.
+- Made current-session creation, start/end, notes, class discovery, and roster
+  access shaped/server-timed. Ended sessions cannot reopen, and explicit
+  capabilities keep recent substitute history read-only without dead controls;
+  native student-profile loads are identity-bound and result-slip controls are
+  limited to parents/admins.
+- Locked down private uploads with canonical paths, server-side size/MIME
+  limits, rate-limited signed-upload intents, content signatures, atomic
+  finalization, server-minted downloads, service-role-only erasure, a race-safe
+  pre/post Storage sweep, and a durable retry/intent cleanup worker; native
+  erasure now fails closed to the trusted web path.
+- Hardened kiosk mode against navigation, restart, background, context-menu,
+  PIN-reset, and Siri/Shortcuts bypasses; sensitive native screens no longer
+  appear in screenshots or app-switcher previews.
+- Added exact-origin web security headers, stronger account password defaults,
+  dedicated-secret push validation, clean dependency audits, redacted
+  current-tree/staged credential scanning, and pinned/least-privilege CI with
+  Edge checks, migration/SQL regressions, and explicit production
+  privilege/RLS/Storage assertions.
+- Bounded analytics ingestion and parent device registration behind database
+  RPCs; capped per-user volume/fan-out and isolated APNs/FCM setup, transport
+  failures, timeouts, and stale-token cleanup.
+- Bound native pending attendance to the originating account, purged unsafe
+  legacy/mixed queues, cleared on sign-out, and rechecked ownership before sync.
+
 ## 1.1.1 — 2026-07-21
 
 - Added feature-flagged retrospective session management on iOS and Android: authorised
@@ -36,9 +66,8 @@ This is the source draft for mobile release notes. Keep completed changes under
   invitation privileges, and App Intent kiosk authorization.
 - Removed student identifiers from push notifications, analytics error details,
   and successfully synced Android offline-attendance cache entries.
-- Explicit erase/anonymise flows now delete student photos and result slips from
-  Storage before removing database data; scheduled orphan cleanup remains
-  tracked separately.
+- Explicit erase/anonymise flows delete student photos and result slips from
+  Storage; migration 038 later added durable retries for scheduled retention.
 - Added regression coverage for kiosk App Intent authorization, analytics
   redaction, and Android offline-cache cleanup.
 - Release preparation now reports changes since the prior build and requires an

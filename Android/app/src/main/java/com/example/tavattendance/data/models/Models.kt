@@ -27,7 +27,11 @@ data class TAVClass(
     @SerialName("recurrence_rule") val recurrenceRule: String? = null,
     // Migration 015: the internal Study Space (drop-in) class. Default false for
     // decode safety against prod schema drift.
-    @SerialName("is_study_space") val isStudySpace: Boolean = false
+    @SerialName("is_study_space") val isStudySpace: Boolean = false,
+    // Shaped by get_my_classes so recent substitute history is not confused
+    // with permission to operate today's class.
+    @SerialName("can_manage_sessions") val canManageSessions: Boolean = false,
+    @SerialName("can_operate_today_session") val canOperateTodaySession: Boolean = false
 )
 
 @Serializable
@@ -237,17 +241,6 @@ data class ConsentRecord(
 )
 
 @Serializable
-data class ConsentInsert(
-    @SerialName("student_id") val studentId: String,
-    @SerialName("consent_type") val consentType: String = "data_collection",
-    val status: String,
-    val method: String = "admin_attestation",
-    @SerialName("notice_version") val noticeVersion: String? = null,
-    @SerialName("granted_by") val grantedBy: String? = null,
-    @SerialName("source_note") val sourceNote: String? = null
-)
-
-@Serializable
 data class CorrectionRequest(
     val id: String,
     @SerialName("student_id") val studentId: String,
@@ -359,17 +352,9 @@ data class ParentMessage(
     val subject: String? = null,
     val body: String,
     @SerialName("sent_at") val sentAt: String? = null,
-    @SerialName("read_at") val readAt: String? = null
+    @SerialName("read_at") val readAt: String? = null,
+    @SerialName("is_from_parent") val parentOrigin: Boolean? = null
 ) {
-    /** Parent-originated when recipient is null (centre is the implicit recipient). */
-    val isFromParent: Boolean get() = recipientId == null
+    /** Safe parent RPCs provide this explicitly; full staff rows fall back to direction. */
+    val isFromParent: Boolean get() = parentOrigin ?: (recipientId == null)
 }
-
-@Serializable
-data class ParentMessageInsert(
-    @SerialName("sender_id") val senderId: String,
-    @SerialName("student_id") val studentId: String,
-    @SerialName("recipient_id") val recipientId: String? = null,
-    val subject: String? = null,
-    val body: String
-)

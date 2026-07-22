@@ -1,6 +1,7 @@
 import Foundation
 
 struct PendingAttendanceRecord: Codable {
+    let ownerUserId: UUID
     let sessionId: UUID
     let studentId: UUID
     var status: AttendanceStatus
@@ -12,38 +13,100 @@ struct PendingAttendanceRecord: Codable {
     var isSynced: Bool
 }
 
+struct PendingAttendanceEnvelope: Codable {
+    let version: Int
+    let ownerUserId: UUID
+    let records: [PendingAttendanceRecord]
+}
+
+enum PendingAttendanceQueueCodec {
+    static let version = 2
+
+    static func recordsBelongToOwner(
+        _ records: [PendingAttendanceRecord],
+        ownerUserId: UUID
+    ) -> Bool {
+        records.allSatisfy { $0.ownerUserId == ownerUserId }
+    }
+
+    static func encode(ownerUserId: UUID, records: [PendingAttendanceRecord]) -> Data? {
+        guard recordsBelongToOwner(records, ownerUserId: ownerUserId) else { return nil }
+        return try? JSONEncoder().encode(PendingAttendanceEnvelope(
+            version: version,
+            ownerUserId: ownerUserId,
+            records: records
+        ))
+    }
+
+    /// Returns nil for malformed, legacy-unowned, wrong-owner, or mixed-owner data.
+    static func decode(_ data: Data, expectedOwnerUserId: UUID) -> [PendingAttendanceRecord]? {
+        guard let envelope = try? JSONDecoder().decode(PendingAttendanceEnvelope.self, from: data),
+              envelope.version == version,
+              envelope.ownerUserId == expectedOwnerUserId,
+              recordsBelongToOwner(envelope.records, ownerUserId: expectedOwnerUserId) else {
+            return nil
+        }
+        return envelope.records
+    }
+}
+
+@MainActor
 final class PendingAttendanceStore: ObservableObject {
-    // Singleton: the store is a write-through cache over one shared UserDefaults key,
-    // so separate instances would clobber each other. All callers use `.shared`.
+    // Singleton: ownership state and the write-through UserDefaults key must move
+    // atomically across sign-in/sign-out transitions.
     static let shared = PendingAttendanceStore()
     private init() {}
 
     private let key = "pendingAttendance"
+    private var activeOwnerUserId: UUID?
 
-    // In-memory cache — loaded once on first access, then kept in sync via write-through.
-    // This avoids re-decoding UserDefaults on every read/write call.
-    private var _cache: [PendingAttendanceRecord]?
-    private var cache: [PendingAttendanceRecord] {
-        get {
-            if let c = _cache { return c }
-            guard let data = UserDefaults.standard.data(forKey: key),
-                  let records = try? JSONDecoder().decode([PendingAttendanceRecord].self, from: data) else {
-                _cache = []
-                return []
-            }
-            _cache = records
-            return records
-        }
-        set {
-            _cache = newValue
-            if let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: key)
-            }
+    /// Activates the authenticated account and purges legacy or foreign queues.
+    func activateOwner(_ ownerUserId: UUID) {
+        activeOwnerUserId = ownerUserId
+        guard let data = UserDefaults.standard.data(forKey: key) else { return }
+        if PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: ownerUserId) == nil {
+            UserDefaults.standard.removeObject(forKey: key)
         }
     }
 
-    func add(sessionId: UUID, studentId: UUID, status: AttendanceStatus, notes: String?) {
-        var records = cache
+    func clear() {
+        activeOwnerUserId = nil
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    private func load(ownerUserId: UUID) -> [PendingAttendanceRecord] {
+        guard activeOwnerUserId == ownerUserId,
+              let data = UserDefaults.standard.data(forKey: key) else { return [] }
+        guard let records = PendingAttendanceQueueCodec.decode(
+            data,
+            expectedOwnerUserId: ownerUserId
+        ) else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return []
+        }
+        return records
+    }
+
+    private func save(ownerUserId: UUID, records: [PendingAttendanceRecord]) -> Bool {
+        guard activeOwnerUserId == ownerUserId,
+              let data = PendingAttendanceQueueCodec.encode(
+                ownerUserId: ownerUserId,
+                records: records
+              ) else { return false }
+        UserDefaults.standard.set(data, forKey: key)
+        return true
+    }
+
+    @discardableResult
+    func add(
+        ownerUserId: UUID,
+        sessionId: UUID,
+        studentId: UUID,
+        status: AttendanceStatus,
+        notes: String?
+    ) -> Bool {
+        guard activeOwnerUserId == ownerUserId else { return false }
+        var records = load(ownerUserId: ownerUserId)
         if let index = records.firstIndex(where: { $0.sessionId == sessionId && $0.studentId == studentId }) {
             records[index].status = status
             records[index].notes = notes
@@ -53,8 +116,10 @@ final class PendingAttendanceStore: ObservableObject {
             // `marked_at <= EXCLUDED.marked_at` conflict guard.
             records[index].clientMutationId = UUID().uuidString
             records[index].markedAt = Date()
+            records[index].isSynced = false
         } else {
             let record = PendingAttendanceRecord(
+                ownerUserId: ownerUserId,
                 sessionId: sessionId,
                 studentId: studentId,
                 status: status,
@@ -65,16 +130,20 @@ final class PendingAttendanceStore: ObservableObject {
             )
             records.append(record)
         }
-        cache = records
+        return save(ownerUserId: ownerUserId, records: records)
     }
 
-    func allPending() -> [PendingAttendanceRecord] {
-        return cache.filter { !$0.isSynced }
+    func allPending(ownerUserId: UUID) -> [PendingAttendanceRecord] {
+        load(ownerUserId: ownerUserId).filter { !$0.isSynced }
     }
 
     /// Removes successfully-synced records from the store entirely so UserDefaults
     /// does not grow unbounded over time.
-    func markSynced(clientMutationIds: Set<String>) {
-        cache = cache.filter { !clientMutationIds.contains($0.clientMutationId) }
+    func markSynced(ownerUserId: UUID, clientMutationIds: Set<String>) {
+        guard activeOwnerUserId == ownerUserId else { return }
+        let remaining = load(ownerUserId: ownerUserId).filter {
+            !$0.isSynced && !clientMutationIds.contains($0.clientMutationId)
+        }
+        _ = save(ownerUserId: ownerUserId, records: remaining)
     }
 }

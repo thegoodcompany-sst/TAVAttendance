@@ -7,7 +7,8 @@ import android.os.Build
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import com.example.tavattendance.data.service.FeatureFlags
-import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,7 +18,9 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import java.time.Instant
 import java.util.UUID
@@ -172,7 +175,11 @@ object Analytics {
     }
 
     suspend fun flush() = flush { batch ->
-        SupabaseClient.client.from("app_events").insert(batch)
+        batch.chunked(100).forEach { chunk ->
+            SupabaseClient.client.postgrest.rpc("submit_app_events", buildJsonObject {
+                put("p_events", Json.encodeToJsonElement(chunk))
+            })
+        }
     }
 
     // MARK: crash diagnostics (next-launch detection)

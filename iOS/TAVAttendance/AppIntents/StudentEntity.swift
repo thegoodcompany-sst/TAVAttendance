@@ -32,14 +32,14 @@ struct StudentEntity: AppEntity {
 struct StudentEntityQuery: EntityQuery, EntityStringQuery {
 
     func entities(for identifiers: [UUID]) async throws -> [StudentEntity] {
-        try await IntentSupport.requireSession()
+        try await IntentSupport.requireSensitiveEntityQueryAuthorization()
         let students = try await AttendanceService.shared.fetchAllStudents()
         let wanted = Set(identifiers)
         return students.filter { wanted.contains($0.id) }.map(StudentEntity.init)
     }
 
     func entities(matching string: String) async throws -> [StudentEntity] {
-        try await IntentSupport.requireSession()
+        try await IntentSupport.requireSensitiveEntityQueryAuthorization()
         let students = try await AttendanceService.shared.fetchAllStudents()
         let needle = string.lowercased()
         return students
@@ -48,7 +48,7 @@ struct StudentEntityQuery: EntityQuery, EntityStringQuery {
     }
 
     func suggestedEntities() async throws -> [StudentEntity] {
-        try await IntentSupport.requireSession()
+        try await IntentSupport.requireSensitiveEntityQueryAuthorization()
         return try await AttendanceService.shared.fetchAllStudents().map(StudentEntity.init)
     }
 }

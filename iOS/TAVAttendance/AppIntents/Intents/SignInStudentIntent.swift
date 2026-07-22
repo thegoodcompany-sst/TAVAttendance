@@ -10,6 +10,7 @@ struct SignInStudentIntent: AppIntent {
 
     // The marking happens in the background; no need to foreground the app.
     static var openAppWhenRun: Bool = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Student")
     var student: StudentEntity

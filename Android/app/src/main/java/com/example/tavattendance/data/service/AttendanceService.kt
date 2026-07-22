@@ -3,6 +3,7 @@ package com.example.tavattendance.data.service
 import com.example.tavattendance.core.SupabaseClient
 import com.example.tavattendance.data.models.*
 import com.example.tavattendance.data.store.PendingAttendanceRecord
+import com.example.tavattendance.data.store.pendingRecordsBelongToOwner
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
@@ -29,16 +30,10 @@ import kotlin.time.Duration.Companion.seconds
 object AttendanceService {
     private val db get() = SupabaseClient.client
 
+    /** Shaped class projection for admins, assigned tutors, and recent
+     * session-scoped substitutes. */
     suspend fun fetchMyClasses(): List<TAVClass> =
-        db.from("classes").select {
-            // Excludes the internal Study Space class (migration 015) so it never appears
-            // in the tutor/admin class list or the tuition kiosk grid.
-            filter {
-                eq("is_active", true)
-                eq("is_study_space", false)
-            }
-            order("name", Order.ASCENDING)
-        }.decodeList<TAVClass>()
+        db.postgrest.rpc("get_my_classes", buildJsonObject {}).decodeList()
 
     suspend fun createClass(cls: ClassInsert): TAVClass =
         db.from("classes").insert(cls) { select() }.decodeSingle<TAVClass>()
@@ -68,6 +63,10 @@ object AttendanceService {
             filter { eq("is_active", true) }
             order("full_name", Order.ASCENDING)
         }.decodeList<Student>()
+
+    /** Parent-safe projection installed by migration 038. */
+    suspend fun fetchParentChildren(): List<Student> =
+        db.postgrest.rpc("get_parent_children", buildJsonObject {}).decodeList()
 
     suspend fun createStudentWithConsent(student: StudentInsert, sourceNote: String? = null): Student =
         db.postgrest.rpc("create_student_with_consent", buildJsonObject {
@@ -194,69 +193,26 @@ object AttendanceService {
             order("session_date", Order.DESCENDING)
         }.decodeList<Session>()
 
-    suspend fun getOrCreateSession(classId: String, date: String): Session {
-        val existing = db.from("sessions").select {
-            filter {
-                eq("class_id", classId)
-                eq("session_date", date)
-            }
-        }.decodeList<Session>()
-        if (existing.isNotEmpty()) return existing.first()
-        return try {
-            db.from("sessions").insert(
-                Session(
-                    id = UUID.randomUUID().toString(),
-                    classId = classId,
-                    sessionDate = date
-                )
-            ) { select() }.decodeSingle<Session>()
-        } catch (e: Exception) {
-            // Two kiosks/tutors opening the same class at once can both lose the initial
-            // select race and then collide on the sessions(class_id, session_date) unique
-            // constraint (001_schema.sql). Re-select instead of failing outright.
-            // ponytail: catch-and-reselect instead of an upsert, since an upsert would need to
-            // send `id` in the payload and risk overwriting the winner's id on conflict.
-            db.from("sessions").select {
-                filter {
-                    eq("class_id", classId)
-                    eq("session_date", date)
-                }
-            }.decodeList<Session>().firstOrNull() ?: throw e
-        }
-    }
+    suspend fun getOrCreateTodaySession(classId: String): Session =
+        db.postgrest.rpc("get_or_create_today_session", buildJsonObject {
+            put("p_class_id", classId)
+        }).decodeSingle<Session>()
 
     suspend fun fetchClass(id: String): TAVClass? =
-        db.from("classes").select {
-            filter { eq("id", id) }
-        }.decodeList<TAVClass>().firstOrNull()
+        fetchMyClasses().firstOrNull { it.id == id }
 
     suspend fun startSession(id: String) {
-        db.from("sessions").update({
-            set("started_at", java.time.Instant.now().toString())
-        }) {
-            filter { eq("id", id) }
-        }
+        db.postgrest.rpc("set_session_lifecycle", buildJsonObject {
+            put("p_session_id", id)
+            put("p_action", "start")
+        })
     }
 
     suspend fun endSession(id: String) {
-        db.from("sessions").update({
-            set("ended_at", java.time.Instant.now().toString())
-        }) {
-            filter { eq("id", id) }
-        }
-    }
-
-    @Serializable
-    private data class ResumePatch(
-        // ALWAYS encode so null is sent as `"ended_at": null` even when encodeDefaults = false
-        @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.ALWAYS)
-        @SerialName("ended_at") val endedAt: String?
-    )
-
-    suspend fun resumeSession(id: String) {
-        db.from("sessions").update(ResumePatch(null)) {
-            filter { eq("id", id) }
-        }
+        db.postgrest.rpc("set_session_lifecycle", buildJsonObject {
+            put("p_session_id", id)
+            put("p_action", "end")
+        })
     }
 
     suspend fun createRetrospectiveSession(
@@ -285,23 +241,22 @@ object AttendanceService {
         put("sub_tutor_id", subTutorId?.let(::JsonPrimitive) ?: JsonNull)
     }).decodeSingle<Session>()
 
-    @Serializable
-    private data class NotesPatch(
-        // ALWAYS encode so an emptied note is sent as `"notes": null` (SQL NULL)
-        @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.ALWAYS)
-        @SerialName("notes") val notes: String?
-    )
-
     suspend fun fetchSessionNotes(id: String): String? =
         db.from("sessions").select {
             filter { eq("id", id) }
         }.decodeList<Session>().firstOrNull()?.notes
 
+    suspend fun fetchSession(id: String): Session? =
+        db.from("sessions").select {
+            filter { eq("id", id) }
+        }.decodeList<Session>().firstOrNull()
+
     /** Saves the tutor's free-text note on a session (flag `session_notes`). Empty note → SQL NULL. */
     suspend fun updateSessionNotes(id: String, notes: String?) {
-        db.from("sessions").update(NotesPatch(notes)) {
-            filter { eq("id", id) }
-        }
+        db.postgrest.rpc("update_session_note", buildJsonObject {
+            put("p_session_id", id)
+            put("p_notes", notes?.let(::JsonPrimitive) ?: JsonNull)
+        })
     }
 
     suspend fun fetchRoster(sessionId: String): List<RosterEntry> =
@@ -340,16 +295,17 @@ object AttendanceService {
     }
 
     suspend fun fetchKioskEntries(): List<KioskEntry> {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         // Day-aware: only create/show sessions for classes scheduled today, so opening the
         // kiosk on a non-tuition day doesn't spin up phantom sessions. Supports multiple
         // classes on the same day (e.g. Thu English + Thu Reading).
         val todayWeekday = weekdayName(Date())
-        val classes = fetchMyClasses().filter { classMeetsToday(it, todayWeekday) }
+        val classes = fetchMyClasses().filter {
+            it.canOperateTodaySession && classMeetsToday(it, todayWeekday)
+        }
         val classMap = classes.associateBy { it.id }
 
         val sessionTuples = classes.map { cls ->
-            cls.id to getOrCreateSession(classId = cls.id, date = today)
+            cls.id to getOrCreateTodaySession(classId = cls.id)
         }
 
         // PERF-02: fetch rosters in parallel instead of sequentially.
@@ -478,8 +434,7 @@ object AttendanceService {
     /** Loads today's Study Space session (creating it on first use) and the roster of ALL
      * active students with their current Present/Not-Here status for it. */
     suspend fun loadStudySpace(): Pair<Session, List<RosterEntry>> {
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val session = getOrCreateSession(classId = STUDY_SPACE_CLASS_ID, date = today)
+        val session = getOrCreateTodaySession(classId = STUDY_SPACE_CLASS_ID)
         val roster = db.postgrest
             .rpc("get_study_space_roster", buildJsonObject { put("p_session_id", session.id) })
             .decodeList<RosterEntry>()
@@ -546,6 +501,18 @@ object AttendanceService {
                 limit(limit.toLong())
             }.decodeList<AttendanceHistoryRecord>()
 
+    /** Parent-safe attendance projection with no staff notes, actor IDs, or mutation IDs. */
+    suspend fun fetchParentAttendanceHistory(
+        studentId: String,
+        limit: Int = 100,
+        since: String? = null
+    ): List<AttendanceHistoryRecord> =
+        db.postgrest.rpc("get_parent_attendance_history", buildJsonObject {
+            put("p_student_id", studentId)
+            put("p_limit", limit)
+            since?.let { put("p_since", it) }
+        }).decodeList()
+
     // ---- PDPA: privacy notice ----
 
     suspend fun fetchPrivacyNotice(): PolicyDocument? =
@@ -559,25 +526,19 @@ object AttendanceService {
 
     // ---- PDPA: consent ----
 
-    /** Insert an admin-attestation consent row for a student. notice_version is filled from the
-     * current privacy notice when not supplied. */
+    /** Record consent through the shaped RPC. The database derives the actor,
+     * method, current notice version, and timestamp. */
     suspend fun recordConsent(
         studentId: String,
         status: String,
-        noticeVersion: String? = null,
         sourceNote: String? = null
     ) {
-        val version = noticeVersion ?: runCatching { fetchPrivacyNotice()?.version }.getOrNull()
-        val grantedBy = SupabaseClient.client.auth.currentUserOrNull()?.id
-        db.from("consent_records").insert(
-            ConsentInsert(
-                studentId = studentId,
-                status = status,
-                noticeVersion = version,
-                grantedBy = grantedBy,
-                sourceNote = sourceNote
-            )
-        )
+        db.postgrest.rpc("record_admin_consent", buildJsonObject {
+            put("p_student_id", studentId)
+            put("p_consent_type", "data_collection")
+            put("p_status", status)
+            sourceNote?.let { put("p_source_note", it) }
+        })
     }
 
     /** Latest consent row per (student_id, consent_type) for one student. */
@@ -586,35 +547,18 @@ object AttendanceService {
             filter { eq("student_id", studentId) }
         }.decodeList<ConsentRecord>()
 
-    // ---- PDPA: erase / anonymise ----
+    // ---- PDPA: erase / pseudonymise ----
 
     suspend fun anonymiseStudent(studentId: String) {
-        removeStudentStorage(studentId)
-        db.postgrest.rpc("anonymise_student", buildJsonObject { put("p_student_id", studentId) })
+        throw IllegalStateException(
+            "Pseudonymisation is available only in the secure admin web dashboard."
+        )
     }
 
     suspend fun eraseStudent(studentId: String) {
-        removeStudentStorage(studentId)
-        db.postgrest.rpc("erase_student", buildJsonObject { put("p_student_id", studentId) })
-    }
-
-    /** PostgreSQL cascades cannot remove Storage objects. Delete every object in
-     * both student-scoped folders before erasing the database identity. */
-    private suspend fun removeStudentStorage(studentId: String) {
-        for (bucketName in listOf("result-slips", "student-photos")) {
-            val bucket = db.storage.from(bucketName)
-            for (folder in setOf(studentId.lowercase(), studentId.uppercase())) {
-                while (true) {
-                    val objects = bucket.list(folder) {
-                        limit = 100
-                        offset = 0
-                    }
-                    val paths = objects.filter { it.id != null }.map { "$folder/${it.name}" }
-                    if (paths.isNotEmpty()) bucket.delete(paths)
-                    if (objects.size < 100 || paths.isEmpty()) break
-                }
-            }
-        }
+        throw IllegalStateException(
+            "Erasure is available only in the secure admin web dashboard."
+        )
     }
 
     // ---- PDPA: subject-access export ----
@@ -637,55 +581,61 @@ object AttendanceService {
             order("created_at", Order.ASCENDING)
         }.decodeList<CorrectionRequest>()
 
-    /** Apply a correction: write the new value onto the student row, mark the request applied,
-     * and log a correction_response disclosure. */
+    /** The database reviews, applies and logs the correction atomically. */
     suspend fun applyCorrectionRequest(request: CorrectionRequest) {
-        // Only a known, safe allowlist of student columns may be corrected this way.
-        val allowed = setOf("full_name", "school", "year_of_study")
-        require(request.fieldName in allowed) {
-            "Field '${request.fieldName}' cannot be auto-applied; correct it manually."
-        }
-        val newValue = request.requestedValue
-        db.from("students").update({
-            set(request.fieldName, newValue)
-        }) { filter { eq("id", request.studentId) } }
-
-        val reviewerId = SupabaseClient.client.auth.currentUserOrNull()?.id
-        db.from("correction_requests").update({
-            set("status", "applied")
-            set("reviewed_by", reviewerId)
-            set("reviewed_at", java.time.Instant.now().toString())
-        }) { filter { eq("id", request.id) } }
-
-        db.from("data_disclosures").insert(
-            buildJsonObject {
-                put("student_id", request.studentId)
-                put("disclosure_type", "correction_response")
-                put("disclosed_by", reviewerId)
-            }
-        )
+        reviewCorrectionRequest(request.id, "applied", null)
     }
 
     suspend fun rejectCorrectionRequest(request: CorrectionRequest, reviewNote: String?) {
-        val reviewerId = SupabaseClient.client.auth.currentUserOrNull()?.id
-        db.from("correction_requests").update({
-            set("status", "rejected")
-            set("reviewed_by", reviewerId)
-            set("reviewed_at", java.time.Instant.now().toString())
-            set("review_note", reviewNote)
-        }) { filter { eq("id", request.id) } }
+        reviewCorrectionRequest(request.id, "rejected", reviewNote)
+    }
+
+    private suspend fun reviewCorrectionRequest(
+        requestId: String,
+        decision: String,
+        reviewNote: String?
+    ) {
+        db.postgrest.rpc("review_correction_request", buildJsonObject {
+            put("p_request_id", requestId)
+            put("p_decision", decision)
+            put("p_review_note", reviewNote)
+        })
     }
 
     // ---- Result slips + parent messages (Phase 2 parent portal) ----
 
+    /** Parent-safe projection (migration 038). */
     suspend fun fetchResultSlips(studentId: String): List<ResultSlip> =
+        db.postgrest.rpc("get_parent_result_slips", buildJsonObject {
+            put("p_student_id", studentId)
+        }).decodeList()
+
+    /** Staff retain their RLS-scoped base-table view. */
+    suspend fun fetchStaffResultSlips(studentId: String): List<ResultSlip> =
         db.from("result_slips").select {
             filter { eq("student_id", studentId) }
             order("uploaded_at", Order.DESCENDING)
         }.decodeList()
 
-    /** Text-only result insert (no file_path). Parent RLS requires uploaded_by = auth.uid(). */
+    /** Parent-only text result submission; the server derives uploaded_by from auth.uid(). */
     suspend fun submitResultSlip(
+        studentId: String,
+        examName: String,
+        examDate: String,
+        subject: String,
+        score: Double,
+        maxScore: Double
+    ): ResultSlip =
+        db.postgrest.rpc("submit_parent_result_slip", buildJsonObject {
+            put("p_student_id", studentId)
+            put("p_exam_name", examName)
+            put("p_exam_date", examDate)
+            put("p_subject", subject)
+            put("p_score", score)
+            put("p_max_score", maxScore)
+        }).decodeList<ResultSlip>().single()
+
+    suspend fun submitStaffResultSlip(
         studentId: String,
         examName: String,
         examDate: String,
@@ -707,43 +657,20 @@ object AttendanceService {
         ) { select() }.decodeSingle()
 
     suspend fun fetchMessages(studentId: String): List<ParentMessage> =
-        db.from("messages").select {
-            filter { eq("student_id", studentId) }
-            order("sent_at", Order.ASCENDING)
-        }.decodeList()
+        db.postgrest.rpc("get_parent_messages", buildJsonObject {
+            put("p_student_id", studentId)
+        }).decodeList()
 
     suspend fun sendParentMessage(
         studentId: String,
-        senderId: String,
         subject: String?,
         body: String
     ): ParentMessage =
-        db.from("messages").insert(
-            ParentMessageInsert(
-                senderId = senderId,
-                studentId = studentId,
-                recipientId = null,
-                subject = subject,
-                body = body
-            )
-        ) { select() }.decodeSingle()
-
-    // ---- PDPA: result-slip uploads (private bucket, "<student_id>/<filename>" path) ----
-
-    /**
-     * Upload an exam result slip to the private `result-slips` Storage bucket. The object is
-     * always stored under "<student_id>/<filename>" so the parent-read Storage policy resolves.
-     * Returns the storage path used.
-     */
-    suspend fun uploadResultSlip(studentId: String, fileName: String, bytes: ByteArray): String {
-        // SP-09: reject oversized uploads before hitting Storage (limit 10 MB).
-        require(bytes.size <= 10 * 1024 * 1024) {
-            "This file is too large. Please choose a result slip under 10 MB."
-        }
-        val path = "$studentId/$fileName"
-        SupabaseClient.client.storage.from("result-slips").upload(path, bytes) { upsert = true }
-        return path
-    }
+        db.postgrest.rpc("send_parent_message", buildJsonObject {
+            put("p_student_id", studentId)
+            put("p_subject", subject)
+            put("p_body", body)
+        }).decodeList<ParentMessage>().single()
 
     // ---- Feature flags (012) ----
 
@@ -774,30 +701,18 @@ object AttendanceService {
 
     // ---- Device tokens (PROD-02, flag: push_notifications) ----
 
-    @Serializable
-    private data class TokenInsert(
-        @SerialName("user_id") val userId: String,
-        val token: String,
-        val platform: String
-    )
-
     suspend fun registerDeviceToken(token: String, platform: String = "android") {
-        val userId = db.auth.currentUserOrNull()?.id ?: return
-        db.from("device_tokens").upsert(
-            TokenInsert(userId = userId, token = token, platform = platform)
-        ) { onConflict = "token" }
+        db.postgrest.rpc("register_device_token", buildJsonObject {
+            put("p_token", token)
+            put("p_platform", platform)
+        })
     }
 
     // ---- Safely home (migration 030, flag: push_notifications) ----
 
     /** Today's dismissals visible to the caller (RLS: parents see own children only). */
-    suspend fun fetchTodayDismissals(): List<Dismissal> {
-        val todayStart = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + "T00:00:00"
-        return db.from("dismissals").select {
-            filter { gte("dismissed_at", todayStart) }
-            order("dismissed_at", Order.DESCENDING)
-        }.decodeList<Dismissal>()
-    }
+    suspend fun fetchTodayDismissals(): List<Dismissal> =
+        db.postgrest.rpc("get_parent_dismissals", buildJsonObject {}).decodeList()
 
     /** Dismissals still awaiting a parent's safely-home confirmation. */
     fun awaitingSafelyHome(dismissals: List<Dismissal>): List<Dismissal> =
@@ -826,6 +741,11 @@ object AttendanceService {
     data class SyncResult(val synced: Int, val skipped: Int, val blockedEndedSession: Int)
 
     suspend fun syncPending(records: List<PendingAttendanceRecord>): SyncResult {
+        val currentUserId = db.auth.currentUserOrNull()?.id
+            ?: throw SecurityException("Cannot sync attendance without an authenticated user")
+        if (!pendingRecordsBelongToOwner(records, currentUserId)) {
+            throw SecurityException("Pending attendance belongs to a different account")
+        }
         val payload = records.map { r ->
             SyncRecord(
                 sessionId = r.sessionId,

@@ -148,7 +148,17 @@ final class Analytics: NSObject {
 
     func flush() async {
         await flush(using: { batch in
-            try await self.db.from("app_events").insert(batch).execute()
+            struct Params: Encodable {
+                let events: [AppEvent]
+                enum CodingKeys: String, CodingKey { case events = "p_events" }
+            }
+            for start in stride(from: 0, to: batch.count, by: 100) {
+                let end = min(start + 100, batch.count)
+                try await self.db.rpc(
+                    "submit_app_events",
+                    params: Params(events: Array(batch[start..<end]))
+                ).execute()
+            }
         })
     }
 }

@@ -1,0 +1,33 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # web/bun.lock is the supported text lockfile (not the legacy bun.lockb).
+  - package-ecosystem: bun
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: gradle
+    directory: /Android
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # Dependabot discovers the Xcode project's committed SwiftPM Package.resolved.
+  - package-ecosystem: swift
+    directory: /iOS
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

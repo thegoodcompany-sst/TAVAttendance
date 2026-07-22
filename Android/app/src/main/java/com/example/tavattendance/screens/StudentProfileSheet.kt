@@ -30,6 +30,8 @@ import com.example.tavattendance.data.models.ResultSlipInputValidation
 import com.example.tavattendance.data.models.ResultSubject
 import com.example.tavattendance.data.service.AttendanceService
 import io.github.jan.supabase.auth.auth
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -38,7 +40,16 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.*
 
+private fun profileStateKey(
+    studentId: String,
+    parentMode: Boolean,
+    canManageStaffResults: Boolean
+): String = "$studentId|$parentMode|$canManageStaffResults"
+
 class StudentProfileViewModel(app: Application) : AndroidViewModel(app) {
+    private val _activeProfileKey = MutableStateFlow<String?>(null)
+    val activeProfileKey = _activeProfileKey.asStateFlow()
+
     private val _history = MutableStateFlow<List<AttendanceHistoryRecord>>(emptyList())
     val history = _history.asStateFlow()
 
@@ -75,48 +86,183 @@ class StudentProfileViewModel(app: Application) : AndroidViewModel(app) {
     private val _isSendingMessage = MutableStateFlow(false)
     val isSendingMessage = _isSendingMessage.asStateFlow()
 
+    private var activeStudentId: String? = null
+    private var activeParentMode = false
+    private var studentGeneration = 0L
+    private var historyRequest = 0L
+    private var slipsRequest = 0L
+    private var messagesRequest = 0L
+    private var historyJob: Job? = null
+    private var slipsJob: Job? = null
+    private var messagesJob: Job? = null
+
     fun clearSnackbar() { _snackbarMessage.value = null }
 
-    fun loadHistory(studentId: String) {
-        viewModelScope.launch {
-            _historyLoading.value = true
-            _historyError.value = null
+    private fun activateProfile(
+        studentId: String,
+        parentMode: Boolean,
+        canManageStaffResults: Boolean
+    ) {
+        val key = profileStateKey(studentId, parentMode, canManageStaffResults)
+        if (_activeProfileKey.value == key) return
+
+        studentGeneration += 1
+        historyRequest += 1
+        slipsRequest += 1
+        messagesRequest += 1
+        historyJob?.cancel()
+        slipsJob?.cancel()
+        messagesJob?.cancel()
+
+        // Clear the prior student's state before publishing the new identity.
+        // The composable also compares activeProfileKey, so no intermediate
+        // recomposition can label old data with the new student's name.
+        _history.value = emptyList()
+        _slips.value = emptyList()
+        _messages.value = emptyList()
+        _historyError.value = null
+        _slipsError.value = null
+        _messagesError.value = null
+        _snackbarMessage.value = null
+        _historyLoading.value = true
+        _slipsLoading.value = false
+        _messagesLoading.value = false
+        _isSubmittingResult.value = false
+        _isSendingMessage.value = false
+
+        activeStudentId = studentId
+        activeParentMode = parentMode
+        _activeProfileKey.value = key
+    }
+
+    private fun currentGeneration(studentId: String, parentMode: Boolean): Long? =
+        studentGeneration.takeIf {
+            activeStudentId == studentId && activeParentMode == parentMode
+        }
+
+    private fun isCurrent(
+        studentId: String,
+        parentMode: Boolean,
+        generation: Long
+    ): Boolean = generation == studentGeneration
+        && activeStudentId == studentId
+        && activeParentMode == parentMode
+
+    fun loadHistory(studentId: String, parentMode: Boolean) {
+        val generation = currentGeneration(studentId, parentMode) ?: return
+        val request = ++historyRequest
+        historyJob?.cancel()
+        _history.value = emptyList()
+        _historyLoading.value = true
+        _historyError.value = null
+        historyJob = viewModelScope.launch {
             val since30Days = LocalDate.now().minusDays(30).toString()
-            runCatching {
-                _history.value = AttendanceService.fetchStudentAttendanceHistory(
-                    studentId = studentId, limit = 100, since = since30Days
-                )
-            }.onFailure { _historyError.value = it.asUserMessage("Couldn't load attendance") }
-            _historyLoading.value = false
+            try {
+                val loaded = if (parentMode) {
+                    AttendanceService.fetchParentAttendanceHistory(
+                        studentId = studentId, limit = 100, since = since30Days
+                    )
+                } else {
+                    AttendanceService.fetchStudentAttendanceHistory(
+                        studentId = studentId, limit = 100, since = since30Days
+                    )
+                }
+                if (isCurrent(studentId, parentMode, generation) && request == historyRequest) {
+                    _history.value = loaded
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (isCurrent(studentId, parentMode, generation) && request == historyRequest) {
+                    _historyError.value = error.asUserMessage("Couldn't load attendance")
+                }
+            } finally {
+                if (isCurrent(studentId, parentMode, generation) && request == historyRequest) {
+                    _historyLoading.value = false
+                }
+            }
         }
     }
 
-    fun loadSlips(studentId: String) {
-        viewModelScope.launch {
-            _slipsLoading.value = true
-            _slipsError.value = null
-            runCatching {
-                _slips.value = AttendanceService.fetchResultSlips(studentId)
-            }.onFailure { _slipsError.value = it.asUserMessage("Couldn't load result slips") }
-            _slipsLoading.value = false
+    fun loadSlips(studentId: String, parentMode: Boolean) {
+        val generation = currentGeneration(studentId, parentMode) ?: return
+        val request = ++slipsRequest
+        slipsJob?.cancel()
+        _slips.value = emptyList()
+        _slipsLoading.value = true
+        _slipsError.value = null
+        slipsJob = viewModelScope.launch {
+            try {
+                val loaded = if (parentMode) {
+                    AttendanceService.fetchResultSlips(studentId)
+                } else {
+                    AttendanceService.fetchStaffResultSlips(studentId)
+                }
+                if (isCurrent(studentId, parentMode, generation) && request == slipsRequest) {
+                    _slips.value = loaded
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (isCurrent(studentId, parentMode, generation) && request == slipsRequest) {
+                    _slipsError.value = error.asUserMessage("Couldn't load result slips")
+                }
+            } finally {
+                if (isCurrent(studentId, parentMode, generation) && request == slipsRequest) {
+                    _slipsLoading.value = false
+                }
+            }
         }
     }
 
     fun loadMessages(studentId: String) {
-        viewModelScope.launch {
-            _messagesLoading.value = true
-            _messagesError.value = null
-            runCatching {
-                _messages.value = AttendanceService.fetchMessages(studentId)
-            }.onFailure { _messagesError.value = it.asUserMessage("Couldn't load messages") }
-            _messagesLoading.value = false
+        val generation = currentGeneration(studentId, parentMode = true) ?: return
+        val request = ++messagesRequest
+        messagesJob?.cancel()
+        _messages.value = emptyList()
+        _messagesLoading.value = true
+        _messagesError.value = null
+        messagesJob = viewModelScope.launch {
+            try {
+                val loaded = AttendanceService.fetchMessages(studentId)
+                if (isCurrent(studentId, parentMode = true, generation) && request == messagesRequest) {
+                    _messages.value = loaded
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                if (isCurrent(studentId, parentMode = true, generation) && request == messagesRequest) {
+                    _messagesError.value = error.asUserMessage("Couldn't load messages")
+                }
+            } finally {
+                if (isCurrent(studentId, parentMode = true, generation) && request == messagesRequest) {
+                    _messagesLoading.value = false
+                }
+            }
         }
     }
 
-    fun loadAll(studentId: String, parentMode: Boolean) {
-        loadHistory(studentId)
-        loadSlips(studentId)
-        if (parentMode) loadMessages(studentId)
+    fun loadAll(studentId: String, parentMode: Boolean, canManageStaffResults: Boolean) {
+        activateProfile(studentId, parentMode, canManageStaffResults)
+        loadHistory(studentId, parentMode)
+        if (parentMode || canManageStaffResults) {
+            loadSlips(studentId, parentMode)
+        } else {
+            slipsRequest += 1
+            slipsJob?.cancel()
+            _slips.value = emptyList()
+            _slipsError.value = null
+            _slipsLoading.value = false
+        }
+        if (parentMode) {
+            loadMessages(studentId)
+        } else {
+            messagesRequest += 1
+            messagesJob?.cancel()
+            _messages.value = emptyList()
+            _messagesError.value = null
+            _messagesLoading.value = false
+        }
     }
 
     fun submitResult(
@@ -126,37 +272,56 @@ class StudentProfileViewModel(app: Application) : AndroidViewModel(app) {
         subject: String,
         score: Double,
         maxScore: Double,
+        parentMode: Boolean,
         onSuccess: () -> Unit
     ) {
+        val generation = currentGeneration(studentId, parentMode) ?: return
         viewModelScope.launch {
+            if (!isCurrent(studentId, parentMode, generation)) return@launch
             val failure = ResultSlipInputValidation.validate(examName, score, maxScore)
             if (failure != null) {
-                _snackbarMessage.value = failure.message
-                return@launch
-            }
-            val userId = SupabaseClient.client.auth.currentUserOrNull()?.id
-            if (userId == null) {
-                _snackbarMessage.value = "Couldn't submit result. Please try again."
+                if (isCurrent(studentId, parentMode, generation)) {
+                    _snackbarMessage.value = failure.message
+                }
                 return@launch
             }
             _isSubmittingResult.value = true
             runCatching {
-                AttendanceService.submitResultSlip(
-                    studentId = studentId,
-                    examName = examName.trim(),
-                    examDate = examDate,
-                    subject = subject,
-                    score = score,
-                    maxScore = maxScore,
-                    uploadedBy = userId
-                )
+                if (parentMode) {
+                    AttendanceService.submitResultSlip(
+                        studentId = studentId,
+                        examName = examName.trim(),
+                        examDate = examDate,
+                        subject = subject,
+                        score = score,
+                        maxScore = maxScore
+                    )
+                } else {
+                    val userId = SupabaseClient.client.auth.currentUserOrNull()?.id
+                        ?: error("No authenticated staff user")
+                    AttendanceService.submitStaffResultSlip(
+                        studentId = studentId,
+                        examName = examName.trim(),
+                        examDate = examDate,
+                        subject = subject,
+                        score = score,
+                        maxScore = maxScore,
+                        uploadedBy = userId
+                    )
+                }
             }.onSuccess {
-                loadSlips(studentId)
-                onSuccess()
-            }.onFailure {
-                _snackbarMessage.value = it.asUserMessage("Couldn't submit result")
+                if (isCurrent(studentId, parentMode, generation)) {
+                    loadSlips(studentId, parentMode)
+                    onSuccess()
+                }
+            }.onFailure { error ->
+                if (isCurrent(studentId, parentMode, generation)) {
+                    _snackbarMessage.value = error.asUserMessage("Couldn't submit result")
+                }
             }
-            _isSubmittingResult.value = false
+            if (isCurrent(studentId, parentMode, generation)) {
+                _isSubmittingResult.value = false
+            }
         }
     }
 
@@ -166,32 +331,36 @@ class StudentProfileViewModel(app: Application) : AndroidViewModel(app) {
         body: String,
         onSuccess: () -> Unit
     ) {
+        val generation = currentGeneration(studentId, parentMode = true) ?: return
         viewModelScope.launch {
+            if (!isCurrent(studentId, parentMode = true, generation)) return@launch
             val trimmed = body.trim()
             if (trimmed.isEmpty()) {
-                _snackbarMessage.value = "Message cannot be empty."
-                return@launch
-            }
-            val userId = SupabaseClient.client.auth.currentUserOrNull()?.id
-            if (userId == null) {
-                _snackbarMessage.value = "Couldn't send message. Please try again."
+                if (isCurrent(studentId, parentMode = true, generation)) {
+                    _snackbarMessage.value = "Message cannot be empty."
+                }
                 return@launch
             }
             _isSendingMessage.value = true
             runCatching {
                 AttendanceService.sendParentMessage(
                     studentId = studentId,
-                    senderId = userId,
                     subject = subject?.trim()?.ifEmpty { null },
                     body = trimmed
                 )
             }.onSuccess {
-                loadMessages(studentId)
-                onSuccess()
-            }.onFailure {
-                _snackbarMessage.value = it.asUserMessage("Couldn't send message")
+                if (isCurrent(studentId, parentMode = true, generation)) {
+                    loadMessages(studentId)
+                    onSuccess()
+                }
+            }.onFailure { error ->
+                if (isCurrent(studentId, parentMode = true, generation)) {
+                    _snackbarMessage.value = error.asUserMessage("Couldn't send message")
+                }
             }
-            _isSendingMessage.value = false
+            if (isCurrent(studentId, parentMode = true, generation)) {
+                _isSendingMessage.value = false
+            }
         }
     }
 }
@@ -205,27 +374,49 @@ fun StudentProfileSheet(
     fullName: String,
     onDismiss: () -> Unit,
     isParentMode: Boolean = false,
+    canManageStaffResults: Boolean = false,
     vm: StudentProfileViewModel = viewModel()
 ) {
     TrackScreen("student_profile")
-    LaunchedEffect(studentId, isParentMode) { vm.loadAll(studentId, isParentMode) }
+    LaunchedEffect(studentId, isParentMode, canManageStaffResults) {
+        vm.loadAll(studentId, isParentMode, canManageStaffResults)
+    }
 
-    val history by vm.history.collectAsState()
-    val slips by vm.slips.collectAsState()
-    val messages by vm.messages.collectAsState()
-    val historyLoading by vm.historyLoading.collectAsState()
-    val slipsLoading by vm.slipsLoading.collectAsState()
-    val messagesLoading by vm.messagesLoading.collectAsState()
-    val historyError by vm.historyError.collectAsState()
-    val slipsError by vm.slipsError.collectAsState()
-    val messagesError by vm.messagesError.collectAsState()
-    val snackbarMessage by vm.snackbarMessage.collectAsState()
-    val isSubmittingResult by vm.isSubmittingResult.collectAsState()
-    val isSendingMessage by vm.isSendingMessage.collectAsState()
+    val activeProfileKey by vm.activeProfileKey.collectAsState()
+    val loadedHistory by vm.history.collectAsState()
+    val loadedSlips by vm.slips.collectAsState()
+    val loadedMessages by vm.messages.collectAsState()
+    val loadedHistoryLoading by vm.historyLoading.collectAsState()
+    val loadedSlipsLoading by vm.slipsLoading.collectAsState()
+    val loadedMessagesLoading by vm.messagesLoading.collectAsState()
+    val loadedHistoryError by vm.historyError.collectAsState()
+    val loadedSlipsError by vm.slipsError.collectAsState()
+    val loadedMessagesError by vm.messagesError.collectAsState()
+    val loadedSnackbarMessage by vm.snackbarMessage.collectAsState()
+    val loadedIsSubmittingResult by vm.isSubmittingResult.collectAsState()
+    val loadedIsSendingMessage by vm.isSendingMessage.collectAsState()
+
+    val stateIsCurrent = activeProfileKey == profileStateKey(
+        studentId,
+        isParentMode,
+        canManageStaffResults
+    )
+    val history = if (stateIsCurrent) loadedHistory else emptyList()
+    val slips = if (stateIsCurrent) loadedSlips else emptyList()
+    val messages = if (stateIsCurrent) loadedMessages else emptyList()
+    val historyLoading = !stateIsCurrent || loadedHistoryLoading
+    val slipsLoading = !stateIsCurrent || loadedSlipsLoading
+    val messagesLoading = !stateIsCurrent || loadedMessagesLoading
+    val historyError = loadedHistoryError.takeIf { stateIsCurrent }
+    val slipsError = loadedSlipsError.takeIf { stateIsCurrent }
+    val messagesError = loadedMessagesError.takeIf { stateIsCurrent }
+    val snackbarMessage = loadedSnackbarMessage.takeIf { stateIsCurrent }
+    val isSubmittingResult = stateIsCurrent && loadedIsSubmittingResult
+    val isSendingMessage = stateIsCurrent && loadedIsSendingMessage
 
     val snackbarHost = rememberSnackbarError(snackbarMessage) { vm.clearSnackbar() }
-    var selectedTab by remember { mutableStateOf(ParentProfileTab.Attendance) }
-    var showAddResult by remember { mutableStateOf(false) }
+    var selectedTab by remember(studentId) { mutableStateOf(ParentProfileTab.Attendance) }
+    var showAddResult by remember(studentId) { mutableStateOf(false) }
 
     val presentCount = history.count { it.status == AttendanceStatus.present }
     val lateCount = history.count { it.status == AttendanceStatus.late }
@@ -262,7 +453,7 @@ fun StudentProfileSheet(
                                 onClick = {
                                     selectedTab = tab
                                     if (tab == ParentProfileTab.Messages) vm.loadMessages(studentId)
-                                    if (tab == ParentProfileTab.Results) vm.loadSlips(studentId)
+                                    if (tab == ParentProfileTab.Results) vm.loadSlips(studentId, true)
                                 },
                                 text = { Text(tab.name) }
                             )
@@ -274,6 +465,7 @@ fun StudentProfileSheet(
                 when {
                     !isParentMode || selectedTab == ParentProfileTab.Attendance -> {
                         AttendanceTabContent(
+                            modifier = Modifier.weight(1f, fill = false),
                             history = history,
                             isLoading = historyLoading,
                             error = historyError,
@@ -284,11 +476,13 @@ fun StudentProfileSheet(
                             attendanceRate = attendanceRate,
                             formatDate = ::formatDate,
                             timeFmt = timeFmt,
-                            onRetry = { vm.loadHistory(studentId) },
-                            includeStaffResults = !isParentMode,
+                            onRetry = { vm.loadHistory(studentId, isParentMode) },
+                            includeStaffResults = !isParentMode && canManageStaffResults,
                             slips = slips,
+                            slipsLoading = slipsLoading,
+                            slipsError = slipsError,
+                            onRetrySlips = { vm.loadSlips(studentId, false) },
                             onAddResult = { showAddResult = true },
-                            isParentMode = isParentMode
                         )
                     }
                     selectedTab == ParentProfileTab.Results -> {
@@ -297,7 +491,7 @@ fun StudentProfileSheet(
                             isLoading = slipsLoading,
                             error = slipsError,
                             formatDate = ::formatDate,
-                            onRetry = { vm.loadSlips(studentId) },
+                            onRetry = { vm.loadSlips(studentId, true) },
                             onAddResult = { showAddResult = true },
                             isParentMode = true
                         )
@@ -308,7 +502,6 @@ fun StudentProfileSheet(
                             isLoading = messagesLoading,
                             error = messagesError,
                             isSending = isSendingMessage,
-                            currentUserId = SupabaseClient.client.auth.currentUserOrNull()?.id,
                             onRetry = { vm.loadMessages(studentId) },
                             onSend = { subject, body, clear ->
                                 vm.sendMessage(studentId, subject, body) { clear() }
@@ -321,12 +514,12 @@ fun StudentProfileSheet(
         }
     }
 
-    if (showAddResult) {
+    if (showAddResult && (isParentMode || canManageStaffResults)) {
         AddResultDialog(
             isSubmitting = isSubmittingResult,
             onDismiss = { showAddResult = false },
             onSubmit = { name, date, subject, score, maxScore ->
-                vm.submitResult(studentId, name, date, subject, score, maxScore) {
+                vm.submitResult(studentId, name, date, subject, score, maxScore, isParentMode) {
                     showAddResult = false
                 }
             }
@@ -336,6 +529,7 @@ fun StudentProfileSheet(
 
 @Composable
 private fun AttendanceTabContent(
+    modifier: Modifier = Modifier,
     history: List<AttendanceHistoryRecord>,
     isLoading: Boolean,
     error: String?,
@@ -349,84 +543,96 @@ private fun AttendanceTabContent(
     onRetry: () -> Unit,
     includeStaffResults: Boolean,
     slips: List<ResultSlip>,
+    slipsLoading: Boolean,
+    slipsError: String?,
+    onRetrySlips: () -> Unit,
     onAddResult: () -> Unit,
-    isParentMode: Boolean
 ) {
-    when {
-        isLoading -> Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        error != null && history.isEmpty() -> Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(error, color = MaterialTheme.colorScheme.error)
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = onRetry) { Text("Retry") }
-        }
-        history.isEmpty() -> Text(
-            "No records in the last 30 days.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        else -> {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        StatPill(presentCount, "Present", Color(0xFF34C759))
-                        StatPill(lateCount, "Late", Color(0xFFFF9500))
-                        StatPill(absentCount, "Absent", Color(0xFFFF3B30))
-                        StatPill(excusedCount, "Excused", Color(0xFF8E8E93))
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        val rateColor = when {
-                            attendanceRate >= 0.9f -> Color(0xFF34C759)
-                            attendanceRate >= 0.75f -> Color(0xFFFF9500)
-                            else -> Color(0xFFFF3B30)
-                        }
-                        Text(
-                            "${(attendanceRate * 100).toInt()}%",
-                            style = MaterialTheme.typography.displaySmall,
-                            color = rateColor
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            "attendance",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "${history.size} sessions",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                    }
-                    Row(modifier = Modifier.fillMaxWidth().height(8.dp)) {
-                        val total = history.size.toFloat()
-                        if (total > 0) {
-                            if (presentCount > 0) Surface(modifier = Modifier.weight(presentCount / total), color = Color(0xFF34C759)) {}
-                            if (lateCount > 0) Surface(modifier = Modifier.weight(lateCount / total), color = Color(0xFFFF9500)) {}
-                            if (absentCount > 0) Surface(modifier = Modifier.weight(absentCount / total), color = Color(0xFFFF3B30)) {}
-                            if (excusedCount > 0) Surface(modifier = Modifier.weight(excusedCount / total), color = Color(0xFF8E8E93)) {}
+    LazyColumn(modifier = modifier.fillMaxWidth()) {
+        when {
+            isLoading -> item {
+                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+            error != null && history.isEmpty() -> item {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(error, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = onRetry) { Text("Retry") }
+                }
+            }
+            history.isEmpty() -> item {
+                Text(
+                    "No records in the last 30 days.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+            else -> {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                StatPill(presentCount, "Present", Color(0xFF34C759))
+                                StatPill(lateCount, "Late", Color(0xFFFF9500))
+                                StatPill(absentCount, "Absent", Color(0xFFFF3B30))
+                                StatPill(excusedCount, "Excused", Color(0xFF8E8E93))
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                val rateColor = when {
+                                    attendanceRate >= 0.9f -> Color(0xFF34C759)
+                                    attendanceRate >= 0.75f -> Color(0xFFFF9500)
+                                    else -> Color(0xFFFF3B30)
+                                }
+                                Text(
+                                    "${(attendanceRate * 100).toInt()}%",
+                                    style = MaterialTheme.typography.displaySmall,
+                                    color = rateColor
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "attendance",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    "${history.size} sessions",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
+                            }
+                            Row(modifier = Modifier.fillMaxWidth().height(8.dp)) {
+                                val total = history.size.toFloat()
+                                if (total > 0) {
+                                    if (presentCount > 0) Surface(modifier = Modifier.weight(presentCount / total), color = Color(0xFF34C759)) {}
+                                    if (lateCount > 0) Surface(modifier = Modifier.weight(lateCount / total), color = Color(0xFFFF9500)) {}
+                                    if (absentCount > 0) Surface(modifier = Modifier.weight(absentCount / total), color = Color(0xFFFF3B30)) {}
+                                    if (excusedCount > 0) Surface(modifier = Modifier.weight(excusedCount / total), color = Color(0xFF8E8E93)) {}
+                                }
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(Modifier.height(16.dp))
-            Text(
-                "Sessions (last 30 days)",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(Modifier.height(8.dp))
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Sessions (last 30 days)",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
 
-            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
-                items(history, key = { it.id }) { record ->
+                items(history, key = { "attendance-${it.id}" }) { record ->
                     val color = statusColor(record.status)
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -452,42 +658,65 @@ private fun AttendanceTabContent(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = color
                             )
-                            record.markedAt?.let { ts ->
-                                runCatching { Date(Instant.parse(ts).toEpochMilli()) }.getOrNull()?.let { d ->
-                                    Text(
-                                        timeFmt.format(d),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            record.markedAt?.let { timestamp ->
+                                runCatching { Date(Instant.parse(timestamp).toEpochMilli()) }
+                                    .getOrNull()
+                                    ?.let { markedDate ->
+                                        Text(
+                                            timeFmt.format(markedDate),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                             }
                         }
                     }
                     HorizontalDivider()
                 }
+            }
+        }
 
-                if (includeStaffResults) {
-                    item {
-                        Spacer(Modifier.height(16.dp))
-                        Text("Result Slips", style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.height(8.dp))
+        if (includeStaffResults) {
+            item {
+                Spacer(Modifier.height(16.dp))
+                Text("Result Slips", style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.height(8.dp))
+            }
+            when {
+                slipsLoading -> item {
+                    Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
                     }
+                }
+                slipsError != null && slips.isEmpty() -> item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(slipsError, color = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = onRetrySlips) { Text("Retry") }
+                    }
+                }
+                else -> {
                     if (slips.isEmpty()) {
                         item {
                             Text(
                                 "No result slips yet.",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else {
-                        items(slips, key = { it.id }) { slip ->
-                            ResultSlipRow(slip, formatDate, showAck = isParentMode)
+                        items(slips, key = { "slip-${it.id}" }) { slip ->
+                            ResultSlipRow(slip, formatDate, showAck = false)
                             HorizontalDivider()
                         }
                     }
                     item {
-                        TextButton(onClick = onAddResult) { Text("Add Result Slip") }
+                        Spacer(Modifier.height(8.dp))
+                        Button(onClick = onAddResult, modifier = Modifier.fillMaxWidth()) {
+                            Text("Add Result Slip")
+                        }
                     }
                 }
             }
@@ -583,7 +812,6 @@ private fun MessagesTabContent(
     isLoading: Boolean,
     error: String?,
     isSending: Boolean,
-    currentUserId: String?,
     onRetry: () -> Unit,
     onSend: (subject: String?, body: String, clear: () -> Unit) -> Unit
 ) {
@@ -617,7 +845,7 @@ private fun MessagesTabContent(
                 )
                 else -> LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                     items(messages, key = { it.id }) { msg ->
-                        val fromParent = msg.isFromParent || msg.senderId == currentUserId
+                        val fromParent = msg.isFromParent
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                             horizontalArrangement = if (fromParent) Arrangement.End else Arrangement.Start

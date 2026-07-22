@@ -18,7 +18,7 @@ enum AppIntentError: Error, CustomLocalizedStringResourceConvertible {
         case .notAdmin:
             return "This action is only available to admin accounts. Sign in to the kiosk as an admin."
         case .kioskLocked:
-            return "Unlock the kiosk in TAVAttendance before using Siri or Shortcuts."
+            return "Open TAVAttendance, configure a kiosk PIN if needed, and unlock it before using Siri or Shortcuts."
         case .studentNotInToday(let name):
             return "\(name) doesn't have a class today, so there's nothing to sign in."
         case .noClassesToday:
@@ -75,6 +75,21 @@ enum IntentSupport {
         } catch {
             throw AppIntentError.notSignedIn
         }
+    }
+
+    /// Entity queries can run while the system is configuring or resolving an intent, before
+    /// `perform()` is called. Do not rely on the enclosing intent's authentication policy to
+    /// protect student/class names: require a PIN-authenticated unlock in this app process.
+    /// A no-PIN kiosk therefore fails closed for entity discovery until a PIN is configured
+    /// and explicitly entered.
+    static func requireSensitiveEntityQueryAuthorization() async throws {
+        let explicitlyUnlocked = await MainActor.run {
+            KioskSecurityState.shared.isAdminUnlocked
+        }
+        guard KioskSecurityState.allowsSensitiveEntityQueries(
+            isAdminUnlocked: explicitlyUnlocked
+        ) else { throw AppIntentError.kioskLocked }
+        try await requireSession()
     }
 
     /// The Supabase session persists across launches, while the kiosk PIN unlock

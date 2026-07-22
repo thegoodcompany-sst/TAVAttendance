@@ -1,13 +1,18 @@
 import SwiftUI
 
+enum ParentDismissalVisibility {
+    static func visible(pushNotificationsEnabled: Bool, dismissals: [Dismissal]) -> [Dismissal] {
+        pushNotificationsEnabled ? AttendanceService.awaitingSafelyHome(dismissals) : []
+    }
+}
+
 /// PROD-01 — parent-facing home. Gated by the `parent_portal` feature flag:
 /// until an admin enables it, parents see a "being prepared" placeholder instead
 /// of falling through to the tutor class list. When enabled, a parent sees their
 /// linked children and can open each child's attendance history.
 ///
-/// No new RLS is needed: `students: parent can read own children` and
-/// `attendance_records: parent reads own children` already exist (002_rls.sql),
-/// so `fetchAllStudents()` returns only this parent's children.
+/// Migration 038 removes direct parent access to staff tables and exposes only
+/// explicit safe-column RPCs for this surface.
 struct ParentDashboardView: View {
     @EnvironmentObject private var authManager: AuthManager
     @EnvironmentObject private var featureFlags: FeatureFlagStore
@@ -70,10 +75,26 @@ struct ParentDashboardView: View {
             }
             .errorAlert(error: $error)
         }
-        .task {
-            // Only hit the network if the portal is live.
-            if featureFlags.isEnabled(.parentPortal) { await loadChildren() }
+        .task(id: dashboardFeatureState) {
+            // Re-evaluate when either flag changes. Turning push off immediately
+            // clears dismissal state and cancels any in-flight dismissal load.
+            if featureFlags.isEnabled(.parentPortal) {
+                await loadChildren(
+                    includeDismissals: featureFlags.isEnabled(.pushNotifications)
+                )
+            } else {
+                pendingDismissals = []
+                isLoading = false
+            }
         }
+        .onDisappear {
+            pendingDismissals = []
+        }
+    }
+
+    private var dashboardFeatureState: Int {
+        (featureFlags.isEnabled(.parentPortal) ? 2 : 0)
+            + (featureFlags.isEnabled(.pushNotifications) ? 1 : 0)
     }
 
     private var placeholder: some View {
@@ -92,7 +113,13 @@ struct ParentDashboardView: View {
         } description: {
             Text("We couldn't load your children's information. Please check your connection and try again.")
         } actions: {
-            Button("Retry") { Task { await loadChildren() } }
+            Button("Retry") {
+                Task {
+                    await loadChildren(
+                        includeDismissals: featureFlags.isEnabled(.pushNotifications)
+                    )
+                }
+            }
         }
     }
 
@@ -106,8 +133,10 @@ struct ParentDashboardView: View {
                 )
             } else {
                 List {
-                    ForEach(pendingDismissals) { dismissal in
-                        safelyHomeCard(dismissal)
+                    if featureFlags.isEnabled(.pushNotifications) {
+                        ForEach(pendingDismissals) { dismissal in
+                            safelyHomeCard(dismissal)
+                        }
                     }
                     ForEach(children) { child in
                         Button {
@@ -146,6 +175,10 @@ struct ParentDashboardView: View {
     }
 
     private func markSafelyHome(_ dismissal: Dismissal) async {
+        guard featureFlags.isEnabled(.pushNotifications) else {
+            pendingDismissals = []
+            return
+        }
         do {
             try await AttendanceService.shared.markSafelyHome(dismissalId: dismissal.id)
             pendingDismissals.removeAll { $0.id == dismissal.id }
@@ -154,17 +187,35 @@ struct ParentDashboardView: View {
         }
     }
 
-    private func loadChildren() async {
+    private func loadChildren(includeDismissals: Bool) async {
         isLoading = true
         loadFailed = false
+        // Do not retain dismissals from an earlier enabled state while refreshing.
+        pendingDismissals = []
         do {
-            children = try await AttendanceService.shared.fetchAllStudents()
+            let loadedChildren = try await AttendanceService.shared.fetchParentChildren()
+            guard !Task.isCancelled else { return }
+            children = loadedChildren
         } catch {
+            guard !Task.isCancelled else { return }
             loadFailed = true
         }
-        // Safely-home is best-effort decoration; a failure here must not hide the children list.
-        pendingDismissals = AttendanceService.awaitingSafelyHome(
-            (try? await AttendanceService.shared.fetchTodayDismissals()) ?? [])
+        if includeDismissals {
+            // Safely-home is best-effort decoration; a failure here must not hide
+            // the children list. Re-check both cancellation and the live flag so a
+            // stale request cannot repopulate state after the feature is disabled.
+            let dismissals = (try? await AttendanceService.shared.fetchTodayDismissals()) ?? []
+            guard !Task.isCancelled,
+                  featureFlags.isEnabled(.parentPortal),
+                  featureFlags.isEnabled(.pushNotifications) else {
+                pendingDismissals = []
+                return
+            }
+            pendingDismissals = ParentDismissalVisibility.visible(
+                pushNotificationsEnabled: true,
+                dismissals: dismissals
+            )
+        }
         isLoading = false
     }
 }

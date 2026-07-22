@@ -2,6 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin, NRIC_RE } from '@/lib/admin'
+import {
+  acknowledgeStudentStorageCleanup,
+  removeStudentPrivateFiles,
+} from '@/lib/storage-cleanup'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export type StudentInput = {
   fullName: string
@@ -115,15 +120,14 @@ export async function withdrawConsent(
   studentId: string,
   consentType: string
 ): Promise<{ error: string | null }> {
-  const { error: authErr, supabase, user } = await requireAdmin()
+  const { error: authErr, supabase } = await requireAdmin()
   if (authErr) return { error: authErr }
 
-  const { error } = await supabase.from('consent_records').insert({
-    student_id: studentId,
-    consent_type: consentType,
-    status: 'withdrawn',
-    method: 'admin_attestation',
-    granted_by: user!.id,
+  const { error } = await supabase.rpc('record_admin_consent', {
+    p_student_id: studentId,
+    p_consent_type: consentType,
+    p_status: 'withdrawn',
+    p_source_note: 'Admin withdrawal',
   })
   if (error) return { error: error.message }
 
@@ -132,67 +136,75 @@ export async function withdrawConsent(
 }
 
 /**
- * Anonymise a student (PDPA s25 retention) — redacts PII, keeps anonymous
- * attendance. Default erasure path. Calls the admin-guarded RPC.
+ * Pseudonymise a student (legacy RPC name retained for compatibility) —
+ * redacts direct identifiers and rotates the attendance identity, but retains
+ * longitudinal session facts that may remain linkable in a small cohort.
  */
 export async function anonymiseStudent(studentId: string): Promise<{ error: string | null }> {
-  const { error: authErr, supabase } = await requireAdmin()
-  if (authErr) return { error: authErr }
+  const { error: authErr, user } = await requireAdmin()
+  if (authErr || !user) return { error: authErr ?? 'Not authenticated.' }
 
-  const storageError = await removeStudentStorage(supabase, studentId)
-  if (storageError) return { error: storageError }
+  const adminClient = createAdminClient()
 
-  const { error } = await supabase.rpc('anonymise_student', { p_student_id: studentId })
+  try {
+    await removeStudentPrivateFiles(adminClient, studentId)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Could not erase private files.' }
+  }
+
+  const { error } = await adminClient.rpc('anonymise_student_secure', {
+    p_student_id: studentId,
+    p_actor_id: user.id,
+  })
   if (error) return { error: error.message }
-
   revalidatePath('/students')
+
+  try {
+    // The database mutation removes parent links and the student row, so
+    // untrusted clients can no longer upload into this prefix. Sweep again to
+    // catch an object uploaded between the preflight sweep and the RPC commit.
+    await removeStudentPrivateFiles(adminClient, studentId)
+    await acknowledgeStudentStorageCleanup(adminClient, studentId)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unknown Storage error.'
+    return { error: `Student pseudonymised, but final private-file cleanup failed: ${detail}` }
+  }
+
   return { error: null }
 }
 
 /**
  * Hard erase a student (PDPA s25, explicit erasure request) — deletes the
- * record and scrubs audit snapshots. Calls the admin-guarded RPC.
+ * record and scrubs audit snapshots through the trusted server-only workflow.
  */
 export async function eraseStudent(studentId: string): Promise<{ error: string | null }> {
-  const { error: authErr, supabase } = await requireAdmin()
-  if (authErr) return { error: authErr }
+  const { error: authErr, user } = await requireAdmin()
+  if (authErr || !user) return { error: authErr ?? 'Not authenticated.' }
 
-  const storageError = await removeStudentStorage(supabase, studentId)
-  if (storageError) return { error: storageError }
+  const adminClient = createAdminClient()
 
-  const { error } = await supabase.rpc('erase_student', { p_student_id: studentId })
-  if (error) return { error: error.message }
-
-  revalidatePath('/students')
-  return { error: null }
-}
-
-async function removeStudentStorage(
-  supabase: Awaited<ReturnType<typeof requireAdmin>>['supabase'],
-  studentId: string
-): Promise<string | null> {
-  for (const bucketName of ['result-slips', 'student-photos']) {
-    const bucket = supabase.storage.from(bucketName)
-    for (const folder of new Set([studentId.toLowerCase(), studentId.toUpperCase()])) {
-      while (true) {
-        const { data: objects, error: listError } = await bucket.list(folder, {
-          limit: 100,
-          offset: 0,
-        })
-        if (listError) return `Could not inspect ${bucketName}: ${listError.message}`
-
-        const files = (objects ?? [])
-          .filter((object) => object.id)
-          .map((object) => `${folder}/${object.name}`)
-        if (files.length > 0) {
-          const { error: removeError } = await bucket.remove(files)
-          if (removeError) return `Could not erase ${bucketName}: ${removeError.message}`
-        }
-        if ((objects?.length ?? 0) < 100 || files.length === 0) break
-      }
-    }
+  try {
+    await removeStudentPrivateFiles(adminClient, studentId)
+    await acknowledgeStudentStorageCleanup(adminClient, studentId)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Could not erase private files.' }
   }
-  return null
+
+  const { error } = await adminClient.rpc('erase_student_secure', {
+    p_student_id: studentId,
+    p_actor_id: user.id,
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/students')
+
+  try {
+    await removeStudentPrivateFiles(adminClient, studentId)
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unknown Storage error.'
+    return { error: `Student erased, but final private-file cleanup failed: ${detail}` }
+  }
+
+  return { error: null }
 }
 
 /**

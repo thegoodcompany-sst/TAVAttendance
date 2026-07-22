@@ -10,6 +10,7 @@ struct StudentAttendanceRateIntent: AppIntent {
         "Reports a student's recent attendance rate and a breakdown by status.")
 
     static var openAppWhenRun: Bool = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Student")
     var student: StudentEntity

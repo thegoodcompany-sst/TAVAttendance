@@ -1,26 +1,101 @@
 #!/bin/sh
-# DEVOPS-03: refuse to commit files containing Supabase secret keys.
+# DEVOPS-03: refuse to commit staged credentials without echoing their values.
 # Enable once per clone:  git config core.hooksPath .githooks
 
-# Scan staged content (added/changed lines) for secret assignments.
-matches=$(git diff --cached -U0 | grep -nE '^\+.*SUPABASE_(ANON|SERVICE_ROLE)_KEY=.+' )
+repo_root=$(git rev-parse --show-toplevel) || exit 1
 
-if [ -n "$matches" ]; then
+# Prefer Gitleaks' maintained provider rules plus the repo's low-entropy human
+# password rules. The report template exposes only path, line and rule ID.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --staged "$repo_root" \
+    --config "$repo_root/.gitleaks.toml" \
+    --redact=100 \
+    --no-banner \
+    --no-color \
+    --log-level error \
+    --report-format template \
+    --report-template "$repo_root/.gitleaks-report.tmpl" \
+    --report-path -
+  then
+    echo "✖ pre-commit blocked: Gitleaks found a staged credential."
+    echo "  Findings above contain only file, line and rule ID; values are never printed."
+    echo "  Move credentials to the documented gitignored configuration or password manager."
+    exit 1
+  fi
+  exit 0
+fi
+
+# Portable fallback for clones that have not installed Gitleaks yet. Scan only
+# added lines and use quiet predicates so matching values never reach output.
+if git diff --cached -U0 --no-color | grep -qE '^\+[^+].*SUPABASE_(ANON|SERVICE_ROLE)_KEY=.+'; then
   echo "✖ pre-commit blocked: a staged change assigns a Supabase key."
   echo "  Keep keys in gitignored config (Config.xcconfig / secrets.properties / .env.local)."
-  echo "$matches"
+  echo "  The matching value was suppressed."
   exit 1
 fi
 
-# Also catch a raw JWT literal (e.g. a Swift string `supabaseKey: "eyJ..."`) —
-# the header.payload shape of any JWT, regardless of variable name.
-jwt_matches=$(git diff --cached -U0 | grep -nE '^\+.*eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}')
-
-if [ -n "$jwt_matches" ]; then
-  echo "✖ pre-commit blocked: a staged change contains a raw JWT-shaped secret."
+if git diff --cached -U0 --no-color | grep -qE '^\+[^+].*eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}'; then
+  echo "✖ pre-commit blocked: a staged change contains a JWT-shaped secret."
   echo "  Keep keys in gitignored config (Config.xcconfig / secrets.properties / .env.local)."
-  echo "$jwt_matches"
+  echo "  The matching value was suppressed."
   exit 1
 fi
+
+# Catch memorable credentials such as `Password: ...` even when their entropy
+# is too low for generic token detectors. Obvious sentinels remain allowed.
+if git diff --cached -U0 --no-color \
+  | awk '
+      /^\+[^+]/ {
+        added = substr($0, 2)
+        lowered = tolower(added)
+        if (match(lowered, /(password|passwd|passphrase|pwd)[[:space:]]*(=|:|is)[[:space:]]*/)) {
+          value = substr(added, RSTART + RLENGTH)
+          sub(/^[[:space:]"\047<]+/, "", value)
+          split(value, fields, /[[:space:]]/)
+          value = fields[1]
+          sub(/["\047>,;.)\]}]+$/, "", value)
+          lowered_value = tolower(value)
+          if (length(value) >= 8 &&
+              lowered_value !~ /^(change-?me|ci-?placeholder([-_][a-z0-9_-]+)?|dummy|example|fake|not-a-secret|placeholder|redacted|test-?only|test-?password|your-?password)$/ &&
+              lowered_value !~ /^(deno\.env|env\[|os\.environ|process\.env|secrets\.|system\.getenv)/ &&
+              lowered_value !~ /^\$\{/) {
+            found = 1
+          }
+        }
+      }
+      END { exit found ? 0 : 1 }
+    '
+then
+  echo "✖ pre-commit blocked: a staged change contains a password-like assignment."
+  echo "  Store human credentials only in the team password manager."
+  echo "  The matching value was suppressed. Install Gitleaks for precise file/rule reporting."
+  exit 1
+fi
+
+if git diff --cached -U0 --no-color \
+  | awk '
+      /^\+[^+]/ {
+        lowered = tolower(substr($0, 2))
+        if (match(lowered, /(postgres(ql)?|mysql|mariadb|mongodb(\+srv)?|redis|amqps?):\/\/[^[:space:]\/:@]+:[^[:space:]\/@]{8,}@/)) {
+          value = substr(lowered, RSTART, RLENGTH)
+          sub(/^[^:]+:\/\//, "", value)
+          sub(/^[^:]+:/, "", value)
+          sub(/@$/, "", value)
+          if (value !~ /^(change-?me|ci-?placeholder([-_][a-z0-9_-]+)?|placeholder|postgres|test-?password)$/) {
+            found = 1
+          }
+        }
+      }
+      END { exit found ? 0 : 1 }
+    '
+then
+  echo "✖ pre-commit blocked: a staged database/broker URL embeds a password."
+  echo "  Store the URL in gitignored configuration or the CI secret store."
+  echo "  The matching value was suppressed."
+  exit 1
+fi
+
+echo "⚠ Gitleaks is not installed; the portable staged-secret fallback passed."
+echo "  Install it with 'brew install gitleaks' for the full provider rule set."
 
 exit 0

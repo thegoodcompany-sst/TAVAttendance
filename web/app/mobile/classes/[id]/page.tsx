@@ -34,7 +34,9 @@ export default async function MobileClassPage({ params }: { params: Promise<{ id
           </div>
         </div>
         <div className="bg-white/10 p-4">
-          {!todaySession ? <ClassActionButton classId={id} mode="start" /> : todaySession.endedAt ? <ClassActionButton classId={id} sessionId={todaySession.id} mode="resume" /> : todaySession.startedAt ? (
+          {!classInfo.canOperateTodaySession ? (
+            <div className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-blue-100">Recent substitute access is read-only. You are not assigned to today&apos;s session.</div>
+          ) : !todaySession ? <ClassActionButton classId={id} mode="start" /> : todaySession.endedAt ? <ClassActionButton classId={id} sessionId={todaySession.id} mode="view" /> : todaySession.startedAt ? (
             <Link href={`/mobile/sessions/${todaySession.id}`} className="flex min-h-13 items-center justify-center gap-2 rounded-2xl bg-accent-marigold px-4 text-sm font-black text-brand-ink"><CheckCircle2 size={19} /> Return to today&apos;s roster</Link>
           ) : <ClassActionButton classId={id} mode="start" />}
         </div>

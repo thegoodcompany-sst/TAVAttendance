@@ -2,6 +2,7 @@ package com.example.tavattendance
 
 import com.example.tavattendance.data.models.Dismissal
 import com.example.tavattendance.data.service.AttendanceService
+import com.example.tavattendance.screens.ParentDismissalVisibility
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -38,5 +39,11 @@ class SafelyHomeTest {
         val awaiting = dismissal("1", "2026-07-13T09:00:00+00:00", null)
         val confirmed = dismissal("2", "2026-07-13T09:00:00+00:00", "2026-07-13T10:00:00+00:00")
         assertEquals(listOf(awaiting), AttendanceService.awaitingSafelyHome(listOf(confirmed, awaiting)))
+    }
+
+    @Test
+    fun pushNotificationsDisabled_hidesAllDismissals() {
+        val awaiting = dismissal("1", "2026-07-13T09:00:00+00:00", null)
+        assertTrue(ParentDismissalVisibility.visible(false, listOf(awaiting)).isEmpty())
     }
 }

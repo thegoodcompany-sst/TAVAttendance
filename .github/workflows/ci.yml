@@ -5,7 +5,45 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  secrets:
+    name: Secrets (current tree)
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_LINUX_X64_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Gitleaks binary
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          binary_dir="$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION"
+          mkdir -p "$binary_dir"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            --output "$archive"
+          printf '%s  %s\n' "$GITLEAKS_LINUX_X64_SHA256" "$archive" | sha256sum --check --status
+          tar -xzf "$archive" -C "$binary_dir" gitleaks
+          "$binary_dir/gitleaks" version
+          echo "$binary_dir" >> "$GITHUB_PATH"
+      - name: Scan checked-out files without exposing matched values
+        run: |
+          gitleaks dir "$GITHUB_WORKSPACE" \
+            --config "$GITHUB_WORKSPACE/.gitleaks.toml" \
+            --redact=100 \
+            --no-banner \
+            --no-color \
+            --log-level error \
+            --report-format template \
+            --report-template "$GITHUB_WORKSPACE/.gitleaks-report.tmpl" \
+            --report-path -
+
   web:
     name: Web (lint + build)
     runs-on: ubuntu-latest
@@ -17,25 +55,47 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 20
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run build
 
+  edge-functions:
+    name: Edge Functions (format + lint + type-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.8.1
+      - name: Verify Edge Functions
+        run: |
+          deno fmt --check supabase/functions/notify-parent/index.ts supabase/functions/cleanup-student-storage/index.ts
+          deno lint supabase/functions/notify-parent/index.ts supabase/functions/cleanup-student-storage/index.ts
+          deno check supabase/functions/notify-parent/index.ts supabase/functions/cleanup-student-storage/index.ts
+
   android:
-    name: Android (build)
+    name: Android (unit tests + build)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: Android
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: gradle/actions/wrapper-validation@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: 17
@@ -62,66 +122,56 @@ jobs:
             "configuration_version": "1"
           }
           EOF
-      - run: ./gradlew assembleDebug --no-daemon
+      - run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
 
-  drift:
-    name: Drift detector (prod vs repo)
-    runs-on: ubuntu-latest
+  ios:
+    name: iOS (unit tests)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: iOS
     steps:
-      - uses: actions/checkout@v4
-      - name: Web schema references vs prod
-        env:
-          TAVA_DB_URL: ${{ secrets.TAVA_DB_URL }}
-        run: |
-          if [ -z "$TAVA_DB_URL" ]; then
-            echo "::warning::TAVA_DB_URL secret not set — web schema check skipped (see HUMANS.md)"
-            exit 0
-          fi
-          scripts/drift-check.sh
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          version: latest
-      - name: Schema drift (supabase db diff --linked)
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          persist-credentials: false
+      - name: Write build-time placeholders
+        run: cp Config.xcconfig.example Config.xcconfig
+      - name: Run unit tests
         run: |
-          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
-            echo "::warning::SUPABASE_ACCESS_TOKEN / SUPABASE_DB_PASSWORD secrets not set — db diff skipped (see HUMANS.md)"
-            exit 0
-          fi
-          supabase link --project-ref zgikcbsxzjgbigywxbbj
-          # Live-to-live comparison: replay migrations into a real local DB and
-          # diff prod against it. The shadow-based `db diff --linked` has a
-          # reproducible false positive on the security_invoker view
-          # (attendance_summary) — verified byte-identical on 2026-07-10.
-          supabase db start
-          supabase db reset --local
-          # stdout is the diff DDL; CLI progress chatter goes to stderr (streams to log).
-          out="$(supabase db diff --from linked --to local --schema public)"
-          # Table-level grant/revoke lines are platform-privilege noise: the shadow
-          # DB's default privileges differ from a hosted project's, and RLS is the
-          # real gate. Everything else in the DDL is drift.
-          # Ignore privilege statements (platform default-privilege noise between a
-          # hosted project and a fresh local db — RLS is the real gate), SET chatter,
-          # and container-image names the CLI echoes to stdout on first pull.
-          # Structural DDL (tables/columns/functions/views/triggers/indexes/policies)
-          # always fails the gate.
-          drift="$(echo "$out" | grep -viE '^\s*$|^set |^(grant|revoke) |^alter default privileges |^(ghcr|docker)\.io/|^public\.ecr\.aws/' || true)"
-          if [ -n "$drift" ]; then
-            echo "Schema drift detected between prod and migration files:"
-            echo "$drift"
+          simulator_id="$(
+            xcrun simctl list devices available -j |
+              python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"].values(); print(next((d["udid"] for runtime in devices for d in runtime if d.get("isAvailable") and d["name"].startswith("iPhone")), ""))'
+          )"
+          if [ -z "$simulator_id" ]; then
+            echo "::error::No available iPhone simulator was found on the runner."
             exit 1
           fi
-          echo "No schema drift."
+          xcodebuild test \
+            -project TAVAttendance.xcodeproj \
+            -scheme TAVAttendance \
+            -destination "platform=iOS Simulator,id=$simulator_id" \
+            -disableAutomaticPackageResolution \
+            CODE_SIGNING_ALLOWED=NO
 
   migrations:
     name: Supabase (db lint)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: supabase/setup-cli@v1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          version: latest
-      - name: Lint migrations
-        run: supabase db lint --schema public || echo "db lint reported issues (non-blocking)"
+          persist-credentials: false
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+      - name: Replay and lint migrations
+        run: |
+          supabase db start
+          supabase db reset --local
+          supabase db lint --local --schema public --level error --fail-on error
+      - name: Run SQL security regressions
+        env:
+          TAVA_LOCAL_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          for test_file in supabase/tests/*.sql; do
+            psql "$TAVA_LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f "$test_file"
+          done

@@ -9,6 +9,7 @@ struct ClassPunctualityIntent: AppIntent {
         "Reports a class's on-time, late, and absent rates over the last 30 days.")
 
     static var openAppWhenRun: Bool = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Class")
     var targetClass: ClassEntity
@@ -19,6 +20,14 @@ struct ClassPunctualityIntent: AppIntent {
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         try await IntentSupport.requireSession()
+
+        let canManage = try await AttendanceService.shared.fetchMyClasses()
+            .contains { $0.id == targetClass.id && $0.canManageSessions == true }
+        guard canManage else {
+            return .result(
+                dialog: "Recent substitute access is read-only. Class-wide punctuality is available only to the assigned teacher or an administrator."
+            )
+        }
 
         let to = Date()
         let from = Calendar.current.date(byAdding: .day, value: -30, to: to) ?? to

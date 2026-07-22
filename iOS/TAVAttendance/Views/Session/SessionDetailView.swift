@@ -73,7 +73,8 @@ struct SessionDetailView: View {
         .analyticsScreen("session_detail")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            if RetrospectiveSessionRules.editorEnabled(
+            if tavClass.canManageSessions == true
+                && RetrospectiveSessionRules.editorEnabled(
                 for: currentSession,
                 flagEnabled: featureFlags.isEnabled(.retrospectiveSessions)) {
                 ToolbarItem(placement: .primaryAction) {
@@ -132,31 +133,41 @@ struct SessionDetailView: View {
     private var studentSection: some View {
         Section("Attendance") {
             ForEach(sortedRoster) { entry in
-                Button {
-                    selectedStudent = entry
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(entry.fullName)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            if let markedAt = entry.markedAt {
-                                Text("Marked \(timeFormatter.string(from: markedAt))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        statusBadge(for: entry.status)
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                if tavClass.canManageSessions == true {
+                    Button {
+                        selectedStudent = entry
+                    } label: {
+                        studentRow(entry, showsDisclosure: true)
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                } else {
+                    studentRow(entry, showsDisclosure: false)
                 }
-                .buttonStyle(.plain)
             }
         }
+    }
+
+    private func studentRow(_ entry: RosterEntry, showsDisclosure: Bool) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.fullName)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                if let markedAt = entry.markedAt {
+                    Text("Marked \(timeFormatter.string(from: markedAt))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+            statusBadge(for: entry.status)
+            if showsDisclosure {
+                Image(systemName: "chevron.right")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .contentShape(Rectangle())
     }
 
     // MARK: - Helpers
@@ -222,7 +233,8 @@ struct SessionDetailView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            if RetrospectiveSessionRules.editorEnabled(
+            if tavClass.canManageSessions == true
+                && RetrospectiveSessionRules.editorEnabled(
                 for: currentSession,
                 flagEnabled: featureFlags.isEnabled(.retrospectiveSessions)) {
                 roster = try await AttendanceService.shared.fetchRetrospectiveRoster(sessionId: currentSession.id)

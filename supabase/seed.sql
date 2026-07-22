@@ -2,19 +2,18 @@
 -- TAVA Attendance — Development Seed Data
 -- Run ONLY against a local Supabase instance.
 -- ============================================================
--- Creates three users (admin, tutor, parent) with known passwords,
+-- Creates three locked users (admin, tutor, parent) with random, undisclosed
+-- password hashes,
 -- two classes, five students, one session, and sample attendance.
 -- ============================================================
 
--- Passwords for all seed users: TAVAdev123!
-
--- Guard: refuse to seed anything but a fresh local instance. This file creates a
--- known-UUID admin with a published password; running it against a populated
--- (e.g. production) database would plant a backdoor account.
+-- Guard: refuse every database that already has an Auth identity. The seed
+-- accounts use reserved .invalid addresses and random, undisclosed passwords;
+-- set a local-only password through Studio if interactive login is needed.
 DO $$
 BEGIN
-    IF (SELECT COUNT(*) FROM auth.users) > 3 THEN
-        RAISE EXCEPTION 'seed.sql: refusing to run — auth.users already populated (not a fresh local instance)';
+    IF EXISTS (SELECT 1 FROM auth.users) THEN
+        RAISE EXCEPTION 'seed.sql: refusing to run — auth.users is not empty';
     END IF;
 END $$;
 
@@ -26,24 +25,24 @@ INSERT INTO auth.users (
 ) VALUES
     (
         '00000000-0000-0000-0000-000000000001',
-        'admin@tava.dev',
-        crypt('TAVAdev123!', gen_salt('bf')),
+        'admin@local.tava.invalid',
+        crypt(encode(gen_random_bytes(32), 'hex'), gen_salt('bf')),
         NOW(), 'authenticated', 'authenticated',
         '{"full_name": "TAVA Admin", "role": "admin"}',
         NOW(), NOW()
     ),
     (
         '00000000-0000-0000-0000-000000000002',
-        'tutor@tava.dev',
-        crypt('TAVAdev123!', gen_salt('bf')),
+        'tutor@local.tava.invalid',
+        crypt(encode(gen_random_bytes(32), 'hex'), gen_salt('bf')),
         NOW(), 'authenticated', 'authenticated',
         '{"full_name": "Jane Tutor", "role": "tutor"}',
         NOW(), NOW()
     ),
     (
         '00000000-0000-0000-0000-000000000003',
-        'parent@tava.dev',
-        crypt('TAVAdev123!', gen_salt('bf')),
+        'parent@local.tava.invalid',
+        crypt(encode(gen_random_bytes(32), 'hex'), gen_salt('bf')),
         NOW(), 'authenticated', 'authenticated',
         '{"full_name": "Mary Parent", "role": "parent"}',
         NOW(), NOW()
@@ -55,6 +54,11 @@ ON CONFLICT (id) DO NOTHING;
 UPDATE profiles SET role = 'admin'  WHERE id = '00000000-0000-0000-0000-000000000001';
 UPDATE profiles SET role = 'tutor'  WHERE id = '00000000-0000-0000-0000-000000000002';
 UPDATE profiles SET role = 'parent' WHERE id = '00000000-0000-0000-0000-000000000003';
+
+-- Migration 038 centralises privileged authority on an immutable auth UUID.
+INSERT INTO security_principals (capability, user_id)
+VALUES ('superadmin', '00000000-0000-0000-0000-000000000001')
+ON CONFLICT (capability) DO NOTHING;
 
 -- Add seed phone numbers.
 UPDATE profiles SET phone = '+6591234567' WHERE id = '00000000-0000-0000-0000-000000000002';

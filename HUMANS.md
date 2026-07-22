@@ -2,7 +2,8 @@
 
 Some PDPA (and related) compliance and operational steps cannot be done in code or by an agent.
 They need a person with organisational authority, legal judgement, or access to dashboards/contracts.
-**The technical controls are in place; these items make the compliance real and lawful.**
+**Many technical controls are in place; the unchecked production and governance
+gates below remain mandatory before they can be relied on.**
 
 Tracking key: ☐ = to do · ☑ = done. Owner: the Centre's Data Protection Officer unless noted.
 
@@ -62,13 +63,25 @@ SELECT purge_expired_personal_data();  -- safe to run manually; returns counts
 If the project is ever restored/migrated and pg_cron is missing, re-run `011_pdpa_compliance.sql`
 or schedule the job manually.
 
-### ◐ 9. Finish scheduled Storage object cleanup
-Explicit admin-driven erase/anonymise now deletes objects from both private
-`result-slips` and `student-photos` buckets in the web, iOS, and Android clients
-before calling the database RPC (implemented 2026-07-16; path convention:
-`<student_id>/<file>`). The daily seven-year `pg_cron` purge still runs entirely
-inside Postgres and cannot call Supabase Storage, so it can leave orphaned files.
-Add and monitor a server-side orphan cleanup before marking this item complete.
+### ◐ 9. Deploy and monitor scheduled Storage object cleanup
+Migration 038 durably queues every anonymise/erase/wipe prefix before database
+links disappear. `cleanup-student-storage` recursively removes both private
+buckets, retries failures, and deletes a queue row only after verification. It
+also claims and deletes expired signed-upload intents and abandoned objects
+without racing a valid atomic finalization.
+Before production release:
+
+1. Generate one high-entropy value and set it as the Edge secret
+   `STORAGE_CLEANUP_INVOKE_SECRET` and Vault secret
+   `storage_cleanup_invoke_secret` (never commit or paste it into a shell
+   history).
+2. Deploy `supabase/functions/cleanup-student-storage` with migration 038's
+   `verify_jwt = false` config; the dedicated header secret is its auth layer.
+3. Verify `cron.job` contains active job `student-storage-cleanup` on `*/15 * * * *`.
+4. Alert on old rows or repeated attempts:
+   `SELECT student_id, requested_at, attempts, last_error FROM student_storage_cleanup_queue WHERE requested_at < now() - interval '30 minutes';`
+   Also alert on overdue upload intents:
+   `SELECT path, actor_id, expires_at, cleanup_claimed_at FROM result_slip_upload_intents WHERE expires_at < now() - interval '30 minutes';`
 
 ### ☐ 10. Turn on Supabase log/security alerting
 Enable log drains/alerts and review `get_advisors` (security + performance) regularly — this backs
@@ -138,20 +151,26 @@ on the parent slip. Migrations 035–036 and the web deployment are live as of 2
 1. ☑ Function secrets set 2026-07-14: `APNS_KEY` (AuthKey_U968QPQQ67.p8), `APNS_KEY_ID=U968QPQQ67`,
    `APNS_TEAM_ID=DUU8J39BA7`. `APNS_TOPIC` defaults to `com.tava.TAVAttendance`; `APNS_HOST`
    defaults to prod (`api.push.apple.com`) — set `https://api.sandbox.push.apple.com` for dev builds.
-2. ☑ Vault secret `notify_parent_service_key` seeded 2026-07-14 — the DB trigger is armed but the
-   edge function still no-ops while `push_notifications` is OFF.
+2. ☐ With migration 038, replace the project-wide bearer with one high-entropy
+   dedicated value stored as Edge secret `NOTIFY_PARENT_INVOKE_SECRET` and Vault
+   secret `notify_parent_invoke_secret`. Remove the obsolete
+   `notify_parent_service_key` after the new function is verified.
 3. ☐ Enable Push Notifications on the App ID (§38), set `FCM_SERVICE_ACCOUNT` (download the
    service-account JSON from Firebase Console → Project settings → Service accounts, then
    `supabase secrets set FCM_SERVICE_ACCOUNT="$(cat <file>.json)"`), then flip
    `push_notifications` per §16.
 
 ### ☐ 18. Finish the Android port UI follow-ups
-iOS, web, and Android all compile. Still to do: run a full `./gradlew assembleDebug` (exercises R8 +
-the new ProGuard keep rules) and complete the Compose UI parity items listed in
-`Android/PORTING_NOTES.md` (kiosk UX + parent screen + FCM).
+iOS, web, and Android all compile; `testDebugUnitTest assembleDebug` passed in
+the 2026-07-21 security review. Complete the remaining physical-device Compose
+parity items listed in `Android/PORTING_NOTES.md` (kiosk UX + parent screen + FCM).
 
 ### ☐ 19. Enable the secret-scanning pre-commit hook (DEVOPS-03)
-Per clone: `git config core.hooksPath .githooks`.
+Per clone: install Gitleaks (`brew install gitleaks`), then run
+`git config core.hooksPath .githooks`. The hook scans staged changes with the
+same provider + human-password rules as CI and reports only file/rule locations;
+its dependency-free fallback still blocks common passwords, JWTs, Supabase keys,
+and credential-bearing database URLs without printing matched values.
 
 ### ☐ 20. Mirror/verify production Supabase `[auth]` + monitoring (DEVOPS-04/05)
 Confirm prod auth settings match `config.toml`, and set up the uptime monitor /
@@ -162,15 +181,27 @@ Supabase status subscription described in `CONTRIBUTING.md` §6.
 ## E. Superadmin feature-flags web section
 
 A `/feature-flags` admin page lets the superadmin toggle the `feature_flags`
-rows from the web dashboard (an alternative to the SQL in §16). Access is gated
-**app-layer only** to one email — the DB RLS write policy stays at `is_admin()`
-(intentional; documented in `web/lib/superadmin.ts` and the design spec).
+rows from the web dashboard. Migration 038 stores that authority as one auth
+user UUID in `security_principals`; both the app and database RLS call
+`is_superadmin()`. Email is used only for the one-time migration lookup and is
+not an ongoing authorization boundary.
 
-### ☑ 21. (Optional) Set `SUPERADMIN_EMAIL` in Vercel — DONE
-The gate defaults to `edmund@thegoodcompanysg.dev` if unset. `SUPERADMIN_EMAIL` env var
-(no `NEXT_PUBLIC_` prefix) is set in the Vercel project and deployed.
+### ☐ 21. Verify/rotate the database superadmin principal after migration 038
+Verify the row points to the intended current admin UUID:
 
-### ☑ 22. Manual sign-in verification (needs the running app + real accounts) — DONE
+```sql
+SELECT sp.user_id, p.full_name, p.role, u.email
+FROM security_principals sp
+JOIN profiles p ON p.id = sp.user_id
+JOIN auth.users u ON u.id = sp.user_id
+WHERE sp.capability = 'superadmin';
+```
+
+Rotate it only in a reviewed SQL transaction by updating `user_id` to another
+existing admin UUID, then verify the old account cannot call `is_superadmin()`.
+There is no `SUPERADMIN_EMAIL` Vercel setting anymore.
+
+### ☐ 22. Repeat manual sign-in verification after migration 038
 Cannot be automated (requires Supabase auth + accounts). With the web app running:
 - Sign in as `edmund@thegoodcompanysg.dev`: a **"Feature Flags"** link appears in the
   sidebar (and mobile nav); `/feature-flags` lists the seeded flags
@@ -218,7 +249,7 @@ UPDATE feature_flags SET enabled = true WHERE key = 'study_space_tracking';
 
 ### ☑ 28. Unblock the full Android build/test on this machine (environment) — DONE
 JDK 17/21 blocker resolved, see §34. `./gradlew testDebugUnitTest` (includes `DayAwareKioskTest`)
-now runs; `assembleDebug` still to be run to exercise R8/ProGuard.
+and `assembleDebug` both pass with Temurin 21 (verified 2026-07-21).
 
 ---
 
@@ -279,17 +310,21 @@ now runs on this machine.
 - `SUPABASE_ACCESS_TOKEN` — a Supabase personal access token
 - `SUPABASE_DB_PASSWORD` — the prod database password
 
-Until these are set, the CI `Drift detector` job logs a warning and skips (CI stays green).
-`SUPABASE_ACCESS_TOKEN` also arms the weekly `Advisor watch` workflow (added 2026-07-13:
-diffs Supabase security/performance advisors against `scripts/advisor-accepted.json` and
-fails on new findings), which is likewise dormant until the secret exists.
+If these are absent, the production security jobs now fail closed rather than
+skipping. `SUPABASE_ACCESS_TOKEN` also arms the weekly `Advisor watch` workflow
+(added 2026-07-13), which diffs Supabase security/performance advisors against
+`scripts/advisor-accepted.json` and fails on new findings.
 Heads-up: the first `supabase db diff --linked` run may surface residual diff left over from the
 2026-07-09 reconciliation — triage that output before treating the job as a hard gate.
 
 **Status 2026-07-10 (end of day): fully live and green.** Secrets added; both halves run on
 every push — the web-schema check and a live-to-live `db diff` (prod vs a replayed local DB;
 the shadow-based `--linked` mode false-positives on the `security_invoker` view). Privilege
-statements are filtered as platform noise; structural DDL fails the job.
+statements are filtered as hosted default noise only after the read-only
+`scripts/prod-security-check.sql` assertions prove critical grants, RLS,
+Storage limits/policies, triggers, and service-only RPCs; structural DDL fails.
+The new assertions are in the 2026-07-21 working tree and are expected to fail
+against production until migration 038 is deliberately applied (§60).
 
 ### ☑ 36. Decide: fix the invalid syntax in migration 005 to make the chain replayable — DONE (2026-07-10)
 Approved and fixed: 005's two `CREATE POLICY IF NOT EXISTS` became `DROP POLICY IF EXISTS` +
@@ -382,7 +417,9 @@ preconditions hold. A flag is global — every platform must handle it first.
 ### ☐ 44. App Store submission — remaining blockers (2026-07-13)
 Version 1.0 in App Store Connect is staged: metadata, age rating, free pricing (base SGP),
 build 3 attached, release type MANUAL, review demo account
-`apple-testing@example.com` / `apple-review-tester` (admin role, created in prod Supabase).
+with an admin role in production Supabase. Keep its identifier and password only in App Store
+Connect and the team password manager. The former plaintext password remains in Git history:
+rotate the account before release and update the App Review credentials.
 `asc validate --app 6790169580 --version 1.0` reports two blockers:
 
 - [ ] **Availability** — run `asc web auth login --apple-id <your Apple ID>` once
@@ -512,7 +549,7 @@ Never commit the key. (APNs secrets remain the separate, still-pending §17 item
 
 ### ☐ 57. Arm the trigger + flip the flag (same Vault step as §17)
 Both 021 and 030 triggers stay no-ops until the Vault secret
-`notify_parent_service_key` exists (§17 step 2). Then flip `push_notifications` —
+`notify_parent_invoke_secret` exists (§17 step 2). Then flip `push_notifications` —
 but only after the iOS `aps-environment` entitlement is restored (§38 recipe in
 project.yml; needs a paid Apple team) — the iOS client code (token registration +
 safely-home card) is already in place. iOS loads flags once at sign-in: relaunch
@@ -583,3 +620,94 @@ Then enable and fully relaunch clients so their flag caches reload:
 UPDATE feature_flags SET enabled = TRUE, updated_at = NOW()
 WHERE key = 'retrospective_sessions';
 ```
+
+---
+
+## P. Pre-production security review follow-up (2026-07-21)
+
+The code fixes from `docs/SECURITY_REVIEW_2026-07-21.md` are present in the
+working tree only. None of these steps authorizes changing production data or
+configuration implicitly.
+
+### ☐ 60. Replay and apply migration 038 before deploying the clients
+
+Run a clean local/staging migration replay and every `supabase/tests/*.sql`
+regression, then apply
+`038_security_boundary_hardening.sql` through the normal reviewed release path.
+Do not ship clients that assume the new RLS and Storage boundaries before the
+database migration is live. Then run the read-only
+`scripts/prod-security-check.sql` gate against production.
+
+### ☐ 61. Mirror the hardened Auth and web environment settings
+
+In the hosted Supabase project, verify public/email signup are disabled, require
+12-character upper/lowercase/digit/symbol passwords, enable secure password
+changes, and review leaked-password protection. In Vercel, verify server-only
+`SUPABASE_SERVICE_ROLE_KEY` and `SITE_URL`. Verify the UUID principal in §21
+and install the two dedicated Edge/Vault invocation-secret pairs in §17/§65.
+
+### ☐ 62. Require MFA/AAL2 for privileged accounts
+
+The applications still use password-only Supabase sessions. Add TOTP enrolment,
+challenge/recovery UX on web and native clients, then enforce AAL2 in privileged
+RLS/RPC paths. Treat this as a production-admin account hardening blocker, not a
+claim solved by migration 038.
+
+### ☐ 63. Replace the admin-session kiosk trust model
+
+Every production kiosk must have a PIN and OS device lock before it is handed to
+students. Follow up with a least-privileged kiosk identity/server RPC so a kiosk
+does not hold a reusable full admin JWT; protect the short PIN verifier with
+Keychain/Keystore-backed storage.
+
+### ◐ 64. Encrypt native offline queues and Android auth storage
+
+Migration-038 clients now use a versioned account-owner envelope plus per-row
+owner, purge legacy/corrupt/mixed/foreign queues, clear synchronously on
+sign-out/account transition, and recheck ownership immediately before sync.
+Physical-device QA must verify that fail-closed upgrade behavior. Remaining:
+encrypt the JSON with a Keychain/Keystore-held authenticated key and replace
+Android's default plaintext SharedPreferences auth session manager with a
+Keystore-backed implementation.
+
+### ◐ 65. Activate scheduled Storage erasure
+
+The durable queue, retrying Edge worker, and 15-minute cron invocation are in
+the codebase. Complete §9's secret/deploy/alert steps, exercise a test queue row
+and an abandoned signed-upload intent in staging, and confirm both disappear.
+Explicit anonymise/erase remains service-role-only and routed through the web
+server; native controls fail closed to that trusted workflow.
+
+### ☐ 66. Rotate exposed credentials and clean history
+
+- Disable/rotate the App Review admin account whose former password is present
+  in 63 reachable Git revisions; update App Store Connect and the team password
+  manager. Rotation comes before any history rewrite.
+- Rotate the production database password found in an ignored owner-only local
+  operator note. Update only authorized pooler/deployment consumers, revoke the
+  old value, and review database/auth logs for unexpected use.
+- Use a reviewed history-cleaning procedure and coordinate fresh clones. Never
+  print either old value in an issue, PR, terminal transcript, or cleanup log.
+
+### ☐ 67. Protect `main` and production deployments
+
+GitHub currently has no effective branch protection. Require pull requests,
+CODEOWNERS/review, passing CI and remote-security checks, resolved conversations,
+admin enforcement, and block force-push/deletion. Put production secrets and
+deploy jobs behind a protected environment with explicit reviewers.
+
+### ☐ 68. Deploy and verify the hardened web headers
+
+The production site observed during the review still served the older wildcard
+Supabase CSP and lacked the new header set. After deploying the reviewed build,
+verify the live response contains the exact project origins and intended CSP,
+HSTS, frame, referrer, permissions, and content-type protections.
+
+### ☐ 69. Approve pseudonymised attendance retention
+
+The legacy-named anonymisation RPC rotates identifiers and removes direct PII,
+but retains session-level longitudinal attendance. In a small class this may
+remain re-identifiable and must be handled as pseudonymised—not guaranteed
+anonymous—data. The DPO/legal reviewer must approve that purpose and retention,
+or require hard erasure when a request/outcome demands no reasonably linkable
+history. Republish the notice under §7 after approval.

@@ -1,6 +1,6 @@
 package com.example.tavattendance.push
 
-import android.util.Log
+import com.example.tavattendance.core.SafeLog
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
 import com.google.firebase.messaging.FirebaseMessaging
@@ -20,7 +20,7 @@ object PushTokenRegistrar {
         if (!FeatureFlags.isEnabled(FeatureFlags.PUSH_NOTIFICATIONS)) return
         runCatching {
             AttendanceService.registerDeviceToken(currentToken(), platform = "android")
-        }.onFailure { Log.w("PushTokenRegistrar", "token registration failed: ${it.message}") }
+        }.onFailure { SafeLog.warning("PushTokenRegistrar", "token registration failed", it) }
     }
 
     private suspend fun currentToken(): String =

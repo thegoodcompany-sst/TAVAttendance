@@ -37,7 +37,9 @@ final class FeatureFlagStore: ObservableObject {
             flags = Dictionary(rows.map { ($0.key, $0.enabled) }, uniquingKeysWith: { _, last in last })
         } catch {
             // Fail closed: an unreachable flag table leaves every feature OFF.
-            print("FeatureFlagStore: failed to load flags — \(error)")
+            #if DEBUG
+            print("FeatureFlagStore: flag load failed (\(type(of: error)))")
+            #endif
         }
     }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Admin queue of pending data-correction requests (PDPA s22). "Apply" writes the
-/// requested value onto the student and logs a correction_response disclosure;
+/// Admin queue of pending data-correction requests (PDPA s22). "Apply" atomically
+/// updates the student, closes the request and logs a correction_response disclosure;
 /// "Reject" records an optional review note. Reached from StudentManagementView.
 struct CorrectionRequestsView: View {
     @Environment(\.dismiss) private var dismiss

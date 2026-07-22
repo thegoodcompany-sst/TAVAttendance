@@ -24,10 +24,10 @@ const KEPT = [
 
 export default async function DangerPage() {
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { error: authError } = await supabase.auth.getUser()
   if (authError) throw authError
 
-  if (!isSuperadmin(user)) notFound()
+  if (!(await isSuperadmin(supabase))) notFound()
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">

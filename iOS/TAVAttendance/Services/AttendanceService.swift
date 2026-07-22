@@ -20,14 +20,9 @@ final class AttendanceService {
     // MARK: - Classes
 
     func fetchMyClasses() async throws -> [TAVClass] {
-        // Excludes the internal Study Space class (migration 015) so it never appears
-        // in the tutor/admin class list or the tuition kiosk grid.
-        return try await db
-            .from("classes").select()
-            .eq("is_active", value: true)
-            .eq("is_study_space", value: false)
-            .order("name")
-            .execute().value
+        // The shaped RPC includes current assignments plus recent sessions the
+        // caller is explicitly covering as a substitute.
+        return try await db.rpc("get_my_classes").execute().value
     }
 
     func createClass(_ cls: ClassInsert) async throws -> TAVClass {
@@ -48,6 +43,13 @@ final class AttendanceService {
         return try await db.from("students").select()
             .eq("is_active", value: true).order("full_name")
             .execute().value
+    }
+
+    /// Parent-safe projection. Migration 038 removes direct parent SELECT on
+    /// `students` so staff-only notes, birth dates, and actor IDs never cross
+    /// the Data API boundary.
+    func fetchParentChildren() async throws -> [Student] {
+        return try await db.rpc("get_parent_children").execute().value
     }
 
     private struct CreateStudentWithConsentParams: Encodable {
@@ -197,74 +199,56 @@ final class AttendanceService {
             .execute().value
     }
 
-    func getOrCreateSession(classId: UUID, date: String) async throws -> Session {
-        // Use upsert to avoid the TOCTOU race: concurrent kiosk loads on the same
-        // (class_id, session_date) pair would violate the unique constraint with a
-        // plain SELECT-then-INSERT. ON CONFLICT DO UPDATE is idempotent.
-        //
-        // Do NOT send `id`: PostgREST's upsert is INSERT ... ON CONFLICT DO UPDATE
-        // SET (every supplied column). Including a fresh `id` rewrites the existing
-        // session's primary key on conflict, which attendance_records reference —
-        // raising attendance_records_session_id_fkey (HTTP 409) once anyone has
-        // signed in. Omitting it lets the DB default (gen_random_uuid()) fill it on
-        // insert and leaves the existing id untouched on conflict.
-        struct SessionUpsert: Encodable {
-            let classId: UUID
-            let sessionDate: String
-            enum CodingKeys: String, CodingKey {
-                case classId = "class_id"
-                case sessionDate = "session_date"
-            }
-        }
-        let new = SessionUpsert(classId: classId, sessionDate: date)
-        return try await db.from("sessions")
-            .upsert(new, onConflict: "class_id,session_date")
-            .select().single().execute().value
+    func getOrCreateTodaySession(classId: UUID) async throws -> Session {
+        // The database derives the Singapore civil date and handles the unique
+        // create race. For substitutes it returns only their pre-assigned row;
+        // it never turns a substitution into class-wide session-create authority.
+        return try await db.rpc(
+            "get_or_create_today_session",
+            params: ["p_class_id": classId.uuidString]
+        ).execute().value
     }
 
     /// Sets started_at = NOW(). Call only when the session has not yet been started.
     func startSession(id: UUID) async throws {
-        struct Patch: Encodable {
-            let startedAt: Date
-            enum CodingKeys: String, CodingKey { case startedAt = "started_at" }
-        }
-        try await db.from("sessions")
-            .update(Patch(startedAt: Date()))
-            .eq("id", value: id)
-            .execute()
+        try await db.rpc("set_session_lifecycle", params: [
+            "p_session_id": id.uuidString,
+            "p_action": "start",
+        ]).execute()
     }
 
     /// Sets ended_at = NOW(). Does not affect started_at or attendance records.
     func endSession(id: UUID) async throws {
-        struct Patch: Encodable {
-            let endedAt: Date
-            enum CodingKeys: String, CodingKey { case endedAt = "ended_at" }
-        }
-        try await db.from("sessions")
-            .update(Patch(endedAt: Date()))
-            .eq("id", value: id)
-            .execute()
-    }
-
-    /// Clears ended_at, reopening the session for attendance marking.
-    func resumeSession(id: UUID) async throws {
-        // SP-10: send an explicit JSON null for ended_at. The SDK omits nil-valued
-        // Encodable properties (which would leave ended_at unchanged), so use
-        // AnyJSON.null instead of a hand-rolled encoder that future SDK changes
-        // could silently break.
-        try await db.from("sessions")
-            .update(["ended_at": AnyJSON.null])
-            .eq("id", value: id)
-            .execute()
+        try await db.rpc("set_session_lifecycle", params: [
+            "p_session_id": id.uuidString,
+            "p_action": "end",
+        ]).execute()
     }
 
     /// Saves the tutor's free-text note on a session (flag `session_notes`).
     /// An empty note is stored as SQL NULL, sent explicitly (the SDK omits nil properties).
     func updateSessionNotes(id: UUID, notes: String?) async throws {
-        try await db.from("sessions")
-            .update(["notes": notes.map(AnyJSON.string) ?? AnyJSON.null])
-            .eq("id", value: id)
-            .execute()
+        struct Params: Encodable {
+            let sessionId: UUID
+            let notes: String?
+            enum CodingKeys: String, CodingKey {
+                case sessionId = "p_session_id"
+                case notes = "p_notes"
+            }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(sessionId, forKey: .sessionId)
+                if let notes {
+                    try container.encode(notes, forKey: .notes)
+                } else {
+                    try container.encodeNil(forKey: .notes)
+                }
+            }
+        }
+        try await db.rpc(
+            "update_session_note",
+            params: Params(sessionId: id, notes: notes)
+        ).execute()
     }
 
     private struct CreateRetrospectiveSessionParams: Encodable {
@@ -365,8 +349,6 @@ final class AttendanceService {
     // MARK: - Global kiosk
 
     func fetchKioskEntries() async throws -> [KioskEntry] {
-        let today = Self.ymdFormatter.string(from: Date())
-
         // Day-aware: only create/show sessions for classes scheduled today, so opening
         // the kiosk on a non-tuition day doesn't spin up phantom sessions. Supports
         // multiple classes on the same day (e.g. Thu English + Thu Reading).
@@ -374,7 +356,10 @@ final class AttendanceService {
         // test_mode (migration 020) bypasses the day filter so demos/testing on
         // non-tuition days still show every active class.
         let testMode = await FeatureFlagStore.shared.isEnabled(.testMode)
-        let classes = try await fetchMyClasses().filter { testMode || Self.classMeetsToday($0, weekday: todayWeekday) }
+        let classes = try await fetchMyClasses().filter {
+            $0.canOperateTodaySession == true
+                && (testMode || Self.classMeetsToday($0, weekday: todayWeekday))
+        }
         let classMap = Dictionary(uniqueKeysWithValues: classes.map { ($0.id, $0) })
 
         // Parallelize session creation — the upsert on (class_id, session_date) makes
@@ -383,7 +368,7 @@ final class AttendanceService {
         try await withThrowingTaskGroup(of: (UUID, Session).self) { group in
             for cls in classes {
                 group.addTask {
-                    let session = try await self.getOrCreateSession(classId: cls.id, date: today)
+                    let session = try await self.getOrCreateTodaySession(classId: cls.id)
                     return (cls.id, session)
                 }
             }
@@ -539,9 +524,7 @@ final class AttendanceService {
     /// Loads today's Study Space session (creating it on first use) and the roster of
     /// ALL active students with their current Present/Not-Here status for it.
     func loadStudySpace() async throws -> (session: Session, roster: [RosterEntry]) {
-        let today = Self.ymdFormatter.string(from: Date())
-
-        let session = try await getOrCreateSession(classId: Self.studySpaceClassId, date: today)
+        let session = try await getOrCreateTodaySession(classId: Self.studySpaceClassId)
         let roster: [RosterEntry] = try await db
             .rpc("get_study_space_roster", params: ["p_session_id": session.id.uuidString])
             .execute().value
@@ -575,7 +558,46 @@ final class AttendanceService {
             .value
     }
 
+    /// Parent-safe attendance projection. The RPC returns the same nested
+    /// `session` JSON shape as the staff PostgREST query without notes, actor
+    /// identifiers, or offline mutation IDs.
+    func fetchParentAttendanceHistory(
+        studentId: UUID,
+        limit: Int = 100,
+        since: Date? = nil
+    ) async throws -> [AttendanceHistoryRecord] {
+        struct Params: Encodable {
+            let studentId: UUID
+            let limit: Int
+            let since: String?
+
+            enum CodingKeys: String, CodingKey {
+                case studentId = "p_student_id"
+                case limit = "p_limit"
+                case since = "p_since"
+            }
+        }
+
+        return try await db.rpc(
+            "get_parent_attendance_history",
+            params: Params(
+                studentId: studentId,
+                limit: limit,
+                since: since.map(Self.ymdFormatter.string(from:))
+            )
+        ).execute().value
+    }
+
     func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (synced: Int, skipped: Int, blockedEndedSession: Int) {
+        guard let currentUserId = db.auth.currentSession?.user.id else {
+            throw AppError("Cannot sync attendance without an authenticated account.")
+        }
+        guard PendingAttendanceQueueCodec.recordsBelongToOwner(
+            records,
+            ownerUserId: currentUserId
+        ) else {
+            throw AppError("Pending attendance belongs to a different account.")
+        }
         let payload = records.map { r -> [String: String] in
             ["session_id": r.sessionId.uuidString, "student_id": r.studentId.uuidString,
              "status": r.status.rawValue, "notes": r.notes ?? "",
@@ -628,14 +650,9 @@ final class AttendanceService {
 
     // MARK: - Safely home (migration 030, flag: push_notifications)
 
-    /// Today's dismissals visible to the caller (RLS: parents see own children only).
+    /// Parent-safe dismissal projection; session and actor identifiers stay server-side.
     func fetchTodayDismissals() async throws -> [Dismissal] {
-        let todayStart = Self.ymdFormatter.string(from: Date()) + "T00:00:00"
-        return try await db.from("dismissals")
-            .select()
-            .gte("dismissed_at", value: todayStart)
-            .order("dismissed_at", ascending: false)
-            .execute().value
+        return try await db.rpc("get_parent_dismissals").execute().value
     }
 
     /// Dismissals still awaiting a parent's safely-home confirmation.
@@ -692,7 +709,16 @@ final class AttendanceService {
 
     // MARK: - Result slips (#20 / parent portal Phase 2)
 
+    /// Parent-safe projection installed by migration 038.
     func fetchResultSlips(studentId: UUID) async throws -> [ResultSlip] {
+        return try await db.rpc(
+            "get_parent_result_slips",
+            params: ["p_student_id": studentId.uuidString]
+        ).execute().value
+    }
+
+    /// Staff retain their RLS-scoped base-table view.
+    func fetchStaffResultSlips(studentId: UUID) async throws -> [ResultSlip] {
         return try await db.from("result_slips")
             .select()
             .eq("student_id", value: studentId)
@@ -700,92 +726,86 @@ final class AttendanceService {
             .execute().value
     }
 
-    /// Text-only result insert (no file_path). Parent RLS requires uploaded_by = auth.uid().
+    /// Parent-only text result submission; the server derives uploaded_by from auth.uid().
     func submitResultSlip(
         studentId: UUID,
         examName: String,
         examDate: String,
         subject: String,
         score: Double,
-        maxScore: Double,
-        uploadedBy: UUID
+        maxScore: Double
     ) async throws -> ResultSlip {
-        struct Insert: Encodable {
+        struct Params: Encodable {
             let studentId: UUID
             let examName: String
             let examDate: String
             let subject: String
             let score: Double
             let maxScore: Double
-            let uploadedBy: UUID
 
             enum CodingKeys: String, CodingKey {
-                case subject, score
-                case studentId  = "student_id"
-                case examName   = "exam_name"
-                case examDate   = "exam_date"
-                case maxScore   = "max_score"
-                case uploadedBy = "uploaded_by"
+                case studentId = "p_student_id"
+                case examName  = "p_exam_name"
+                case examDate  = "p_exam_date"
+                case subject   = "p_subject"
+                case score     = "p_score"
+                case maxScore  = "p_max_score"
             }
         }
-        return try await db.from("result_slips")
-            .insert(Insert(
+        let rows: [ResultSlip] = try await db.rpc(
+            "submit_parent_result_slip",
+            params: Params(
                 studentId: studentId,
                 examName: examName,
                 examDate: examDate,
                 subject: subject,
                 score: score,
-                maxScore: maxScore,
-                uploadedBy: uploadedBy
-            ))
-            .select()
-            .single()
-            .execute()
-            .value
+                maxScore: maxScore
+            )
+        ).execute().value
+        guard let result = rows.first else {
+            throw AppError("Result submission returned no result.")
+        }
+        return result
     }
 
     // MARK: - Parent messages (Phase 2)
 
     func fetchMessages(studentId: UUID) async throws -> [ParentMessage] {
-        return try await db.from("messages")
-            .select()
-            .eq("student_id", value: studentId)
-            .order("sent_at", ascending: true)
-            .execute().value
+        return try await db.rpc(
+            "get_parent_messages",
+            params: ["p_student_id": studentId.uuidString]
+        ).execute().value
     }
 
     func sendParentMessage(
         studentId: UUID,
-        senderId: UUID,
         subject: String?,
         body: String
     ) async throws -> ParentMessage {
-        struct Insert: Encodable {
-            let senderId: UUID
+        struct Params: Encodable {
             let studentId: UUID
-            let recipientId: UUID?
             let subject: String?
             let body: String
 
             enum CodingKeys: String, CodingKey {
-                case subject, body
-                case senderId    = "sender_id"
-                case studentId   = "student_id"
-                case recipientId = "recipient_id"
+                case studentId = "p_student_id"
+                case subject   = "p_subject"
+                case body      = "p_body"
             }
         }
-        return try await db.from("messages")
-            .insert(Insert(
-                senderId: senderId,
+        let rows: [ParentMessage] = try await db.rpc(
+            "send_parent_message",
+            params: Params(
                 studentId: studentId,
-                recipientId: nil,
                 subject: subject,
                 body: body
-            ))
-            .select()
-            .single()
-            .execute()
-            .value
+            )
+        ).execute().value
+        guard let message = rows.first else {
+            throw AppError("Message submission returned no result.")
+        }
+        return message
     }
 
     // MARK: - Parent linking (#13)
@@ -837,62 +857,53 @@ final class AttendanceService {
 
     // MARK: - PDPA: consent ledger (#C1/#C2)
 
-    private struct ConsentInsert: Encodable {
+    private struct RecordAdminConsentParams: Encodable {
         let studentId: UUID
         let consentType: String
         let status: String
-        let method: String
-        let noticeVersion: String?
         let sourceNote: String?
-        let grantedBy: UUID?
 
         enum CodingKeys: String, CodingKey {
-            case status, method
-            case studentId     = "student_id"
-            case consentType   = "consent_type"
-            case noticeVersion = "notice_version"
-            case sourceNote    = "source_note"
-            case grantedBy     = "granted_by"
+            case studentId   = "p_student_id"
+            case consentType = "p_consent_type"
+            case status      = "p_status"
+            case sourceNote  = "p_source_note"
         }
     }
 
-    /// Appends a consent row for a single student and records the authenticated
-    /// admin as the actor. Creation consent uses the atomic server-side RPC above.
+    /// Appends a consent row through the shaped database RPC. The database
+    /// derives the actor, method, current notice version and timestamp.
     func recordConsent(
         studentId: UUID,
         consentType: String = "data_collection",
         status: ConsentStatus = .granted,
-        method: String = "admin_attestation",
-        noticeVersion: String?,
         sourceNote: String? = nil
     ) async throws {
-        try await db.from("consent_records")
-            .insert(ConsentInsert(
+        try await db.rpc(
+            "record_admin_consent",
+            params: RecordAdminConsentParams(
                 studentId: studentId,
                 consentType: consentType,
                 status: status.rawValue,
-                method: method,
-                noticeVersion: noticeVersion,
-                sourceNote: sourceNote,
-                grantedBy: db.auth.currentSession?.user.id))
-            .execute()
+                sourceNote: sourceNote
+            )
+        ).execute()
     }
 
-    /// Bulk-inserts consent rows (used by CSV import after students are created).
+    /// Records bulk consent via the same shaped RPC for each student. Student
+    /// creation itself should normally use create_student_with_consent instead.
     func recordConsentBulk(
         studentIds: [UUID],
-        consentType: String = "data_collection",
-        method: String = "admin_attestation",
-        noticeVersion: String?
+        consentType: String = "data_collection"
     ) async throws {
-        guard !studentIds.isEmpty else { return }
-        let rows = studentIds.map {
-            ConsentInsert(studentId: $0, consentType: consentType,
-                          status: ConsentStatus.granted.rawValue, method: method,
-                          noticeVersion: noticeVersion, sourceNote: "Bulk CSV import attestation",
-                          grantedBy: db.auth.currentSession?.user.id)
+        for studentId in studentIds {
+            try await recordConsent(
+                studentId: studentId,
+                consentType: consentType,
+                status: .granted,
+                sourceNote: "Bulk CSV import attestation"
+            )
         }
-        try await db.from("consent_records").insert(rows).execute()
     }
 
     /// Returns the latest consent row per (student, type) for one student, from `current_consent`.
@@ -904,47 +915,25 @@ final class AttendanceService {
     }
 
     /// Withdraws consent by appending a `withdrawn` row (append-only ledger).
-    func withdrawConsent(studentId: UUID, consentType: String = "data_collection",
-                         noticeVersion: String? = nil) async throws {
+    func withdrawConsent(studentId: UUID,
+                         consentType: String = "data_collection") async throws {
         try await recordConsent(studentId: studentId, consentType: consentType,
-                                status: .withdrawn, method: "admin_attestation",
-                                noticeVersion: noticeVersion,
+                                status: .withdrawn,
                                 sourceNote: "Withdrawn by admin")
     }
 
-    // MARK: - PDPA: erase / anonymise (#R1/#R2)
+    // MARK: - PDPA: erase / pseudonymise (#R1/#R2)
 
     func anonymiseStudent(id: UUID) async throws {
-        try await removeStudentStorage(id: id)
-        try await db.rpc("anonymise_student", params: ["p_student_id": id.uuidString]).execute()
+        throw AppError(
+            "Pseudonymisation is available only in the secure admin web dashboard."
+        )
     }
 
     func eraseStudent(id: UUID) async throws {
-        try await removeStudentStorage(id: id)
-        try await db.rpc("erase_student", params: ["p_student_id": id.uuidString]).execute()
-    }
-
-    /// Storage objects are not covered by PostgreSQL cascades. Remove every
-    /// object under the student's folder before deleting the DB identity.
-    private func removeStudentStorage(id: UUID) async throws {
-        for bucketName in ["result-slips", "student-photos"] {
-            let bucket = db.storage.from(bucketName)
-            // Older iOS builds used UUID.uuidString (uppercase); web/Android and
-            // newer iOS paths are lowercase. Sweep both prefixes during erasure.
-            for folder in Set([id.uuidString.lowercased(), id.uuidString.uppercased()]) {
-                while true {
-                    let objects = try await bucket.list(
-                        path: folder,
-                        options: SearchOptions(limit: 100, offset: 0)
-                    )
-                    let paths = objects.filter { $0.id != nil }.map { "\(folder)/\($0.name)" }
-                    if !paths.isEmpty {
-                        _ = try await bucket.remove(paths: paths)
-                    }
-                    if objects.count < 100 || paths.isEmpty { break }
-                }
-            }
-        }
+        throw AppError(
+            "Erasure is available only in the secure admin web dashboard."
+        )
     }
 
     // MARK: - PDPA: subject-access export (#A2)
@@ -969,57 +958,39 @@ final class AttendanceService {
             .execute().value
     }
 
-    /// Applies a correction: writes the new value onto the student row, then marks the
-    /// request `applied` and logs a `correction_response` disclosure.
+    /// The database reviews, applies and logs the correction atomically.
     func applyCorrection(_ request: CorrectionRequest) async throws {
-        // Whitelist of correctable student columns to avoid arbitrary column writes.
-        let allowed: Set<String> = ["full_name", "school", "year_of_study", "date_of_birth"]
-        guard allowed.contains(request.fieldName) else {
-            throw NSError(domain: "TAVA.Correction", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "Field '\(request.fieldName)' cannot be auto-applied. Correct it manually, then mark this request applied."
-            ])
-        }
-        let newValue = request.requestedValue
-        try await db.from("students")
-            .update([request.fieldName: newValue])
-            .eq("id", value: request.studentId)
-            .execute()
-
-        try await markCorrection(id: request.id, status: .applied, note: nil)
-
-        struct DisclosureInsert: Encodable {
-            let studentId: UUID; let disclosureType: String; let detail: [String: String]?
-            enum CodingKeys: String, CodingKey {
-                case studentId = "student_id"; case disclosureType = "disclosure_type"; case detail
-            }
-        }
-        try await db.from("data_disclosures")
-            .insert(DisclosureInsert(
-                studentId: request.studentId,
-                disclosureType: "correction_response",
-                detail: ["field": request.fieldName,
-                         "new_value": request.requestedValue ?? ""]))
-            .execute()
+        try await reviewCorrection(id: request.id, decision: .applied, note: nil)
     }
 
     func rejectCorrection(id: UUID, note: String?) async throws {
-        try await markCorrection(id: id, status: .rejected, note: note)
+        try await reviewCorrection(id: id, decision: .rejected, note: note)
     }
 
-    private func markCorrection(id: UUID, status: CorrectionStatus, note: String?) async throws {
-        struct Patch: Encodable {
-            let status: String
-            let reviewedAt: Date
+    private func reviewCorrection(
+        id: UUID,
+        decision: CorrectionStatus,
+        note: String?
+    ) async throws {
+        struct Params: Encodable {
+            let requestId: UUID
+            let decision: String
             let reviewNote: String?
             enum CodingKeys: String, CodingKey {
-                case status
-                case reviewedAt = "reviewed_at"
-                case reviewNote = "review_note"
+                case requestId = "p_request_id"
+                case decision = "p_decision"
+                case reviewNote = "p_review_note"
             }
         }
-        try await db.from("correction_requests")
-            .update(Patch(status: status.rawValue, reviewedAt: Date(), reviewNote: note))
-            .eq("id", value: id)
+        try await db
+            .rpc(
+                "review_correction_request",
+                params: Params(
+                    requestId: id,
+                    decision: decision.rawValue,
+                    reviewNote: note
+                )
+            )
             .execute()
     }
 
@@ -1052,16 +1023,16 @@ final class AttendanceService {
     /// Registers this device's push token for the signed-in user so the
     /// notify-parent edge function can reach them. Idempotent on the token.
     func registerDeviceToken(_ token: String, platform: String = "ios") async throws {
-        struct TokenInsert: Encodable {
-            let userId: UUID; let token: String; let platform: String
+        struct Params: Encodable {
+            let token: String; let platform: String
             enum CodingKeys: String, CodingKey {
-                case userId = "user_id"; case token; case platform
+                case token = "p_token"; case platform = "p_platform"
             }
         }
-        let userId = try await db.auth.session.user.id
-        try await db.from("device_tokens")
-            .upsert(TokenInsert(userId: userId, token: token, platform: platform), onConflict: "token")
-            .execute()
+        try await db.rpc(
+            "register_device_token",
+            params: Params(token: token, platform: platform)
+        ).execute()
     }
 
     // MARK: - Export helpers (#7)

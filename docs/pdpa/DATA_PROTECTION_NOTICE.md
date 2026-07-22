@@ -54,7 +54,8 @@ controls. See `DATA_BREACH_RESPONSE_PLAN.md` for how we handle incidents.
 
 ## Retention
 We keep personal data only as long as necessary for the purposes above and for legal record-keeping
-— **up to 7 years after a student leaves the Centre** — after which it is anonymised or erased.
+— **up to 7 years after a student leaves the Centre** — after which direct identifiers are removed
+and any retained attendance history remains protected as pseudonymised data, or the data is erased.
 See `DATA_RETENTION_SCHEDULE.md`.
 
 ## Your rights — access and correction

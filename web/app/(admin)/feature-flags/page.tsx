@@ -6,12 +6,12 @@ import { PageHeader } from '@/components/dashboard/page-header'
 
 export default async function FeatureFlagsPage() {
   const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { error: authError } = await supabase.auth.getUser()
   if (authError) throw authError
 
   // Hide the route's existence from ordinary admins (the (admin) layout already
   // guarantees user is a signed-in admin).
-  if (!isSuperadmin(user)) notFound()
+  if (!(await isSuperadmin(supabase))) notFound()
 
   const { data, error: queryError } = await supabase
     .from('feature_flags')

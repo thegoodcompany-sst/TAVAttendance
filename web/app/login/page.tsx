@@ -70,7 +70,7 @@ export default function LoginPage() {
       return
     }
 
-    // Verify role — admins and parents get a dashboard, tutors do not.
+    // Route each authenticated role to its least-privileged application shell.
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -83,9 +83,15 @@ export default function LoginPage() {
       return
     }
 
+    if (profile?.role === 'tutor') {
+      router.push('/mobile/classes')
+      router.refresh()
+      return
+    }
+
     if (profile?.role !== 'admin') {
       await supabase.auth.signOut()
-      setError('Access restricted to admin accounts only.')
+      setError('This account does not have an application role.')
       setLoading(false)
       return
     }
@@ -109,7 +115,7 @@ export default function LoginPage() {
             />
           </div>
           <CardTitle className="font-display text-2xl font-semibold text-brand-ink">Welcome back</CardTitle>
-          <CardDescription>Admin accounts only</CardDescription>
+          <CardDescription>Admin, tutor, and parent accounts</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -124,7 +130,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"
-                placeholder="admin@example.com"
+                placeholder="you@example.com"
                 autoComplete="email"
               />
             </div>

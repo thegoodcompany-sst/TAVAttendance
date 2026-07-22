@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/admin'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export type AwardType = 'perfect_attendance' | 'punctuality'
 
@@ -12,6 +13,7 @@ export async function giveAward(
 ): Promise<{ error: string | null }> {
   const { error: authErr, supabase, user } = await requireAdmin()
   if (authErr) return { error: authErr }
+  if (!(await isFeatureEnabled('awards'))) return { error: 'Awards are not enabled.' }
 
   if (awardType !== 'perfect_attendance' && awardType !== 'punctuality') {
     return { error: 'Unknown award type.' }

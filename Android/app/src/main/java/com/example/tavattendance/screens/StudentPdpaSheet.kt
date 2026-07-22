@@ -74,7 +74,7 @@ class StudentPdpaViewModel(app: Application) : AndroidViewModel(app) {
     fun anonymise(studentId: String, onDone: () -> Unit) {
         runOp(onDone) {
             AttendanceService.anonymiseStudent(studentId)
-            "Student anonymised."
+            "Student pseudonymised."
         }
     }
 
@@ -148,9 +148,6 @@ fun StudentPdpaSheet(
     val message by vm.message.collectAsState()
     val error by vm.error.collectAsState()
 
-    var confirmAnonymise by remember { mutableStateOf(false) }
-    var confirmErase by remember { mutableStateOf(false) }
-
     val dataConsent = consent.firstOrNull { it.consentType == "data_collection" }
     val isGranted = dataConsent?.status == "granted"
 
@@ -212,20 +209,9 @@ fun StudentPdpaSheet(
             Text("Erasure", style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.error)
             Spacer(Modifier.height(4.dp))
-            Text("Anonymise keeps anonymous attendance counts. Erase is a hard delete and cannot be undone.",
+            Text("Use the secure admin web dashboard. It removes private Storage objects before and after the irreversible database operation; native direct erasure is disabled.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = { confirmAnonymise = true }, enabled = !busy) {
-                    Text("Anonymise")
-                }
-                Button(
-                    onClick = { confirmErase = true },
-                    enabled = !busy,
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Erase") }
-            }
 
             Spacer(Modifier.height(12.dp))
             message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
@@ -235,33 +221,4 @@ fun StudentPdpaSheet(
         }
     }
 
-    if (confirmAnonymise) {
-        AlertDialog(
-            onDismissRequest = { confirmAnonymise = false },
-            title = { Text("Anonymise student") },
-            text = { Text("Redact \"$fullName\"'s personal data while keeping anonymous attendance records? This cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmAnonymise = false
-                    vm.anonymise(studentId) { onStudentRemoved() }
-                }) { Text("Anonymise") }
-            },
-            dismissButton = { TextButton(onClick = { confirmAnonymise = false }) { Text("Cancel") } }
-        )
-    }
-
-    if (confirmErase) {
-        AlertDialog(
-            onDismissRequest = { confirmErase = false },
-            title = { Text("Erase student") },
-            text = { Text("Permanently delete all of \"$fullName\"'s data including audit snapshots? This cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmErase = false
-                    vm.erase(studentId) { onStudentRemoved() }
-                }) { Text("Erase", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { confirmErase = false }) { Text("Cancel") } }
-        )
-    }
 }

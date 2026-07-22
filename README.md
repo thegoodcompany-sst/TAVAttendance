@@ -13,7 +13,7 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 |---|---|
 | Global sign-in kiosk (all classes, one iPad) | Students |
 | Auto-marks late based on class start time | Kiosk |
-| Long-press to force-late or "not here" | Anyone at kiosk |
+| Long-press to force-late or "not here" | PIN-unlocked kiosk admin |
 | PIN-locked kiosk with admin override mode | Admin |
 | Per-class roster with P/A/L/E marking | Teachers |
 | Arrival time display in roster | Teachers |
@@ -25,7 +25,7 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 | Parent attendance, result-slip upload, and centre messaging (flag-gated) | Parents |
 | Result-slip acknowledgement and parent-message replies | Admin |
 | Human-readable audit activity (actor + action + entity) | Admin |
-| Offline marking with automatic sync on reconnect | Everyone |
+| Offline marking with automatic sync on reconnect | Staff |
 
 ## Stack
 
@@ -46,7 +46,8 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 Each platform reads Supabase credentials from a gitignored config file — see
 [CONTRIBUTING.md](CONTRIBUTING.md). Feature flags in the `feature_flags` table gate
 in-progress features (parent portal, push notifications, student photos, study space
-tracking, test mode, session notes, QR sign-in, awards); they ship OFF.
+tracking, test mode, session notes, QR sign-in, awards, analytics, and retrospective
+sessions); they ship OFF unless a migration explicitly documents otherwise.
 
 ## Project layout
 
@@ -67,8 +68,8 @@ iOS/TAVAttendance/
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
 supabase/
-  migrations/     001…036 (see supabase/migrations/README.md for the down-migration convention)
-  functions/      notify-parent edge function (PROD-02, flag-gated)
+  migrations/     001…038 (see supabase/migrations/README.md for the down-migration convention)
+  functions/      notification + durable private-Storage cleanup workers
   seed.sql
 ```
 
@@ -98,9 +99,10 @@ setup, plus the Supabase Storage buckets and the local test checklist, see
 ## User accounts
 
 Admins invite users from the web dashboard (**/users** page — email + role, sends a
-Supabase invite that lands on the set-password page). The Supabase Dashboard
-(**Authentication → Invite User** with `raw_user_meta_data`
-`{ "full_name": "Teacher Name", "role": "tutor" }`) remains the manual fallback.
+Supabase invite that lands on the set-password page). This is the supported path:
+new-user metadata is deliberately not trusted for authorization, so a Dashboard
+invite is created as the least-privileged `parent` until an admin assigns its role
+through a trusted admin path.
 
 Roles: `admin`, `tutor`, `parent`. A trigger (`handle_new_user`) auto-creates the `profiles` row.
 Admins link parent accounts to children from **/users**; the UI calls the existing

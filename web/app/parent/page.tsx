@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { isFeatureEnabled } from '@/lib/feature-flags'
-import { getAllStudents, getStudentClassSummary } from '@/lib/queries'
+import { getParentChildren, getParentStudentClassSummary } from '@/lib/parent-queries'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PageHeader } from '@/components/dashboard/page-header'
 
@@ -20,8 +20,8 @@ export default async function ParentPage() {
     )
   }
 
-  // RLS limits a parent to their own children (students: parent can read own children).
-  const children = await getAllStudents()
+  // Migration 038 exposes only an explicit parent-safe column projection.
+  const children = await getParentChildren()
 
   return (
     <div className="space-y-6">
@@ -37,7 +37,7 @@ export default async function ParentPage() {
       ) : (
         <div className="space-y-6">
           {await Promise.all(children.map(async child => {
-            const summary = await getStudentClassSummary(child.id)
+            const summary = await getParentStudentClassSummary(child.id)
             return (
               <div key={child.id} className="bg-white rounded-3xl p-5 shadow-sm">
                 <div className="flex items-center gap-3 mb-4">

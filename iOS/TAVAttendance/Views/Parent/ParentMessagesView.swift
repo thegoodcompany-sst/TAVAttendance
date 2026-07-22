@@ -4,7 +4,6 @@ import SwiftUI
 /// trailing edge; TAVA replies on the leading edge.
 struct ParentMessagesView: View {
     let studentId: UUID
-    let currentUserId: UUID
 
     @State private var messages: [ParentMessage] = []
     @State private var isLoading = true
@@ -96,7 +95,7 @@ struct ParentMessagesView: View {
     }
 
     private func messageBubble(_ msg: ParentMessage) -> some View {
-        let fromParent = msg.isFromParent || msg.senderId == currentUserId
+        let fromParent = msg.isFromParent
         return HStack {
             if fromParent { Spacer(minLength: 48) }
             VStack(alignment: fromParent ? .trailing : .leading, spacing: 4) {
@@ -146,7 +145,6 @@ struct ParentMessagesView: View {
         do {
             _ = try await AttendanceService.shared.sendParentMessage(
                 studentId: studentId,
-                senderId: currentUserId,
                 subject: trimmedSubject.isEmpty ? nil : trimmedSubject,
                 body: trimmedBody
             )

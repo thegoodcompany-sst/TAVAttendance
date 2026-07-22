@@ -26,12 +26,16 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.core.Analytics
 import com.example.tavattendance.core.AnalyticsEventType
+import com.example.tavattendance.core.SafeLog
+import com.example.tavattendance.core.SupabaseClient
 import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.RosterEntry
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
+import com.example.tavattendance.data.store.PendingAttendanceRecord
 import com.example.tavattendance.data.store.PendingAttendanceStore
+import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -55,6 +59,12 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _isEndingClass = MutableStateFlow(false)
     val isEndingClass = _isEndingClass.asStateFlow()
+
+    private val _sessionEditable = MutableStateFlow(false)
+    val sessionEditable = _sessionEditable.asStateFlow()
+
+    private val _canManageSessions = MutableStateFlow(false)
+    val canManageSessions = _canManageSessions.asStateFlow()
 
     private val _snackbarMessage = MutableStateFlow<String?>(null)
     val snackbarMessage = _snackbarMessage.asStateFlow()
@@ -96,10 +106,27 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 
     private var sessionId: String = ""
 
-    fun init(sessionId: String) {
+    private fun currentOwnerUserId(): String? =
+        SupabaseClient.client.auth.currentUserOrNull()?.id
+
+    private fun pendingForCurrentUser(): List<PendingAttendanceRecord> {
+        val ownerUserId = currentOwnerUserId() ?: return emptyList()
+        return pendingStore.allPending(ownerUserId)
+    }
+
+    fun init(sessionId: String, classId: String) {
         this.sessionId = sessionId
+        currentOwnerUserId()?.let(pendingStore::activateOwner) ?: pendingStore.clear()
         loadRoster()
         loadSessionNotes()
+        loadSessionState()
+        viewModelScope.launch {
+            _canManageSessions.value = runCatching {
+                AttendanceService.fetchMyClasses()
+                    .firstOrNull { it.id == classId }
+                    ?.canManageSessions == true
+            }.getOrDefault(false)
+        }
         viewModelScope.launch {
             isOnline.collect { connected ->
                 if (connected) syncPending()
@@ -111,11 +138,21 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching { AttendanceService.fetchSessionNotes(sessionId) }
                 .onSuccess { _sessionNotes.value = it }
-                .onFailure { android.util.Log.e("Roster", "loadSessionNotes failed: ${it.message}", it) }
+                .onFailure { SafeLog.error("Roster", "loadSessionNotes failed", it) }
+        }
+    }
+
+    private fun loadSessionState() {
+        viewModelScope.launch {
+            _sessionEditable.value = runCatching {
+                val session = AttendanceService.fetchSession(sessionId)
+                session != null && session.endedAt == null
+            }.getOrDefault(false)
         }
     }
 
     fun saveSessionNotes(text: String, onDone: () -> Unit) {
+        if (!_sessionEditable.value) return
         viewModelScope.launch {
             _isSavingNotes.value = true
             val trimmed = text.trim().ifEmpty { null }
@@ -125,7 +162,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                     Analytics.track(AnalyticsEventType.TAP, "save_note", buildJsonObject { put("screen", "roster") })
                 }
                 .onFailure { e ->
-                    android.util.Log.e("Roster", "saveSessionNotes failed: ${e.message}", e)
+                    SafeLog.error("Roster", "saveSessionNotes failed", e)
                     _snackbarMessage.value = "Failed to save session notes: ${e.localizedMessage ?: e.javaClass.simpleName}"
                 }
             _isSavingNotes.value = false
@@ -139,7 +176,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { AttendanceService.fetchRoster(sessionId) }
                 .onSuccess { _roster.value = it }
                 .onFailure { e ->
-                    android.util.Log.e("Roster", "loadRoster failed: ${e.message}", e)
+                    SafeLog.error("Roster", "loadRoster failed", e)
                     _loadError.value = e.localizedMessage ?: "Failed to load roster"
                 }
             _isLoading.value = false
@@ -147,6 +184,15 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun markAttendance(entry: RosterEntry, status: AttendanceStatus) {
+        if (!_sessionEditable.value) {
+            _snackbarMessage.value = "This session is read-only."
+            return
+        }
+        val ownerUserId = currentOwnerUserId()
+        if (ownerUserId == null) {
+            _snackbarMessage.value = "Your session changed. Sign in again before marking attendance."
+            return
+        }
         // Optimistic update
         _localStatus.value = _localStatus.value + (entry.studentId to status)
         _localMarkedAt.value = _localMarkedAt.value + (entry.studentId to Date())
@@ -161,13 +207,29 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                     )
                     // PERF-04: trust the optimistic override instead of re-fetching the
                     // whole roster on every tap. The override stays until loadRoster()
-                    // is called again (reopen / pull-to-refresh).
+                    // is called again (pull-to-refresh / later read-only review).
                 }.onFailure {
-                    pendingStore.add(sessionId, entry.studentId, status, null)
+                    queuePending(ownerUserId, entry, status)
                 }
             } else {
-                pendingStore.add(sessionId, entry.studentId, status, null)
+                queuePending(ownerUserId, entry, status)
             }
+        }
+    }
+
+    private fun queuePending(ownerUserId: String, entry: RosterEntry, status: AttendanceStatus) {
+        val stillCurrent = currentOwnerUserId()?.equals(ownerUserId, ignoreCase = true) == true
+        val queued = stillCurrent && pendingStore.add(
+            ownerUserId = ownerUserId,
+            sessionId = sessionId,
+            studentId = entry.studentId,
+            status = status,
+            notes = null
+        )
+        if (!queued) {
+            _localStatus.value = _localStatus.value - entry.studentId
+            _localMarkedAt.value = _localMarkedAt.value - entry.studentId
+            _snackbarMessage.value = "Attendance was not queued because the signed-in account changed. Please retry."
         }
     }
 
@@ -175,19 +237,22 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     fun unmarkedEntries(): List<RosterEntry> = _roster.value.filter { effectiveStatus(it) == null }
 
     fun markAllUnmarkedAbsent() {
+        if (!_sessionEditable.value) return
         for (entry in unmarkedEntries()) {
             markAttendance(entry, AttendanceStatus.absent)
         }
     }
 
     fun endClass(onComplete: () -> Unit) {
+        if (!_sessionEditable.value) return
         viewModelScope.launch {
             _isEndingClass.value = true
             runCatching {
                 AttendanceService.endSession(sessionId)
+                _sessionEditable.value = false
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
             }.onFailure { e ->
-                android.util.Log.e("Roster", "endClass failed: ${e.message}", e)
+                SafeLog.error("Roster", "endClass failed", e)
                 _snackbarMessage.value = "Failed to end class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isEndingClass.value = false
@@ -195,10 +260,14 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // Syncs ALL pending records (not just this session's) — pending marks made in a session
-    // that isn't reopened online would otherwise never sync.
+    // that is not opened online again would otherwise never sync.
     fun syncPending() {
         viewModelScope.launch {
-            val unsynced = pendingStore.allPending()
+            val ownerUserId = currentOwnerUserId() ?: run {
+                pendingStore.clear()
+                return@launch
+            }
+            val unsynced = pendingStore.allPending(ownerUserId)
             if (unsynced.isEmpty()) return@launch
             _isSaving.value = true
             val startMs = System.currentTimeMillis()
@@ -214,7 +283,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                 // All three outcomes are terminal. Blocked ended-session marks cannot
                 // ever succeed on retry, so remove the batch once every row is accounted for.
                 if (result.synced + result.skipped + result.blockedEndedSession == unsynced.size) {
-                    pendingStore.markSynced(unsynced.map { it.clientMutationId }.toSet())
+                    pendingStore.markSynced(ownerUserId, unsynced.map { it.clientMutationId }.toSet())
                     for (r in unsynced.filter { it.sessionId == sessionId }) {
                         _localStatus.value = _localStatus.value - r.studentId
                         _localMarkedAt.value = _localMarkedAt.value - r.studentId
@@ -226,7 +295,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                         "${result.blockedEndedSession} mark${if (result.blockedEndedSession == 1) "" else "s"} rejected — session already ended."
                 }
             }.onFailure { e ->
-                android.util.Log.e("Roster", "syncPending failed: ${e.javaClass.simpleName}")
+                SafeLog.error("Roster", "syncPending failed", e)
                 Analytics.track(AnalyticsEventType.OPS, "sync_failure", buildJsonObject {
                     put("message", e.javaClass.simpleName)
                     put("pending_count", unsynced.size)
@@ -239,17 +308,17 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun effectiveStatus(entry: RosterEntry): AttendanceStatus? {
         _localStatus.value[entry.studentId]?.let { return it }
-        pendingStore.allPending().firstOrNull {
+        pendingForCurrentUser().firstOrNull {
             it.studentId == entry.studentId && it.sessionId == sessionId
         }?.let { return it.status }
         return entry.status
     }
 
     fun isPending(entry: RosterEntry): Boolean =
-        pendingStore.allPending().any { it.studentId == entry.studentId && it.sessionId == sessionId }
+        pendingForCurrentUser().any { it.studentId == entry.studentId && it.sessionId == sessionId }
 
     fun hasPendingUnsynced(): Boolean =
-        pendingStore.allPending().any { it.sessionId == sessionId }
+        pendingForCurrentUser().any { it.sessionId == sessionId }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -257,7 +326,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 fun RosterScreen(
     sessionId: String,
     sessionDate: String,
+    classId: String,
     className: String,
+    isAdmin: Boolean,
     onBack: () -> Unit,
     vm: RosterViewModel = viewModel()
 ) {
@@ -265,7 +336,7 @@ fun RosterScreen(
     // `session_detail` (mirrors iOS RosterView vs SessionDetailView).
     val todayStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
     TrackScreen(if (sessionDate == todayStr) "roster" else "session_detail")
-    LaunchedEffect(sessionId) { vm.init(sessionId) }
+    LaunchedEffect(sessionId, classId) { vm.init(sessionId, classId) }
 
     val roster by vm.roster.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
@@ -295,10 +366,13 @@ fun RosterScreen(
     var showMarkAbsentConfirm by remember { mutableStateOf(false) }  // PROD-03
 
     val isEndingClass by vm.isEndingClass.collectAsState()
+    val sessionEditable by vm.sessionEditable.collectAsState()
+    val canManageSessions by vm.canManageSessions.collectAsState()
 
     val prettyFmt = SimpleDateFormat("MMM d, yyyy", Locale.US)
     val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val timeFmt = SimpleDateFormat("h:mm a", Locale.US)
+    val canEdit = sessionEditable && sessionDate == todayStr
 
     fun formatDate(iso: String): String = runCatching {
         prettyFmt.format(isoFmt.parse(iso)!!)
@@ -307,7 +381,7 @@ fun RosterScreen(
     // PROD-03: count students still without a status (reads roster + local overrides).
     val unmarkedCount = roster.count { vm.effectiveStatus(it) == null }
 
-    if (showMarkAbsentConfirm) {
+    if (canEdit && showMarkAbsentConfirm) {
         AlertDialog(
             onDismissRequest = { showMarkAbsentConfirm = false },
             title = { Text("Mark Remaining as Absent") },
@@ -326,11 +400,11 @@ fun RosterScreen(
         )
     }
 
-    if (showEndConfirm) {
+    if (canEdit && showEndConfirm) {
         AlertDialog(
             onDismissRequest = { showEndConfirm = false },
             title = { Text("End Class") },
-            text = { Text("Students can no longer be marked after the class ends. You can resume from the class page.") },
+            text = { Text("Students can no longer be marked after the class ends. The roster remains available for review.") },
             confirmButton = {
                 TextButton(onClick = {
                     showEndConfirm = false
@@ -356,7 +430,7 @@ fun RosterScreen(
                     }
                 },
                 actions = {
-                    if (sessionNotesEnabled) {
+                    if (canEdit && sessionNotesEnabled) {
                         IconButton(onClick = { showSessionNotes = true }) {
                             Icon(Icons.Default.Edit, contentDescription = "Session notes")
                         }
@@ -374,12 +448,14 @@ fun RosterScreen(
                             Icon(Icons.Default.Refresh, contentDescription = "Sync")
                         }
                     }
-                    if (unmarkedCount > 0 && !isEndingClass) {
+                    if (canEdit && unmarkedCount > 0 && !isEndingClass) {
                         TextButton(onClick = { showMarkAbsentConfirm = true }, enabled = !isSaving) {
                             Text("Absent rest")
                         }
                     }
-                    if (isEndingClass) {
+                    if (!canEdit) {
+                        Text("Read-only", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else if (isEndingClass) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp).padding(end = 8.dp),
                             strokeWidth = 2.dp
@@ -421,9 +497,11 @@ fun RosterScreen(
                         entry = entry,
                         effectiveStatus = status,
                         isPending = pending,
+                        enabled = canEdit,
                         markedAt = markedAt,
                         timeFmt = timeFmt,
                         onStatusClick = { newStatus -> vm.markAttendance(entry, newStatus) },
+                        profileEnabled = canManageSessions,
                         onTap = { selectedStudent = entry }
                     )
                     HorizontalDivider()
@@ -436,11 +514,12 @@ fun RosterScreen(
         StudentProfileSheet(
             studentId = entry.studentId,
             fullName = entry.fullName,
-            onDismiss = { selectedStudent = null }
+            onDismiss = { selectedStudent = null },
+            canManageStaffResults = isAdmin
         )
     }
 
-    if (sessionNotesEnabled && showSessionNotes) {
+    if (canEdit && sessionNotesEnabled && showSessionNotes) {
         SessionNotesDialog(
             initial = sessionNotes ?: "",
             isSaving = isSavingNotes,
@@ -491,9 +570,11 @@ private fun RosterRow(
     entry: RosterEntry,
     effectiveStatus: AttendanceStatus?,
     isPending: Boolean,
+    enabled: Boolean,
     markedAt: Date?,
     timeFmt: SimpleDateFormat,
     onStatusClick: (AttendanceStatus) -> Unit,
+    profileEnabled: Boolean,
     onTap: () -> Unit
 ) {
     Row(
@@ -502,7 +583,11 @@ private fun RosterRow(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f).clickable { onTap() }) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .then(if (profileEnabled) Modifier.clickable { onTap() } else Modifier)
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(entry.fullName, style = MaterialTheme.typography.titleMedium)
                 if (isPending) {
@@ -529,6 +614,7 @@ private fun RosterRow(
                 val color = statusColor(status)
                 OutlinedButton(
                     onClick = { onStatusClick(status) },
+                    enabled = enabled,
                     modifier = Modifier.size(44.dp, 36.dp),
                     contentPadding = PaddingValues(0.dp),
                     colors = ButtonDefaults.outlinedButtonColors(

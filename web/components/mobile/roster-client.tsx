@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Clock3, FileText, Search, UserX, X } from 'lucide-react'
-import { endClass, markAttendance, markRemainingAbsent, reopenClass, saveMobileSessionNote } from '@/app/actions/mobile'
+import { endClass, markAttendance, markRemainingAbsent, saveMobileSessionNote } from '@/app/actions/mobile'
 import type { AttendanceStatus } from '@/lib/status'
 import type { MobileRosterEntry } from '@/lib/mobile-queries'
 
@@ -19,7 +19,7 @@ function markedTime(value: string | null) {
   return new Intl.DateTimeFormat('en-SG', { timeZone: 'Asia/Singapore', hour: 'numeric', minute: '2-digit' }).format(new Date(value))
 }
 
-export function RosterClient({ sessionId, initialRoster, initialNotes, ended }: { sessionId: string; initialRoster: MobileRosterEntry[]; initialNotes: string; ended: boolean }) {
+export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly, notesEnabled }: { sessionId: string; initialRoster: MobileRosterEntry[]; initialNotes: string; readOnly: boolean; notesEnabled: boolean }) {
   const router = useRouter()
   const [roster, setRoster] = useState(initialRoster)
   const [query, setQuery] = useState('')
@@ -32,7 +32,7 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, ended }: 
   const filtered = useMemo(() => roster.filter(entry => entry.fullName.toLowerCase().includes(query.toLowerCase())), [roster, query])
 
   function updateStatus(entry: MobileRosterEntry, status: Exclude<AttendanceStatus, null>) {
-    if (ended) return
+    if (readOnly) return
     const previous = entry.status
     const now = new Date().toISOString()
     setError(null)
@@ -49,6 +49,7 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, ended }: 
   }
 
   function markRest() {
+    if (readOnly) return
     if (!window.confirm(`Mark ${unmarked.length} remaining student${unmarked.length === 1 ? '' : 's'} absent?`)) return
     const ids = unmarked.map(entry => entry.studentId)
     const now = new Date().toISOString()
@@ -60,15 +61,16 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, ended }: 
   }
 
   function toggleEnded() {
-    if (!ended && !window.confirm('End class? Attendance changes will be locked until the class is resumed.')) return
+    if (readOnly || !window.confirm('End class? Attendance changes will be permanently locked.')) return
     startTransition(async () => {
-      const result = ended ? await reopenClass(sessionId) : await endClass(sessionId)
+      const result = await endClass(sessionId)
       if (result.error) setError(result.error)
       else router.refresh()
     })
   }
 
   function saveNotes() {
+    if (!notesEnabled || readOnly) return
     startTransition(async () => {
       const result = await saveMobileSessionNote(sessionId, notes)
       if (result.error) setError(result.error)
@@ -91,11 +93,11 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, ended }: 
           <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Find a student" className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" />
           {query && <button onClick={() => setQuery('')} aria-label="Clear search"><X size={17} /></button>}
         </label>
-        <button type="button" onClick={() => setShowNotes(true)} aria-label="Session notes" className="grid h-12 w-12 place-items-center rounded-2xl border border-brand/10 bg-white text-brand shadow-card"><FileText size={19} /></button>
+        {notesEnabled && <button type="button" onClick={() => setShowNotes(true)} aria-label="Session notes" className="grid h-12 w-12 place-items-center rounded-2xl border border-brand/10 bg-white text-brand shadow-card"><FileText size={19} /></button>}
       </div>
 
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {ended && <div className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700">This class has ended. Resume it to change attendance.</div>}
+      {readOnly && <div className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700">This register is read-only. Historical or ended sessions cannot use today&apos;s attendance controls.</div>}
 
       <div className="space-y-2.5">
         {filtered.map(entry => (
@@ -115,7 +117,7 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, ended }: 
                   title={status.label}
                   aria-label={`Mark ${entry.fullName} ${status.label}`}
                   data-selected={entry.status === status.value}
-                  disabled={ended || busyIds.has(entry.studentId)}
+                  disabled={readOnly || busyIds.has(entry.studentId)}
                   onClick={() => updateStatus(entry, status.value)}
                   className={`min-h-11 rounded-xl border text-sm font-black transition-transform active:scale-95 disabled:opacity-55 ${status.className}`}
                 >{status.short}</button>
@@ -125,14 +127,14 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, ended }: 
         ))}
       </div>
 
-      {!ended && unmarked.length > 0 && <button type="button" onClick={markRest} disabled={isPending} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-sm font-black text-red-700"><UserX size={18} /> Mark {unmarked.length} remaining absent</button>}
-      <button type="button" onClick={toggleEnded} disabled={isPending} className={ended ? 'min-h-12 w-full rounded-2xl bg-brand text-sm font-black text-white' : 'min-h-12 w-full rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700'}>{isPending ? 'Working…' : ended ? 'Resume class' : 'End class'}</button>
+      {!readOnly && unmarked.length > 0 && <button type="button" onClick={markRest} disabled={isPending} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-sm font-black text-red-700"><UserX size={18} /> Mark {unmarked.length} remaining absent</button>}
+      {!readOnly && <button type="button" onClick={toggleEnded} disabled={isPending} className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700">{isPending ? 'Working…' : 'End class'}</button>}
 
-      {showNotes && <div className="fixed inset-0 z-50 flex items-end bg-brand/35 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setShowNotes(false) }}>
+      {notesEnabled && showNotes && <div className="fixed inset-0 z-50 flex items-end bg-brand/35 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setShowNotes(false) }}>
         <div className="mx-auto w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
           <div className="mb-4 flex items-center justify-between"><h2 className="font-display text-2xl font-semibold text-brand-ink">Session notes</h2><button onClick={() => setShowNotes(false)} className="grid h-10 w-10 place-items-center rounded-full bg-muted"><X size={19} /></button></div>
-          <textarea value={notes} onChange={event => setNotes(event.target.value)} rows={6} className="w-full rounded-2xl border border-input p-3 text-base outline-none focus:ring-2 focus:ring-brand/20" placeholder="Notes for staff. Do not include NRIC/FIN." />
-          <button onClick={saveNotes} disabled={isPending} className="mt-3 min-h-12 w-full rounded-2xl bg-brand text-sm font-black text-white">{isPending ? 'Saving…' : 'Save notes'}</button>
+          <textarea value={notes} onChange={event => setNotes(event.target.value)} readOnly={readOnly} rows={6} className="w-full rounded-2xl border border-input p-3 text-base outline-none focus:ring-2 focus:ring-brand/20 read-only:bg-muted" placeholder="Notes for staff. Do not include NRIC/FIN." />
+          {!readOnly && <button onClick={saveNotes} disabled={isPending} className="mt-3 min-h-12 w-full rounded-2xl bg-brand text-sm font-black text-white">{isPending ? 'Saving…' : 'Save notes'}</button>}
         </div>
       </div>}
     </div>

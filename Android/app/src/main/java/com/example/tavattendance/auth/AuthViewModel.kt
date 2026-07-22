@@ -4,9 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.tavattendance.core.Analytics
+import com.example.tavattendance.core.SafeLog
 import com.example.tavattendance.core.SupabaseClient
 import com.example.tavattendance.data.models.Profile
 import com.example.tavattendance.data.service.FeatureFlags
+import com.example.tavattendance.data.store.PendingAttendanceStore
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -17,6 +19,7 @@ import kotlinx.coroutines.launch
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val supabase = SupabaseClient.client
+    private val pendingAttendanceStore = PendingAttendanceStore(application)
 
     private val _isLoading = MutableStateFlow(true)
     val isLoading = _isLoading.asStateFlow()
@@ -42,8 +45,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             supabase.auth.sessionStatus.collect { status ->
                 when (status) {
                     is SessionStatus.Authenticated -> {
-                        _isAuthenticated.value = true
                         val userId = status.session.user?.id
+                        if (userId != null) pendingAttendanceStore.activateOwner(userId)
+                        else pendingAttendanceStore.clear()
+                        _isAuthenticated.value = userId != null
                         pendingUserId = userId
                         if (userId != null) fetchProfile(userId)
                         viewModelScope.launch {
@@ -59,6 +64,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         _isLoading.value = false
                     }
                     is SessionStatus.NotAuthenticated -> {
+                        pendingAttendanceStore.clear()
                         _isAuthenticated.value = false
                         _currentProfile.value = null
                         _isLoading.value = false
@@ -82,7 +88,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _currentProfile.value = profile
             _profileError.value = null
         }.onFailure { e ->
-            android.util.Log.e("AuthVM", "fetchProfile failed: ${e.message}", e)
+            SafeLog.error("AuthVM", "fetchProfile failed", e)
             _profileError.value = e.localizedMessage ?: "Failed to load profile"
         }
     }
@@ -115,6 +121,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun signOut() {
+        // Clear synchronously before the auth request so no stale queue survives an
+        // offline/failed sign-out or becomes visible to a subsequent account.
+        pendingAttendanceStore.clear()
         viewModelScope.launch {
             runCatching { supabase.auth.signOut() }
         }

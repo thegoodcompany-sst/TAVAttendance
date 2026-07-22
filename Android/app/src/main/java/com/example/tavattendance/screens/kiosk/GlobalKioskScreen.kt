@@ -3,6 +3,7 @@ package com.example.tavattendance.screens.kiosk
 import android.app.Application
 import android.content.Context
 import android.provider.Settings.Secure
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -24,10 +25,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.core.Analytics
 import com.example.tavattendance.core.AnalyticsEventType
+import com.example.tavattendance.core.SafeLog
 import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.KioskEntry
@@ -115,8 +120,10 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     // Persisted kiosk settings
     val storedPin: String get() = prefs.getString("pin", "") ?: ""
 
-    // MAINT-10: back isLocked with a StateFlow so Compose recomposes on change.
-    private val _isLocked = MutableStateFlow(prefs.getBoolean("locked", false))
+    // A configured PIN always starts locked. The persisted `locked=false` value only means an
+    // admin unlocked the previous process; carrying that authorization across a cold start
+    // would expose settings without a fresh PIN challenge.
+    private val _isLocked = MutableStateFlow(shouldLockKioskOnStart(storedPin))
     val isLocked = _isLocked.asStateFlow()
 
     private val _isAdminUnlocked = MutableStateFlow(!_isLocked.value && storedPin.isEmpty())
@@ -143,7 +150,10 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         !locked && (storedPin.isEmpty() || adminUnlocked)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, !_isLocked.value && (storedPin.isEmpty() || _isAdminUnlocked.value))
 
-    init { loadEntries() }
+    init {
+        prefs.edit().putBoolean("locked", _isLocked.value).apply()
+        loadEntries()
+    }
 
     fun loadEntries() {
         viewModelScope.launch {
@@ -159,8 +169,10 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
                     })
                 }
                 .onFailure { e ->
-                    android.util.Log.e("GlobalKioskVM", "Failed to load kiosk entries", e)
-                    val msg = "Failed to load students: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                    SafeLog.error("GlobalKioskVM", "load kiosk entries failed", e)
+                    // This screen is student-facing. Backend exception text can expose table,
+                    // policy, or identifier details and therefore stays in debug-only logging.
+                    val msg = "Could not load the sign-in list. Please ask a staff member to retry."
                     _snackbarMessage.value = msg
                     _loadError.value = msg
                 }
@@ -180,6 +192,10 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun handleAction(entry: KioskEntry, action: KioskAction) {
+        // UI visibility is not an authorization boundary. Keep this guard at the mutation
+        // entry point so stale Compose state or a future caller cannot run admin overrides
+        // while the kiosk is locked.
+        if (!isKioskActionAuthorized(action, hasAdminAuthorization())) return
         if (entry.studentId in _pendingIds.value) return
         _pendingIds.value = _pendingIds.value + entry.studentId
 
@@ -207,8 +223,8 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
             }.onFailure { e ->
-                android.util.Log.e("GlobalKioskVM", "Action $action failed for ${entry.studentId}", e)
-                _snackbarMessage.value = "Action failed: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                SafeLog.error("GlobalKioskVM", "kiosk action failed", e)
+                _snackbarMessage.value = "Sign-in failed. Please ask a staff member for help."
             }
             _pendingIds.value = _pendingIds.value - entry.studentId
         }
@@ -269,10 +285,12 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Set the PIN. Always stores a v2: PBKDF2 hash going forward. */
     fun setPin(pin: String) {
+        if (!hasAdminAuthorization()) return
         prefs.edit().putString("pin", hashPinPbkdf2(pin, deviceSalt)).apply()
     }
 
     fun clearPin() {
+        if (!hasAdminAuthorization()) return
         prefs.edit().remove("pin").putBoolean("locked", false).apply()
         _isLocked.value = false
         _isAdminUnlocked.value = true
@@ -282,10 +300,23 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
 
     /** MAINT-10: update both SharedPreferences and the backing StateFlow. */
     fun lockKiosk() {
+        if (storedPin.isEmpty()) return
         prefs.edit().putBoolean("locked", true).apply()
         _isLocked.value = true
         _isAdminUnlocked.value = false
+        _showSettings.value = false
         Analytics.track(AnalyticsEventType.OPS, "admin_lock")
+    }
+
+    /** Revokes process-local admin authorization whenever the app leaves the foreground. */
+    fun relockConfiguredKiosk() {
+        if (storedPin.isEmpty()) return
+        // Revoke authorization before publishing the lock-state transition.
+        _isAdminUnlocked.value = false
+        _isLocked.value = true
+        _showSettings.value = false
+        _showPinUnlock.value = false
+        prefs.edit().putBoolean("locked", true).apply()
     }
 
     /**
@@ -366,13 +397,30 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         _lockedUntil.value = until
     }
 
-    fun showPinUnlockDialog() { _showPinUnlock.value = true }
+    private fun hasAdminAuthorization(): Boolean =
+        !_isLocked.value && (storedPin.isEmpty() || _isAdminUnlocked.value)
+
+    fun performAdminAction(action: () -> Unit) {
+        if (hasAdminAuthorization()) action()
+    }
+
+    fun showPinUnlockDialog() {
+        if (storedPin.isNotEmpty() && !hasAdminAuthorization()) _showPinUnlock.value = true
+    }
     fun hidePinUnlockDialog() { _showPinUnlock.value = false }
-    fun showSettingsDialog() { _showSettings.value = true }
+    fun showSettingsDialog() {
+        if (hasAdminAuthorization()) _showSettings.value = true
+    }
     fun hideSettingsDialog() { _showSettings.value = false }
 }
 
 enum class KioskAction { SignIn, MarkPresent, MarkLate, MarkAbsent, MarkNotHere }
+
+/** Pure policy helpers kept separate from Compose so the security boundary is unit-testable. */
+internal fun shouldLockKioskOnStart(storedPin: String): Boolean = storedPin.isNotEmpty()
+
+internal fun isKioskActionAuthorized(action: KioskAction, isAdminMode: Boolean): Boolean =
+    action == KioskAction.SignIn || isAdminMode
 
 // ---------------------------------------------------------------------------
 // Composable screen
@@ -380,19 +428,20 @@ enum class KioskAction { SignIn, MarkPresent, MarkLate, MarkAbsent, MarkNotHere 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
+fun GlobalKioskScreen(
+    onExitKiosk: () -> Unit,
+    vm: GlobalKioskViewModel = viewModel()
+) {
     TrackScreen("kiosk")
     val entries by vm.entries.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val pendingIds by vm.pendingIds.collectAsState()
-    val isAdminUnlocked by vm.isAdminUnlocked.collectAsState()
     val showPinUnlock by vm.showPinUnlock.collectAsState()
     val showSettings by vm.showSettings.collectAsState()
     val snackbarMessage by vm.snackbarMessage.collectAsState()
     val loadError by vm.loadError.collectAsState()
 
-    // MAINT-10: collect StateFlow so Compose recomposes when lock state changes.
-    val isLocked by vm.isLocked.collectAsState()
+    // Collect the derived authorization state so lock/unlock changes recompose the UI.
     val isAdminMode by vm.isAdminMode.collectAsState()
 
     // Study Space (migration 015): flag-gated entry to the internal drop-in tracker.
@@ -404,6 +453,26 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
     // scanning only ever runs the same sign-in path a card tap would, so no admin gate.
     val qrSignInEnabled = featureFlags[FeatureFlags.QR_SIGN_IN] == true
     var showQrScanner by remember { mutableStateOf(false) }
+
+    // System back must never be an escape hatch from a student-facing kiosk. An authenticated
+    // admin gets an explicit Exit Kiosk control in the header below.
+    BackHandler(enabled = true) {}
+
+    // Kiosk admin authorization is process-local and is revoked when the activity stops.
+    // Close any admin-only overlays at the same time so they cannot remain interactive when
+    // the app returns in its newly locked state.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                showStudySpace = false
+                showQrScanner = false
+                vm.relockConfiguredKiosk()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val attending = entries.count { it.isAttending }
     val today = SimpleDateFormat("EEEE, MMMM d, yyyy", Locale.US).format(Date())
@@ -463,7 +532,9 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
                             Spacer(Modifier.width(16.dp))
                         }
                         if (isAdminMode && studySpaceEnabled) {
-                            TextButton(onClick = { showStudySpace = true }) {
+                            TextButton(onClick = {
+                                vm.performAdminAction { showStudySpace = true }
+                            }) {
                                 Text("Study Space")
                             }
                         }
@@ -472,15 +543,22 @@ fun GlobalKioskScreen(vm: GlobalKioskViewModel = viewModel()) {
                                 Text("Scan QR")
                             }
                         }
+                        if (isAdminMode) {
+                            TextButton(onClick = {
+                                vm.performAdminAction(onExitKiosk)
+                            }) {
+                                Text("Exit Kiosk")
+                            }
+                        }
                         IconButton(
                             onClick = {
-                                if (isLocked) vm.showPinUnlockDialog()
-                                else vm.showSettingsDialog()
+                                if (isAdminMode) vm.showSettingsDialog()
+                                else vm.showPinUnlockDialog()
                             }
                         ) {
                             Icon(
-                                if (isLocked) Icons.Default.Lock else Icons.Default.Settings,
-                                contentDescription = if (isLocked) "Unlock kiosk" else "Kiosk settings"
+                                if (isAdminMode) Icons.Default.Settings else Icons.Default.Lock,
+                                contentDescription = if (isAdminMode) "Kiosk settings" else "Unlock kiosk"
                             )
                         }
                     }

@@ -10,6 +10,7 @@ struct MarkAttendanceIntent: AppIntent {
         "Marks a student as On Time, Late, Absent, or Not Here for today's class.")
 
     static var openAppWhenRun: Bool = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Student")
     var student: StudentEntity

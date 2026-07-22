@@ -50,20 +50,27 @@ VALUES (
     (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 10,
     NULL
 );
+-- Preserve one pre-hardening attendance-only row so the roster projection's
+-- legacy-compatibility branch remains covered. Production writes cannot use
+-- this trusted migration/test capability.
+SELECT set_config('app.suppress_audit', 'on', TRUE);
 INSERT INTO attendance_records (session_id, student_id, status, client_mutation_id)
 VALUES (
     '37000000-0000-0000-0000-000000000030',
     '37000000-0000-0000-0000-000000000022', 'absent', 'retrospective-037-fixture'
 );
+SELECT set_config('app.suppress_audit', 'off', TRUE);
+SELECT set_config('app.retrospective_session_update', 'on', TRUE);
 UPDATE sessions SET ended_at = NOW()
 WHERE id = '37000000-0000-0000-0000-000000000030';
+SELECT set_config('app.retrospective_session_update', 'off', TRUE);
 SELECT set_config('app.retrospective_session_create', 'off', TRUE);
 
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 
 -- OFF means every entry point fails closed.
 SELECT pg_temp.expect_error(
-    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', CURRENT_DATE - 3, NULL, NULL, NULL)$$,
+    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 3, NULL, NULL, NULL)$$,
     'disabled');
 SELECT pg_temp.expect_error(
     $$SELECT update_retrospective_session('37000000-0000-0000-0000-000000000030', NULL, NULL, NULL)$$,
@@ -87,7 +94,8 @@ DECLARE
 BEGIN
     SELECT f.* INTO v_admin_session
     FROM create_retrospective_session(
-        '37000000-0000-0000-0000-000000000010', CURRENT_DATE - 4,
+        '37000000-0000-0000-0000-000000000010',
+        (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 4,
         'Admin topic', 'Admin note', '00000000-0000-0000-0000-000000000002'
     ) AS f;
     ASSERT v_admin_session.class_id = '37000000-0000-0000-0000-000000000010',
@@ -96,15 +104,17 @@ BEGIN
     PERFORM pg_temp.as_user('00000000-0000-0000-0000-000000000002');
     SELECT f.* INTO v_tutor_session
     FROM create_retrospective_session(
-        '37000000-0000-0000-0000-000000000010', CURRENT_DATE - 3,
+        '37000000-0000-0000-0000-000000000010',
+        (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 1,
         'Tutor topic', NULL, NULL
     ) AS f;
     ASSERT v_tutor_session.id IS NOT NULL, 'assigned tutor create failed';
     SELECT f.* INTO v_tutor_session
     FROM update_retrospective_session(
-        v_tutor_session.id, 'Tutor updated topic', NULL, NULL
+        v_tutor_session.id, 'Tutor updated topic', 'Tutor historical note', NULL
     ) AS f;
-    ASSERT v_tutor_session.topic = 'Tutor updated topic',
+    ASSERT v_tutor_session.topic = 'Tutor updated topic'
+           AND v_tutor_session.notes = 'Tutor historical note',
            'assigned tutor update failed';
     PERFORM mark_retrospective_attendance(
         v_tutor_session.id, '37000000-0000-0000-0000-000000000021', 'late');
@@ -125,49 +135,54 @@ BEGIN
            'attendance-only student missing';
 
     SELECT COUNT(*) INTO v_before_enrollments FROM enrollments;
-    PERFORM mark_retrospective_attendance(
-        '37000000-0000-0000-0000-000000000030',
-        '37000000-0000-0000-0000-000000000021', 'present');
-    ASSERT (SELECT status = 'present' FROM attendance_records
-            WHERE session_id = '37000000-0000-0000-0000-000000000030'
-              AND student_id = '37000000-0000-0000-0000-000000000021'),
-           'historical attendance RPC did not write ended session';
+    PERFORM pg_temp.expect_error(
+        $sql$SELECT mark_retrospective_attendance(
+            '37000000-0000-0000-0000-000000000030',
+            '37000000-0000-0000-0000-000000000021', 'present'
+        )$sql$,
+        'student was not enrolled for this session'
+    );
+    ASSERT NOT EXISTS (
+        SELECT 1 FROM attendance_records
+        WHERE session_id = '37000000-0000-0000-0000-000000000030'
+          AND student_id = '37000000-0000-0000-0000-000000000021'
+    ), 'late-enrolled student received historical attendance';
     ASSERT (SELECT COUNT(*) FROM enrollments) = v_before_enrollments,
-           'adding a session-only student changed enrollment';
+           'rejected historical attendance changed enrollment';
 END $$;
 
 SELECT set_config('app.retrospective_attendance_write', 'off', TRUE);
 SELECT pg_temp.expect_error(
-    $$UPDATE attendance_records SET status = 'late' WHERE session_id = '37000000-0000-0000-0000-000000000030' AND student_id = '37000000-0000-0000-0000-000000000021'$$,
+    $$UPDATE attendance_records SET status = 'late' WHERE session_id = '37000000-0000-0000-0000-000000000030' AND student_id = '37000000-0000-0000-0000-000000000022'$$,
     'Cannot modify attendance for ended session');
 SELECT pg_temp.expect_error(
     $$UPDATE sessions SET session_date = session_date - 1 WHERE id = '37000000-0000-0000-0000-000000000030'$$,
-    'class and date are immutable');
+    'past sessions must be updated through');
 SELECT pg_temp.expect_error(
     $$DELETE FROM sessions WHERE id = '37000000-0000-0000-0000-000000000030'$$,
     'cannot be deleted');
 SELECT pg_temp.expect_error(
-    $$INSERT INTO sessions (class_id, session_date) VALUES ('37000000-0000-0000-0000-000000000010', CURRENT_DATE - 20)$$,
+    $$INSERT INTO sessions (class_id, session_date) VALUES ('37000000-0000-0000-0000-000000000010', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 20)$$,
     'must be created through');
 SELECT pg_temp.expect_error(
-    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', CURRENT_DATE, NULL, NULL, NULL)$$,
+    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE, NULL, NULL, NULL)$$,
     'before today');
 SELECT pg_temp.expect_error(
-    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', CURRENT_DATE + 1, NULL, NULL, NULL)$$,
+    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE + 1, NULL, NULL, NULL)$$,
     'before today');
 SELECT pg_temp.expect_error(
-    $$SELECT create_retrospective_session('57000000-0000-0000-0000-000000000001', CURRENT_DATE - 2, NULL, NULL, NULL)$$,
+    $$SELECT create_retrospective_session('57000000-0000-0000-0000-000000000001', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 2, NULL, NULL, NULL)$$,
     'not eligible');
 SELECT pg_temp.expect_error(
-    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', CURRENT_DATE - 4, NULL, NULL, NULL)$$,
+    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 4, NULL, NULL, NULL)$$,
     'already exists');
 SELECT pg_temp.expect_error(
-    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', CURRENT_DATE - 5, NULL, NULL, '00000000-0000-0000-0000-000000000003')$$,
+    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 5, NULL, NULL, '00000000-0000-0000-0000-000000000003')$$,
     'invalid substitute');
 
 SELECT pg_temp.as_user('37000000-0000-0000-0000-000000000004');
 SELECT pg_temp.expect_error(
-    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', CURRENT_DATE - 6, NULL, NULL, NULL)$$,
+    $$SELECT create_retrospective_session('37000000-0000-0000-0000-000000000010', (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 6, NULL, NULL, NULL)$$,
     'not authorized');
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000003');
 SELECT pg_temp.expect_error(

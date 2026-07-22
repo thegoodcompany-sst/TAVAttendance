@@ -24,9 +24,16 @@ import com.example.tavattendance.data.models.Dismissal
 import com.example.tavattendance.data.models.Student
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+internal object ParentDismissalVisibility {
+    fun visible(pushNotificationsEnabled: Boolean, dismissals: List<Dismissal>): List<Dismissal> =
+        if (pushNotificationsEnabled) AttendanceService.awaitingSafelyHome(dismissals) else emptyList()
+}
 
 class ParentDashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val _children = MutableStateFlow<List<Student>>(emptyList())
@@ -44,24 +51,57 @@ class ParentDashboardViewModel(app: Application) : AndroidViewModel(app) {
     private val _loadFailed = MutableStateFlow(false)
     val loadFailed = _loadFailed.asStateFlow()
 
-    fun loadChildren() {
-        viewModelScope.launch {
+    private var loadJob: Job? = null
+
+    fun loadChildren(includeDismissals: Boolean) {
+        // Clear first so a disabled flag or failed refresh cannot retain data fetched
+        // while push notifications were previously enabled.
+        _pendingDismissals.value = emptyList()
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _isLoading.value = true
             _loadFailed.value = false
-            // RLS scopes students to this parent's own children (002_rls.sql).
-            runCatching { _children.value = AttendanceService.fetchAllStudents() }
-                .onFailure { _loadFailed.value = true }
-            // Safely-home is best-effort decoration; a failure here must not
-            // hide the children list.
-            runCatching {
-                _pendingDismissals.value =
-                    AttendanceService.awaitingSafelyHome(AttendanceService.fetchTodayDismissals())
+            // Migration 038 returns only a parent-safe student projection.
+            try {
+                _children.value = AttendanceService.fetchParentChildren()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Throwable) {
+                _loadFailed.value = true
+            }
+            if (includeDismissals) {
+                // Safely-home is best-effort decoration; a failure here must not
+                // hide the children list. Cancellation is rethrown so a feature-flag
+                // change cannot repopulate dismissal state from a stale request.
+                try {
+                    val dismissals = AttendanceService.fetchTodayDismissals()
+                    _pendingDismissals.value = ParentDismissalVisibility.visible(
+                        pushNotificationsEnabled =
+                            FeatureFlags.isEnabled(FeatureFlags.PARENT_PORTAL) &&
+                                FeatureFlags.isEnabled(FeatureFlags.PUSH_NOTIFICATIONS),
+                        dismissals = dismissals
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Throwable) {
+                    _pendingDismissals.value = emptyList()
+                }
             }
             _isLoading.value = false
         }
     }
 
+    fun deactivatePortal() {
+        loadJob?.cancel()
+        _pendingDismissals.value = emptyList()
+        _isLoading.value = false
+    }
+
     fun markSafelyHome(dismissalId: String) {
+        if (!FeatureFlags.isEnabled(FeatureFlags.PUSH_NOTIFICATIONS)) {
+            _pendingDismissals.value = emptyList()
+            return
+        }
         viewModelScope.launch {
             runCatching { AttendanceService.markSafelyHome(dismissalId) }
                 .onSuccess { _pendingDismissals.value = _pendingDismissals.value.filter { it.id != dismissalId } }
@@ -87,7 +127,13 @@ fun ParentDashboardScreen(
     var selectedChild by remember { mutableStateOf<Student?>(null) }
 
     // Only hit the network when the portal is live.
-    LaunchedEffect(portalEnabled) { if (portalEnabled) vm.loadChildren() }
+    LaunchedEffect(portalEnabled, pushEnabled) {
+        if (portalEnabled) vm.loadChildren(includeDismissals = pushEnabled)
+        else vm.deactivatePortal()
+    }
+    DisposableEffect(vm) {
+        onDispose { vm.deactivatePortal() }
+    }
 
     // Dismissal pushes (flag push_notifications) need POST_NOTIFICATIONS on API 33+.
     val notifPermission = rememberLauncherForActivityResult(
@@ -127,20 +173,22 @@ fun ParentDashboardScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(12.dp))
-                    Button(onClick = { vm.loadChildren() }) { Text("Retry") }
+                    Button(onClick = { vm.loadChildren(includeDismissals = pushEnabled) }) { Text("Retry") }
                 }
                 children.isEmpty() -> CenteredMessage(
                     title = "No Children Linked",
                     body = "No students are linked to your account yet. Please contact the centre."
                 )
                 else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(pendingDismissals, key = { "dismissal-${it.id}" }) { dismissal ->
-                        SafelyHomeCard(
-                            dismissal = dismissal,
-                            childName = children.firstOrNull { it.id == dismissal.studentId }?.fullName
-                                ?: "Your child",
-                            onConfirm = { vm.markSafelyHome(dismissal.id) }
-                        )
+                    if (pushEnabled) {
+                        items(pendingDismissals, key = { "dismissal-${it.id}" }) { dismissal ->
+                            SafelyHomeCard(
+                                dismissal = dismissal,
+                                childName = children.firstOrNull { it.id == dismissal.studentId }?.fullName
+                                    ?: "Your child",
+                                onConfirm = { vm.markSafelyHome(dismissal.id) }
+                            )
+                        }
                     }
                     items(children, key = { it.id }) { child ->
                         ListItem(

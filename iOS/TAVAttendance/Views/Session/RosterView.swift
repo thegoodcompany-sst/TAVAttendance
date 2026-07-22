@@ -64,7 +64,7 @@ struct RosterView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                if featureFlags.isEnabled(.sessionNotes) {
+                if session.endedAt == nil && featureFlags.isEnabled(.sessionNotes) {
                     Button {
                         showSessionNotes = true
                     } label: {
@@ -84,7 +84,7 @@ struct RosterView: View {
                     }
                     .disabled(isSaving)
                 }
-                if !unmarkedEntries.isEmpty {
+                if session.endedAt == nil && !unmarkedEntries.isEmpty {
                     Button {
                         showMarkAbsentConfirm = true
                     } label: {
@@ -92,7 +92,10 @@ struct RosterView: View {
                     }
                     .disabled(isSaving)
                 }
-                if isEndingClass {
+                if session.endedAt != nil {
+                    Label("Ended", systemImage: "lock.fill")
+                        .foregroundStyle(.secondary)
+                } else if isEndingClass {
                     ProgressView()
                 } else {
                     Button("End Class") {
@@ -121,7 +124,7 @@ struct RosterView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Students can no longer be marked after the class ends. You can resume from the class page.")
+            Text("Students can no longer be marked after the class ends. The roster remains available for review.")
         }
         .alert("Could Not End Class", isPresented: Binding(
             get: { endClassError != nil },
@@ -141,6 +144,12 @@ struct RosterView: View {
             }
         }
         .task {
+            if let ownerUserId = currentOwnerUserId {
+                pendingStore.activateOwner(ownerUserId)
+            } else {
+                pendingStore.clear()
+                error = AppError("Your session changed. Sign in again before marking attendance.")
+            }
             await loadRoster()
         }
         .onChange(of: network.isConnected) { _, connected in
@@ -157,7 +166,10 @@ struct RosterView: View {
         List(roster) { entry in
             rosterRow(entry)
                 .listRowSeparator(.visible)
-                .onTapGesture { selectedStudent = entry }
+                .onTapGesture {
+                    guard tavClass.canManageSessions == true else { return }
+                    selectedStudent = entry
+                }
         }
         .listStyle(.plain)
         .refreshable { await refreshRoster() }
@@ -205,6 +217,7 @@ struct RosterView: View {
         let isSelected = currentStatus == status
 
         return Button {
+            guard session.endedAt == nil else { return }
             Task { await markAttendance(entry: entry, status: status) }
         } label: {
             Text(label(for: status))
@@ -226,13 +239,23 @@ struct RosterView: View {
                 )
         }
         .buttonStyle(.plain)
+        .disabled(session.endedAt != nil)
         .accessibilityLabel("Mark as \(fullLabel(for: status))")
     }
 
     // MARK: - Computed helpers
 
+    private var currentOwnerUserId: UUID? {
+        SupabaseManager.shared.client.auth.currentSession?.user.id
+    }
+
+    private var pendingForCurrentUser: [PendingAttendanceRecord] {
+        guard let ownerUserId = currentOwnerUserId else { return [] }
+        return pendingStore.allPending(ownerUserId: ownerUserId)
+    }
+
     private var hasPendingUnsynced: Bool {
-        pendingStore.allPending().contains { $0.sessionId == session.id }
+        pendingForCurrentUser.contains { $0.sessionId == session.id }
     }
 
     // PROD-03: students with no status yet (server, pending, or local override).
@@ -251,7 +274,7 @@ struct RosterView: View {
             return local
         }
         // 2. Pending store (persisted, not yet synced)
-        let pending = pendingStore.allPending()
+        let pending = pendingForCurrentUser
         if let record = pending.first(where: {
             $0.studentId == entry.studentId && $0.sessionId == session.id
         }) {
@@ -267,7 +290,7 @@ struct RosterView: View {
     }
 
     private func isPending(_ entry: RosterEntry) -> Bool {
-        pendingStore.allPending().contains {
+        pendingForCurrentUser.contains {
             $0.studentId == entry.studentId && $0.sessionId == session.id
         }
     }
@@ -316,6 +339,10 @@ struct RosterView: View {
     }
 
     private func markAttendance(entry: RosterEntry, status: AttendanceStatus) async {
+        guard let ownerUserId = currentOwnerUserId else {
+            self.error = AppError("Your session changed. Sign in again before marking attendance.")
+            return
+        }
         // Optimistic update
         localStatus[entry.studentId] = status
         localMarkedAt[entry.studentId] = Date()
@@ -331,7 +358,7 @@ struct RosterView: View {
                 // PERF-04: trust the optimistic localStatus instead of re-fetching
                 // the whole roster on every tap (a full round-trip + list rebuild for
                 // each button press). The override stays correct until the view is
-                // reloaded via pull-to-refresh or reopen.
+                // reloaded via pull-to-refresh or a later read-only review.
             } catch {
                 // Only a transport failure (network dropped mid-request) should fall
                 // through to the offline pending store. A hard rejection — RLS denial,
@@ -339,12 +366,7 @@ struct RosterView: View {
                 // "pending" and re-sends it forever. Surface those as an error and drop
                 // the optimistic override so the row reverts to server truth.
                 if error is URLError {
-                    pendingStore.add(
-                        sessionId: session.id,
-                        studentId: entry.studentId,
-                        status: status,
-                        notes: nil
-                    )
+                    queuePending(ownerUserId: ownerUserId, entry: entry, status: status)
                 } else {
                     localStatus.removeValue(forKey: entry.studentId)
                     localMarkedAt.removeValue(forKey: entry.studentId)
@@ -352,17 +374,39 @@ struct RosterView: View {
                 }
             }
         } else {
-            pendingStore.add(
-                sessionId: session.id,
-                studentId: entry.studentId,
-                status: status,
-                notes: nil
+            queuePending(ownerUserId: ownerUserId, entry: entry, status: status)
+        }
+    }
+
+    private func queuePending(
+        ownerUserId: UUID,
+        entry: RosterEntry,
+        status: AttendanceStatus
+    ) {
+        let queued = currentOwnerUserId == ownerUserId && pendingStore.add(
+            ownerUserId: ownerUserId,
+            sessionId: session.id,
+            studentId: entry.studentId,
+            status: status,
+            notes: nil
+        )
+        guard queued else {
+            localStatus.removeValue(forKey: entry.studentId)
+            localMarkedAt.removeValue(forKey: entry.studentId)
+            self.error = AppError(
+                "Attendance was not queued because the signed-in account changed. Please retry."
             )
+            return
         }
     }
 
     private func syncPending() async {
-        let unsynced = pendingStore.allPending().filter { $0.sessionId == session.id }
+        guard let ownerUserId = currentOwnerUserId else {
+            pendingStore.clear()
+            return
+        }
+        let unsynced = pendingStore.allPending(ownerUserId: ownerUserId)
+            .filter { $0.sessionId == session.id }
         guard !unsynced.isEmpty else { return }
         isSaving = true
         defer { isSaving = false }
@@ -380,7 +424,10 @@ struct RosterView: View {
                 "pending_before": .integer(pendingBefore),
                 "duration_ms": Analytics.ms(since: started),
             ])
-            pendingStore.markSynced(clientMutationIds: Set(unsynced.map(\.clientMutationId)))
+            pendingStore.markSynced(
+                ownerUserId: ownerUserId,
+                clientMutationIds: Set(unsynced.map(\.clientMutationId))
+            )
             roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             for record in unsynced {
                 localStatus.removeValue(forKey: record.studentId)

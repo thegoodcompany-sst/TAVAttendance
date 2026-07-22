@@ -35,8 +35,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const userName = profile.full_name ?? 'Admin'
-  const superadmin = isSuperadmin(user)
-  const [showAwards, showHealth] = await Promise.all([
+  const [superadmin, showAwards, showHealth] = await Promise.all([
+    isSuperadmin(supabase),
     isFeatureEnabled('awards'),
     isFeatureEnabled('analytics'),
   ])

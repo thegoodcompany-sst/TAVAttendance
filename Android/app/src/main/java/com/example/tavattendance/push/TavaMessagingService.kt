@@ -1,5 +1,6 @@
 package com.example.tavattendance.push
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -27,17 +28,23 @@ class TavaMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
-        val title = message.notification?.title ?: "TAVA Attendance"
-        val body = message.notification?.body ?: return
+        // Never render server-supplied text on the lock screen. Notification payloads can
+        // contain personal attendance data if a sender is misconfigured or compromised.
+        val title = NOTIFICATION_TITLE
+        val body = NOTIFICATION_BODY
 
         if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
         ) return
 
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "Attendance alerts", NotificationManager.IMPORTANCE_HIGH)
-        )
+        manager.createNotificationChannel(NotificationChannel(
+            CHANNEL_ID,
+            "Attendance alerts",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+        })
 
         val tapIntent = PendingIntent.getActivity(
             this, 0,
@@ -45,11 +52,20 @@ class TavaMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val publicVersion = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(NOTIFICATION_TITLE)
+            .setContentText(PUBLIC_NOTIFICATION_BODY)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
+
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
             .setAutoCancel(true)
             .setContentIntent(tapIntent)
             .build()
@@ -60,5 +76,8 @@ class TavaMessagingService : FirebaseMessagingService() {
 
     private companion object {
         const val CHANNEL_ID = "attendance_alerts"
+        const val NOTIFICATION_TITLE = "TAVA Attendance"
+        const val NOTIFICATION_BODY = "You have a new attendance update."
+        const val PUBLIC_NOTIFICATION_BODY = "Open TAVA Attendance to view this update."
     }
 }

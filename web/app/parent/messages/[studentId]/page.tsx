@@ -1,11 +1,19 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+import { getParentChild } from '@/lib/parent-queries'
 import { createClient } from '@/lib/supabase/server'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { MessageComposer } from '@/components/message-composer'
 import { sendParentMessage } from '@/app/actions/parent-portal'
 
 export const dynamic = 'force-dynamic'
+
+type ParentMessageRow = {
+  id: string
+  subject: string | null
+  body: string
+  is_from_parent: boolean
+}
 
 export default async function ParentMessagesPage({
   params,
@@ -16,30 +24,23 @@ export default async function ParentMessagesPage({
 
   const { studentId } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: student } = await supabase
-    .from('students')
-    .select('full_name')
-    .eq('id', studentId)
-    .maybeSingle()
+  const student = await getParentChild(studentId)
+  if (!student) notFound()
 
   const { data: messages } = await supabase
-    .from('messages')
-    .select('id, sender_id, subject, body, sent_at')
-    .eq('student_id', studentId)
-    .order('sent_at', { ascending: true })
+    .rpc('get_parent_messages', { p_student_id: studentId })
+  const messageRows = (messages ?? []) as ParentMessageRow[]
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Messages" subtitle={student?.full_name ?? undefined} />
+      <PageHeader title="Messages" subtitle={student.fullName} />
 
       <div className="bg-white rounded-3xl p-5 shadow-sm space-y-3">
-        {(messages ?? []).length === 0 ? (
+        {messageRows.length === 0 ? (
           <p className="text-sm text-muted-foreground">No messages yet. Start the conversation below.</p>
         ) : (
-          (messages ?? []).map(m => {
-            const mine = m.sender_id === user?.id
+          messageRows.map(m => {
+            const mine = m.is_from_parent
             return (
               <div key={m.id} className={mine ? 'flex justify-end' : 'flex justify-start'}>
                 <div

@@ -1,17 +1,16 @@
-// Server-only gate for the feature-flags admin section. Enforcement is
-// app-layer only (see docs/superpowers/specs/2026-06-25-superadmin-feature-flags-design.md):
-// the DB RLS write policy stays at is_admin(). Imported only by server
-// components and server actions — never by a client component.
-
 import 'server-only'
 
-const DEFAULT_SUPERADMIN_EMAIL = 'edmund@thegoodcompanysg.dev'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-function getSuperadminEmail(): string {
-  return (process.env.SUPERADMIN_EMAIL ?? DEFAULT_SUPERADMIN_EMAIL).trim().toLowerCase()
-}
+type RpcClient = Pick<SupabaseClient, 'rpc'>
 
-export function isSuperadmin(user: { email?: string | null } | null): boolean {
-  const email = user?.email?.trim().toLowerCase()
-  return !!email && email === getSuperadminEmail()
+/**
+ * Checks the single database-managed privileged principal installed by
+ * migration 038. Keeping identity and role checks in PostgreSQL prevents an
+ * application environment variable from drifting away from destructive RPC
+ * authorization.
+ */
+export async function isSuperadmin(supabase: RpcClient): Promise<boolean> {
+  const { data, error } = await supabase.rpc('is_superadmin')
+  return !error && data === true
 }

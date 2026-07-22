@@ -8,6 +8,7 @@ struct CheckStudentStatusIntent: AppIntent {
         "Tells you whether a student has signed in today and their current status.")
 
     static var openAppWhenRun: Bool = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Student")
     var student: StudentEntity

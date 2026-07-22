@@ -163,6 +163,8 @@ struct TAVClass: Codable, Identifiable {
     let scheduleTime: String?   // "19:00:00" — parse with DateFormatter
     let durationMinutes: Int
     let isActive: Bool
+    let canManageSessions: Bool
+    let canOperateTodaySession: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, name, subject, level
@@ -170,6 +172,8 @@ struct TAVClass: Codable, Identifiable {
         case scheduleTime     = "schedule_time"
         case durationMinutes  = "duration_minutes"
         case isActive         = "is_active"
+        case canManageSessions = "can_manage_sessions"
+        case canOperateTodaySession = "can_operate_today_session"
     }
 }
 
@@ -251,21 +255,26 @@ struct RosterEntry: Codable, Identifiable {
 
 ## 4. Core Queries
 
-All queries are automatically scoped by RLS — a tutor only receives their own classes; a parent only receives their children's data.
+Base-table RLS remains defense in depth, but security-sensitive discovery and
+writes use shaped RPCs. A recent substitute can see an explicitly covered past
+session without receiving authority over today's class.
 
 ### 4.1 Fetch Active Classes (Tutor / Admin)
 
 ```swift
 func fetchMyClasses() async throws -> [TAVClass] {
     return try await SupabaseManager.shared.client
-        .from("classes")
-        .select()
-        .eq("is_active", value: true)
-        .order("name")
+        .rpc("get_my_classes")
         .execute()
         .value
 }
 ```
+
+`can_manage_sessions` is true only for an admin/current assigned tutor.
+`can_operate_today_session` also permits a substitute explicitly assigned to
+today's existing session. Hide creation/edit/analytics controls when the
+corresponding capability is false; do not infer write authority from class
+visibility.
 
 ### 4.2 Fetch Sessions for a Class
 
@@ -283,42 +292,45 @@ func fetchSessions(for classId: UUID) async throws -> [Session] {
 
 ### 4.3 Create or Fetch Today's Session
 
-The tutor taps "Start Class" → the app ensures a session row exists for today.
+The database derives the Singapore civil date, authorizes the caller, and
+atomically returns or creates the row. Clients must not insert sessions or
+submit lifecycle timestamps directly.
 
 ```swift
-func getOrCreateSession(classId: UUID, date: String) async throws -> Session {
-    // Try to find existing
-    let existing: [Session] = try await SupabaseManager.shared.client
-        .from("sessions")
-        .select()
-        .eq("class_id", value: classId)
-        .eq("session_date", value: date)
-        .execute()
-        .value
-
-    if let session = existing.first { return session }
-
-    // Create if it doesn't exist
-    let new = Session(
-        id: UUID(),
-        classId: classId,
-        sessionDate: date,
-        topic: nil,
-        notes: nil
-    )
+func getOrCreateTodaySession(classId: UUID) async throws -> Session {
     return try await SupabaseManager.shared.client
-        .from("sessions")
-        .insert(new)
-        .select()
-        .single()
+        .rpc("get_or_create_today_session", params: [
+            "p_class_id": classId.uuidString
+        ])
         .execute()
         .value
 }
 ```
 
-### 4.4 Fetch Session Roster (Students + Current Status)
+### 4.4 Start, End, and Note Updates
 
-Uses the `get_session_roster` database function.
+```swift
+try await client.rpc("set_session_lifecycle", params: [
+    "p_session_id": session.id.uuidString,
+    "p_action": "start" // or "end"
+]).execute()
+
+try await client.rpc("update_session_note", params: [
+    "p_session_id": session.id.uuidString,
+    "p_notes": notes
+]).execute()
+```
+
+Lifecycle timestamps use the server clock. Ended sessions cannot be reopened;
+historical/current read-only screens must not show today's mark/end/note-save
+controls. Session notes are limited to 4,000 characters, reject NRIC/FIN-like
+values, and require the feature flag plus this dedicated RPC.
+
+### 4.5 Fetch Session Roster (Students + Current Status)
+
+Uses the `get_session_roster` database function. It authorizes the current
+owner/admin or an explicitly covered substitute and returns the historical
+enrollment-bounded roster shape.
 
 ```swift
 func fetchRoster(sessionId: UUID) async throws -> [RosterEntry] {
@@ -329,7 +341,7 @@ func fetchRoster(sessionId: UUID) async throws -> [RosterEntry] {
 }
 ```
 
-### 4.5 Create a Student with Consent
+### 4.6 Create a Student with Consent
 
 Student creation must use `create_student_with_consent`; direct authenticated
 inserts into `students` are denied. The admin-guarded RPC creates the student
@@ -419,7 +431,7 @@ func markAttendance(
 ```
 TutorHomeView
   └─ ClassListView          [fetchMyClasses()]
-       └─ SessionView        [getOrCreateSession(), fetchRoster()]
+       └─ SessionView        [getOrCreateTodaySession(), fetchRoster()]
             └─ RosterRow    [markAttendance() or queue locally]
 ```
 
@@ -433,15 +445,25 @@ Each `RosterRow` shows the student's name and four status buttons (P / A / L / E
 
 The app must work without internet. The strategy:
 
-1. **Before class** — download and cache the class roster and today's session to `UserDefaults` or CoreData.
-2. **During class** — mark attendance locally. Each pending record has `isSynced = false`.
-3. **On reconnect** — call the `sync_attendance` Postgres function with all unsynced records.
+1. **Before class** — download and cache the class roster and today's session in
+   app-private storage.
+2. **During class** — mark attendance locally. Every queue envelope and record is
+   bound to the current authenticated user.
+3. **On reconnect** — recheck that all records still belong to the current user,
+   then call `sync_attendance` with at most 500 unsynced records. Purge
+   legacy/corrupt/mixed/foreign-owner queues and clear synchronously on sign-out.
+
+The current native v2 stores are account-bound but still JSON protected by the
+OS sandbox/device encryption. App-level Keychain/Keystore authenticated
+encryption is the remaining at-rest hardening item; do not use an unscoped
+`UserDefaults`/`SharedPreferences` queue.
 
 ### 6.2 Local Cache Model
 
 ```swift
-// PendingAttendance.swift — stored in UserDefaults or CoreData
+// PendingAttendance.swift — inside a versioned, account-owned envelope
 struct PendingAttendanceRecord: Codable {
+    let ownerUserId: UUID
     let sessionId: UUID
     let studentId: UUID
     var status: AttendanceStatus
@@ -456,6 +478,7 @@ struct PendingAttendanceRecord: Codable {
 
 ```swift
 func queueAttendanceLocally(
+    ownerUserId: UUID,
     sessionId: UUID,
     studentId: UUID,
     status: AttendanceStatus
@@ -469,6 +492,7 @@ func queueAttendanceLocally(
         pending[i].isSynced = false
     } else {
         pending.append(PendingAttendanceRecord(
+            ownerUserId:       ownerUserId,
             sessionId:         sessionId,
             studentId:         studentId,
             status:            status,
@@ -489,6 +513,10 @@ Call this when `NWPathMonitor` reports connectivity restored:
 ```swift
 func syncPendingAttendance() async throws {
     var pending = loadPendingFromDisk()
+    guard pending.allSatisfy({ $0.ownerUserId == currentUser.id }) else {
+        purgePendingFromDisk() // fail closed; never replay across accounts
+        throw QueueError.ownerMismatch
+    }
     let unsynced = pending.filter { !$0.isSynced }
     guard !unsynced.isEmpty else { return }
 
@@ -499,8 +527,7 @@ func syncPendingAttendance() async throws {
             "student_id":          r.studentId.uuidString,
             "status":              r.status.rawValue,
             "notes":               r.notes ?? "",
-            "client_mutation_id":  r.clientMutationId,
-            "marked_at":           ISO8601DateFormatter().string(from: r.markedAt)
+            "client_mutation_id":  r.clientMutationId
         ]
     }
 
@@ -549,7 +576,12 @@ In your `SessionView`:
 if network.isConnected {
     try await markAttendance(sessionId: session.id, studentId: student.id, status: status)
 } else {
-    queueAttendanceLocally(sessionId: session.id, studentId: student.id, status: status)
+    queueAttendanceLocally(
+        ownerUserId: currentUser.id,
+        sessionId: session.id,
+        studentId: student.id,
+        status: status
+    )
 }
 
 // On each appearance when connected:
@@ -560,7 +592,13 @@ if network.isConnected {
 
 ### 6.6 Conflict Resolution
 
-If a student's attendance was marked on two devices while offline (e.g. two tutors), the server applies **last-write-wins**: whichever `marked_at` timestamp is later wins. The `client_mutation_id` guarantees a retry from the same device never creates duplicates.
+Device clocks are not trusted. Distinct accepted mutations apply in server
+arrival order and receive a server timestamp. The current mutation ID plus an
+RLS-hidden, append-only receipt ledger make both immediate and delayed retries
+idempotent even after a newer correction replaced the row. Reusing an ID for a
+different student/session/actor is a hard `23505` collision rather than a silent
+skip; ended-session writes are counted separately in
+`blocked_ended_session`.
 
 ---
 
@@ -705,15 +743,19 @@ attendance_records id, session_id, student_id, status, client_mutation_id
 audit_log          table_name, record_id, action, old_data, new_data, changed_at
 ```
 
-Phase 2 tables (schema exists, not yet wired): `result_slips`, `messages`, `awards`
-Phase 3 tables (schema exists, not yet wired): `dismissals`, `food_polls`, `food_poll_responses`
+Phase 2: `result_slips` and `messages` are live through shaped parent RPCs;
+`awards` remains admin-only and feature-flagged. Phase 3: `dismissals` is live
+through a shaped parent RPC; `food_polls` and `food_poll_responses` remain dormant.
 
 ## Retrospective sessions (migration 037; flag `retrospective_sessions`)
 
 Past-session management is server-gated and available only to admins and tutors
-assigned to the session's class. All functions reject Study Space and dates on or
-after today. Historical attendance is online-only and server-timestamped; clients
-must not send these writes through `sync_attendance` or the offline pending queue.
+assigned to the session's class. A recent substitute may use the ordinary
+read-only `get_session_roster` projection for their covered session, but cannot
+invoke retrospective create/edit/report controls. All functions reject Study
+Space and dates on or after Singapore today. Historical attendance is online-only
+and server-timestamped; clients must not send these writes through
+`sync_attendance` or the offline pending queue.
 
 | RPC | Purpose |
 |---|---|
@@ -722,7 +764,16 @@ must not send these writes through `sync_attendance` or the offline pending queu
 | `get_retrospective_session_roster(session_id)` | Enrollment-on-date roster unioned with attendance-only students. |
 | `mark_retrospective_attendance(session_id, student_id, status)` | Upsert attendance on an ended past session using the server clock. |
 
-The notes argument additionally requires the `session_notes` flag. Adding a
-student through attendance never inserts or updates an `enrollments` row. Admins
-may add any active student; tutors are limited to students visible under the
-existing student policy.
+The notes argument additionally requires the `session_notes` flag. Every caller,
+including an admin, may mark only a student whose enrollment covered that
+historical class date; the RPC never inserts or updates an `enrollments` row.
+
+## Bounded ingestion RPCs (migration 038)
+
+| RPC | Caller/limit |
+|---|---|
+| `submit_app_events(events jsonb)` | authenticated staff; max 100 events/128 KiB per call and 1,000/hour/user; role, actor, and time are server-derived |
+| `register_device_token(p_token text, p_platform text)` | parent only while push is enabled; native platforms only, five newest tokens per parent |
+| `record_admin_consent(...)` | admin-only append path; direct consent-ledger writes are denied |
+| `review_correction_request(...)` | admin-only locked one-time decision |
+| `consume_invite_rate_limit(p_actor_id uuid)` | service-only atomic invite quota used by the trusted web action |

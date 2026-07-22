@@ -75,6 +75,10 @@ struct TAVClass: Codable, Identifiable {
     // Migration 015: the internal Study Space (drop-in) class. Optional for decode
     // safety against prod schema drift; treat nil as false.
     let isStudySpace: Bool?
+    // Shaped by get_my_classes. Recent substitute history can remain visible
+    // even when the caller has no authority over today's session.
+    let canManageSessions: Bool?
+    let canOperateTodaySession: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, name, subject, level
@@ -85,6 +89,8 @@ struct TAVClass: Codable, Identifiable {
         case recurrenceRule     = "recurrence_rule"
         case recurrenceEndDate  = "recurrence_end_date"
         case isStudySpace       = "is_study_space"
+        case canManageSessions  = "can_manage_sessions"
+        case canOperateTodaySession = "can_operate_today_session"
     }
 }
 
@@ -288,7 +294,8 @@ struct KioskEntry: Identifiable {
 
 struct Dismissal: Codable, Identifiable {
     let id: UUID
-    let sessionId: UUID
+    // Parent-safe RPC rows intentionally omit the staff-only session identifier.
+    let sessionId: UUID?
     let studentId: UUID
     let dismissedAt: Date?
     let dismissedBy: UUID?
@@ -405,6 +412,7 @@ struct ParentMessage: Codable, Identifiable {
     let body: String
     let sentAt: Date?
     let readAt: Date?
+    let parentOrigin: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id, subject, body
@@ -413,10 +421,11 @@ struct ParentMessage: Codable, Identifiable {
         case studentId   = "student_id"
         case sentAt      = "sent_at"
         case readAt      = "read_at"
+        case parentOrigin = "is_from_parent"
     }
 
-    /// Parent-originated when recipient is null (centre is the implicit recipient).
-    var isFromParent: Bool { recipientId == nil }
+    /// Safe parent RPCs provide this explicitly; full staff rows fall back to direction.
+    var isFromParent: Bool { parentOrigin ?? (recipientId == nil) }
 }
 
 // MARK: - PDPA: policy documents (privacy notice)

@@ -38,7 +38,6 @@ struct StudentProfileView: View {
     private var canUploadSlips: Bool {
         isParentMode
             || authManager.currentProfile?.role == "admin"
-            || authManager.currentProfile?.role == "tutor"
     }
 
     private var sinceDate: Date {
@@ -89,9 +88,13 @@ struct StudentProfileView: View {
             }
         }
         .task {
-            async let historyFetch: Void = loadHistory()
-            async let slipsFetch: Void = loadSlips()
-            _ = await (historyFetch, slipsFetch)
+            if canUploadSlips {
+                async let historyFetch: Void = loadHistory()
+                async let slipsFetch: Void = loadSlips()
+                _ = await (historyFetch, slipsFetch)
+            } else {
+                await loadHistory()
+            }
         }
     }
 
@@ -113,15 +116,7 @@ struct StudentProfileView: View {
             case .results:
                 resultsContent
             case .messages:
-                if let userId = authManager.currentProfile?.id {
-                    ParentMessagesView(studentId: studentId, currentUserId: userId)
-                } else {
-                    ContentUnavailableView(
-                        "Not Signed In",
-                        systemImage: "person.crop.circle.badge.exclamationmark",
-                        description: Text("Sign in again to message TAVA.")
-                    )
-                }
+                ParentMessagesView(studentId: studentId)
             }
         }
     }
@@ -129,7 +124,7 @@ struct StudentProfileView: View {
     // MARK: - Staff (single list: attendance + slips)
 
     private var staffBody: some View {
-        attendanceContent(includeResultsSection: true)
+        attendanceContent(includeResultsSection: canUploadSlips)
     }
 
     // MARK: - Attendance
@@ -363,8 +358,13 @@ struct StudentProfileView: View {
         isLoadingHistory = true
         historyError = nil
         do {
-            history = try await AttendanceService.shared.fetchStudentAttendanceHistory(
-                studentId: studentId, limit: 100, since: sinceDate)
+            if isParentMode {
+                history = try await AttendanceService.shared.fetchParentAttendanceHistory(
+                    studentId: studentId, limit: 100, since: sinceDate)
+            } else {
+                history = try await AttendanceService.shared.fetchStudentAttendanceHistory(
+                    studentId: studentId, limit: 100, since: sinceDate)
+            }
         } catch {
             historyError = AppError(
                 String(localized: "Couldn't load attendance. Check your connection and try again."),
@@ -376,7 +376,11 @@ struct StudentProfileView: View {
 
     private func loadSlips() async {
         do {
-            slips = try await AttendanceService.shared.fetchResultSlips(studentId: studentId)
+            if isParentMode {
+                slips = try await AttendanceService.shared.fetchResultSlips(studentId: studentId)
+            } else {
+                slips = try await AttendanceService.shared.fetchStaffResultSlips(studentId: studentId)
+            }
             slipsError = nil
         } catch {
             slipsError = AppError(

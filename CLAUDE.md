@@ -25,8 +25,10 @@ deploying app code that references it. Verify prod state with queries, never by 
 ## Architecture decisions worth knowing
 
 ### The kiosk iPad must be signed in as an admin account
-`fetchKioskEntries` calls `fetchMyClasses()` which issues `SELECT * FROM classes WHERE is_active = TRUE`.  
-The RLS policy for tutors filters to `tutor_owns_class(classes.id)` — so a tutor-logged-in iPad would only see their own assigned classes, making the global kiosk useless.  
+`fetchKioskEntries` calls the shaped `get_my_classes()` RPC. Its explicit
+`can_operate_today_session` capability filters out recent read-only substitute
+history; a tutor login still sees only currently owned/today-covered classes,
+so it cannot power the centre-wide kiosk.
 **Operational rule: the kiosk iPad (Sign In tab) should always be logged into an admin account.**
 
 ### `schedule_time` is a Postgres `TIME` column, not TEXT
@@ -39,14 +41,31 @@ PostgREST resolves this via the FK chain: `attendance_records.session_id → ses
 If either FK is ever renamed or the column renamed, update the select string in `AttendanceService.fetchStudentAttendanceHistory` to match.
 
 ### `fetchKioskEntries` creates sessions as a side effect (day-aware as of migration 015)
-Every time the kiosk tab loads, `getOrCreateSession` is called for every active class **scheduled for today**, so today's session rows exist in Postgres from the moment the kiosk is opened, even if no one has attended yet. This is intentional (so the roster is ready before class starts) but be aware when querying session counts.
+Every time the kiosk tab loads, `get_or_create_today_session` is called for every authorized class **scheduled for today**, so today's session rows exist in Postgres from the moment the kiosk is opened, even if no one has attended yet. The RPC derives Singapore today and handles the create race; clients never insert sessions directly. This is intentional (so the roster is ready before class starts) but be aware when querying session counts.
 As of migration 015 the kiosk filters classes to today via `AttendanceService.classMeetsToday` (iOS): a class matches when its `recurrence_rule` BYDAY contains today's 2-letter code, **or** its `schedule_day` equals today's English weekday, **or** it has neither set (ad-hoc → always shown). TAVA tuition is Mon (Math) + Thu (English/Reading), so opening the kiosk on any other day shows "No Classes Today" rather than creating phantom sessions. `fetchMyClasses` also excludes the Study Space class (`is_study_space = TRUE`).
 
 ### Offline sync idempotency
-`PendingAttendanceStore` persists pending records in UserDefaults. The `sync_attendance` Postgres function uses `ON CONFLICT ... WHERE marked_at <= EXCLUDED.marked_at` — a more recent server record will NOT be overwritten by an older offline record. Device clock accuracy matters; if a device's clock is badly wrong, sync may silently skip its records. As of migration 013 the function returns `{synced, skipped, blocked_ended_session}` — `blocked_ended_session` counts records rejected because their session had already ended (distinct from `skipped`, which means a newer server record won), and a second `ON CONFLICT (client_mutation_id) DO NOTHING` path prevents an unhandled unique-violation.
+Migration 038 does not trust device clocks: distinct mutations apply in server
+arrival order and receive a server timestamp. The current mutation ID plus the
+RLS-hidden `attendance_mutation_receipts` ledger make delayed retries idempotent
+after a newer correction; cross-row/cross-actor ID reuse raises `23505`. Native
+v2 queues bind the envelope and every row to the authenticated user, purge
+legacy/corrupt/foreign-owner data, clear on sign-out, and recheck ownership just
+before sync. They still rely on OS sandbox/device encryption rather than an
+app-level Keychain/Keystore encryption key.
+
+### Session lifecycle and substitute capabilities
+Migration 038 makes session creation, start/end, and notes RPC-only for
+authenticated clients: `get_or_create_today_session`, `set_session_lifecycle`,
+and `update_session_note`. The database derives Singapore today/server time;
+ended sessions cannot reopen. `get_my_classes` can retain a recent covered
+class for offline/history review, so clients must consume its separate
+`can_manage_sessions` and `can_operate_today_session` fields. Class visibility
+alone never authorizes today's controls, retrospective editing, or class-wide
+analytics. Kiosk preparation must filter `can_operate_today_session` first.
 
 ### Feature flags
-The `feature_flags` table (migration 012) gates in-progress features; flags ship OFF. Read it via `FeatureFlagStore` (iOS, `Services/FeatureFlags.swift`), `FeatureFlags` (Android), or `getFeatureFlags()` (web, `lib/feature-flags.ts`). Current keys: `parent_portal` (PROD-01), `push_notifications` (PROD-02), `student_photos` (PROD-04), `study_space_tracking` (migration 015 — see below), `test_mode` (migration 020 — kiosk shows all classes regardless of weekday, web analytics shows all days; seeded ON only for demo day 2026-07-11, normally OFF — see below), `session_notes` (migration 026 — tutor free-text note on today's session: iOS/Android roster + web session detail), `qr_sign_in` (migration 026 — kiosk camera QR scanner reusing the tap-to-sign path; web prints per-student QR codes, payload = student UUID), `awards` (migration 026 — admin web page computing candidates from `attendance_summary` and recording rows in `awards`), `analytics` (migrations 031–033 — Supabase-native staff events, Activity feed, and Health dashboard; all clients capture only while ON; raw events purge after 90 days), `retrospective_sessions` (migration 037 — iOS/Android past-session creation/editing plus guarded historical roster/attendance RPCs; applied to prod 2026-07-21 and OFF until physical-device QA). Flipping a flag is admin-only (RLS); the web toggle UI (`web/app/(admin)/feature-flags/`) is superadmin-only and renders every row generically, so seeding a new flag row makes its toggle appear automatically. The parent portal needs no new RLS — parent read policies for `students`/`attendance_records` already exist in `002_rls.sql`.
+The `feature_flags` table (migration 012) gates in-progress features; flags ship OFF. Read it via `FeatureFlagStore` (iOS, `Services/FeatureFlags.swift`), `FeatureFlags` (Android), or `getFeatureFlags()` (web, `lib/feature-flags.ts`). Current keys: `parent_portal` (PROD-01), `push_notifications` (PROD-02), `student_photos` (PROD-04), `study_space_tracking` (migration 015 — see below), `test_mode` (migration 020 — kiosk shows all classes regardless of weekday, web analytics shows all days; seeded ON only for demo day 2026-07-11, normally OFF — see below), `session_notes` (migration 026 — tutor free-text note on today's session: iOS/Android roster + web session detail), `qr_sign_in` (migration 026 — kiosk camera QR scanner reusing the tap-to-sign path; web prints per-student QR codes, payload = student UUID), `awards` (migration 026 — admin web page computing candidates from `attendance_summary` and recording rows in `awards`), `analytics` (migrations 031–033 — Supabase-native staff events, Activity feed, and Health dashboard; all clients capture only while ON; raw events purge after 90 days), `retrospective_sessions` (migration 037 — iOS/Android past-session creation/editing plus guarded historical roster/attendance RPCs; applied to prod 2026-07-21 and OFF until physical-device QA). Flipping a flag is admin-only (RLS); the web toggle UI (`web/app/(admin)/feature-flags/`) is superadmin-only. Migration 038 removes parent base-table access: clients must use the shaped `get_parent_*` / parent-write RPCs, and result files use server-minted upload/download tokens.
 
 ### Study Space tracking (`study_space_tracking`, migration 015) — INTERNAL ONLY
 TAVA also runs an open drop-in study space (Mon–Fri 12–6pm) separate from tuition. This feature lets staff record who is in that room. It is modelled as a **single flagged class** (`classes.is_study_space = TRUE`, fixed UUID `57000000-0000-0000-0000-000000000001`) so it reuses the sessions/attendance_records/offline stack. Roster = **all active students** (not enrollment-based, via the `get_study_space_roster` RPC). Status is **Present / Not Here (`excused`) only** — no late/absent, no auto-late. Marked on the **iPad kiosk** (`StudySpaceView`, reached from the kiosk header when the flag is on); no web marking UI.
@@ -103,16 +122,16 @@ When a student is enrolled in more than one class today, `KioskEntry.status` is 
 
 ---
 
-## Phase 2/3 tables (created, not yet implemented)
+## Phase 2/3 tables
 
 These tables exist in Postgres and have RLS enabled (admin-only until implemented):
 
 | Table | Purpose | Status |
 |---|---|---|
-| `result_slips` | Exam score slips uploaded by parents | Schema only |
-| `messages` | Centre ↔ parent direct messages | Schema only |
-| `awards` | Attendance/punctuality awards | Schema only |
-| `dismissals` | Student pick-up & "safely home" tracking | Kiosk marking LIVE (purple card, admin long-press); "safely home" confirmation not built |
+| `result_slips` | Exam score slips uploaded by parents | Live behind `parent_portal`; shaped RPCs + signed file workflow |
+| `messages` | Centre ↔ parent direct messages | Live behind `parent_portal`; shaped parent RPCs |
+| `awards` | Attendance/punctuality awards | Admin-only behind `awards` |
+| `dismissals` | Student pick-up & "safely home" tracking | Live; parent projection/action also requires `push_notifications` |
 | `food_polls` | Event food ordering by centre | Schema only |
 | `food_poll_responses` | Student/parent responses | Schema only |
 
@@ -267,9 +286,10 @@ renaming would mean a whole new app record). Use the `asc` CLI (authenticated) f
   the ASC dashboard shows a placeholder until a build is attached to a version / first submission.
 - **Release staging (2026-07-13)**: version 1.0 has metadata, age rating (`--all-none`),
   free pricing (base `SGP`), build 3 attached, `--release-type MANUAL`, and review details with
-  demo account `apple-testing@example.com` / `apple-review-tester` — a real **admin** user in prod
-  Supabase (created via the Auth admin API; `handle_new_user` ignores the role metadata and
-  defaults to `parent`, so the profiles row was updated to `admin` manually).
+  a dedicated **admin** demo account in production Supabase. Keep its identifier and password
+  only in App Store Connect and the team password manager. A former plaintext password remains
+  in 63 reachable Git revisions, so rotate/disable the account before release,
+  update App Review credentials, and complete reviewed history cleanup.
 - **Remaining blockers** are human steps (HUMANS.md §44/§45): availability + App Privacy labels
   (need `asc web auth login` interactive 2FA or the ASC dashboard), screenshots (no real student
   names — PDPA), then the unlisted-distribution request form.

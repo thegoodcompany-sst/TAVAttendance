@@ -2,7 +2,19 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { uploadResultSlip } from '@/app/actions/parent-portal'
+import {
+  finalizeResultSlipUpload,
+  prepareResultSlipUpload,
+} from '@/app/actions/parent-portal'
+import { createClient } from '@/lib/supabase/client'
+
+const ALLOWED_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+const MAX_BYTES = 10 * 1024 * 1024
+
+function optionalNumber(formData: FormData, name: string): number | null {
+  const raw = String(formData.get(name) ?? '').trim()
+  return raw ? Number(raw) : null
+}
 
 export function UploadForm({ studentId }: { studentId: string }) {
   const router = useRouter()
@@ -14,8 +26,52 @@ export function UploadForm({ studentId }: { studentId: string }) {
     e.preventDefault()
     setError(null)
     const formData = new FormData(e.currentTarget)
+    const file = formData.get('file')
     startTransition(async () => {
-      const { error } = await uploadResultSlip(studentId, formData)
+      if (!(file instanceof File) || file.size === 0) {
+        setError('A file is required.')
+        return
+      }
+      if (!ALLOWED_TYPES.has(file.type)) {
+        setError('File must be a PDF, JPG, or PNG.')
+        return
+      }
+      if (file.size > MAX_BYTES) {
+        setError('File must be under 10MB.')
+        return
+      }
+
+      const prepared = await prepareResultSlipUpload(
+        studentId,
+        file.name,
+        file.type,
+        file.size,
+      )
+      if (prepared.error || !prepared.path || !prepared.token) {
+        setError(prepared.error ?? 'Could not prepare the upload.')
+        return
+      }
+
+      const supabase = createClient()
+      const { error: uploadError } = await supabase.storage
+        .from('result-slips')
+        .uploadToSignedUrl(prepared.path, prepared.token, file, {
+          contentType: file.type,
+        })
+      if (uploadError) {
+        setError('Could not upload the file. Please try again.')
+        return
+      }
+
+      const { error } = await finalizeResultSlipUpload(studentId, {
+        path: prepared.path,
+        fileType: file.type,
+        fileSize: file.size,
+        examName: String(formData.get('exam_name') ?? ''),
+        subject: String(formData.get('subject') ?? '') || null,
+        score: optionalNumber(formData, 'score'),
+        maxScore: optionalNumber(formData, 'max_score'),
+      })
       if (error) setError(error)
       else {
         formRef.current?.reset()

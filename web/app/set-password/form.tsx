@@ -16,6 +16,16 @@ const ROLE_META: Record<string, { label: string; Icon: React.ElementType; color:
   parent: { label: 'Parent', Icon: Users,        color: 'text-sky-700 bg-sky-50' },
 }
 
+const PASSWORD_MIN_LENGTH = 12
+
+function passwordMeetsPolicy(password: string) {
+  return password.length >= PASSWORD_MIN_LENGTH
+    && /[a-z]/.test(password)
+    && /[A-Z]/.test(password)
+    && /\d/.test(password)
+    && /[\u0021-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u007E]/.test(password)
+}
+
 export function SetPasswordForm() {
   const router = useRouter()
 
@@ -56,8 +66,8 @@ export function SetPasswordForm() {
     e.preventDefault()
     setError(null)
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+    if (!passwordMeetsPolicy(password)) {
+      setError('Password must be at least 12 characters and include uppercase, lowercase, a number, and a symbol.')
       return
     }
     if (password !== confirm) {
@@ -194,12 +204,14 @@ export function SetPasswordForm() {
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     required
+                    minLength={PASSWORD_MIN_LENGTH}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     className="w-full rounded-lg border border-input bg-white px-3 py-2.5 pr-10 text-sm shadow-xs focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 transition-shadow"
-                    placeholder="At least 8 characters"
+                    placeholder="12+ characters"
                     autoComplete="new-password"
                     autoFocus
+                    aria-describedby="password-requirements"
                   />
                   <button
                     type="button"
@@ -210,6 +222,9 @@ export function SetPasswordForm() {
                     {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
+                <p id="password-requirements" className="text-xs text-muted-foreground">
+                  Use at least 12 characters with uppercase, lowercase, a number, and a symbol.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -239,7 +254,7 @@ export function SetPasswordForm() {
               </div>
 
               {error && (
-                <p className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5">
+                <p role="alert" className="text-sm text-destructive bg-destructive/5 border border-destructive/20 rounded-lg px-3 py-2.5">
                   {error}
                 </p>
               )}

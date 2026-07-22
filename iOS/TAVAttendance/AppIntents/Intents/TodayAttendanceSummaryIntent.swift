@@ -9,6 +9,7 @@ struct TodayAttendanceSummaryIntent: AppIntent {
         "Reports how many students have signed in today, overall or for a specific class.")
 
     static var openAppWhenRun: Bool = false
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
 
     @Parameter(title: "Class (optional)")
     var targetClass: ClassEntity?
@@ -23,12 +24,17 @@ struct TodayAttendanceSummaryIntent: AppIntent {
         // Class-specific: read that class's roster directly (kiosk entries don't carry
         // the class id, so we resolve today's session for the class instead).
         if let targetClass {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            let today = formatter.string(from: Date())
-
-            let session = try await AttendanceService.shared.getOrCreateSession(
-                classId: targetClass.id, date: today)
+            let canOperateToday = try await AttendanceService.shared.fetchMyClasses()
+                .contains {
+                    $0.id == targetClass.id && $0.canOperateTodaySession == true
+                }
+            guard canOperateToday else {
+                return .result(
+                    dialog: "You are not assigned to that class today. Recent substitute access is read-only."
+                )
+            }
+            let session = try await AttendanceService.shared.getOrCreateTodaySession(
+                classId: targetClass.id)
             let roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             let attended = roster.filter { $0.status == .present || $0.status == .late }.count
             return .result(dialog: "\(attended) of \(roster.count) students have signed in for \(targetClass.name) today.")

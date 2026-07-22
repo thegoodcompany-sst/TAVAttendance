@@ -1,6 +1,7 @@
 package com.example.tavattendance
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,9 @@ import com.example.tavattendance.ui.theme.TAVAttendanceTheme
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Student names, attendance and result data must not be captured in screenshots,
+        // screen recordings, or the Android recents thumbnail.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         // PDPA export files (contain a student UUID in the filename) are written to
         // cacheDir/exports for the share intent and otherwise never cleaned up. Wipe them
         // on every cold start — simplest reliable point since we don't get a share-intent

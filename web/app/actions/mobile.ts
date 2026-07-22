@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireAdmin, requireStaff, NRIC_RE } from '@/lib/admin'
 import { todayInTz } from '@/lib/date'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 import type { AttendanceStatus } from '@/lib/status'
 
 type Result = { error: string | null }
@@ -80,15 +81,13 @@ export async function startTodayClass(classId: string): Promise<Result & { sessi
   const { error: authError, supabase } = await requireStaff()
   if (authError) return { error: authError }
   const { data: session, error } = await supabase
-    .from('sessions')
-    .upsert({ class_id: classId, session_date: todayInTz() }, { onConflict: 'class_id,session_date' })
-    .select('id, started_at')
-    .single()
+    .rpc('get_or_create_today_session', { p_class_id: classId })
   if (error) return { error: error.message }
-  const { error: updateError } = await supabase
-    .from('sessions')
-    .update({ started_at: session.started_at ?? new Date().toISOString(), ended_at: null })
-    .eq('id', session.id)
+  if (!session) return { error: 'Session could not be created.' }
+  const { error: updateError } = await supabase.rpc('set_session_lifecycle', {
+    p_session_id: session.id,
+    p_action: 'start',
+  })
   if (updateError) return { error: updateError.message }
   refreshMobile(`/mobile/classes/${classId}`, `/mobile/sessions/${session.id}`)
   return { error: null, sessionId: session.id }
@@ -97,16 +96,10 @@ export async function startTodayClass(classId: string): Promise<Result & { sessi
 export async function endClass(sessionId: string): Promise<Result> {
   const { error: authError, supabase } = await requireStaff()
   if (authError) return { error: authError }
-  const { error } = await supabase.from('sessions').update({ ended_at: new Date().toISOString() }).eq('id', sessionId)
-  if (error) return { error: error.message }
-  refreshMobile(`/mobile/sessions/${sessionId}`)
-  return { error: null }
-}
-
-export async function reopenClass(sessionId: string): Promise<Result> {
-  const { error: authError, supabase } = await requireStaff()
-  if (authError) return { error: authError }
-  const { error } = await supabase.from('sessions').update({ ended_at: null }).eq('id', sessionId)
+  const { error } = await supabase.rpc('set_session_lifecycle', {
+    p_session_id: sessionId,
+    p_action: 'end',
+  })
   if (error) return { error: error.message }
   refreshMobile(`/mobile/sessions/${sessionId}`)
   return { error: null }
@@ -152,9 +145,15 @@ export async function markRemainingAbsent(sessionId: string, studentIds: string[
 export async function saveMobileSessionNote(sessionId: string, notes: string): Promise<Result> {
   const { error: authError, supabase } = await requireStaff()
   if (authError) return { error: authError }
+  if (!(await isFeatureEnabled('session_notes'))) {
+    return { error: 'Session notes are not enabled.' }
+  }
   const trimmed = notes.trim()
   if (NRIC_RE.test(trimmed)) return { error: 'Notes must not contain an NRIC/FIN.' }
-  const { error } = await supabase.from('sessions').update({ notes: trimmed || null }).eq('id', sessionId)
+  const { error } = await supabase.rpc('update_session_note', {
+    p_session_id: sessionId,
+    p_notes: trimmed || null,
+  })
   if (error) return { error: error.message }
   refreshMobile(`/mobile/sessions/${sessionId}`)
   return { error: null }
@@ -234,11 +233,11 @@ export async function prepareSignInBoard(): Promise<Result> {
     return true
   })
   if (scheduled.length === 0) return { error: null }
-  const { error } = await supabase.from('sessions').upsert(
-    scheduled.map(cls => ({ class_id: cls.id, session_date: todayInTz() })),
-    { onConflict: 'class_id,session_date' }
-  )
-  if (error) return { error: error.message }
+  const results = await Promise.all(scheduled.map(cls =>
+    supabase.rpc('get_or_create_today_session', { p_class_id: cls.id })
+  ))
+  const failed = results.find(result => result.error)
+  if (failed?.error) return { error: failed.error.message }
   refreshMobile('/mobile/sign-in', '/mobile/classes')
   return { error: null }
 }

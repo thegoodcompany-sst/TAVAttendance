@@ -19,7 +19,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        print("PushManager: remote notification registration failed — \(error)")
+        #if DEBUG
+        print("PushManager: registration failed (\(type(of: error)))")
+        #endif
     }
 }
 

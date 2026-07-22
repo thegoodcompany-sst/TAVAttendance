@@ -188,7 +188,8 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
         StudentProfileSheet(
             studentId = s.id,
             fullName = s.fullName,
-            onDismiss = { profileStudent = null }
+            onDismiss = { profileStudent = null },
+            canManageStaffResults = true
         )
     }
 }

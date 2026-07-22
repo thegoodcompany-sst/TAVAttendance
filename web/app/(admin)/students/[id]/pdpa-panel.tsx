@@ -138,7 +138,7 @@ export function PdpaPanel({
         Export this student&apos;s data (JSON)
       </button>
 
-      {/* Erasure / anonymisation */}
+      {/* Erasure / pseudonymisation (RPC keeps its legacy name) */}
       <div className="pt-2 border-t border-border space-y-2">
         {confirm === null && (
           <div className="flex flex-wrap items-center gap-2">
@@ -147,7 +147,7 @@ export function PdpaPanel({
               disabled={isPending}
               className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50"
             >
-              <ShieldOff size={13} /> Anonymise
+              <ShieldOff size={13} /> Pseudonymise
             </button>
             <button
               onClick={() => setConfirm('erase')}
@@ -163,12 +163,13 @@ export function PdpaPanel({
           <div className="text-sm space-y-2">
             <p className="text-muted-foreground">
               Redact <span className="font-medium text-foreground">{studentName}</span>&apos;s
-              personal data, keeping anonymous attendance counts? This cannot be undone.
+              direct identifiers and rotate the attendance identity? Session-linked history remains
+              and may still be re-identifiable in a small cohort. This cannot be undone.
             </p>
             <div className="flex items-center gap-2">
               <button onClick={handleAnonymise} disabled={isPending} className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 hover:text-amber-800 disabled:opacity-50">
                 {isPending ? <Loader2 size={12} className="animate-spin" /> : <ShieldOff size={12} />}
-                Yes, anonymise
+                Yes, pseudonymise
               </button>
               <span className="text-muted-foreground text-xs">·</span>
               <button onClick={() => setConfirm(null)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>

@@ -41,36 +41,27 @@ export async function inviteUser(
     .single()
 
   if (profile?.role !== 'admin') return { error: 'Only admins can send invites.' }
-  if (role === 'admin' && !isSuperadmin(user)) {
+  if (role === 'admin' && !(await isSuperadmin(serverClient))) {
     return { error: 'Only the superadmin can invite another admin account.' }
   }
 
   const adminClient = createAdminClient()
 
-  // PDPA-PR3: rate-limit invites to curb email enumeration by a compromised
-  // admin. The rate_limit_events table is RLS-locked to service_role, so it is
-  // only reachable via this admin client. Allow at most 20 invites per actor
-  // in any rolling 1-hour window.
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-  const { count, error: countError } = await adminClient
-    .from('rate_limit_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('actor_id', user.id)
-    .eq('action', 'invite')
-    .gt('created_at', oneHourAgo)
-
-  if (countError) return { error: countError.message }
-  if ((count ?? 0) >= 20) {
-    return { error: 'Invite rate limit reached. Please try again later (max 20 invites per hour).' }
-  }
-
-  const { error: rlError } = await adminClient
-    .from('rate_limit_events')
-    .insert({ actor_id: user.id, action: 'invite' })
-  if (rlError) return { error: rlError.message }
-
   const { url: siteUrl, error: siteUrlError } = resolveSiteUrl()
   if (siteUrlError || !siteUrl) return { error: siteUrlError ?? 'SITE_URL misconfigured.' }
+
+  // PDPA-PR3: rate-limit invites to curb email enumeration by a compromised
+  // admin. The service-only RPC serializes count + insert per actor, closing
+  // the parallel-request race while keeping the raw event table off clients.
+  const { error: rlError } = await adminClient.rpc('consume_invite_rate_limit', {
+    p_actor_id: user.id,
+  })
+  if (rlError) {
+    if (rlError.code === '54000') {
+      return { error: 'Invite rate limit reached. Please try again later (max 20 invites per hour).' }
+    }
+    return { error: rlError.message }
+  }
 
   const { data: invited, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
     // Role is assigned authoritatively below. Never copy a privileged role into
@@ -120,7 +111,7 @@ export async function removeUser(userId: string): Promise<{ error: string | null
     .eq('id', userId)
     .maybeSingle()
   if (targetError) return { error: `Could not verify target role: ${targetError.message}` }
-  if (target?.role === 'admin' && !isSuperadmin(user)) {
+  if (target?.role === 'admin' && !(await isSuperadmin(serverClient))) {
     return { error: 'Only the superadmin can remove another admin account.' }
   }
 

@@ -12,7 +12,7 @@ export async function setFeatureFlag(
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Not authenticated.' }
-  if (!isSuperadmin(user)) return { error: 'Not authorized.' }
+  if (!(await isSuperadmin(supabase))) return { error: 'Not authorized.' }
 
   // Validate the key exists before writing — types are stripped at runtime so a
   // raw POST could supply anything. Mirrors the runtime guard in invite.ts.

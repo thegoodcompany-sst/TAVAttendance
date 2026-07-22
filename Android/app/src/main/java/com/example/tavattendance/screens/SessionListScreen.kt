@@ -23,6 +23,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.core.Analytics
 import com.example.tavattendance.core.AnalyticsEventType
+import com.example.tavattendance.core.SafeLog
 import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.Session
 import com.example.tavattendance.data.models.RetrospectiveSessionRules
@@ -58,6 +59,12 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     private val _loadError = MutableStateFlow<String?>(null)
     val loadError = _loadError.asStateFlow()
 
+    private val _canManageSessions = MutableStateFlow(false)
+    val canManageSessions = _canManageSessions.asStateFlow()
+
+    private val _canOperateToday = MutableStateFlow(false)
+    val canOperateToday = _canOperateToday.asStateFlow()
+
     fun clearSnackbar() { _snackbarMessage.value = null }
 
     private var classId: String = ""
@@ -69,6 +76,8 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
             // A fetchClass failure must not abort the coroutine (which would leave the
             // screen stuck loading); a null class just disables scheduled auto-end.
             tavClass = runCatching { AttendanceService.fetchClass(classId) }.getOrNull()
+            _canManageSessions.value = tavClass?.canManageSessions == true
+            _canOperateToday.value = tavClass?.canOperateTodaySession == true
             loadSessions()
         }
     }
@@ -80,7 +89,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { AttendanceService.fetchSessions(classId) }
                 .onSuccess { _sessions.value = it }
                 .onFailure { e ->
-                    android.util.Log.e("SessionList", "fetchSessions failed: ${e.message}", e)
+                    SafeLog.error("SessionList", "fetchSessions failed", e)
                     _loadError.value = "Failed to load sessions: ${e.localizedMessage ?: e.javaClass.simpleName}"
                 }
             autoEndIfExpired()
@@ -89,6 +98,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun autoEndIfExpired() {
+        if (!_canOperateToday.value) return
         val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val session = _sessions.value.firstOrNull { it.sessionDate == today } ?: return
         if (session.startedAt == null || session.endedAt != null) return
@@ -103,7 +113,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching { AttendanceService.endSession(session.id) }
                 .onFailure { e ->
-                    android.util.Log.e("SessionList", "autoEndIfExpired failed: ${e.message}", e)
+                    SafeLog.error("SessionList", "autoEndIfExpired failed", e)
                     _snackbarMessage.value = "Failed to auto-end class: ${e.localizedMessage ?: e.javaClass.simpleName}"
                 }
             runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
@@ -125,11 +135,14 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startTodayClass(onSessionReady: (Session) -> Unit) {
+        if (!_canOperateToday.value) {
+            _snackbarMessage.value = "You are not assigned to today's session."
+            return
+        }
         viewModelScope.launch {
             _isStarting.value = true
             runCatching {
-                val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                val session = AttendanceService.getOrCreateSession(classId = classId, date = today)
+                val session = AttendanceService.getOrCreateTodaySession(classId = classId)
                 if (session.startedAt == null) {
                     AttendanceService.startSession(id = session.id)
                 }
@@ -139,32 +152,30 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
                 val fresh = _sessions.value.firstOrNull { it.id == session.id } ?: session
                 onSessionReady(fresh)
             }.onFailure { e ->
-                android.util.Log.e("SessionList", "startTodayClass failed: ${e.message}", e)
+                SafeLog.error("SessionList", "startTodayClass failed", e)
                 _snackbarMessage.value = "Failed to start class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isStarting.value = false
         }
     }
 
-    fun resumeTodayClass(session: Session, onSessionReady: (Session) -> Unit) {
+    fun openTodayClass(session: Session, onSessionReady: (Session) -> Unit) {
         viewModelScope.launch {
             _isStarting.value = true
             runCatching {
-                if (session.endedAt != null) {
-                    AttendanceService.resumeSession(id = session.id)
-                }
                 runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
                 val fresh = _sessions.value.firstOrNull { it.id == session.id } ?: session
                 onSessionReady(fresh)
             }.onFailure { e ->
-                android.util.Log.e("SessionList", "resumeTodayClass failed: ${e.message}", e)
-                _snackbarMessage.value = "Failed to resume class: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                SafeLog.error("SessionList", "openTodayClass failed", e)
+                _snackbarMessage.value = "Failed to open class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isStarting.value = false
         }
     }
 
     fun endTodayClass(session: Session) {
+        if (!_canOperateToday.value) return
         viewModelScope.launch {
             _isEnding.value = true
             runCatching {
@@ -173,7 +184,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
                     buildJsonObject { put("screen", "session_list") })
                 runCatching { _sessions.value = AttendanceService.fetchSessions(classId) }
             }.onFailure { e ->
-                android.util.Log.e("SessionList", "endTodayClass failed: ${e.message}", e)
+                SafeLog.error("SessionList", "endTodayClass failed", e)
                 _snackbarMessage.value = "Failed to end class: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
             _isEnding.value = false
@@ -218,6 +229,8 @@ fun SessionListScreen(
     val isEnding by vm.isEnding.collectAsState()
     val snackbarMessage by vm.snackbarMessage.collectAsState()
     val loadError by vm.loadError.collectAsState()
+    val canManageSessions by vm.canManageSessions.collectAsState()
+    val canOperateToday by vm.canOperateToday.collectAsState()
     val flags by FeatureFlags.flags.collectAsState()
     val retrospectiveEnabled = flags[FeatureFlags.RETROSPECTIVE_SESSIONS] == true
 
@@ -251,7 +264,7 @@ fun SessionListScreen(
                     }
                 },
                 actions = {
-                    if (retrospectiveEnabled) {
+                    if (retrospectiveEnabled && canManageSessions) {
                         IconButton(onClick = onAddPastSession) {
                             Icon(Icons.Default.Add, contentDescription = "Add past session")
                         }
@@ -285,11 +298,12 @@ fun SessionListScreen(
                 item {
                     TodayClassControls(
                         session = todaySession,
+                        canOperateToday = canOperateToday,
                         isStarting = isStarting,
                         isEnding = isEnding,
                         timeFmt = timeFmt,
                         onStart = { vm.startTodayClass(onSessionClick) },
-                        onResume = { session -> vm.resumeTodayClass(session, onSessionClick) },
+                        onOpen = { session -> vm.openTodayClass(session, onSessionClick) },
                         onEnd = { session -> vm.endTodayClass(session) }
                     )
                 }
@@ -319,7 +333,7 @@ fun SessionListScreen(
                                 session.topic?.takeIf { it.isNotBlank() }?.let { Text(it) }
                             },
                             modifier = Modifier.clickable {
-                                if (RetrospectiveSessionRules.editorEnabled(session, retrospectiveEnabled)) {
+                                if (canManageSessions && RetrospectiveSessionRules.editorEnabled(session, retrospectiveEnabled)) {
                                     onHistoricalSessionClick(session)
                                 } else {
                                     onSessionClick(session)
@@ -337,16 +351,23 @@ fun SessionListScreen(
 @Composable
 private fun TodayClassControls(
     session: Session?,
+    canOperateToday: Boolean,
     isStarting: Boolean,
     isEnding: Boolean,
     timeFmt: SimpleDateFormat,
     onStart: () -> Unit,
-    onResume: (Session) -> Unit,
+    onOpen: (Session) -> Unit,
     onEnd: (Session) -> Unit
 ) {
     val busy = isStarting || isEnding
 
     when {
+        !canOperateToday -> {
+            ListItem(
+                headlineContent = { Text("Recent substitute access is read-only") },
+                supportingContent = { Text("You are not assigned to today's session.") }
+            )
+        }
         session == null || session.startedAt == null -> {
             // Not yet started
             TodayActionCard(
@@ -360,22 +381,22 @@ private fun TodayClassControls(
             )
         }
         session.endedAt != null -> {
-            // Ended — allow resume
+            // Ended sessions are immutable; allow read-only roster review.
             val endedDate = runCatching {
                 java.time.Instant.parse(session.endedAt).let { Date(it.toEpochMilli()) }
             }.getOrNull()
             TodayActionCard(
-                title = "Start Class",
+                title = "View Ended Class",
                 subtitle = endedDate?.let { "Ended ${timeFmt.format(it)}" },
                 color = if (busy) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         else MaterialTheme.colorScheme.primary,
                 showSpinner = isStarting,
                 enabled = !busy,
-                onClick = { onResume(session) }
+                onClick = { onOpen(session) }
             )
         }
         else -> {
-            // In progress — resume or end
+            // In progress — return or end
             val startedDate = runCatching {
                 java.time.Instant.parse(session.startedAt).let { Date(it.toEpochMilli()) }
             }.getOrNull()
@@ -385,7 +406,7 @@ private fun TodayClassControls(
                 color = Color(0xFF34C759),
                 showSpinner = isStarting,
                 enabled = !busy,
-                onClick = { onResume(session) }
+                onClick = { onOpen(session) }
             )
             Spacer(Modifier.height(4.dp))
             EndClassRow(
@@ -462,7 +483,7 @@ private fun EndClassRow(isEnding: Boolean, enabled: Boolean, onClick: () -> Unit
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("End Class") },
-            text = { Text("Students can no longer be marked after the class ends. You can resume from the class page.") },
+            text = { Text("Students can no longer be marked after the class ends. The roster remains available for review.") },
             confirmButton = {
                 TextButton(onClick = { showConfirm = false; onClick() }) {
                     Text("End Class", color = MaterialTheme.colorScheme.error)

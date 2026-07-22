@@ -71,17 +71,20 @@ struct SessionListView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
-                    // Punctuality header card
-                    Section {
-                        HStack {
-                            statCol("On Time", value: onTimePct, color: .green)
-                            Divider()
-                            statCol("Late", value: latePct, color: .orange)
-                            Divider()
-                            statCol("Absent", value: absentPct, color: .red)
-                        }
-                        .frame(height: 56)
-                    } header: { Text("Last 30 Days") }
+                    // Class-wide analytics remain owner/admin-only. Substitutes
+                    // receive just the sessions covered by their appointment.
+                    if tavClass.canManageSessions == true {
+                        Section {
+                            HStack {
+                                statCol("On Time", value: onTimePct, color: .green)
+                                Divider()
+                                statCol("Late", value: latePct, color: .orange)
+                                Divider()
+                                statCol("Absent", value: absentPct, color: .red)
+                            }
+                            .frame(height: 56)
+                        } header: { Text("Last 30 Days") }
+                    }
 
                     // Today's class controls — state-driven
                     Section {
@@ -109,14 +112,15 @@ struct SessionListView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .swipeActions(edge: .leading) {
-                                    if featureFlags.isEnabled(.retrospectiveSessions) {
+                                    if tavClass.canManageSessions == true
+                                        && featureFlags.isEnabled(.retrospectiveSessions) {
                                         Button {
                                             route = .edit(session)
                                         } label: {
                                             Label("Edit Session", systemImage: "pencil")
                                         }
                                         .tint(.blue)
-                                    } else {
+                                    } else if tavClass.canManageSessions == true {
                                         Button {
                                             sessionForSubstitute = session
                                         } label: {
@@ -152,7 +156,8 @@ struct SessionListView: View {
             }
         }
         .toolbar {
-            if featureFlags.isEnabled(.retrospectiveSessions) {
+            if tavClass.canManageSessions == true
+                && featureFlags.isEnabled(.retrospectiveSessions) {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingPastSessionForm = true
@@ -201,8 +206,10 @@ struct SessionListView: View {
             Task { await loadSessions() }
         }
         .task {
-            await loadPunctuality()
-            await loadTutors()
+            if tavClass.canManageSessions == true {
+                await loadPunctuality()
+                await loadTutors()
+            }
         }
         .errorAlert(error: $error)
     }
@@ -211,13 +218,21 @@ struct SessionListView: View {
 
     @ViewBuilder
     private var todayClassControls: some View {
-        if let session = todaySession {
+        if tavClass.canOperateTodaySession != true {
+            Label(
+                "Recent substitute access is read-only. You are not assigned to today's session.",
+                systemImage: "clock.badge.exclamationmark"
+            )
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .padding(.vertical, 8)
+        } else if let session = todaySession {
             if session.endedAt != nil {
-                // Class was ended — starting again reopens the same session
-                resumeRow(session: session, title: "Start Class", subtitle: "Ended \(timeFormatter.string(from: session.endedAt!))")
+                // Ended sessions are immutable; staff may still review the roster.
+                openRow(session: session, title: "View Ended Class", subtitle: "Ended \(timeFormatter.string(from: session.endedAt!))")
             } else if session.startedAt != nil {
                 // Class in progress — return or end
-                resumeRow(session: session, title: "Return to Class", subtitle: "Started \(timeFormatter.string(from: session.startedAt!))")
+                openRow(session: session, title: "Return to Class", subtitle: "Started \(timeFormatter.string(from: session.startedAt!))")
                 endClassRow(session: session)
             } else {
                 // Session row exists but not yet started
@@ -254,10 +269,10 @@ struct SessionListView: View {
         .disabled(isStartingClass)
     }
 
-    private func resumeRow(session: Session, title: LocalizedStringKey, subtitle: String) -> some View {
+    private func openRow(session: Session, title: LocalizedStringKey, subtitle: String) -> some View {
         Button {
             guard !isStartingClass else { return }
-            Task { await resumeTodayClass(session: session) }
+            Task { await openTodayClass(session: session) }
         } label: {
             HStack {
                 Image(systemName: "play.circle.fill")
@@ -383,7 +398,8 @@ struct SessionListView: View {
     /// Auto-end the session when scheduled end time has passed, but only if the session
     /// started before the scheduled end (guards against off-schedule/makeup classes).
     private func autoEndIfExpired() async {
-        guard let session = sessions.first(where: { $0.sessionDate == todayDateString() }),
+        guard tavClass.canOperateTodaySession == true,
+              let session = sessions.first(where: { $0.sessionDate == todayDateString() }),
               let startedAt = session.startedAt,
               session.endedAt == nil,
               let endTime = computeScheduledEndTime(),
@@ -413,12 +429,13 @@ struct SessionListView: View {
     }
 
     private func startTodayClass() async {
+        guard tavClass.canOperateTodaySession == true else { return }
         isStartingClass = true
         defer { isStartingClass = false }
         Analytics.shared.track(.tap, name: "start_session", properties: ["screen": .string("session_list")])
         do {
-            let session = try await AttendanceService.shared.getOrCreateSession(
-                classId: tavClass.id, date: todayDateString())
+            let session = try await AttendanceService.shared.getOrCreateTodaySession(
+                classId: tavClass.id)
             if session.startedAt == nil {
                 try await AttendanceService.shared.startSession(id: session.id)
             }
@@ -430,22 +447,20 @@ struct SessionListView: View {
         }
     }
 
-    private func resumeTodayClass(session: Session) async {
+    private func openTodayClass(session: Session) async {
         isStartingClass = true
         defer { isStartingClass = false }
         do {
-            if session.endedAt != nil {
-                try await AttendanceService.shared.resumeSession(id: session.id)
-            }
             sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
             let fresh = sessions.first(where: { $0.id == session.id }) ?? session
             route = .live(fresh)
         } catch {
-            self.error = AppError("Failed to resume class", underlyingError: error)
+            self.error = AppError("Failed to open class", underlyingError: error)
         }
     }
 
     private func endTodayClass(session: Session) async {
+        guard tavClass.canOperateTodaySession == true else { return }
         isEndingClass = true
         defer { isEndingClass = false }
         Analytics.shared.track(.tap, name: "end_session", properties: ["screen": .string("session_list")])

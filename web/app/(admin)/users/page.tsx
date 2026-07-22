@@ -31,11 +31,11 @@ async function getParentStudentLinks() {
 
 export default async function UsersPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const [members, students, links] = await Promise.all([
+  const [members, students, links, superadmin] = await Promise.all([
     getTeamMembers(),
     getAllStudents(),
     getParentStudentLinks(),
+    isSuperadmin(supabase),
   ])
 
   return (
@@ -59,7 +59,7 @@ export default async function UsersPage() {
                 <p className="text-xs text-muted-foreground">They set their own password</p>
               </div>
             </div>
-            <InviteForm canInviteAdmin={isSuperadmin(user)} />
+            <InviteForm canInviteAdmin={superadmin} />
           </div>
         </div>
 

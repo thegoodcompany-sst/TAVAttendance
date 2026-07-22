@@ -20,20 +20,27 @@ final class AuthManager: ObservableObject {
         for await (event, session) in supabase.auth.authStateChanges {
             switch event {
             case .signedIn:
-                isAuthenticated = true
                 if let userId = session?.user.id {
+                    PendingAttendanceStore.shared.activateOwner(userId)
+                    isAuthenticated = true
                     await fetchProfile(userId: userId)
+                } else {
+                    PendingAttendanceStore.shared.clear()
+                    isAuthenticated = false
                 }
                 isLoading = false
             case .signedOut:
+                PendingAttendanceStore.shared.clear()
                 isAuthenticated = false
                 currentProfile = nil
                 isLoading = false
             case .initialSession:
                 if let userId = session?.user.id {
+                    PendingAttendanceStore.shared.activateOwner(userId)
                     isAuthenticated = true
                     await fetchProfile(userId: userId)
                 } else {
+                    PendingAttendanceStore.shared.clear()
                     isAuthenticated = false
                 }
                 isLoading = false
@@ -62,7 +69,9 @@ final class AuthManager: ObservableObject {
                 await FeatureFlagStore.shared.load()
                 return
             } catch {
-                print("AuthManager: failed to fetch profile (attempt \(attempt)/3) — \(error)")
+                #if DEBUG
+                print("AuthManager: profile fetch failed (attempt \(attempt)/3, \(type(of: error)))")
+                #endif
                 if attempt < 3 {
                     try? await Task.sleep(nanoseconds: UInt64(attempt) * 500_000_000)
                 }
@@ -78,6 +87,9 @@ final class AuthManager: ObservableObject {
     }
 
     func signOut() async throws {
+        // Clear synchronously before the auth request so no stale queue survives an
+        // offline/failed sign-out or becomes visible to a subsequent account.
+        PendingAttendanceStore.shared.clear()
         try await supabase.auth.signOut()
     }
 }

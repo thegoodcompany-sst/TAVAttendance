@@ -38,5 +38,18 @@ final class KioskSecurityState: ObservableObject {
         !hasConfiguredPIN || isAdminUnlocked
     }
 
+    nonisolated static func allowsSensitiveEntityQueries(isAdminUnlocked: Bool) -> Bool {
+        isAdminUnlocked
+    }
+
+    /// Revokes kiosk admin authorization app-wide when the app backgrounds, even if the
+    /// kiosk tab is not currently mounted. App Intents share this process-local state.
+    func relockIfConfigured() {
+        let hasConfiguredPIN = !(UserDefaults.standard.string(forKey: "kioskPIN") ?? "").isEmpty
+        guard hasConfiguredPIN else { return }
+        isAdminUnlocked = false
+        UserDefaults.standard.set(true, forKey: "kioskLocked")
+    }
+
     private init() {}
 }

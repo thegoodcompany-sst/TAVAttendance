@@ -36,3 +36,31 @@ export async function replyToThread(
   revalidatePath(`/messages/${studentId}`)
   return { error: null }
 }
+
+export async function markThreadRead(
+  studentId: string,
+  parentId: string,
+): Promise<{ error: string | null }> {
+  const { error: authErr, supabase } = await requireAdmin()
+  if (authErr) return { error: authErr }
+
+  const { data: link, error: linkError } = await supabase
+    .from('parent_student_links')
+    .select('id')
+    .eq('parent_id', parentId)
+    .eq('student_id', studentId)
+    .maybeSingle()
+  if (linkError) return { error: linkError.message }
+  if (!link) return { error: 'That parent is not linked to this student.' }
+
+  const { error } = await supabase
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('student_id', studentId)
+    .eq('sender_id', parentId)
+    .is('read_at', null)
+  if (error) return { error: error.message }
+
+  revalidatePath('/messages')
+  return { error: null }
+}

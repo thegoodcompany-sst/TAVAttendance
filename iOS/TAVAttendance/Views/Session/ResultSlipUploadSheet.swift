@@ -15,7 +15,6 @@ struct ResultSlipUploadSheet: View {
     @State private var saveError: String?
 
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var authManager: AuthManager
 
     private var canSubmit: Bool {
         !isSaving
@@ -108,7 +107,7 @@ struct ResultSlipUploadSheet: View {
                 isSaving = false
                 return
             }
-            guard let score, let maxScore, let userId = authManager.currentProfile?.id else {
+            guard let score, let maxScore else {
                 saveError = String(localized: "Couldn't submit result. Please try again.")
                 isSaving = false
                 return
@@ -125,8 +124,7 @@ struct ResultSlipUploadSheet: View {
                     examDate: dateFmt.string(from: examDate),
                     subject: subject.rawValue,
                     score: score,
-                    maxScore: maxScore,
-                    uploadedBy: userId
+                    maxScore: maxScore
                 )
                 await onSaved()
                 dismiss()

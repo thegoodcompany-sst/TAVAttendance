@@ -1,11 +1,24 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+import { getParentChild } from '@/lib/parent-queries'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { UploadForm } from './upload-form'
 
 export const dynamic = 'force-dynamic'
+
+type ParentResultSlipRow = {
+  id: string
+  exam_name: string | null
+  exam_date: string | null
+  subject: string | null
+  score: number | null
+  max_score: number | null
+  file_path: string | null
+  acknowledged_at: string | null
+}
 
 export default async function ParentResultsPage({
   params,
@@ -16,27 +29,21 @@ export default async function ParentResultsPage({
 
   const { studentId } = await params
   const supabase = await createClient()
-
-  // RLS scopes both queries to the parent's own children.
-  const { data: student } = await supabase
-    .from('students')
-    .select('full_name')
-    .eq('id', studentId)
-    .maybeSingle()
+  const student = await getParentChild(studentId)
+  if (!student) notFound()
 
   const { data: slips } = await supabase
-    .from('result_slips')
-    .select('id, exam_name, exam_date, subject, score, max_score, file_path, acknowledged_at')
-    .eq('student_id', studentId)
-    .order('uploaded_at', { ascending: false })
+    .rpc('get_parent_result_slips', { p_student_id: studentId })
+  const adminClient = createAdminClient()
+  const resultSlips = (slips ?? []) as ParentResultSlipRow[]
 
   const rows = await Promise.all(
-    (slips ?? []).map(async slip => {
+    resultSlips.map(async slip => {
       let fileUrl: string | null = null
       if (slip.file_path) {
-        const { data } = await supabase.storage
+        const { data } = await adminClient.storage
           .from('result-slips')
-          .createSignedUrl(slip.file_path, 60 * 60)
+          .createSignedUrl(slip.file_path, 5 * 60)
         fileUrl = data?.signedUrl ?? null
       }
       return { ...slip, fileUrl }
@@ -45,7 +52,7 @@ export default async function ParentResultsPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Result slips" subtitle={student?.full_name ?? undefined} />
+      <PageHeader title="Result slips" subtitle={student.fullName} />
 
       <div className="bg-white rounded-3xl p-5 shadow-sm">
         <h2 className="font-semibold text-sm mb-3">Upload a slip</h2>
@@ -79,6 +86,7 @@ export default async function ParentResultsPage({
                   <Link
                     href={slip.fileUrl}
                     target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-block mt-2 text-xs font-medium text-brand hover:underline"
                   >
                     View file

@@ -97,3 +97,4 @@ applies forward only.
 | 035 | parent_portal_writes          | Parent INSERT policies for result_slips (+storage) and messages, thread indexes | yes   |
 | 036 | parent_message_privacy        | Scope direct messages to the sending/receiving parent when siblings share a child | yes   |
 | 037 | retrospective_sessions        | Flagged past-session create/edit, historical roster, and ended-attendance correction RPCs | yes   |
+| 038 | security_boundary_hardening   | Tutor/substitute/session capabilities, safe parent projections, bounded analytics/push, DB-managed superadmin/role gates, service-only erasure, durable Storage cleanup, identifier-rotating pseudonymisation, and upload boundaries | yes   |

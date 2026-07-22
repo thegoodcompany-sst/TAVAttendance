@@ -14,6 +14,8 @@ export type MobileClass = {
   durationMinutes: number
   recurrenceRule: string | null
   recurrenceEndDate: string | null
+  canManageSessions: boolean
+  canOperateTodaySession: boolean
 }
 
 export type MobileSession = {
@@ -36,11 +38,7 @@ export type MobileRosterEntry = {
 export const getMobileClasses = cache(async (): Promise<MobileClass[]> => {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('classes')
-    .select('id, name, subject, level, schedule_day, schedule_time, duration_minutes, recurrence_rule, recurrence_end_date')
-    .eq('is_active', true)
-    .eq('is_study_space', false)
-    .order('name')
+    .rpc('get_my_classes')
   if (error) throw new Error(`getMobileClasses: ${error.message}`)
   return (data ?? []).map((row: any) => ({
     id: row.id,
@@ -52,19 +50,15 @@ export const getMobileClasses = cache(async (): Promise<MobileClass[]> => {
     durationMinutes: row.duration_minutes,
     recurrenceRule: row.recurrence_rule,
     recurrenceEndDate: row.recurrence_end_date,
+    canManageSessions: row.can_manage_sessions === true,
+    canOperateTodaySession: row.can_operate_today_session === true,
   }))
 })
 
 export async function getMobileClass(classId: string): Promise<{ classInfo: MobileClass; sessions: MobileSession[] } | null> {
   const supabase = await createClient()
-  const [{ data: cls, error: classError }, { data: sessions, error: sessionError }] = await Promise.all([
-    supabase
-      .from('classes')
-      .select('id, name, subject, level, schedule_day, schedule_time, duration_minutes, recurrence_rule, recurrence_end_date')
-      .eq('id', classId)
-      .eq('is_active', true)
-      .eq('is_study_space', false)
-      .maybeSingle(),
+  const [{ data: classes, error: classError }, { data: sessions, error: sessionError }] = await Promise.all([
+    supabase.rpc('get_my_classes'),
     supabase
       .from('sessions')
       .select('id, class_id, session_date, notes, started_at, ended_at')
@@ -74,6 +68,7 @@ export async function getMobileClass(classId: string): Promise<{ classInfo: Mobi
   ])
   if (classError) throw new Error(`getMobileClass: ${classError.message}`)
   if (sessionError) throw new Error(`getMobileClass sessions: ${sessionError.message}`)
+  const cls = (classes ?? []).find((row: any) => row.id === classId)
   if (!cls) return null
   return {
     classInfo: {
@@ -86,6 +81,8 @@ export async function getMobileClass(classId: string): Promise<{ classInfo: Mobi
       durationMinutes: cls.duration_minutes,
       recurrenceRule: cls.recurrence_rule,
       recurrenceEndDate: cls.recurrence_end_date,
+      canManageSessions: cls.can_manage_sessions === true,
+      canOperateTodaySession: cls.can_operate_today_session === true,
     },
     sessions: (sessions ?? []).map((row: any) => ({
       id: row.id,
@@ -102,15 +99,19 @@ export async function getMobileSession(sessionId: string): Promise<{ session: Mo
   const supabase = await createClient()
   const { data: session, error } = await supabase
     .from('sessions')
-    .select('id, class_id, session_date, notes, started_at, ended_at, class:classes!inner(id, name, subject, level, schedule_day, schedule_time, duration_minutes, recurrence_rule, recurrence_end_date, is_study_space)')
+    .select('id, class_id, session_date, notes, started_at, ended_at')
     .eq('id', sessionId)
-    .eq('class.is_study_space', false)
     .maybeSingle()
   if (error) throw new Error(`getMobileSession: ${error.message}`)
   if (!session) return null
-  const { data: roster, error: rosterError } = await supabase.rpc('get_session_roster', { p_session_id: sessionId })
+  const [{ data: classes, error: classError }, { data: roster, error: rosterError }] = await Promise.all([
+    supabase.rpc('get_my_classes'),
+    supabase.rpc('get_session_roster', { p_session_id: sessionId }),
+  ])
+  if (classError) throw new Error(`getMobileSession class: ${classError.message}`)
   if (rosterError) throw new Error(`getMobileSession roster: ${rosterError.message}`)
-  const cls = session.class as any
+  const cls = (classes ?? []).find((row: any) => row.id === session.class_id)
+  if (!cls) return null
   return {
     session: {
       id: session.id,
@@ -130,6 +131,8 @@ export async function getMobileSession(sessionId: string): Promise<{ session: Mo
       durationMinutes: cls.duration_minutes,
       recurrenceRule: cls.recurrence_rule,
       recurrenceEndDate: cls.recurrence_end_date,
+      canManageSessions: cls.can_manage_sessions === true,
+      canOperateTodaySession: cls.can_operate_today_session === true,
     },
     roster: (roster ?? []).map((row: any) => ({
       studentId: row.student_id,
@@ -162,16 +165,22 @@ export type KioskEntry = MobileRosterEntry & {
 
 export async function getMobileSignInEntries(): Promise<KioskEntry[]> {
   const supabase = await createClient()
-  const { data: sessions, error } = await supabase
-    .from('sessions')
-    .select('id, class:classes!inner(name, is_study_space)')
-    .eq('session_date', todayInTz())
-    .eq('class.is_study_space', false)
+  const [{ data: sessions, error }, { data: classes, error: classError }] = await Promise.all([
+    supabase
+      .from('sessions')
+      .select('id, class_id')
+      .eq('session_date', todayInTz()),
+    supabase.rpc('get_my_classes'),
+  ])
   if (error) throw new Error(`getMobileSignInEntries: ${error.message}`)
+  if (classError) throw new Error(`getMobileSignInEntries classes: ${classError.message}`)
+  const classNames = new Map<string, string>(
+    (classes ?? []).map((cls: { id: string; name: string }): [string, string] => [cls.id, cls.name])
+  )
 
   const merged = new Map<string, KioskEntry>()
   const rank: Record<string, number> = { late: 4, present: 3, absent: 2, excused: 1 }
-  await Promise.all((sessions ?? []).map(async (session: any) => {
+  await Promise.all((sessions ?? []).filter(session => classNames.has(session.class_id)).map(async (session: any) => {
     const { data: roster, error: rosterError } = await supabase.rpc('get_session_roster', { p_session_id: session.id })
     if (rosterError) throw new Error(`getMobileSignInEntries roster: ${rosterError.message}`)
     for (const row of roster ?? []) {
@@ -185,11 +194,11 @@ export async function getMobileSignInEntries(): Promise<KioskEntry[]> {
           markedAt: row.marked_at,
           lateReason: row.late_reason,
           sessionIds: [session.id],
-          classNames: [session.class?.name ?? 'Class'],
+          classNames: [classNames.get(session.class_id) ?? 'Class'],
         })
       } else {
         existing.sessionIds.push(session.id)
-        existing.classNames.push(session.class?.name ?? 'Class')
+        existing.classNames.push(classNames.get(session.class_id) ?? 'Class')
         if (incoming && (!existing.status || rank[incoming] > rank[existing.status])) existing.status = incoming
         if (row.marked_at && (!existing.markedAt || row.marked_at > existing.markedAt)) existing.markedAt = row.marked_at
         if (row.late_reason) existing.lateReason = row.late_reason

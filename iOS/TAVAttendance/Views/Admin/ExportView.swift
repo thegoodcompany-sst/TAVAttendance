@@ -1,6 +1,19 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Escapes an RFC-4180 cell and prevents spreadsheet formula execution when a CSV is opened.
+/// The leading apostrophe is treated as text by Excel, Numbers, and common spreadsheet apps.
+func escapedCSVCell(_ value: String) -> String {
+    let formulaPrefixes: Set<Character> = ["=", "+", "-", "@", "\t", "\r", "\n"]
+    let neutralized = value.first.map(formulaPrefixes.contains) == true ? "'" + value : value
+
+    if neutralized.contains(",") || neutralized.contains("\"") ||
+        neutralized.contains("\n") || neutralized.contains("\r") {
+        return "\"\(neutralized.replacingOccurrences(of: "\"", with: "\"\""))\""
+    }
+    return neutralized
+}
+
 private enum ExportFormat: String, CaseIterable {
     case csv = "CSV"
     case pdf = "PDF"
@@ -156,13 +169,13 @@ struct ExportView: View {
             }
             let row = [
                 dateStr,
-                escapedCSV(className),
-                escapedCSV(studentName),
+                className,
+                studentName,
                 r.status.rawValue,
-                escapedCSV(r.lateReason ?? ""),
+                r.lateReason ?? "",
                 markedAtStr,
                 "" // Dismissed At — deferred
-            ].joined(separator: ",")
+            ].map(escapedCSVCell).joined(separator: ",")
             lines.append(row)
         }
         let csv = lines.joined(separator: "\n")
@@ -180,13 +193,6 @@ struct ExportView: View {
             try? FileManager.default.removeItem(at: exportURL)
         }
         exportURL = nil
-    }
-
-    private func escapedCSV(_ value: String) -> String {
-        if value.contains(",") || value.contains("\"") || value.contains("\n") {
-            return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
-        }
-        return value
     }
 
     private func buildPDF(

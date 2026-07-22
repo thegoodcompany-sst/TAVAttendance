@@ -1,10 +1,34 @@
 import CommonCrypto
 import Combine
+import LocalAuthentication
 import SwiftUI
 import UIKit
 
+enum StoredKioskPINDisposition: Equatable {
+    case none
+    case currentHash
+    case legacyPlaintext
+    case requiresAuthenticatedReset
+}
+
+/// Classifies persisted PIN data without changing it. Unknown or damaged values must fail
+/// closed and can only be cleared after device-owner authentication.
+func storedKioskPINDisposition(_ storedPIN: String) -> StoredKioskPINDisposition {
+    guard !storedPIN.isEmpty else { return .none }
+    if storedPIN.count == 67,
+       storedPIN.hasPrefix("v1:"),
+       storedPIN.dropFirst(3).allSatisfy(\.isHexDigit) {
+        return .currentHash
+    }
+    if storedPIN.count == 4, storedPIN.allSatisfy(\.isNumber) {
+        return .legacyPlaintext
+    }
+    return .requiresAuthenticatedReset
+}
+
 struct GlobalKioskView: View {
     @EnvironmentObject private var featureFlags: FeatureFlagStore
+    @Environment(\.scenePhase) private var scenePhase
 
     @AppStorage("kioskPIN") private var storedPIN = ""
     @AppStorage("kioskLocked") private var isLocked = false
@@ -30,6 +54,7 @@ struct GlobalKioskView: View {
     // UX-02 search; QA-06 PIN-reset alert; UX-03 bulk confirm; UX-07 status info.
     @State private var searchText = ""
     @State private var showPINResetAlert = false
+    @State private var pinNeedsRecovery = false
     @State private var pendingBulk: PendingBulkAction? = nil
     @State private var showStatusInfo = false
 
@@ -128,15 +153,8 @@ struct GlobalKioskView: View {
 
             if showPINEntry {
                 PINUnlockOverlay(storedPIN: storedPIN, onReset: {
-                    // QA-06 recovery: reachable only after a lockout. If the stored hash
-                    // can never validate (e.g. after a device restore changed the salt),
-                    // this clears the PIN and unlocks so the kiosk isn't permanently
-                    // bricked. Staff then set a new PIN via Settings.
-                    withAnimation(.easeInOut(duration: 0.2)) { showPINEntry = false }
-                    storedPIN = ""
-                    isLocked = false
-                    showPINResetAlert = true
-                }, allowBiometric: kioskBiometricUnlock) { success in
+                    await resetKioskPINAfterDeviceOwnerAuthentication()
+                }, recoveryRequired: pinNeedsRecovery, allowBiometric: kioskBiometricUnlock) { success in
                     withAnimation(.easeInOut(duration: 0.2)) { showPINEntry = false }
                     if success {
                         isLocked = false; kioskSecurity.isAdminUnlocked = true
@@ -147,21 +165,25 @@ struct GlobalKioskView: View {
                 .transition(.opacity.animation(.easeInOut(duration: 0.2)))
             }
         }
-        .toolbar(isLocked ? .hidden : .visible, for: .tabBar)
+        // Gate navigation on effective authorization, not the persisted lock bit. On a cold
+        // launch `kioskLocked=false` may survive from the previous process for a frame before
+        // `.task` re-locks it; process-local admin authorization already starts false.
+        .toolbar(isAdminMode ? .visible : .hidden, for: .tabBar)
         .task {
-            // Migrate plaintext 4-digit PINs stored before hashing was introduced.
-            // Any stored value that is not a recognised "v1:..." hash is treated as
-            // plaintext if it is exactly 4 digits; anything else is cleared so the
-            // admin is prompted to set a new PIN rather than being permanently locked out.
-            if !storedPIN.isEmpty && !storedPIN.hasPrefix("v1:") {
-                if storedPIN.count == 4 && storedPIN.allSatisfy(\.isNumber) {
-                    storedPIN = hashPIN(storedPIN)
-                } else {
-                    // QA-06: an unrecognised PIN format is cleared (so the admin isn't
-                    // locked out), but warn them so the kiosk isn't silently left open.
-                    storedPIN = ""
-                    showPINResetAlert = true
-                }
+            // Migrate the one supported legacy representation. Unknown or damaged values
+            // remain configured and locked; the recovery overlay requires the device
+            // passcode/biometric before it will clear them.
+            switch storedKioskPINDisposition(storedPIN) {
+            case .legacyPlaintext:
+                storedPIN = hashPIN(storedPIN)
+                pinNeedsRecovery = false
+            case .requiresAuthenticatedReset:
+                pinNeedsRecovery = true
+                kioskSecurity.isAdminUnlocked = false
+                isLocked = true
+                showPINEntry = true
+            case .none, .currentHash:
+                pinNeedsRecovery = false
             }
             // SECURITY: a configured PIN must re-lock on every launch. isAdminUnlocked
             // is @State (resets to false on restart), but kioskLocked is @AppStorage and
@@ -186,7 +208,7 @@ struct GlobalKioskView: View {
         .alert("Kiosk PIN Reset", isPresented: $showPINResetAlert) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("The saved kiosk PIN was in an unrecognised format and has been cleared. The kiosk is currently unlocked — please set a new PIN in Kiosk Settings.")
+            Text("The kiosk PIN was reset after device-owner authentication. Set a new PIN in Kiosk Settings before returning the device to kiosk use.")
         }
         .confirmationDialog(
             bulkConfirmTitle,
@@ -216,6 +238,17 @@ struct GlobalKioskView: View {
                 selectedIds = []
                 Analytics.shared.track(.ops, name: "admin_lock")
             }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .background, !storedPIN.isEmpty else { return }
+            // A kiosk unlock is valid only while this app is in the foreground. Dismiss
+            // privileged overlays before revoking the process-local authorization so none
+            // can remain interactive when the app returns.
+            showSettings = false
+            showStudySpace = false
+            showQRScanner = false
+            showPINEntry = false
+            kioskSecurity.relockIfConfigured()
         }
         .sheet(isPresented: $showSettings) {
             KioskSettingsSheet(storedPIN: $storedPIN, isLocked: $isLocked)
@@ -390,6 +423,7 @@ struct GlobalKioskView: View {
 
     private func runBulk(_ bulk: PendingBulkAction) {
         pendingBulk = nil
+        guard isAdminMode else { return }
         switch bulk {
         case .status(let status): Task { await applyBulkAction(status) }
         case .dismiss:            Task { await applyBulkDismiss() }
@@ -503,7 +537,15 @@ struct GlobalKioskView: View {
         case addLateReason(String)
     }
 
+    /// Student mode may only use the normal sign-in path. Keep this policy beside the
+    /// mutation handler so callers cannot rely on button/context-menu visibility alone.
+    static func isActionAuthorized(_ action: KioskAction, isAdminMode: Bool) -> Bool {
+        if case .signIn = action { return true }
+        return isAdminMode
+    }
+
     private func handle(_ action: KioskAction, for entry: KioskEntry) async {
+        guard Self.isActionAuthorized(action, isAdminMode: isAdminMode) else { return }
         guard !pendingIds.contains(entry.studentId) else { return }
         pendingIds.insert(entry.studentId)
         defer { pendingIds.remove(entry.studentId) }
@@ -554,6 +596,23 @@ struct GlobalKioskView: View {
         } catch {
             self.error = AppError("Action failed", underlyingError: error)
         }
+    }
+
+    @MainActor
+    private func resetKioskPINAfterDeviceOwnerAuthentication() async -> Bool {
+        guard await Biometrics.authenticate(
+            reason: "Authenticate to reset the kiosk PIN",
+            policy: .deviceOwnerAuthentication
+        ) else { return false }
+
+        pinNeedsRecovery = false
+        storedPIN = ""
+        kioskSecurity.isAdminUnlocked = true
+        isLocked = false
+        withAnimation(.easeInOut(duration: 0.2)) { showPINEntry = false }
+        showPINResetAlert = true
+        Analytics.shared.track(.ops, name: "admin_pin_reset")
+        return true
     }
 
     /// QR sign-in (flag `qr_sign_in`): resolves the payload to a kiosk entry and runs
@@ -824,7 +883,9 @@ private struct KioskCard: View {
         .animation(.spring(response: 0.3), value: entry.status)
         .animation(.spring(response: 0.3), value: entry.isDismissed)
         .animation(.spring(response: 0.2), value: isSelected)
-        .contextMenu { if !isSelectionMode { contextMenuContent } }
+        .contextMenu {
+            if isAdminMode && !isSelectionMode { contextMenuContent }
+        }
         .confirmationDialog(
             "Mark \(entry.fullName) as On Time?",
             isPresented: $showMarkPresentConfirm,
@@ -1065,11 +1126,10 @@ private struct KioskSettingsSheet: View {
 
                 // Re-authentication overlay for the destructive PIN actions.
                 if let action = challenge {
-                    PINUnlockOverlay(storedPIN: storedPIN, onReset: {
-                        // Recovery is disabled inside settings — an admin who can open
-                        // this sheet is already unlocked; only cancel the challenge.
-                        challenge = nil
-                    }) { success in
+                    // Recovery is intentionally unavailable here. Changing/removing a valid
+                    // PIN still requires that PIN; the device-owner reset path lives only on
+                    // the locked kiosk recovery screen.
+                    PINUnlockOverlay(storedPIN: storedPIN) { success in
                         challenge = nil
                         guard success else { return }
                         switch action {
@@ -1173,8 +1233,11 @@ private struct PINSetupSheet: View {
 
 private struct PINUnlockOverlay: View {
     let storedPIN: String
-    // QA-06 recovery: invoked from the lockout screen when the PIN can never validate.
-    var onReset: (() -> Void)? = nil
+    // Recovery returns true only after the caller has authenticated the device owner.
+    // Keeping the result async prevents the overlay from clearing lockout counters before
+    // LocalAuthentication has actually succeeded.
+    var onReset: (() async -> Bool)? = nil
+    var recoveryRequired = false
     // Kiosk-settings opt-in: offers Face ID/Touch ID as an alternative door. Success
     // does not touch the PIN failure counters — it's simply another way in.
     var allowBiometric = false
@@ -1187,6 +1250,7 @@ private struct PINUnlockOverlay: View {
     @State private var entered = ""
     @State private var error = ""
     @State private var secondsRemaining: Int = 0
+    @State private var isResetting = false
 
     // Lock after this many CUMULATIVE failures; the counter is only reset by a correct
     // PIN, never by a lockout expiring (that was the brute-force hole: 5 tries / 30s
@@ -1219,30 +1283,31 @@ private struct PINUnlockOverlay: View {
                     Text("Admin Access")
                         .font(.largeTitle.bold())
                         .foregroundStyle(.white)
-                    Text(isLockedOut ? "Too many attempts" : "Enter PIN to unlock")
+                    Text(recoveryRequired
+                         ? "Saved PIN needs secure recovery"
+                         : (isLockedOut ? "Too many attempts" : "Enter PIN to unlock"))
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.7))
                 }
 
-                if isLockedOut {
+                if recoveryRequired {
+                    VStack(spacing: 16) {
+                        Text("Authenticate with the device passcode or biometrics to reset this damaged PIN.")
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white.opacity(0.8))
+                        authenticatedResetButton("Reset with Device Authentication")
+                        Button("Cancel") { onDone(false) }
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                } else if isLockedOut {
                     VStack(spacing: 12) {
                         Text(lockoutMessage)
                             .font(.title2.bold())
                             .foregroundStyle(.orange)
                         Button("Cancel") { onDone(false) }
                             .foregroundStyle(.white.opacity(0.7))
-                        // QA-06: an escape hatch reachable only once locked out, so a
-                        // legit admin whose hash can't validate (e.g. after a device
-                        // restore) isn't permanently bricked. Confirmed to avoid taps.
-                        if let onReset {
-                            Button("Forgot PIN — Reset Kiosk", role: .destructive) {
-                                failedAttempts = 0
-                                lockoutUntil = 0
-                                onReset()
-                            }
-                            .foregroundStyle(.red)
+                        authenticatedResetButton("Forgot PIN — Reset Kiosk")
                             .padding(.top, 8)
-                        }
                     }
                 } else {
                     HStack(spacing: 20) {
@@ -1297,6 +1362,25 @@ private struct PINUnlockOverlay: View {
         secondsRemaining = remaining > 0 ? Int(remaining.rounded(.up)) : 0
     }
 
+    @ViewBuilder
+    private func authenticatedResetButton(_ title: String) -> some View {
+        if let onReset {
+            Button(title, role: .destructive) {
+                isResetting = true
+                Task {
+                    let didReset = await onReset()
+                    if didReset {
+                        failedAttempts = 0
+                        lockoutUntil = 0
+                    }
+                    isResetting = false
+                }
+            }
+            .foregroundStyle(.red)
+            .disabled(isResetting)
+        }
+    }
+
     private func appendUnlock(_ d: String) {
         guard !isLockedOut, entered.count < 4 else { return }
         error = ""
@@ -1347,7 +1431,7 @@ private struct PINUnlockOverlay: View {
 //   4. New PINs are written "v2:" (random-salt) only. Keep validating "v1:" during a
 //      deprecation window. Do NOT delete the UserDefaults copy until the keychain
 //      write is confirmed (read-back) to avoid a half-migration lockout.
-// Until then, the QA-06 reset affordance (finding 8c) is the in-app recovery path.
+// Until then, the device-owner-authenticated reset affordance is the in-app recovery path.
 private func hashPIN(_ pin: String) -> String {
     let salt = (UIDevice.current.identifierForVendor?.uuidString ?? "tava-kiosk-fallback").utf8
     var derived = [UInt8](repeating: 0, count: 32)

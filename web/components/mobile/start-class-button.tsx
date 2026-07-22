@@ -2,30 +2,31 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Play, RotateCcw, Square } from 'lucide-react'
-import { endClass, reopenClass, startTodayClass } from '@/app/actions/mobile'
+import { Eye, Play, Square } from 'lucide-react'
+import { endClass, startTodayClass } from '@/app/actions/mobile'
 
-type Mode = 'start' | 'resume' | 'end'
+type Mode = 'start' | 'view' | 'end'
 
 export function ClassActionButton({ classId, sessionId, mode }: { classId: string; sessionId?: string; mode: Mode }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const label = mode === 'end' ? 'End class' : mode === 'resume' ? 'Resume class' : "Start today's class"
-  const Icon = mode === 'end' ? Square : mode === 'resume' ? RotateCcw : Play
+  const label = mode === 'end' ? 'End class' : mode === 'view' ? 'View ended class' : "Start today's class"
+  const Icon = mode === 'end' ? Square : mode === 'view' ? Eye : Play
 
   function run() {
-    if (mode === 'end' && !window.confirm('End this class? Attendance can no longer be changed until it is resumed.')) return
+    if (mode === 'view') {
+      router.push(`/mobile/sessions/${sessionId}`)
+      return
+    }
+    if (mode === 'end' && !window.confirm('End this class? Attendance will be permanently locked.')) return
     setError(null)
     startTransition(async () => {
       const result = mode === 'start'
         ? await startTodayClass(classId)
-        : mode === 'resume'
-          ? await reopenClass(sessionId!)
-          : await endClass(sessionId!)
+        : await endClass(sessionId!)
       if (result.error) return setError(result.error)
       if (mode === 'start' && 'sessionId' in result && result.sessionId) router.push(`/mobile/sessions/${result.sessionId}`)
-      else if (mode === 'resume') router.push(`/mobile/sessions/${sessionId}`)
       else router.refresh()
     })
   }

@@ -65,8 +65,10 @@ export function AnalyticsCapture({
       draining = true
       try {
         do {
-          const batch = queue.splice(0)
-          if (batch.length > 0) await supabase.from('app_events').insert(batch)
+          const batch = queue.splice(0, 100)
+          if (batch.length > 0) {
+            await supabase.rpc('submit_app_events', { p_events: batch })
+          }
         } while (queue.length > 0)
       } catch {
         queue.splice(0)

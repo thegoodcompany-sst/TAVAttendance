@@ -40,7 +40,9 @@ provider **Supabase**, which stores the data securely in **Singapore** (encrypte
 rest). We do **not** sell your data or use it for outside marketing.
 
 **How long we keep it.** As long as needed for the purposes above and for legal record-keeping —
-**up to 7 years after your child leaves the Centre** — after which it is anonymised or deleted.
+**up to 7 years after your child leaves the Centre** — after which direct identifiers are removed
+and any retained attendance history is treated as pseudonymised data, or the data is deleted,
+according to the DPO-approved retention schedule.
 
 **Your rights.** You may ask to **see** the data we hold about your child, ask us to **correct** it,
 or **withdraw your consent** at any time (see the withdrawal note on page 2). Contact our DPO.
