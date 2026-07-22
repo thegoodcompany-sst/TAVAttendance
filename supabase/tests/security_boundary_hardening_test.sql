@@ -214,10 +214,17 @@ SELECT pg_temp.expect_rejected($sql$
     UPDATE profiles SET role = 'tutor'
     WHERE id = '00000000-0000-0000-0000-000000000003'
 $sql$);
-SELECT pg_temp.expect_rejected($sql$
-    UPDATE feature_flags SET enabled = NOT enabled WHERE key = 'parent_portal'
-$sql$);
+-- RLS may reject an UPDATE by making zero rows visible rather than raising an
+-- error. Assert the protected value instead of requiring one PostgreSQL error
+-- shape.
+UPDATE feature_flags SET enabled = NOT enabled WHERE key = 'parent_portal';
 RESET ROLE;
+SELECT pg_temp.assert_true(
+    NOT enabled,
+    'ordinary admin changed a security feature flag'
+)
+FROM feature_flags
+WHERE key = 'parent_portal';
 
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 SET LOCAL ROLE authenticated;

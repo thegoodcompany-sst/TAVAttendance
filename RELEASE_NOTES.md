@@ -6,7 +6,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 ## Unreleased
 
 - Restored superadmin feature-flag updates behind the database RLS boundary and
-  refreshed vulnerable transitive web dependencies used by CI/build tooling.
+  added regression coverage for ordinary-admin no-op writes; refreshed
+  vulnerable transitive web dependencies used by CI/build tooling.
 - Added a superadmin-only dashboard export that downloads a full operational
   data snapshot as a ZIP of CSV files, while excluding internal Study Space
   attendance and private file contents.
