@@ -646,6 +646,11 @@ BEGIN
     ) AND has_table_privilege(
         'authenticated', 'public.sessions', 'UPDATE'
     ), 'session RLS boundary lacks authenticated SELECT/UPDATE privileges';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.attendance_records', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.attendance_records', 'INSERT'
+    ), 'attendance RLS boundary lacks authenticated SELECT/INSERT privileges';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies

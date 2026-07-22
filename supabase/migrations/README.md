@@ -102,3 +102,4 @@ applies forward only.
 | 040 | record_tutor_policy_read_grants | Record RLS-bounded enrollment and tutor-assignment read privileges required by tutor policy evaluation | yes   |
 | 041 | record_student_policy_read_grant | Record the RLS-bounded student read privilege required by tutor policy evaluation | yes   |
 | 042 | record_session_policy_grants | Record RLS-bounded session read/update privileges required by session policy evaluation | yes   |
+| 043 | record_attendance_policy_grants | Record RLS-bounded attendance read/insert privileges required by attendance policy evaluation | yes   |
