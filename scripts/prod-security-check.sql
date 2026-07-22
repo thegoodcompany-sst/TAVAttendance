@@ -650,7 +650,9 @@ BEGIN
         'authenticated', 'public.attendance_records', 'SELECT'
     ) AND has_table_privilege(
         'authenticated', 'public.attendance_records', 'INSERT'
-    ), 'attendance RLS boundary lacks authenticated SELECT/INSERT privileges';
+    ) AND has_table_privilege(
+        'authenticated', 'public.attendance_records', 'UPDATE'
+    ), 'attendance RLS boundary lacks authenticated SELECT/INSERT/UPDATE privileges';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies
