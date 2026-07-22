@@ -680,6 +680,14 @@ SELECT pg_temp.assert_true(
     'valid substitute lost enrolled-student photo scope'
 );
 SELECT pg_temp.assert_true(
+    NOT is_admin(),
+    'substitute unexpectedly gained admin Storage scope'
+);
+SELECT pg_temp.assert_true(
+    NOT tutor_can_read_student_photo('38000000-0000-0000-0000-000000000020'),
+    'photo predicate accepted enrollment starting after covered session'
+);
+SELECT pg_temp.assert_true(
     EXISTS (
         SELECT 1 FROM storage.objects
         WHERE bucket_id = 'student-photos'
