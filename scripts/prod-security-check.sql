@@ -633,6 +633,11 @@ BEGIN
     ASSERT has_table_privilege(
         'authenticated', 'public.feature_flags', 'UPDATE'
     ), 'authenticated lacks feature_flags UPDATE privilege required by superadmin UI';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.enrollments', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.class_tutor_assignments', 'SELECT'
+    ), 'tutor RLS policy dependencies lack authenticated SELECT privileges';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies
