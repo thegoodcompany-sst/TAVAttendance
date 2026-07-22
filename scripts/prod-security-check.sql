@@ -641,6 +641,11 @@ BEGIN
     ASSERT has_table_privilege(
         'authenticated', 'public.students', 'SELECT'
     ), 'students RLS boundary lacks authenticated SELECT privilege';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.sessions', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.sessions', 'UPDATE'
+    ), 'session RLS boundary lacks authenticated SELECT/UPDATE privileges';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies
