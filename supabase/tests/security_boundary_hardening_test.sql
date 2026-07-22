@@ -1491,7 +1491,7 @@ SELECT pg_temp.assert_true(
               '38000000-0000-0000-0000-000000000071'
           )
           AND disclosed_by = '38000000-0000-0000-0000-000000000002'
-          AND jsonb_object_length(detail) = 2
+          AND (SELECT COUNT(*) FROM jsonb_object_keys(detail)) = 2
           AND NOT (detail ? 'current_value')
           AND NOT (detail ? 'requested_value')
           AND NOT (detail ? 'applied_value')
