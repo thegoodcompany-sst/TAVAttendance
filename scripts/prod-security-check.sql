@@ -542,8 +542,8 @@ BEGIN
         'public.tutor_can_read_student_photo(uuid)'::REGPROCEDURE
     ));
     ASSERT POSITION('security definer' IN v_photo_scope) > 0
-       AND POSITION('tutor_owns_class' IN v_photo_scope) > 0
-       AND POSITION('substitute_covers_session' IN v_photo_scope) > 0
+       AND POSITION('cta.tutor_id = auth.uid()' IN v_photo_scope) > 0
+       AND POSITION('s.sub_tutor_id = auth.uid()' IN v_photo_scope) > 0
        AND POSITION('e.enrolled_at' IN v_photo_scope) > 0
        AND POSITION('e.unenrolled_at' IN v_photo_scope) > 0,
         'tutor student-photo predicate ignores assignment/substitute boundaries';

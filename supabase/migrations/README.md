@@ -105,3 +105,4 @@ applies forward only.
 | 043 | record_attendance_policy_grants | Record RLS-bounded attendance read/insert privileges required by attendance policy evaluation | yes   |
 | 044 | record_attendance_update_grant | Record the RLS-bounded attendance update privilege required by offline upserts | yes   |
 | 045 | fix_substitute_student_photo_scope | Evaluate bounded tutor/substitute photo access without enrollment-policy recursion | yes   |
+| 046 | pin_student_photo_scope_to_actor | Pin tutor/substitute photo scope directly to the JWT actor and enrollment dates | yes   |
