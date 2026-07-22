@@ -258,6 +258,18 @@ RESET ROLE;
 SELECT pg_temp.as_user('38000000-0000-0000-0000-000000000001');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.assert_true(
+    is_tutor(),
+    'valid substitute lost tutor role before photo policy check'
+);
+SELECT pg_temp.assert_true(
+    substitute_covers_session('38000000-0000-0000-0000-000000000031'),
+    'valid substitute lost covered-session scope before photo policy check'
+);
+SELECT pg_temp.assert_true(
+    tutor_can_read_student_photo('38000000-0000-0000-0000-000000000021'),
+    'valid substitute lost enrolled-student photo scope'
+);
+SELECT pg_temp.assert_true(
     NOT tutor_owns_class('38000000-0000-0000-0000-000000000012'),
     'future tutor owns class before assigned_from'
 );
