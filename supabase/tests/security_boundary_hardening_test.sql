@@ -684,13 +684,16 @@ SELECT pg_temp.assert_true(
         SELECT 1 FROM storage.objects
         WHERE bucket_id = 'student-photos'
           AND name = '38000000-0000-0000-0000-000000000021/substitute-photo.png'
-    )
-    AND NOT EXISTS (
+    ),
+    'valid substitute cannot read enrolled student photo'
+);
+SELECT pg_temp.assert_true(
+    NOT EXISTS (
         SELECT 1 FROM storage.objects
         WHERE bucket_id = 'student-photos'
           AND name = '38000000-0000-0000-0000-000000000020/staff-photo.png'
     ),
-    'substitute photo access ignores enrollment on the covered session date'
+    'substitute can read photo for enrollment starting after covered session'
 );
 RESET ROLE;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000003');
