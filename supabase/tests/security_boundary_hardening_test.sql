@@ -565,7 +565,8 @@ $sql$);
 RESET ROLE;
 
 -- Retrospective tutor checks are also tied to the target session class.
-UPDATE feature_flags SET enabled = TRUE WHERE key = 'retrospective_sessions';
+UPDATE feature_flags SET enabled = TRUE
+WHERE key IN ('retrospective_sessions', 'session_notes');
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.expect_rejected($sql$
@@ -613,6 +614,7 @@ SELECT pg_temp.expect_rejected($sql$
     )
 $sql$);
 RESET ROLE;
+UPDATE feature_flags SET enabled = FALSE WHERE key = 'session_notes';
 
 -- Parent portal writes fail closed while disabled.
 INSERT INTO result_slips (student_id, exam_name, uploaded_by) VALUES (
