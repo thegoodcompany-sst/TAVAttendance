@@ -29,6 +29,7 @@ DECLARE
     v_notify_attendance TEXT;
     v_notify_dismissal TEXT;
     v_cleanup_invoker TEXT;
+    v_photo_scope TEXT;
 BEGIN
     ASSERT to_regprocedure(
         'public.enforce_attendance_write_integrity()'
@@ -537,17 +538,23 @@ BEGIN
           AND tablename = 'objects'
           AND policyname = 'student-photos: parent read'
     ), 'parent clients can enumerate student-photo Storage metadata';
+    v_photo_scope := LOWER(pg_get_functiondef(
+        'public.tutor_can_read_student_photo(uuid)'::REGPROCEDURE
+    ));
+    ASSERT POSITION('security definer' IN v_photo_scope) > 0
+       AND POSITION('tutor_owns_class' IN v_photo_scope) > 0
+       AND POSITION('substitute_covers_session' IN v_photo_scope) > 0
+       AND POSITION('e.enrolled_at' IN v_photo_scope) > 0
+       AND POSITION('e.unenrolled_at' IN v_photo_scope) > 0,
+        'tutor student-photo predicate ignores assignment/substitute boundaries';
     ASSERT (
-        SELECT LOWER(qual) LIKE '%tutor_owns_class%'
-           AND LOWER(qual) LIKE '%substitute_covers_session%'
-           AND LOWER(qual) LIKE '%e.enrolled_at%'
-           AND LOWER(qual) LIKE '%e.unenrolled_at%'
+        SELECT LOWER(qual) LIKE '%tutor_can_read_student_photo%'
            AND LOWER(qual) LIKE '%canonical_storage_student_id%'
         FROM pg_policies
         WHERE schemaname = 'storage'
           AND tablename = 'objects'
           AND policyname = 'student-photos: tutor read'
-    ), 'tutor student-photo reads ignore assignment/substitute/path boundaries';
+    ), 'tutor student-photo policy ignores bounded predicate or canonical path';
     ASSERT (
         SELECT LOWER(with_check) LIKE '%canonical_storage_student_id%'
         FROM pg_policies
