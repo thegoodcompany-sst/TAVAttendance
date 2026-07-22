@@ -648,7 +648,9 @@ BEGIN
     ), 'tutor RLS policy dependencies lack authenticated SELECT privileges';
     ASSERT has_table_privilege(
         'authenticated', 'public.students', 'SELECT'
-    ), 'students RLS boundary lacks authenticated SELECT privilege';
+    ) AND has_table_privilege(
+        'authenticated', 'public.students', 'UPDATE'
+    ), 'students RLS boundary lacks authenticated SELECT/UPDATE privileges';
     ASSERT has_table_privilege(
         'authenticated', 'public.sessions', 'SELECT'
     ) AND has_table_privilege(
