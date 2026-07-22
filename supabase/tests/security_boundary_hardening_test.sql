@@ -684,6 +684,38 @@ SELECT pg_temp.assert_true(
     'substitute unexpectedly gained admin Storage scope'
 );
 SELECT pg_temp.assert_true(
+    NOT EXISTS (
+        SELECT 1
+        FROM enrollments e
+        JOIN class_tutor_assignments cta ON cta.class_id = e.class_id
+        WHERE e.student_id = '38000000-0000-0000-0000-000000000020'
+          AND cta.tutor_id = auth.uid()
+          AND cta.assigned_from <=
+              (NOW() AT TIME ZONE 'Asia/Singapore')::DATE
+          AND (cta.assigned_until IS NULL OR cta.assigned_until >=
+              (NOW() AT TIME ZONE 'Asia/Singapore')::DATE)
+    ),
+    'substitute unexpectedly has a current assignment for denied student'
+);
+SELECT pg_temp.assert_true(
+    NOT EXISTS (
+        SELECT 1
+        FROM enrollments e
+        JOIN sessions s ON s.class_id = e.class_id
+        WHERE e.student_id = '38000000-0000-0000-0000-000000000020'
+          AND s.sub_tutor_id = auth.uid()
+          AND s.session_date BETWEEN
+              (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 7
+              AND (NOW() AT TIME ZONE 'Asia/Singapore')::DATE
+          AND (e.enrolled_at AT TIME ZONE 'Asia/Singapore')::DATE
+              <= s.session_date
+          AND (e.unenrolled_at IS NULL OR
+              (e.unenrolled_at AT TIME ZONE 'Asia/Singapore')::DATE
+              >= s.session_date)
+    ),
+    'future enrollment unexpectedly qualifies for substitute photo scope'
+);
+SELECT pg_temp.assert_true(
     NOT tutor_can_read_student_photo('38000000-0000-0000-0000-000000000020'),
     'photo predicate accepted enrollment starting after covered session'
 );
