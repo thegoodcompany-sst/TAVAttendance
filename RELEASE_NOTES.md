@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Made Android kiosk PIN throttling atomic and fail closed for every caller,
+  with accurate lockout UI/tests; pull-request CI now runs web security
+  regressions, and production-secret workflows declare the reviewer-gated
+  environment that operators must protect before merge.
 - Patched the web dashboard's Next.js and transitive dependency advisories;
   Android auth sessions and PKCE verifiers now migrate from plaintext
   SharedPreferences into Android Keystore-backed AES-GCM storage. Audited and

@@ -693,10 +693,27 @@ server; native controls fail closed to that trusted workflow.
 
 ### ☐ 67. Protect `main` and production deployments
 
-GitHub currently has no effective branch protection. Require pull requests,
-CODEOWNERS/review, passing CI and remote-security checks, resolved conversations,
-admin enforcement, and block force-push/deletion. Put production secrets and
-deploy jobs behind a protected environment with explicit reviewers.
+GitHub currently has no effective branch protection, and the repository does not
+yet identify an exact CODEOWNERS user/team. Before pushing the workflow changes
+that reference `production-security`:
+
+1. Create that GitHub Environment, limit its deployment branch to protected
+   `main`, require explicit reviewers, prevent self-review, and apply those rules
+   to administrators.
+2. Copy `TAVA_DB_URL`, `SUPABASE_ACCESS_TOKEN`, and
+   `SUPABASE_DB_PASSWORD` into **environment-scoped** secrets. Give the database
+   identity only the read privileges used by the drift/advisor checks, then
+   delete same-named repository/organisation-scoped copies so a workflow that
+   omits the environment cannot fall back to them.
+3. Add a reviewed `.github/CODEOWNERS` entry after confirming the exact
+   organisation team or maintainer account. Protect `main` with pull requests,
+   required CODEOWNERS review, the PR CI job, resolved conversations, admin
+   enforcement, and blocks on force-push/deletion. `remote-security` is a
+   post-merge production check, not a substitute for the pre-merge CI gate.
+4. Verify an unapproved `production-security` job remains waiting and cannot
+   read its secrets; approve one known commit and verify both remote-security
+   and weekly advisor workflows pass. Keep required-reviewer approval in place
+   for scheduled runs.
 
 ### ☐ 68. Deploy and verify the hardened web headers
 
