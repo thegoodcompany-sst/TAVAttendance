@@ -665,10 +665,12 @@ Keychain/Keystore-backed storage.
 Migration-038 clients now use a versioned account-owner envelope plus per-row
 owner, purge legacy/corrupt/mixed/foreign queues, clear synchronously on
 sign-out/account transition, and recheck ownership immediately before sync.
-Physical-device QA must verify that fail-closed upgrade behavior. Remaining:
-encrypt the JSON with a Keychain/Keystore-held authenticated key and replace
-Android's default plaintext SharedPreferences auth session manager with a
-Keystore-backed implementation.
+Android auth sessions and PKCE verifiers now migrate into Keystore-backed
+AES-GCM storage and synchronously remove the verified plaintext source
+(build/unit-test verified 2026-07-26). Physical-device QA must still verify
+that migration and the queue's fail-closed account-transition behavior.
+Remaining: encrypt the offline queue JSON with a Keychain/Keystore-held
+authenticated key on both native clients.
 
 ### ◐ 65. Activate scheduled Storage erasure
 

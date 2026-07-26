@@ -5,6 +5,13 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Patched the web dashboard's Next.js and transitive dependency advisories;
+  Android auth sessions and PKCE verifiers now migrate from plaintext
+  SharedPreferences into Android Keystore-backed AES-GCM storage. Audited and
+  refreshed all operational runbooks against the current migrations, CI,
+  release paths and security boundaries; staff guidance no longer promises
+  infallible offline sync, and the breach plan now has evidence-preserving
+  containment and current PDPC notification criteria.
 - Restored superadmin feature-flag updates behind the database RLS boundary and
   added regression coverage for ordinary-admin no-op writes; refreshed
   vulnerable transitive web dependencies used by CI/build tooling.

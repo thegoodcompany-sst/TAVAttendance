@@ -6,20 +6,23 @@ Things that cannot be derived by reading the codebase. Read this before writing 
 
 ## Skill library (start here)
 
-`.claude/skills/tava-*` (13 skills, authored 2026-07-09) is the expanded, task-routed version
+`.claude/skills/tava-*` (13 skills, audited 2026-07-26) is the expanded, task-routed version
 of this file — load the matching skill before working: `tava-change-control` (before any change),
 `tava-debugging-playbook` (anything misbehaves), `tava-prod-drift-campaign` (prod migrations —
 the top open problem), `tava-failure-archaeology` (before proposing a fix), plus references for
-architecture, Supabase, PDPA, config/flags, build, operations, QA, docs, and roadmap. This file
+architecture, Supabase, PDPA, config/flags, build, operations, QA, docs, and roadmap. The
+`deploy` and `release` skills carry the production delivery runbooks. This file
 stays the compact source of truth; the skills carry the runbooks.
 
 ## Migrations
 
-Prod Supabase (`zgikcbsxzjgbigywxbbj`) was reconciled with the migration files on **2026-07-09**
-(drift campaign; HUMANS.md §14/§30) and is tracked by the CI drift detector — as of
-**2026-07-12** prod matches migrations 001–025. **Never edit an
-existing migration; every schema fix ships as a new numbered one**, and apply it to prod BEFORE
-deploying app code that references it. Verify prod state with queries, never by reading files:
+Prod Supabase (`zgikcbsxzjgbigywxbbj`) had its historical 001–017 drift
+reconciled on **2026-07-09** (HUMANS.md §14/§30). The repo now contains
+migrations through 053. Never embed a newer “prod matches” snapshot here:
+require the protected-main remote drift job and `scripts/prod-security-check.sql`
+for the exact commit. **Never edit an existing migration; every schema fix
+ships as a new numbered one**, and apply it to prod BEFORE deploying app code
+that references it. Verify prod state with queries, never by reading files:
 `.claude/skills/tava-prod-drift-campaign` keeps the drift-prevention protocol.
 
 ## Architecture decisions worth knowing
@@ -186,7 +189,8 @@ manual. Manual testing checklist:
 2. Mark one student as Present. Confirm "Marked HH:MM AM/PM" appears under their name.
 3. Tap a student row → Student Profile sheet should open with recent attendance history.
 4. Turn off Wi-Fi. Mark a student. Orange dot should appear next to their name.
-5. Turn Wi-Fi back on. Orange dot should clear (sync happened automatically).
+5. Turn Wi-Fi back on. Orange dot should clear; verify the server/dashboard
+   record before treating the attendance as saved.
 
 ### Student profile history
 - The `fetchStudentAttendanceHistory` query uses a PostgREST join. If the sheet shows a blank list with no error, check the Supabase logs for a PostgREST 400 — the FK join string may be mismatched.
@@ -198,8 +202,9 @@ manual. Manual testing checklist:
 | Platform | Command | Working directory |
 |---|---|---|
 | iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` (scheme name from `project.yml`; project is XcodeGen-managed — run `xcodegen generate` first if `.xcodeproj` is stale) | `iOS/` |
-| Android | `./gradlew testDebugUnitTest` (includes `DayAwareKioskTest`) — JDK 21 installed (`temurin@21`), unblocking the AGP `jlink` transform that failed under JDK 26 | `Android/` |
-| Web | `npm run build` / `npm run lint`; deploy via the `/deploy` skill (Vercel, dash.thegoodcompanysg.dev) | `web/` |
+| Android | `./gradlew testDebugUnitTest assembleDebug --no-daemon` — requires JDK 17/21 | `Android/` |
+| Web | `npm ci && npm audit --audit-level=high && npm test && npm run lint && npm run build`; deploy via the `deploy` skill | `web/` |
+| Supabase | `supabase db reset --local`, lint, then every `supabase/tests/*.sql`; production claims additionally require remote drift/security gates | repo root |
 
 On this machine iOS builds **must** set `DEVELOPER_DIR` to Xcode-beta and pass
 `CODE_SIGNING_ALLOWED=NO`. A failure at `CodeSign swift-crypto_Crypto.bundle` is a

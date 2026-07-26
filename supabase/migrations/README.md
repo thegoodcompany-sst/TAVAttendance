@@ -51,10 +51,10 @@ BEGIN
 END $$;
 ```
 
-Existing migrations (001–017) are already applied to prod and are never edited
-(see CLAUDE.md; the one sanctioned exception was the HUMANS.md §36 replayability
-fixes to 005/010/014, which changed syntax, not end state); the convention
-applies forward only.
+Existing migrations are never edited. The historical, already-recorded
+HUMANS.md §36 replayability changes to 005/010/014 were the sole exception and
+changed syntax rather than intended end state. Do not infer current production
+application from this table; require the remote drift/security gates.
 
 ## Current migrations
 

@@ -1,83 +1,97 @@
 ---
 name: tava-config-and-flags
-description: Use when adding/flipping a feature flag, adding an env var or credential, wondering what configuration exists in TAVA, or when a feature "doesn't show up" (probably flag-gated OFF). Catalogs every configuration axis — feature_flags rows, per-platform credential files, Vercel env vars, superadmin gate — with defaults, guards, and the add-a-flag checklist.
+description: Use when adding or flipping a feature flag, adding configuration, troubleshooting a hidden feature, or reviewing credentials and privileged principals.
 ---
 
-# TAVA Config and Flags
+# TAVA configuration and flags
 
-Every knob in the system, where it lives, and how to add one.
+## Runtime feature flags
 
-**When NOT to use this skill:** creating the config files on a fresh machine
-(use `tava-build-and-env`); deciding WHEN a flag may flip (use
-`tava-change-control` — flips are human-gated).
+`feature_flags` is read by iOS `FeatureFlagStore`, Android `FeatureFlags`, web
+`getFeatureFlags()`, and selected database guard functions. Migration seeds are
+defaults, not live-state evidence.
 
-## Feature flags (`feature_flags` table, migration 012)
+| Key | Surface |
+|---|---|
+| `parent_portal` | parent attendance/results/messages on all clients |
+| `push_notifications` | APNs/FCM attendance/dismissal and safely-home loop |
+| `student_photos` | private Storage-backed avatars |
+| `study_space_tracking` | internal drop-in attendance |
+| `test_mode` | bypasses normal day filters for controlled testing |
+| `session_notes` | tutor session notes |
+| `qr_sign_in` | kiosk camera sign-in and printable QR |
+| `awards` | web awards workflow |
+| `analytics` | bounded product events and health/activity views |
+| `retrospective_sessions` | authorised past-session/correction workflow |
 
-The only runtime feature gating. One table, read by all three platforms:
-iOS `FeatureFlagStore` (`Services/FeatureFlags.swift`), Android
-`FeatureFlags` (`data/service/FeatureFlags.kt`), web `getFeatureFlags()`
-(`lib/feature-flags.ts`). Writes are admin-only via RLS;
-`is_feature_enabled()` backs DB-side checks.
+Always measure:
 
-| Key | Feature | Status (2026-07-09) |
+```sql
+SELECT key, enabled, description
+FROM feature_flags
+ORDER BY key;
+```
+
+A global flip is a separate human-gated production change. Verify every
+surfacing client/version and the server-side guard first. `test_mode` must be
+off outside a controlled test window.
+
+### Add a flag
+
+1. Add a new numbered migration and paired `down/` script; seed OFF.
+2. Gate every applicable client and database write path; missing/error defaults
+   to OFF.
+3. Add automated role/flag regression coverage.
+4. Add a numbered HUMANS.md activation/QA item.
+5. Apply migration before clients and verify live state before a separate flip.
+
+## Privileged principal
+
+Migration 038 replaced the `SUPERADMIN_EMAIL` environment gate. Exactly one
+database row in `security_principals(capability='superadmin')` is the authority
+for feature flags, destructive wipe/export and privileged admin management.
+The table is not Data-API-readable by ordinary authenticated users.
+
+Verify through the read-only production security script. Rotate the principal
+in a reviewed transaction; do not leave zero or multiple valid principals and
+do not attempt to reintroduce an application email override.
+
+## Credential/configuration locations
+
+| Platform | Location | Rules |
 |---|---|---|
-| `parent_portal` | Parent attendance view (iOS `ParentDashboardView`, web `/parent`) | Built, OFF (PROD-01) |
-| `push_notifications` | APNs/FCM via `notify-parent` edge function + `device_tokens` | Scaffolded, OFF; needs real keys (HUMANS.md §17) + prod migration 014 |
-| `student_photos` | Kiosk avatars (`students.avatar_url` + `student-photos` bucket) | Built, OFF; prod backend complete since 2026-07-09 (migration 014) |
-| `study_space_tracking` | Internal drop-in room tracking (iPad `StudySpaceView`) | Built (iOS), OFF; flip ONLY after Android+web ports land (§26) |
-| `test_mode` | Kiosk ignores weekday filter; web analytics shows all days | Built, OFF (demo-day tool; migration 020) |
-| `session_notes` | Tutor free-text note on today's session (roster / web session detail) | Built 2026-07-12, OFF (migration 026) |
-| `qr_sign_in` | Kiosk camera QR scanner (payload = student UUID) + web printable QR page | Built 2026-07-12 (iOS+web), OFF (migration 026) |
-| `awards` | Admin web awards page over `attendance_summary` → `awards` table | Built 2026-07-12 (web), OFF (migration 026) |
+| iOS | gitignored `iOS/Config.xcconfig` | Supabase URL/anon key only; escape xcconfig `//` |
+| Android | gitignored `Android/secrets.properties` | Supabase public config plus release keystore references; auth session material is Keystore-encrypted at runtime |
+| Web local | gitignored `web/.env.local` | public Supabase URL/anon key; server secret only when testing trusted actions |
+| Vercel production | project environment | public URL/anon key, server-only service role, `SITE_URL` |
+| GitHub protected workflows | repository/environment secrets | `TAVA_DB_URL`, Supabase access token/DB password only for protected-main remote checks |
 
-Read state: `SELECT key, enabled FROM feature_flags;`
-Flip (human-gated step, per change control): `UPDATE feature_flags SET enabled = true WHERE key = '<key>';`
-or via the superadmin web page below. **A flag is global across platforms — every platform must handle it before flipping.**
+The service-role key and database credentials are secrets. The anon key is
+public by design, but raw JWT-looking values are still blocked from Git to
+prevent confusion and accidental credential commits. Enable:
 
-### Checklist: adding a new flag
+```bash
+git config core.hooksPath .githooks
+```
 
-1. New migration (never edit 012): `INSERT INTO feature_flags (key, enabled, description) VALUES ('my_feature', false, '...');` + a `migrations/down/` reverse script deleting it.
-2. Gate the code on ALL platforms that surface the feature (query the store/helper above; default to OFF when the row is missing or the read fails).
-3. Nothing else — the web `/feature-flags` page renders every row generically, so the toggle appears automatically once the row is seeded.
-4. Add a HUMANS.md item for the eventual flip with its preconditions.
-5. Re-verify after applying: `SELECT key, enabled FROM feature_flags;`
+Never put a secret literal in a shell command, ticket, transcript or committed
+`.example` file.
 
-## Superadmin gate (web `/feature-flags` page)
+## Other security-sensitive configuration
 
-- App-layer gate to ONE email; DB RLS write policy deliberately stays `is_admin()` (documented in `web/lib/superadmin.ts` and the design spec `docs/superpowers/specs/2026-06-25-superadmin-feature-flags-design.md`).
-- Env var `SUPERADMIN_EMAIL` (server-side only — **no `NEXT_PUBLIC_` prefix**); defaults to `edmund@thegoodcompanysg.dev` when unset.
-- Non-superadmin admins get no nav link and a 404 on direct visit.
+- `supabase/config.toml` controls local Auth only. Verify production signup,
+  password, secure-change and MFA settings separately.
+- Kiosk PIN is device-local; no PIN means unsafe admin mode. The iOS verifier
+  still needs Keychain migration and the kiosk still holds an admin session.
+- `notify-parent` and `cleanup-student-storage` each require dedicated
+  invocation secrets; provider/service-role credentials must not be reused as
+  invocation tokens.
+- `iOS/project.yml` is the Xcode source of truth; regenerate after edits.
+- `.github/workflows/ci.yml`, `remote-security.yml`, and `advisors.yml` are the
+  executable CI/production-check configuration.
 
-## Credentials (all gitignored; `.example` files are committed)
+## Provenance
 
-| Platform | File | Mechanism |
-|---|---|---|
-| iOS | `iOS/Config.xcconfig` (from `Config.xcconfig.example`) | xcconfig → `Info.plist` `$(SUPABASE_PROJECT_URL)` / `$(SUPABASE_ANON_KEY)` → read in `SupabaseManager.swift`. **Escape `//` in the URL** — xcconfig treats `//` as a comment. |
-| Android | `Android/secrets.properties` (from `secrets.properties.example`) | read at Gradle configure time → `BuildConfig.SUPABASE_PROJECT_URL` etc. |
-| Web local | `web/.env.local` (from `.env.local.example`) | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| Web prod (Vercel) | project env vars | the two above + `SUPABASE_SERVICE_ROLE_KEY` (invite/remove server actions) + `SITE_URL` (`https://dash.thegoodcompanysg.dev`, controls invite-email redirects) + optional `SUPERADMIN_EMAIL` |
-
-Check prod: `cd web && vercel env ls production`. Add:
-`printf 'value' | vercel env add VAR_NAME production` (then redeploy).
-
-The service-role key is the ONLY secret credential (bypasses RLS — server-side
-only, never in client code or `NEXT_PUBLIC_*`). The anon key is public by
-design. The pre-commit scanner (`.githooks/pre-commit`) blocks staged
-`SUPABASE_*_KEY=` assignments and raw JWT literals; enable per clone:
-`git config core.hooksPath .githooks`.
-
-## Other configuration axes
-
-- **`supabase/config.toml`** — LOCAL stack only (signup disabled, site_url, etc.). Prod auth is dashboard-controlled and can drift from it (HUMANS.md §20/§31).
-- **Kiosk PIN** — set in-app (gear → Kiosk Settings). No PIN = kiosk always in admin mode (demo default). Hash currently in UserDefaults (known weak point).
-- **Edge function secrets** — `supabase/functions/notify-parent` needs APNs/FCM keys as Supabase function secrets before `push_notifications` flips (§17).
-- **`iOS/project.yml`** — XcodeGen manifest (bundle id prefix `com.tava`, iOS 17 target, packages). The de-facto iOS build config; regenerate with `xcodegen generate`.
-- **CI (`.github/workflows/ci.yml`)** — uses placeholder Supabase values; web lint+build, Android assembleDebug (JDK 17), non-blocking `supabase db lint`.
-
-## Provenance and maintenance
-
-Current as of 2026-07-09 (4 flags).
-- Flags drift — always re-check: `SELECT key, enabled FROM feature_flags;` (per environment!)
-- Vercel vars: `cd web && vercel env ls production`
-- Gate default email: `grep -n 'thegoodcompanysg' web/lib/superadmin.ts`
-- Example files still current: `ls iOS/Config.xcconfig.example Android/secrets.properties.example web/.env.local.example`
+Audited 2026-07-26 against migrations 012, 015, 020, 026, 031, 037 and 038,
+all three flag clients, Vercel env usage and current workflows. Live flag and
+hosted Auth state remain query/dashboard facts.
