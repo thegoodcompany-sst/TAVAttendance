@@ -5,6 +5,14 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Redesigned the web admin Today dashboard as a compact, card-free daily
+  attendance register while preserving the existing TAVA type and colour system.
+- Encrypted pending attendance queues with per-install Keychain/Keystore
+  AES-GCM keys on iOS and Android, including verified migration from the former
+  plaintext account-owned envelope and tamper-detection tests; removed Android
+  biometric context-cast and nullable date/document/session crash paths.
+- Rotated the production App Review admin password and synchronized the new
+  credential to App Store Connect without storing it in the repository.
 - Made Android kiosk PIN throttling atomic and fail closed for every caller,
   with accurate lockout UI/tests; pull-request CI now runs web security
   regressions, and production-secret workflows declare the reviewer-gated

@@ -1,7 +1,7 @@
 package com.example.tavattendance.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material3.*
@@ -78,7 +78,7 @@ fun AdminApp(authViewModel: AuthViewModel) {
                                 popUpTo(Screen.Classes.route) { inclusive = true }
                             }
                         },
-                        icon = { Icon(Icons.Default.List, contentDescription = null) },
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
                         label = { Text("Classes") }
                     )
                     NavigationBarItem(
@@ -131,7 +131,7 @@ fun TutorApp(authViewModel: AuthViewModel) {
                                 popUpTo(Screen.Classes.route) { inclusive = true }
                             }
                         },
-                        icon = { Icon(Icons.Default.List, contentDescription = null) },
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
                         label = { Text("Classes") }
                     )
                     NavigationBarItem(

@@ -1,13 +1,28 @@
 package com.example.tavattendance.data.store
 
 import android.content.Context
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import com.example.tavattendance.data.models.AttendanceStatus
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.security.KeyStore
+import java.security.SecureRandom
+import java.util.Base64
 import java.util.UUID
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 
 private const val PENDING_QUEUE_VERSION = 2
+private const val ANDROID_KEYSTORE = "AndroidKeyStore"
+private const val PENDING_QUEUE_KEY_ALIAS = "tava.pending.attendance.aes.v1"
+private const val ENCRYPTED_PREFIX = "enc-v1:"
+private const val GCM_IV_BYTES = 12
+private const val GCM_TAG_BITS = 128
+private val PENDING_QUEUE_AAD = "pending_attendance.records".toByteArray(Charsets.UTF_8)
 private val pendingQueueJson = Json { ignoreUnknownKeys = true }
 
 @Serializable
@@ -66,6 +81,31 @@ internal fun decodePendingQueue(raw: String, expectedOwnerUserId: String): List<
     return envelope.records.takeIf { envelope.belongsTo(expectedOwnerUserId) }
 }
 
+internal object PendingQueueCipher {
+    fun seal(plaintext: String, key: SecretKey): String {
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, key, SecureRandom())
+        cipher.updateAAD(PENDING_QUEUE_AAD)
+        check(cipher.iv.size == GCM_IV_BYTES) { "Unexpected AES-GCM nonce size" }
+        val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        return ENCRYPTED_PREFIX + Base64.getEncoder().encodeToString(cipher.iv + ciphertext)
+    }
+
+    fun open(payload: String, key: SecretKey): String {
+        require(payload.startsWith(ENCRYPTED_PREFIX)) { "Unknown queue encryption version" }
+        val combined = Base64.getDecoder().decode(payload.removePrefix(ENCRYPTED_PREFIX))
+        require(combined.size >= GCM_IV_BYTES + GCM_TAG_BITS / 8) {
+            "Encrypted queue is truncated"
+        }
+        val iv = combined.copyOfRange(0, GCM_IV_BYTES)
+        val ciphertext = combined.copyOfRange(GCM_IV_BYTES, combined.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_BITS, iv))
+        cipher.updateAAD(PENDING_QUEUE_AAD)
+        return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+    }
+}
+
 class PendingAttendanceStore(context: Context) {
     private val prefs = context.getSharedPreferences("pending_attendance", Context.MODE_PRIVATE)
     private val key = "records"
@@ -86,9 +126,15 @@ class PendingAttendanceStore(context: Context) {
         synchronized(queueLock) {
             activeOwnerUserId = canonicalOwner
             val raw = prefs.getString(key, null) ?: return true
-            if (decodePendingQueue(raw, canonicalOwner) == null) {
-                prefs.edit().remove(key).commit()
+            if (decryptAndDecode(raw, canonicalOwner) != null) return true
+
+            // One-time migration from the former plaintext JSON preference.
+            // saveLocked verifies the encrypted value before it replaces it.
+            val legacy = decodePendingQueue(raw, canonicalOwner)
+            if (legacy != null && saveLocked(canonicalOwner, legacy)) {
+                return true
             }
+            prefs.edit().remove(key).commit()
             return true
         }
     }
@@ -105,7 +151,7 @@ class PendingAttendanceStore(context: Context) {
         val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return emptyList()
         if (activeOwnerUserId != canonicalOwner) return emptyList()
         val raw = prefs.getString(key, null) ?: return emptyList()
-        val records = decodePendingQueue(raw, canonicalOwner)
+        val records = decryptAndDecode(raw, canonicalOwner)
         if (records == null) {
             // Active-account reads fail closed on legacy, corrupt, or mixed-owner data.
             prefs.edit().remove(key).commit()
@@ -118,7 +164,41 @@ class PendingAttendanceStore(context: Context) {
         val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return false
         if (activeOwnerUserId != canonicalOwner) return false
         val encoded = encodePendingQueue(canonicalOwner, records) ?: return false
-        return prefs.edit().putString(key, encoded).commit()
+        val encrypted = runCatching {
+            PendingQueueCipher.seal(encoded, getOrCreateKey())
+        }.getOrNull() ?: return false
+        if (decryptAndDecode(encrypted, canonicalOwner) == null) return false
+        return prefs.edit().putString(key, encrypted).commit()
+    }
+
+    private fun decryptAndDecode(
+        encrypted: String,
+        ownerUserId: String
+    ): List<PendingAttendanceRecord>? = runCatching {
+        decodePendingQueue(
+            PendingQueueCipher.open(encrypted, getOrCreateKey()),
+            ownerUserId
+        )
+    }.getOrNull()
+
+    private fun getOrCreateKey(): SecretKey = synchronized(queueLock) {
+        val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+        (keyStore.getKey(PENDING_QUEUE_KEY_ALIAS, null) as? SecretKey) ?: KeyGenerator
+            .getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+            .apply {
+                init(
+                    KeyGenParameterSpec.Builder(
+                        PENDING_QUEUE_KEY_ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+                    )
+                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setKeySize(256)
+                        .setRandomizedEncryptionRequired(true)
+                        .build()
+                )
+            }
+            .generateKey()
     }
 
     fun add(
