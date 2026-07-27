@@ -187,7 +187,7 @@ object Analytics {
     private fun checkForCrash(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
         runCatching {
-            val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val am = context.getSystemService(ActivityManager::class.java) ?: return@runCatching
             val prefs = context.getSharedPreferences("analytics", Context.MODE_PRIVATE)
             val watermark = prefs.getLong("crash_watermark", 0L)
             var newest = watermark

@@ -429,7 +429,9 @@ fun StudentProfileSheet(
     val prettyFmt = SimpleDateFormat("MMM d, yyyy", Locale.US)
     val timeFmt = SimpleDateFormat("h:mm a", Locale.US)
 
-    fun formatDate(iso: String) = runCatching { prettyFmt.format(isoFmt.parse(iso)!!) }.getOrDefault(iso)
+    fun formatDate(iso: String) = runCatching {
+        prettyFmt.format(requireNotNull(isoFmt.parse(iso)))
+    }.getOrDefault(iso)
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Scaffold(
