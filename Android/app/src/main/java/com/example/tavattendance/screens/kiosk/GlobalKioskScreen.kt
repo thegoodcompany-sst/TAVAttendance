@@ -93,6 +93,9 @@ private fun hashPinLegacy(pin: String, salt: String): String {
 private fun secureEquals(a: String, b: String): Boolean =
     MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))
 
+/** Shared across ViewModel instances so a second caller cannot race persisted PIN state. */
+private val kioskPinAttemptLock = Any()
+
 // ---------------------------------------------------------------------------
 // ViewModel
 // ---------------------------------------------------------------------------
@@ -113,8 +116,6 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     // cannot reset the brute-force counter.
     private val _failedAttempts = MutableStateFlow(prefs.getInt("failed_attempts", 0))
     private val _lockedUntil = MutableStateFlow(prefs.getLong("locked_until", 0L))
-
-    val failedAttempts = _failedAttempts.asStateFlow()
     val lockedUntil = _lockedUntil.asStateFlow()
 
     // Persisted kiosk settings
@@ -295,7 +296,7 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         _isLocked.value = false
         _isAdminUnlocked.value = true
         // Clear any lockout state when the PIN is removed.
-        persistFailedAttempts(0, 0L)
+        persistLockoutState(KioskLockoutState())
     }
 
     /** MAINT-10: update both SharedPreferences and the backing StateFlow. */
@@ -330,14 +331,28 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
      *  - Stored value has no recognised prefix (pre-hashing plaintext) →
      *      treat as legacy plaintext comparison; on success re-hash and re-store.
      *
-     * SEC-02: failed attempt counter is read from / written to SharedPreferences
-     *         so it survives rotation and back-press.
+     * SEC-02: lockout checking, PIN verification, and failure recording happen
+     *         under one lock. Callers cannot bypass throttling by invoking PIN
+     *         verification directly or forgetting a separate failure callback.
      *
-     * Returns true on success.
+     * Returns a structured result so the UI renders the state produced by this
+     * exact attempt rather than a stale Compose snapshot.
      */
-    fun tryUnlock(pin: String): Boolean {
+    internal fun tryUnlock(pin: String): KioskUnlockResult = synchronized(kioskPinAttemptLock) {
+        val nowMillis = System.currentTimeMillis()
+        val currentState = KioskLockoutState(
+            failedAttempts = prefs.getInt("failed_attempts", 0),
+            lockoutStage = prefs.getInt("lockout_stage", 0),
+            lockedUntilMillis = prefs.getLong("locked_until", 0L),
+        )
+        _failedAttempts.value = currentState.failedAttempts
+        _lockedUntil.value = currentState.lockedUntilMillis
+        if (isKioskUnlockBlocked(currentState, nowMillis)) {
+            return@synchronized KioskUnlockResult.LockedOut(currentState.lockedUntilMillis)
+        }
+
         val stored = storedPin
-        if (stored.isEmpty()) return false
+        if (stored.isEmpty()) return@synchronized KioskUnlockResult.NotConfigured
 
         val matches: Boolean = when {
             stored.startsWith("v2:") -> {
@@ -354,7 +369,10 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
-        if (matches) {
+        val (nextState, result) = transitionKioskUnlockState(currentState, matches, nowMillis)
+        persistLockoutState(nextState)
+
+        if (result == KioskUnlockResult.Unlocked) {
             // Re-hash with PBKDF2 if the stored value used an older scheme.
             if (!stored.startsWith("v2:")) {
                 prefs.edit().putString("pin", hashPinPbkdf2(pin, deviceSalt)).apply()
@@ -363,38 +381,20 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
             _isLocked.value = false
             _isAdminUnlocked.value = true
             Analytics.track(AnalyticsEventType.OPS, "admin_unlock")
-            // Reset lockout on successful unlock.
-            prefs.edit().putInt("lockout_stage", 0).apply()
-            persistFailedAttempts(0, 0L)
         }
-        return matches
+        result
     }
 
-    /**
-     * SEC-02: record a failed attempt and compute lockout if threshold reached.
-     * Each consecutive lockout doubles the window (30s, 60s, 120s, ... capped at 30min) instead
-     * of a fixed 30s, so repeated brute-force runs get exponentially slower rather than free
-     * 5-guesses-per-30s forever. The stage counter is persisted and only resets on a correct PIN.
-     */
-    fun recordFailedAttempt() {
-        val attempts = _failedAttempts.value + 1
-        if (attempts >= 5) {
-            val stage = prefs.getInt("lockout_stage", 0) + 1
-            val windowMs = (30_000L shl (stage - 1).coerceAtMost(6)).coerceAtMost(30 * 60_000L)
-            prefs.edit().putInt("lockout_stage", stage).apply()
-            persistFailedAttempts(0, System.currentTimeMillis() + windowMs)
-        } else {
-            persistFailedAttempts(attempts, _lockedUntil.value)
-        }
-    }
-
-    private fun persistFailedAttempts(attempts: Int, until: Long) {
-        prefs.edit()
-            .putInt("failed_attempts", attempts)
-            .putLong("locked_until", until)
-            .apply()
-        _failedAttempts.value = attempts
-        _lockedUntil.value = until
+    private fun persistLockoutState(state: KioskLockoutState) {
+        check(
+            prefs.edit()
+                .putInt("failed_attempts", state.failedAttempts)
+                .putInt("lockout_stage", state.lockoutStage)
+                .putLong("locked_until", state.lockedUntilMillis)
+                .commit()
+        ) { "Could not persist kiosk PIN lockout state" }
+        _failedAttempts.value = state.failedAttempts
+        _lockedUntil.value = state.lockedUntilMillis
     }
 
     private fun hasAdminAuthorization(): Boolean =
@@ -421,6 +421,70 @@ internal fun shouldLockKioskOnStart(storedPin: String): Boolean = storedPin.isNo
 
 internal fun isKioskActionAuthorized(action: KioskAction, isAdminMode: Boolean): Boolean =
     action == KioskAction.SignIn || isAdminMode
+
+private const val KIOSK_ATTEMPTS_PER_STAGE = 5
+private const val KIOSK_INITIAL_LOCKOUT_MILLIS = 30_000L
+private const val KIOSK_MAX_LOCKOUT_MILLIS = 30 * 60_000L
+
+internal data class KioskLockoutState(
+    val failedAttempts: Int = 0,
+    val lockoutStage: Int = 0,
+    val lockedUntilMillis: Long = 0L,
+)
+
+internal sealed interface KioskUnlockResult {
+    data object Unlocked : KioskUnlockResult
+    data class IncorrectPin(val attemptsRemaining: Int) : KioskUnlockResult
+    data class LockedOut(val lockedUntilMillis: Long) : KioskUnlockResult
+    data object NotConfigured : KioskUnlockResult
+}
+
+internal fun isKioskUnlockBlocked(state: KioskLockoutState, nowMillis: Long): Boolean =
+    nowMillis < state.lockedUntilMillis
+
+/**
+ * Pure lockout state machine used by the ViewModel and unit tests. A live
+ * lockout wins even when the supplied PIN matches. Each fifth failure doubles
+ * the lockout window (30s, 60s, 120s, ...), capped at 30 minutes; only a
+ * successful PIN resets the stage.
+ */
+internal fun transitionKioskUnlockState(
+    currentState: KioskLockoutState,
+    pinMatches: Boolean,
+    nowMillis: Long,
+): Pair<KioskLockoutState, KioskUnlockResult> {
+    if (isKioskUnlockBlocked(currentState, nowMillis)) {
+        return currentState to KioskUnlockResult.LockedOut(currentState.lockedUntilMillis)
+    }
+    if (pinMatches) {
+        return KioskLockoutState() to KioskUnlockResult.Unlocked
+    }
+
+    val attempts = currentState.failedAttempts.coerceIn(0, KIOSK_ATTEMPTS_PER_STAGE - 1) + 1
+    if (attempts < KIOSK_ATTEMPTS_PER_STAGE) {
+        val nextState = currentState.copy(
+            failedAttempts = attempts,
+            lockoutStage = currentState.lockoutStage.coerceAtLeast(0),
+            lockedUntilMillis = 0L,
+        )
+        return nextState to KioskUnlockResult.IncorrectPin(
+            attemptsRemaining = KIOSK_ATTEMPTS_PER_STAGE - attempts,
+        )
+    }
+
+    val nextStage = (currentState.lockoutStage.coerceIn(0, 7) + 1).coerceAtMost(7)
+    val exponent = (nextStage - 1).coerceIn(0, 6)
+    val windowMillis =
+        (KIOSK_INITIAL_LOCKOUT_MILLIS shl exponent).coerceAtMost(KIOSK_MAX_LOCKOUT_MILLIS)
+    val lockedUntilMillis =
+        if (nowMillis > Long.MAX_VALUE - windowMillis) Long.MAX_VALUE else nowMillis + windowMillis
+    val nextState = KioskLockoutState(
+        failedAttempts = 0,
+        lockoutStage = nextStage,
+        lockedUntilMillis = lockedUntilMillis,
+    )
+    return nextState to KioskUnlockResult.LockedOut(lockedUntilMillis)
+}
 
 // ---------------------------------------------------------------------------
 // Composable screen
@@ -605,11 +669,9 @@ fun GlobalKioskScreen(
 
             if (showPinUnlock) {
                 PinUnlockOverlay(
-                    failedAttempts = vm.failedAttempts,
                     lockedUntil = vm.lockedUntil,
                     onDismiss = { vm.hidePinUnlockDialog() },
                     onAttempt = { pin -> vm.tryUnlock(pin) },
-                    onRecordFailedAttempt = { vm.recordFailedAttempt() }
                 )
             }
 
@@ -918,32 +980,28 @@ private fun PinSetupDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 
 @Composable
 private fun PinUnlockOverlay(
-    failedAttempts: kotlinx.coroutines.flow.StateFlow<Int>,
     lockedUntil: kotlinx.coroutines.flow.StateFlow<Long>,
     onDismiss: () -> Unit,
-    onAttempt: (String) -> Boolean,
-    onRecordFailedAttempt: () -> Unit
+    onAttempt: (String) -> KioskUnlockResult,
 ) {
-    val failedAttemptsVal by failedAttempts.collectAsState()
     val lockedUntilVal by lockedUntil.collectAsState()
 
     var entered by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var secondsRemaining by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            val remaining = (lockedUntilVal - System.currentTimeMillis()) / 1000
-            secondsRemaining = if (remaining > 0) remaining.toInt() else 0
-            kotlinx.coroutines.delay(1000)
-        }
-    }
-
-    // Keep secondsRemaining updated when lockedUntil changes (e.g. after a
-    // failed attempt that triggers lockout).
+    // Restart the countdown whenever a failed attempt establishes a new window.
+    // Keying this effect to Unit would retain the pre-attempt timestamp and
+    // overwrite the new countdown with stale state.
     LaunchedEffect(lockedUntilVal) {
-        val remaining = (lockedUntilVal - System.currentTimeMillis()) / 1000
-        secondsRemaining = if (remaining > 0) remaining.toInt() else 0
+        while (true) {
+            val remainingMillis = lockedUntilVal - System.currentTimeMillis()
+            val remainingSeconds = remainingMillis / 1_000L +
+                if (remainingMillis > 0 && remainingMillis % 1_000L != 0L) 1L else 0L
+            secondsRemaining = remainingSeconds.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+            if (remainingMillis <= 0) break
+            kotlinx.coroutines.delay(1_000)
+        }
     }
 
     Box(
@@ -1008,20 +1066,22 @@ private fun PinUnlockOverlay(
                             error = ""
                             entered += d
                             if (entered.length == 4) {
-                                val success = onAttempt(entered)
-                                if (success) {
-                                    onDismiss()
-                                } else {
-                                    onRecordFailedAttempt()
-                                    val isNowLockedOut = System.currentTimeMillis() < lockedUntilVal
-                                    if (!isNowLockedOut) {
-                                        val left = 5 - (failedAttemptsVal)
-                                        error = if (left > 0)
+                                when (val result = onAttempt(entered)) {
+                                    KioskUnlockResult.Unlocked -> onDismiss()
+                                    is KioskUnlockResult.IncorrectPin -> {
+                                        val left = result.attemptsRemaining
+                                        error =
                                             "Incorrect PIN — $left attempt${if (left == 1) "" else "s"} left"
-                                        else
-                                            "Incorrect PIN"
+                                        entered = ""
                                     }
-                                    entered = ""
+                                    is KioskUnlockResult.LockedOut -> {
+                                        error = ""
+                                        entered = ""
+                                    }
+                                    KioskUnlockResult.NotConfigured -> {
+                                        error = "No kiosk PIN is configured"
+                                        entered = ""
+                                    }
                                 }
                             }
                         }
