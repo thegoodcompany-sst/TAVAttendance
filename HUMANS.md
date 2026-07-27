@@ -418,8 +418,9 @@ preconditions hold. A flag is global — every platform must handle it first.
 Version 1.0 in App Store Connect is staged: metadata, age rating, free pricing (base SGP),
 build 3 attached, release type MANUAL, review demo account
 with an admin role in production Supabase. Keep its identifier and password only in App Store
-Connect and the team password manager. The former plaintext password remains in Git history:
-rotate the account before release and update the App Review credentials.
+Connect and the team password manager. The production account password was rotated and the
+App Review credentials were synchronized through `asc` on 2026-07-27; the former plaintext
+password remains in Git history but no longer authenticates.
 `asc validate --app 6790169580 --version 1.0` reports two blockers:
 
 - [ ] **Availability** — run `asc web auth login --apple-id <your Apple ID>` once
@@ -669,8 +670,10 @@ Android auth sessions and PKCE verifiers now migrate into Keystore-backed
 AES-GCM storage and synchronously remove the verified plaintext source
 (build/unit-test verified 2026-07-26). Physical-device QA must still verify
 that migration and the queue's fail-closed account-transition behavior.
-Remaining: encrypt the offline queue JSON with a Keychain/Keystore-held
-authenticated key on both native clients.
+The offline queue JSON now migrates to AES-GCM using a per-install
+Keychain/Keystore-held key on both native clients (build/unit-test verified
+2026-07-27). Remaining: exercise plaintext migration, tamper failure, and
+account-transition behavior on physical shared devices.
 
 ### ◐ 65. Activate scheduled Storage erasure
 
@@ -682,38 +685,39 @@ server; native controls fail closed to that trusted workflow.
 
 ### ☐ 66. Rotate exposed credentials and clean history
 
-- Disable/rotate the App Review admin account whose former password is present
-  in 63 reachable Git revisions; update App Store Connect and the team password
-  manager. Rotation comes before any history rewrite.
-- Rotate the production database password found in an ignored owner-only local
-  operator note. Update only authorized pooler/deployment consumers, revoke the
-  old value, and review database/auth logs for unexpected use.
+- [x] Rotated the App Review admin account in production Auth and updated App
+  Store Connect through `asc` on 2026-07-27. The former password is present in
+  63 reachable Git revisions but no longer authenticates.
+- [ ] Confirm the rotated App Review credential is recorded in the team password
+  manager, then clean the reachable history with coordinated fresh clones.
+- [x] Rotated the production database password through the supported Management
+  API on 2026-07-27, verified the production pooler, moved CI consumers to
+  environment-scoped secrets, removed repository-scoped copies, and replaced
+  the ignored plaintext note with a macOS Keychain reference.
+- [ ] Review database/auth logs for unexpected historical use.
 - Use a reviewed history-cleaning procedure and coordinate fresh clones. Never
   print either old value in an issue, PR, terminal transcript, or cleanup log.
 
-### ☐ 67. Protect `main` and production deployments
+### ◐ 67. Protect `main` and production deployments
 
-GitHub currently has no effective branch protection, and the repository does not
-yet identify an exact CODEOWNERS user/team. Before pushing the workflow changes
-that reference `production-security`:
+Configured on 2026-07-27: `main` requires one CODEOWNERS approval, all six CI
+jobs, current-branch review, resolved conversations and linear history, with
+admin enforcement and force-push/deletion disabled. The `production-security`
+environment is limited to protected branches, prevents self-review, and requires
+`waynetay` or `winson-lebron`; its three secrets were moved out of repository
+scope. Remaining: merge `.github/CODEOWNERS` so the configured CODEOWNERS rule
+has its reviewed source of truth.
 
-1. Create that GitHub Environment, limit its deployment branch to protected
-   `main`, require explicit reviewers, prevent self-review, and apply those rules
-   to administrators.
-2. Copy `TAVA_DB_URL`, `SUPABASE_ACCESS_TOKEN`, and
-   `SUPABASE_DB_PASSWORD` into **environment-scoped** secrets. Give the database
-   identity only the read privileges used by the drift/advisor checks, then
-   delete same-named repository/organisation-scoped copies so a workflow that
-   omits the environment cannot fall back to them.
-3. Add a reviewed `.github/CODEOWNERS` entry after confirming the exact
-   organisation team or maintainer account. Protect `main` with pull requests,
-   required CODEOWNERS review, the PR CI job, resolved conversations, admin
-   enforcement, and blocks on force-push/deletion. `remote-security` is a
-   post-merge production check, not a substitute for the pre-merge CI gate.
-4. Verify an unapproved `production-security` job remains waiting and cannot
-   read its secrets; approve one known commit and verify both remote-security
-   and weekly advisor workflows pass. Keep required-reviewer approval in place
-   for scheduled runs.
+- [x] Protected the environment and `main` with the controls above.
+- [x] Moved `TAVA_DB_URL`, `SUPABASE_ACCESS_TOKEN`, and
+  `SUPABASE_DB_PASSWORD` into environment scope and deleted repository copies.
+- [ ] Merge the reviewed `.github/CODEOWNERS` entry. `remote-security` remains
+  a post-merge production check, not a substitute for the pre-merge CI gate.
+- [x] Confirmed workflow run `30239848443` remains waiting for environment
+  approval and cannot read its secrets.
+- [ ] Have `waynetay` or `winson-lebron` approve that known run; verify
+  remote-security and weekly advisor checks pass. Keep required-reviewer
+  approval in place for scheduled runs.
 
 ### ☐ 68. Deploy and verify the hardened web headers
 
