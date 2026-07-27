@@ -412,6 +412,7 @@
 			mainGroup = 28E6BCED7C8C917E0F28C5A8;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				8143F95B4809BE4DE5EE47CA /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */,
 				7F2FDF10B24D2524E41D7DB3 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -753,6 +754,14 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.53.0;
+			};
+		};
+		8143F95B4809BE4DE5EE47CA /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/open-telemetry/opentelemetry-swift-core.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
