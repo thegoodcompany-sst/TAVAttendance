@@ -57,7 +57,10 @@ never failed (use `tava-architecture-contract`).
 ### 8. Self-signup could mint an admin (2026-07-06 audit, code-fixed)
 - **Symptom**: none observed; audit finding SEC-16c.
 - **Root cause**: `handle_new_user` trusted `raw_user_meta_data.role` when `auth.uid() IS NULL` — but public self-signup also runs with NULL uid.
-- **Fix**: 016 hardens the trigger; `web/app/actions/invite.ts` now sets roles via service role after creation. Prod still needs 016 applied AND public signup disabled in the dashboard (HUMANS.md §30/§31).
+- **Fix**: 016 hardened the trigger and was applied during the 2026-07-09
+  reconciliation; migration 038 later defaults new profiles to least privilege
+  and tightens privileged account management. Hosted public signup still has
+  to be measured/disabled (HUMANS.md §61).
 
 ### 9. Kiosk phantom sessions on non-tuition days (2026-06, resolved by design change)
 - **Symptom**: opening the kiosk on e.g. a Wednesday created session rows for every active class.
@@ -75,14 +78,14 @@ never failed (use `tava-architecture-contract`).
 | "Fix" the `schedule_time` parser to expect exactly `HH:mm` | REJECTED — Postgres TIME returns `HH:mm:ss`; parser must accept both. |
 | "Fix" the CodeSign `swift-crypto_Crypto.bundle` failure | NOT A CODE PROBLEM — local keychain issue; use `CODE_SIGNING_ALLOWED=NO`. |
 | Per-class kiosk (`KioskView.swift`) | DELETED as dead code — was never wired to navigation. Recreate from `GlobalKioskView.swift` if ever needed. |
-| Delete `PdpaPanel` (web) as dead code | DELIBERATELY KEPT in the 2026-07 refactor — it's the PDPA s16/s21/s25 machinery, built but never imported by `students/[id]/page.tsx`. Decision pending (HUMANS.md §29). Don't delete; don't wire without a decision. |
-| Run Android unit tests on this machine | BLOCKED by JDK 26 jlink error until JDK 17/21 installed (§34). `compileDebugKotlin` is the accepted verification meanwhile. |
+| Delete `PdpaPanel` (web) as dead code | REJECTED — it is now wired into the student page and carries consent/export/erasure controls. |
+| Accept `compileDebugKotlin` as Android verification | REJECTED — use JDK 17/21 and run unit tests plus `assembleDebug`; CI does the same. |
 | Kiosk PIN → Keychain migration | DEFERRED with a `ponytail:` marker in `GlobalKioskView.swift` (~line 1243). Device-verify before/when completing (§33). |
 | Unmerged branch `worktree-agent-a0964c91cbe6e7bb4` | Contains a draft result-slip Storage cleanup whose migration is numbered 013 — **clashes with main's 013**. Reference only, or renumber before any merge (§9). |
 
 ## Provenance and maintenance
 
-Current as of 2026-07-09. Mined from `git log`, HUMANS.md §§9–34, migration
-016's header, and project session notes now embedded above.
-- New incidents since? `git log --oneline --since=2026-07-09 --grep='fix\|revert'`
-- Still-open items: `grep '^### ☐' HUMANS.md`
+Historical entries audited 2026-07-26 against Git history, migration 038 and
+HUMANS.md §§60–69.
+- New incidents: `git log --oneline --since=2026-07-09 --grep='fix\\|revert'`
+- Still-open items: `rg '^### [☐◐]' HUMANS.md`

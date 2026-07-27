@@ -130,8 +130,8 @@ Android unit tests, and every `supabase/tests/*.sql` regression); test the rest 
 | Platform | Command | Dir |
 |---|---|---|
 | iOS | `xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17'` (or build via Xcode; scheme name comes from `project.yml`, XcodeGen-managed) | `iOS/` |
-| Android | `./gradlew test` (needs JDK 17 or 21 — fails under newer JDKs with a jlink error; fall back to `./gradlew clean compileDebugKotlin`) | `Android/` |
-| Web | `npm run build` / `npm run lint` | `web/` |
+| Android | `./gradlew testDebugUnitTest assembleDebug --no-daemon` (JDK 17/21) | `Android/` |
+| Web | `npm ci && npm audit --audit-level=high && npm test && npm run lint && npm run build` | `web/` |
 
 Machine-specific caveats (Xcode-beta `DEVELOPER_DIR`, `CODE_SIGNING_ALLOWED=NO`)
 live in `CLAUDE.md` §Running tests — agents should use that table.
