@@ -51,10 +51,10 @@ BEGIN
 END $$;
 ```
 
-Existing migrations (001–017) are already applied to prod and are never edited
-(see CLAUDE.md; the one sanctioned exception was the HUMANS.md §36 replayability
-fixes to 005/010/014, which changed syntax, not end state); the convention
-applies forward only.
+Existing migrations are never edited. The historical, already-recorded
+HUMANS.md §36 replayability changes to 005/010/014 were the sole exception and
+changed syntax rather than intended end state. Do not infer current production
+application from this table; require the remote drift/security gates.
 
 ## Current migrations
 
@@ -98,3 +98,18 @@ applies forward only.
 | 036 | parent_message_privacy        | Scope direct messages to the sending/receiving parent when siblings share a child | yes   |
 | 037 | retrospective_sessions        | Flagged past-session create/edit, historical roster, and ended-attendance correction RPCs | yes   |
 | 038 | security_boundary_hardening   | Tutor/substitute/session capabilities, safe parent projections, bounded analytics/push, DB-managed superadmin/role gates, service-only erasure, durable Storage cleanup, identifier-rotating pseudonymisation, and upload boundaries | yes   |
+| 039 | feature_flag_superadmin_update_grant | Restore authenticated UPDATE table privilege while retaining the superadmin-only RLS boundary | yes   |
+| 040 | record_tutor_policy_read_grants | Record RLS-bounded enrollment and tutor-assignment read privileges required by tutor policy evaluation | yes   |
+| 041 | record_student_policy_read_grant | Record the RLS-bounded student read privilege required by tutor policy evaluation | yes   |
+| 042 | record_session_policy_grants | Record RLS-bounded session read/update privileges required by session policy evaluation | yes   |
+| 043 | record_attendance_policy_grants | Record RLS-bounded attendance read/insert privileges required by attendance policy evaluation | yes   |
+| 044 | record_attendance_update_grant | Record the RLS-bounded attendance update privilege required by offline upserts | yes   |
+| 045 | fix_substitute_student_photo_scope | Evaluate bounded tutor/substitute photo access without enrollment-policy recursion | yes   |
+| 046 | pin_student_photo_scope_to_actor | Pin tutor/substitute photo scope directly to the JWT actor and enrollment dates | yes   |
+| 047 | bind_student_photo_scope_argument | Bind the student-photo predicate identifier positionally to prevent SQL name ambiguity | yes   |
+| 048 | record_parent_boundary_read_grants | Record RLS-bounded reads exercised by the parent portal boundary | yes   |
+| 049 | record_result_upload_service_grants | Record trusted result-upload read/update privileges | yes   |
+| 050 | record_student_update_grant | Record the RLS-bounded student update privilege used by avatar assignment | yes   |
+| 051 | record_award_insert_grant | Record the admin-only, feature-gated award insert privilege | yes   |
+| 052 | record_public_policy_read_grant | Record the RLS-bounded public policy-document read privilege | yes   |
+| 053 | record_authenticated_policy_read_grant | Record the RLS-bounded authenticated policy-document read privilege | yes   |

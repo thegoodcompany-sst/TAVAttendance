@@ -1,139 +1,123 @@
 ---
 name: release
-description: Use when preparing or shipping a new build of the TAVA mobile apps — Android to Firebase App Distribution, iOS to the GitHub release + AltStore source (altstore.json). Covers change collection, the required version-number prompt, version bumps, the exact commands, and the altstore.json update that AltStore installs from.
+description: Use when preparing or shipping TAVA mobile builds — version intake, Android Firebase App Distribution, iOS TestFlight/App Store Connect, the optional AltStore fallback, verification, and release-ledger updates.
 ---
 
-# TAVA App Release
+# TAVA mobile release
 
-Two independent channels. Run either or both. The web dashboard is NOT this
-skill — that's the `deploy` skill.
-
-| Channel | Tool | Consumer |
+| Channel | Current path | Consumer |
 |---|---|---|
-| Android | `Android/distribute.sh` → Firebase App Distribution | testers in `Android/testers.txt` get an email |
-| iOS | `iOS/build-ipa.sh` → GitHub release asset + `web/public/altstore.json` | AltStore on the kiosk iPad (source URL `https://dash.thegoodcompanysg.dev/altstore.json`) |
+| Android | `Android/distribute.sh` → Firebase App Distribution | approved testers |
+| iOS primary | signed archive + `ExportOptionsTestFlight.plist` → App Store Connect/TestFlight | beta/review users |
+| iOS fallback | `iOS/build-ipa.sh` + GitHub `pre-release` asset + `altstore.json` | legacy AltStore installs |
 
-## 0. Release intake — report, ask, then stop
+The web dashboard has a separate `deploy` runbook.
 
-Do this before editing version files, building, uploading, or deploying.
+## 0. Intake: report, ask, stop
 
-1. Read the current versions from their sources of truth:
-   - Android: `versionName` and `versionCode` in `Android/app/build.gradle.kts`.
-   - iOS: `CFBundleShortVersionString` and `CFBundleVersion` in `iOS/project.yml`.
-2. Stop and report the mismatch if the Android and iOS marketing versions differ.
-3. For display, normalise a two-component version such as `1.1` to `1.1.0`, but
-   also show the exact stored value and each platform's build number.
-4. Find the most recent release commit with
-   `git log --format='%H' --grep='^release:' -n 1`. Treat it as the release
-   baseline. If none exists, use the commit immediately before the first
-   versioned release and state that fallback.
-5. Build a concise change summary from all of these inputs:
-   - `RELEASE_NOTES.md` → `Unreleased`;
-   - commits after the baseline;
-   - tracked working-tree changes against the baseline;
-   - untracked files from `git status --short` that belong in the product.
-   Inspect the diffs enough to describe behaviour, security, schema, and
-   operational changes—not just filenames. Do not run `git stash`; the ledger
-   is a release-notes staging area, not a Git stash.
-6. Ask exactly one blocking question in this shape:
+Before modifying a version or uploading:
 
-```text
-Changes since the last build:
-- <change>
-- <change>
+1. Read Android `versionName`/`versionCode` from
+   `Android/app/build.gradle.kts` and iOS
+   `CFBundleShortVersionString`/`CFBundleVersion` from `iOS/project.yml`.
+2. Stop on a marketing-version mismatch.
+3. Find the last `release:` commit and summarize `RELEASE_NOTES.md` Unreleased,
+   commits, tracked changes and product-relevant untracked files since it.
+4. Ask one blocking question for the new numeric `MAJOR.MINOR.PATCH` version.
+   Never infer it.
 
-The current version number is 1.1.0 (stored as 1.1; Android build 3, iOS build 5).
-What version number would you like to use?
-```
+After approval, use the exact marketing version on both platforms. Increment
+Android `versionCode` and iOS `CFBundleVersion` independently by one. Update
+`Android/release-notes.txt` with the user-facing subset.
 
-Never infer the next marketing version. Wait for an explicit answer such as
-`1.1.1`; do not make release mutations in the same turn as the question.
+## 1. Security and build gates
 
-After the user replies, validate a numeric `MAJOR.MINOR.PATCH` value greater
-than the current normalised version. Use that exact value on both platforms.
-Increment Android `versionCode` and iOS `CFBundleVersion` independently by one.
-
-## 1. Version bump (both platforms, keep in sync)
-
-- **Android**: `Android/app/build.gradle.kts` → `versionCode` (+1 every release) and `versionName`.
-- **iOS**: `iOS/project.yml` → `CFBundleShortVersionString` (marketing version) and `CFBundleVersion` (+1 every release). Never edit Info.plist/pbxproj directly — XcodeGen regenerates them.
-- Update `Android/release-notes.txt` from the user-facing subset of the approved
-  change summary (Firebase shows it to testers).
+- Release only a reviewed commit; record its hash.
+- Run the CI-equivalent checks in `tava-validation-and-qa`.
+- Confirm migrations required by the clients are live with the production
+  drift/security gates before distributing them.
+- Run current-tree secret scanning and dependency audits.
+- Keep release keystores, provisioning profiles, API keys, App Review
+  credentials and database URLs out of Git, terminal arguments, logs and
+  release notes.
 
 ## 2. Android → Firebase App Distribution
 
-Prereqs (already done once, 2026-07-12): `firebase login`, app registered.
-The App ID `1:879371219921:android:dc7a8dbf4d8df141bf66f0` is baked into the
-script as the default. Signing keystore + `KEYSTORE_*` values live in the
-gitignored `Android/secrets.properties` (+ `Android/release.jks`).
+Prerequisites: authenticated Firebase CLI, `Android/release.jks`, and
+`KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` in the
+gitignored `Android/secrets.properties`.
 
 ```bash
-cd Android && ./distribute.sh
+cd Android
+./distribute.sh
 ```
 
-That's it — builds `assembleRelease` (JDK 21 exported inside the script) and
-uploads with notes from `release-notes.txt` to testers in `testers.txt`.
-Success output ends with a Firebase console link. Failure modes: `firebase`
-CLI not on PATH (`npm i -g firebase-tools`), expired login (`firebase login
---reauth`), missing keystore values.
+The script uses the registered Firebase App ID by default, builds the signed
+R8-minified release APK, and uploads using `release-notes.txt` and
+`testers.txt`. Verify the Firebase release identifies the expected
+`versionName`, `versionCode`, signing identity and source commit. Back up the
+keystore separately; losing it prevents updates under the same identity.
 
-## 3. iOS → GitHub release + AltStore
+## 3. iOS primary → TestFlight/App Store Connect
 
-### 3a. Build the signed IPA
+The source of truth is `iOS/project.yml`. It currently selects the distribution
+profile for Release builds; `ExportOptionsTestFlight.plist` is the App Store
+Connect export configuration. Regenerate before archiving:
 
 ```bash
-cd iOS && ./build-ipa.sh
+cd iOS
+xcodegen generate
+xcodebuild archive \
+  -project TAVAttendance.xcodeproj \
+  -scheme TAVAttendance \
+  -destination 'generic/platform=iOS' \
+  -archivePath export-builds/TAVAttendance.xcarchive
+xcodebuild -exportArchive \
+  -archivePath export-builds/TAVAttendance.xcarchive \
+  -exportOptionsPlist ExportOptionsTestFlight.plist \
+  -exportPath export-builds/testflight
 ```
 
-Archives + exports to `iOS/export-builds/TAVAttendance.ipa` (gitignored) using
-`ExportOptions.plist` (personal-team signing — installs expire after 7 days,
-AltStore re-signs on refresh; that's expected). The script prints the IPA size
-— **record it, altstore.json needs the exact byte count**.
+Use the authenticated App Store Connect upload mechanism installed on the
+release Mac. Check its local help before upload rather than copying a stale CLI
+syntax from this runbook. Verify the processed build in App Store Connect:
+bundle `com.tava.TAVAttendance`, app ID `6790169580`, expected marketing/build
+versions, compliance metadata, beta-review state and source commit.
 
-### 3b. Upload to the GitHub release
+Run `asc validate --app 6790169580 --version 1.0` only for the existing 1.0 App
+Store submission record. App Review credentials belong only in App Store
+Connect and the team password manager. HUMANS.md §66 requires rotation of the
+former exposed review account before release.
 
-The AltStore source points at the fixed asset URL of the `pre-release` tag, so
-**clobber the asset on the same release** — do NOT create a new tag or the
-download URL breaks:
+## 4. Optional iOS AltStore fallback
+
+`iOS/build-ipa.sh` uses `ExportOptions.plist`, which is a development export.
+It is not the TestFlight path. If the fallback is deliberately requested:
 
 ```bash
-gh release upload pre-release iOS/export-builds/TAVAttendance.ipa --clobber
+cd iOS
+./build-ipa.sh
+gh release upload pre-release export-builds/TAVAttendance.ipa --clobber
 ```
 
-(Repo: `thegoodcompany-sst/TAVAttendance`. Remember the global rule: check
-`curl -s api.ipify.org` before git/gh network commands.)
+Then prepend the new entry in `web/public/altstore.json` with exact version,
+build, date and IPA byte size. Keep the fixed `pre-release` download URL. Ship
+the JSON through the web `deploy` runbook and verify the public response. A
+development-signed fallback may expire; do not describe it as an App Store
+release.
 
-### 3c. Update `web/public/altstore.json`
+## 5. Close the release
 
-In the single entry under `apps[0].versions` (prepend a new object rather than
-editing if you want history — AltStore uses the newest):
+- Verify install/launch/sign-in on each requested channel without real student
+  data in screenshots or logs.
+- Move Unreleased bullets into `## VERSION — YYYY-MM-DD`; preserve history and
+  leave an empty Unreleased section.
+- Commit version files, regenerated Xcode project, release notes and
+  `altstore.json` only if that fallback was used.
+- Record immutable external build/release identifiers in the handoff.
 
-- `version` = CFBundleShortVersionString, `buildVersion` = CFBundleVersion
-- `date` = today (YYYY-MM-DD)
-- `size` = the exact byte count from step 3a (`stat -f %z iOS/export-builds/TAVAttendance.ipa`). **A wrong size makes AltStore fail the download.**
-- `localizedDescription` = short human changelog
-- `downloadURL` stays `https://github.com/thegoodcompany-sst/TAVAttendance/releases/download/pre-release/TAVAttendance.ipa`
-- `minOSVersion` stays `17.0` unless the deployment target changed
+## Provenance
 
-### 3d. Ship the source
-
-`altstore.json` is served by the web deployment (excluded from the auth gate
-in `web/proxy.ts`), so the update is only live after a web deploy — run the
-`deploy` skill (includes the mandatory schema gate). Verify:
-
-```bash
-curl -s https://dash.thegoodcompanysg.dev/altstore.json | python3 -c "import json,sys; v=json.load(sys.stdin)['apps'][0]['versions'][0]; print(v['version'], v['buildVersion'], v['size'])"
-```
-
-Then on the iPad: AltStore → Browse → TAVA source shows the new version;
-update installs. (Human step — can't be automated.)
-
-## 4. Wrap up
-
-- After every requested channel has shipped and verification passes, move the
-  bullets under `RELEASE_NOTES.md` → `Unreleased` into a dated
-  `## VERSION — YYYY-MM-DD` section, then leave a fresh empty `Unreleased`
-  section for subsequent work. Preserve old sections as release history.
-- Commit the version bumps + altstore.json + release-notes.txt + release ledger.
-- When the paid Apple Developer account lands, TestFlight replaces channel 3
-  entirely — revisit this skill then.
+Audited 2026-07-26 against the 1.1.1 version sources,
+`Android/distribute.sh`, both iOS export plists, `iOS/build-ipa.sh`,
+`web/public/altstore.json`, and the App Store Connect notes in `CLAUDE.md`.
