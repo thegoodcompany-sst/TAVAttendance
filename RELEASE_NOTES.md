@@ -5,6 +5,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Redesigned the web admin Today dashboard as a compact, card-free daily
+  attendance register while preserving the existing TAVA type and colour system.
 - Encrypted pending attendance queues with per-install Keychain/Keystore
   AES-GCM keys on iOS and Android, including verified migration from the former
   plaintext account-owned envelope and tamper-detection tests; removed Android
