@@ -52,7 +52,9 @@ fun ClassFormDialog(
                         readOnly = true,
                         label = { Text("Subject") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subjectExpanded) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor(
+                            MenuAnchorType.PrimaryNotEditable
+                        )
                     )
                     ExposedDropdownMenu(
                         expanded = subjectExpanded,
