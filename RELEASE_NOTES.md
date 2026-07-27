@@ -5,6 +5,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Fixed local/CI seed replay across the Singapore-midnight boundary by deriving
+  the sample session date in the same timezone as session lifecycle guards.
 - Redesigned the web admin Today dashboard as a compact, card-free daily
   attendance register while preserving the existing TAVA type and colour system.
 - Encrypted pending attendance queues with per-install Keychain/Keystore
