@@ -13,6 +13,9 @@ fileTypes:
     buildPhase: resources
 
 packages:
+  OpenTelemetry:
+    url: https://github.com/open-telemetry/opentelemetry-swift-core.git
+    from: "2.5.0"
   Supabase:
     url: https://github.com/supabase/supabase-swift
     from: "2.53.0"
