@@ -1,79 +1,118 @@
 ---
 name: deploy
-description: Use when deploying the TAVA web dashboard to production at dash.thegoodcompanysg.dev — covers Vercel env var checks, production deploy, and post-deploy verification including the Supabase redirect URL requirement.
+description: Use when deploying the TAVA web dashboard to production at dash.thegoodcompanysg.dev — covers security gates, Vercel environment checks, production deploy, rollback, and post-deploy verification.
 ---
 
 # TAVA Web Deploy
 
-## Overview
+Deploys `web/` to the `tava-dashboard` Vercel project, aliased to
+`https://dash.thegoodcompanysg.dev`. Run Vercel commands from `web/`; its
+`.vercel/project.json` is the project binding.
 
-Deploys `web/` to the `tava-dashboard` Vercel project, aliased to `https://dash.thegoodcompanysg.dev`. Always run from the `web/` directory — the `.vercel/project.json` there links to the correct project.
+## Required production environment
 
-## Required Production Env Vars
+Confirm the names exist with `cd web && vercel env ls production`. Never print
+values or put a secret literal in a shell command.
 
-Before deploying, confirm all four are set in Vercel Production (`vercel env ls production`):
+| Variable | Exposure | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | public | Exact Supabase project origin; also shapes CSP |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | public | Browser Supabase client |
+| `SUPABASE_SERVICE_ROLE_KEY` | server secret | Invite/remove and trusted Storage workflows |
+| `SITE_URL` | server config | Must be `https://dash.thegoodcompanysg.dev` for invite redirects |
 
-| Variable | Purpose |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Admin client for invite/remove actions |
-| `SITE_URL` | `https://dash.thegoodcompanysg.dev` — controls `redirectTo` in invite emails |
+Add a missing value interactively with `vercel env add VAR_NAME production`.
+Do not use `printf 'secret' | ...`: the literal may be retained in shell history
+or captured in an operator transcript. `SUPERADMIN_EMAIL` is obsolete;
+migration 038 moved that authority to the single DB-managed
+`security_principals(capability='superadmin')` row.
 
-Add a missing var with:
-```bash
-printf 'value' | vercel env add VAR_NAME production
-```
+## Mandatory pre-deploy gates
 
-## Pre-Deploy Gate — Schema Check (mandatory)
+1. Start from a reviewed commit on protected `main`; do not give production
+   credentials to an unreviewed branch.
+2. Confirm GitHub `CI` and `Remote security checks` are green for that commit.
+   The remote workflow compares production to a clean migration replay and runs
+   `scripts/prod-security-check.sql`.
+3. From the repo root, independently run the read-only schema reference gate:
 
-Web code referencing a column prod lacks took the dashboard down on 2026-06-27.
-Before every deploy, verify every table/column/RPC referenced in `web/` exists in prod:
-
-1. Run this via the Supabase MCP `execute_sql` tool and save the JSON result to a temp file:
-   ```sql
-   select json_build_object(
-     'tables',   (select json_agg(distinct table_name)   from information_schema.tables   where table_schema='public'),
-     'columns',  (select json_agg(distinct column_name)  from information_schema.columns  where table_schema='public'),
-     'routines', (select json_agg(distinct routine_name) from information_schema.routines where routine_schema='public'));
+   ```bash
+   scripts/drift-check.sh
+   psql "$TAVA_DB_URL" -v ON_ERROR_STOP=1 -f scripts/prod-security-check.sql
    ```
-2. `node scripts/check-web-schema.mjs <temp-file>` — must print "Schema check passed".
 
-If it fails: the missing migration must be applied to prod FIRST (see `tava-change-control` ordering rule). Do not deploy.
+   `TAVA_DB_URL` is a secret. Do not add it to a command line, commit it, or
+   retain it in a transcript.
+4. From `web/`:
 
-(With `TAVA_DB_URL` + psql available, `scripts/drift-check.sh` does both steps.)
+   ```bash
+   npm ci
+   npm audit --audit-level=high
+   npm test
+   npm run lint
+   npm run build
+   ```
 
-## Deploy
+If a gate fails, stop. Apply any required migration and re-run the production
+checks before deploying app code that depends on it.
+
+## Deploy and record
 
 ```bash
 cd web
 vercel deploy --prod --yes
 ```
 
-Build takes ~40s. Output confirms alias: `Aliased: https://dash.thegoodcompanysg.dev`.
+Record the immutable deployment URL and source commit. Do not rely only on the
+custom alias when identifying a rollback target.
 
-## Post-Deploy Checks
+## Post-deploy verification
 
 ```bash
-curl -s -o /dev/null -w "login: %{http_code}\n" https://dash.thegoodcompanysg.dev/login
-# expect 200
-curl -s -o /dev/null -w "root: %{http_code}\n" https://dash.thegoodcompanysg.dev/
-# expect 307 (auth redirect)
+curl --fail --silent --show-error --output /dev/null \
+  --write-out 'login: %{http_code}\n' \
+  https://dash.thegoodcompanysg.dev/login
+curl --silent --show-error --output /dev/null \
+  --write-out 'root: %{http_code} redirect=%{redirect_url}\n' \
+  https://dash.thegoodcompanysg.dev/
+curl --fail --silent --show-error --dump-header - --output /dev/null \
+  https://dash.thegoodcompanysg.dev/login
 ```
 
-## Supabase Redirect URL — Required Manual Step
+Verify:
 
-`SITE_URL` controls what the app *sends* as `redirectTo` in invite emails. Supabase will only honor it if the URL is allowlisted. **Without this step, invite links resolve to Supabase's fallback Site URL, not the dashboard.**
+- `/login` is 200 and `/` redirects an unauthenticated request to `/login`;
+- CSP contains the exact configured Supabase HTTPS/WSS origins, not a wildcard;
+- HSTS, frame denial, `nosniff`, referrer, permissions and COOP headers exist;
+- an admin can sign in and load the dashboard;
+- a non-admin cannot enter the admin layout;
+- `/privacy` and `/altstore.json` remain public;
+- invite links return to the production origin.
 
-In [Supabase Dashboard](https://supabase.com/dashboard) → project `zgikcbsxzjgbigywxbbj` → **Authentication → URL Configuration**:
+Supabase Auth must separately allowlist:
 
-1. **Site URL**: `https://dash.thegoodcompanysg.dev`
-2. **Redirect URLs**: add `https://dash.thegoodcompanysg.dev/**`
+- Site URL: `https://dash.thegoodcompanysg.dev`
+- Redirect URL: `https://dash.thegoodcompanysg.dev/**`
 
-This is a one-time dashboard-only setting (no CLI/MCP tool available).
+## Rollback
 
-## Common Mistakes
+Use the Vercel dashboard or CLI to promote the last known-good immutable
+deployment. A web rollback does not roll back database state. Never run a down
+migration merely to match a rolled-back web build; first determine whether the
+schema change is backward-compatible and follow `tava-change-control`.
 
-- **Deploying from root** instead of `web/` — Vercel picks up the wrong project.
-- **Missing `SUPABASE_SERVICE_ROLE_KEY`** — invite and remove user actions silently 500.
-- **Setting `SITE_URL` but skipping Supabase allowlist** — invite links still go to the wrong domain.
+## Failure rules
+
+- A missing `SUPABASE_SERVICE_ROLE_KEY` is a hard configuration failure for
+  privileged server actions.
+- Never bypass the production drift/security gates because the login page is
+  healthy; it does not exercise protected data paths.
+- Never paste environment values, database URLs, auth tokens, or response
+  cookies into an issue, chat, build log, or runbook.
+
+## Provenance
+
+Audited 2026-07-26 against `web/`, `.github/workflows/ci.yml`,
+`.github/workflows/remote-security.yml`, `scripts/drift-check.sh`, and
+`scripts/prod-security-check.sql`. Live production state must still be measured
+at deploy time.
