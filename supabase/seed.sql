@@ -112,7 +112,7 @@ INSERT INTO sessions (id, class_id, session_date, topic) VALUES
     (
         '30000000-0000-0000-0000-000000000001',
         '10000000-0000-0000-0000-000000000001',
-        CURRENT_DATE,
+        (NOW() AT TIME ZONE 'Asia/Singapore')::DATE,
         'Algebra: Linear Equations'
     );
 
