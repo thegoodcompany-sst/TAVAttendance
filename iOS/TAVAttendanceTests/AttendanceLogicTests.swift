@@ -1,5 +1,6 @@
 import AppIntents
 import XCTest
+import CryptoKit
 @testable import TAVAttendance
 
 final class AttendanceLogicTests: XCTestCase {
@@ -274,6 +275,20 @@ final class AttendanceLogicTests: XCTestCase {
             [foreign],
             ownerUserId: owner
         ))
+    }
+
+    func testPendingQueueEncryptionRejectsTampering() throws {
+        let key = SymmetricKey(size: .bits256)
+        let plaintext = Data("private attendance queue".utf8)
+        let encrypted = try PendingAttendanceQueueCipher.seal(plaintext, using: key)
+
+        XCTAssertEqual(
+            try PendingAttendanceQueueCipher.open(encrypted, using: key),
+            plaintext
+        )
+        var tampered = encrypted
+        tampered[tampered.index(before: tampered.endIndex)] ^= 0x01
+        XCTAssertThrowsError(try PendingAttendanceQueueCipher.open(tampered, using: key))
     }
 
     func testParentRpcShapesOmitActorSessionAndStorageFields() throws {
