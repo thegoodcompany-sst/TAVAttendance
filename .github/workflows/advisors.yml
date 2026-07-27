@@ -15,6 +15,7 @@ jobs:
     # a manual dispatch on an unreviewed branch from receiving production access.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production-security
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,6 +37,7 @@ jobs:
     name: Production schema drift (read-only)
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production-security
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

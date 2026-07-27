@@ -13,7 +13,8 @@ TAVA Attendance is how the centre takes attendance.
 - **Tutors** use the app on their phone or iPad to mark their class roster.
 - **Admin staff** use the **website** to see reports and download attendance.
 
-Everything syncs automatically. If the internet drops, the app keeps working and catches up later.
+Attendance can be queued briefly if the internet drops. Do not assume it has
+reached the server until the pending indicator clears and the dashboard agrees.
 
 ---
 
@@ -29,6 +30,8 @@ Everything syncs automatically. If the internet drops, the app keeps working and
 > This is a rule, not a setting — if the kiosk looks empty, check you are signed in as admin.
 
 3. Stand the iPad up at the front desk where students can reach it.
+4. Confirm the iPad has an OS passcode, current updates, and no student can
+   leave the TAVA app or view notification previews.
 
 ---
 
@@ -45,7 +48,9 @@ Grey card = not signed in yet. Green = on time. Orange = late.
 
 ### Locking the kiosk (so students can't change things)
 
-- Set a **PIN**: tap the **gear icon** → Kiosk Settings → Set PIN → **Lock Kiosk Now**.
+- Before students use it, set a **PIN**: tap the **gear icon** → Kiosk Settings
+  → Set PIN → **Lock Kiosk Now**. Do not use the example PIN from the test
+  script in production.
 - When locked, students only see the sign-in grid. No settings, no overrides.
 - To make a change as staff: tap the **lock icon**, enter the PIN. An **ADMIN** badge appears.
 - **Admin overrides** (only when unlocked): **press and hold** a student's card to:
@@ -66,7 +71,12 @@ On the tutor's device:
 1. Go to **Classes** → pick your class → **Start Today's Class**.
 2. Tap each student to mark them **Present**. You'll see **"Marked HH:MM"** under their name.
 3. Tap a student's row to see their **profile and recent attendance**.
-4. **No internet?** You can still mark students. A small **orange dot** appears next to a name that hasn't synced yet. When the internet is back, the dot disappears on its own — that means it saved.
+4. **No internet?** You can mark attendance for a short interruption. A small
+   **orange dot** means the record is only pending on that signed-in device.
+   Restore the connection promptly and keep the same staff account signed in.
+   The dot must clear and the web dashboard must show the record before you
+   treat it as saved. Ended sessions, records more than seven days old, account
+   changes, or a damaged queue can reject pending work.
 
 > *Screenshot of the roster is omitted here for the same privacy reason (student names).*
 
@@ -87,6 +97,16 @@ This is where you check that what happened on the iPad shows up correctly.
 
 ## If something goes wrong
 
-- Take a **screenshot** of whatever is on screen (and note the time).
-- Message **Edmund** with the screenshot and a line about what you did just before.
-- The kiosk keeps working offline, so keep taking attendance — nothing is lost.
+- Note the exact time, device, signed-in role, app version, screen and action.
+- A screenshot may contain children's personal data. Send it only through the
+  centre's approved private support channel; crop/redact unrelated names and
+  never post it in a public/shared chat.
+- If the wrong child's data appears, another account's pending records appear,
+  or a device/account may be compromised: stop syncing, do not sign in as a
+  different user, secure the device and escalate as a possible data breach.
+- For an ordinary connection failure, continue on paper if pending indicators
+  do not clear. Reconcile paper, device and dashboard before ending the shift.
+- Do not uninstall the app, clear its data, repeatedly toggle accounts, or
+  reset the device while attendance is pending.
+
+_Operational guidance audited 2026-07-26._
