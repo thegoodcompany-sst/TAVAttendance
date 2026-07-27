@@ -5,6 +5,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Restored the Android student-management entry point for consent status,
+  subject-access export, and other PDPA data controls.
 - Refreshed supported Android, iOS, and web dependencies, including AGP 9.3
   with built-in Kotlin, Supabase Swift 2.53, Next 16.2.12, and React 19.2.8;
   synchronized npm/Bun locks and retained incompatible ESLint 10/TypeScript 7

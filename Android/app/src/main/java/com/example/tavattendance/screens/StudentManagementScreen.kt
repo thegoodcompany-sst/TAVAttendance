@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -99,6 +100,7 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
     var showAddDialog by remember { mutableStateOf(false) }
     var editingStudent by remember { mutableStateOf<Student?>(null) }
     var profileStudent by remember { mutableStateOf<Student?>(null) }
+    var privacyStudent by remember { mutableStateOf<Student?>(null) }
 
     val snackbarHost = rememberSnackbarError(snackbarMessage) { vm.clearSnackbar() }
 
@@ -134,6 +136,13 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
                             },
                             trailingContent = {
                                 Row {
+                                    IconButton(onClick = { privacyStudent = student }) {
+                                        Icon(
+                                            Icons.Default.Lock,
+                                            contentDescription = "Privacy & data (PDPA)",
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                     IconButton(onClick = { editingStudent = student }) {
                                         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
                                     }
@@ -190,6 +199,18 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
             fullName = s.fullName,
             onDismiss = { profileStudent = null },
             canManageStaffResults = true
+        )
+    }
+
+    privacyStudent?.let { s ->
+        StudentPdpaSheet(
+            studentId = s.id,
+            fullName = s.fullName,
+            onDismiss = { privacyStudent = null },
+            onStudentRemoved = {
+                privacyStudent = null
+                vm.loadStudents()
+            }
         )
     }
 }
