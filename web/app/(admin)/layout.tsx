@@ -46,12 +46,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AnalyticsCapture enabled={showHealth} userId={user.id} role={profile.role} />
       <Sidebar userName={userName} isSuperadmin={superadmin} showAwards={showAwards} showHealth={showHealth} />
 
-      <div className="flex-1 flex flex-col min-h-screen">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         {/* Mobile top nav */}
-        <header className="md:hidden print:hidden bg-white border-b border-border h-14 flex items-center justify-between px-4 sticky top-0 z-10">
-          <span className="font-display font-semibold text-brand text-xl">TAVA</span>
-          <div className="flex items-center gap-2">
-            <nav className="flex gap-0.5">
+        <header className="md:hidden print:hidden bg-white border-b border-border h-14 flex items-center justify-between gap-3 px-4 sticky top-0 z-10">
+          <span className="flex-shrink-0 font-display font-semibold text-brand text-xl">TAVA</span>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+            <nav className="flex min-w-0 gap-0.5 overflow-x-auto">
               {[
                 { href: '/', label: 'Today' },
                 { href: '/overview', label: 'Overview' },
@@ -63,8 +63,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 { href: '/messages', label: 'Messages' },
                 { href: '/result-slips', label: 'Slips' },
                 { href: '/users', label: 'Users' },
-                ...(superadmin ? [{ href: '/feature-flags', label: 'Flags' }, { href: '/danger', label: 'Wipe' }] : []),
-              ].map(item => (
+                ...(superadmin ? [{ href: '/api/export', label: 'Export' }, { href: '/feature-flags', label: 'Flags' }, { href: '/danger', label: 'Wipe' }] : []),
+              ].map(item => item.href === '/api/export' ? (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="px-2.5 py-1.5 text-xs font-medium text-muted-foreground rounded-lg hover:bg-muted transition-colors"
+                >
+                  {item.label}
+                </a>
+              ) : (
                 <Link
                   key={item.href}
                   href={item.href}

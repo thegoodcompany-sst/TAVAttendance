@@ -32,9 +32,16 @@ server actions). Don't scatter queries into views/components.
 1. **Study-space attendance never appears in any report, report card, or parent view.** The drop-in study room is modelled as one flagged class (`classes.is_study_space = TRUE`, fixed UUID `57000000-0000-0000-0000-000000000001`) to reuse the attendance stack. Exclusion is enforced at every source: `attendance_summary` view, `get_roster_for_date`, `fetchMyClasses`, iOS `fetchStudentAttendanceHistory`, web `getTodaySessions`/`getDailyAttendance`/`getStudentRecentRecords`. **Every NEW reporting/parent query must add `classes.is_study_space = FALSE`.**
 2. **The kiosk iPad is signed in as an admin account.** `fetchKioskEntries` → `fetchMyClasses` → RLS filters tutors to their own classes, which would break the global kiosk. Operational rule, not code.
 3. **`attendance_summary` carries `WITH (security_invoker = true)`** — without it the view runs as owner and bypasses RLS. Re-state it on every `CREATE OR REPLACE`. (Restored on prod 2026-07-09 via migration 016.)
-4. **Offline sync is idempotent and last-write-wins by `marked_at`.** `sync_attendance` uses `ON CONFLICT ... WHERE marked_at <= EXCLUDED.marked_at` plus `ON CONFLICT (client_mutation_id) DO NOTHING`; ended sessions reject writes (returned as `blocked_ended_session`). Consequence: device clock accuracy matters; a badly wrong clock silently loses.
+4. **Offline sync is actor-bound, server-timed and idempotent.** Migration 038
+   ignores client `marked_at`, stamps `auth.uid()`/`clock_timestamp()`, serialises
+   mutation IDs, and retains receipts when a newer mutation replaces an older
+   one. Replays by the same actor are skipped; identifier collisions fail.
+   Ended sessions and open sessions more than seven days old reject offline
+   writes. Native queues are also bound to the signed-in account.
 5. **Feature flags gate all unshipped features and ship OFF.** One `feature_flags` table read by all three platforms; flips are admin-only (RLS) and human-verified.
-6. **Migrations are append-only** (new numbered file + reverse script in `migrations/down/` from 012 on). Never edited, because prod is partially applied out-of-band.
+6. **Migrations are append-only** (new numbered file + reverse script in
+   `migrations/down/` from 012 on). Production's historical ledger is sparse,
+   so current state is proved by live drift/security checks, not filenames.
 
 ## Load-bearing decisions and their WHY
 
@@ -48,22 +55,27 @@ server actions). Don't scatter queries into views/components.
 | Dismissals live in a separate `dismissals` table, not a status | Dismissed students were PRESENT (counts toward attendance %); dismissal is a safety event, not an attendance state | Purple card; original status shown underneath; undo via admin long-press. |
 | "Not Here" = `excused` (soft, student can re-sign-in) vs "Absent" (hard, admin-only) | Front-desk reality: kids tap the wrong card | Don't merge these states. |
 | Kiosk admin mode: no PIN = always admin; PIN = lock/unlock, `isAdminUnlocked` is `@State` (not persisted across restarts) | Demo-friendly default; restart = safe state | PIN hash currently in UserDefaults — known weak point below. |
-| Users created via Supabase Dashboard invite (`handle_new_user` trigger builds `profiles`) or web invite action | No user-management UI yet | Role comes from invite metadata but (post-016) the trigger never trusts metadata to mint privileged roles; the web action assigns role via service role after creation. |
-| Parent portal needs no new RLS | Parent read policies for `students`/`attendance_records` shipped in `002_rls.sql` from day one | Just flip the flag when UI is ready (all platforms). |
+| Users are managed by web `/users` or, as a fallback, Dashboard invite | `handle_new_user` creates a least-privilege profile; web trusted actions assign approved roles | Only the DB-managed superadmin may manage admin accounts; never trust invite metadata for privileged roles. |
+| Parent clients use shaped RPCs | Migration 038 removed broad direct-table parent reads and exposes safe columns only | Extend the safe projection/RPC and its role tests; never restore broad table access for convenience. |
 
 ## Known weak points (open, stated plainly)
 
-- ~~Prod schema drift~~ — RESOLVED 2026-07-09 (prod = migrations 001–017). The prevention protocol and verification snapshot live in `tava-prod-drift-campaign`.
-- **Kiosk PIN hash in UserDefaults** (Keychain move deferred; `ponytail:` marker in `GlobalKioskView.swift`). Restored/migrated iPads risk lock-out.
-- ~~Android error handling~~ — RESOLVED 2026-07-13: all screens surface load/write failures via `core/UiError.kt` (retry state + snackbar), mirroring iOS `AppError`.
-- **No automated test suite** (one Android unit test exists, blocked locally by JDK; everything else is manual checklists — see `tava-validation-and-qa`).
-- **Phase 2/3 tables exist but are unimplemented** (`result_slips`, `messages`, `awards`, `dismissals`*, `food_polls`, `food_poll_responses`) — RLS admin-only until built. (*dismissals is partially live via the kiosk.)
-- **Web `PdpaPanel` built but never wired** into the student page (decision pending, HUMANS.md §29).
-- **Device clock dependency** in offline sync (invariant 4).
+- **Full-admin kiosk session.** PIN/biometric UI contains students but the
+  device still holds a reusable admin session; least-privilege kiosk identity
+  remains HUMANS.md §63.
+- **iOS kiosk PIN verifier remains in UserDefaults.** Android auth sessions and
+  PKCE verifiers are now Keystore/AES-GCM protected, but native offline queues
+  remain unencrypted application preferences (HUMANS.md §64).
+- **Privileged sessions are password-only.** MFA/AAL2 is open (§62).
+- **Production verification and activation are human gates.** Migration/Edge
+  code in Git is not proof that production schema, Auth settings, headers,
+  Vault secrets or cleanup workers are current (§§60–68).
+- **Some feature-flagged workflows remain dark pending physical QA.** Query the
+  environment; do not infer flag state from seed migrations.
 
 ## Provenance and maintenance
 
-Current as of 2026-07-09.
-- Invariant 1 enforcement points: `grep -rn 'is_study_space' web/lib iOS supabase/migrations/015* supabase/migrations/016* | grep -c FALSE` (expect multiple hits)
-- Worst-status merge: `grep -n 'worstStatus' iOS/TAVAttendance/Services/AttendanceService.swift`
+Audited 2026-07-26.
+- Invariant 1 enforcement points: `rg -n 'is_study_space' web/lib iOS Android supabase/migrations/038*`
+- Worst-status merge: `rg -n 'worstStatus' iOS/TAVAttendance/Services/AttendanceService.swift`
 - View option: `SELECT reloptions FROM pg_class WHERE relname='attendance_summary';`

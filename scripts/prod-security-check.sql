@@ -29,6 +29,7 @@ DECLARE
     v_notify_attendance TEXT;
     v_notify_dismissal TEXT;
     v_cleanup_invoker TEXT;
+    v_photo_scope TEXT;
 BEGIN
     ASSERT to_regprocedure(
         'public.enforce_attendance_write_integrity()'
@@ -537,17 +538,24 @@ BEGIN
           AND tablename = 'objects'
           AND policyname = 'student-photos: parent read'
     ), 'parent clients can enumerate student-photo Storage metadata';
+    v_photo_scope := LOWER(pg_get_functiondef(
+        'public.tutor_can_read_student_photo(uuid)'::REGPROCEDURE
+    ));
+    ASSERT POSITION('security definer' IN v_photo_scope) > 0
+       AND POSITION('cta.tutor_id = auth.uid()' IN v_photo_scope) > 0
+       AND POSITION('s.sub_tutor_id = auth.uid()' IN v_photo_scope) > 0
+       AND POSITION('e.student_id = $1' IN v_photo_scope) > 0
+       AND POSITION('e.enrolled_at' IN v_photo_scope) > 0
+       AND POSITION('e.unenrolled_at' IN v_photo_scope) > 0,
+        'tutor student-photo predicate ignores assignment/substitute boundaries';
     ASSERT (
-        SELECT LOWER(qual) LIKE '%tutor_owns_class%'
-           AND LOWER(qual) LIKE '%substitute_covers_session%'
-           AND LOWER(qual) LIKE '%e.enrolled_at%'
-           AND LOWER(qual) LIKE '%e.unenrolled_at%'
+        SELECT LOWER(qual) LIKE '%tutor_can_read_student_photo%'
            AND LOWER(qual) LIKE '%canonical_storage_student_id%'
         FROM pg_policies
         WHERE schemaname = 'storage'
           AND tablename = 'objects'
           AND policyname = 'student-photos: tutor read'
-    ), 'tutor student-photo reads ignore assignment/substitute/path boundaries';
+    ), 'tutor student-photo policy ignores bounded predicate or canonical path';
     ASSERT (
         SELECT LOWER(with_check) LIKE '%canonical_storage_student_id%'
         FROM pg_policies
@@ -630,6 +638,55 @@ BEGIN
           AND LOWER(qual) LIKE '%is_superadmin%'
           AND LOWER(with_check) LIKE '%is_superadmin%'
     ), 'ordinary admins can mutate security feature flags';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.feature_flags', 'UPDATE'
+    ), 'authenticated lacks feature_flags UPDATE privilege required by superadmin UI';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.enrollments', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.class_tutor_assignments', 'SELECT'
+    ), 'tutor RLS policy dependencies lack authenticated SELECT privileges';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.students', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.students', 'UPDATE'
+    ), 'students RLS boundary lacks authenticated SELECT/UPDATE privileges';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.sessions', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.sessions', 'UPDATE'
+    ), 'session RLS boundary lacks authenticated SELECT/UPDATE privileges';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.attendance_records', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.attendance_records', 'INSERT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.attendance_records', 'UPDATE'
+    ), 'attendance RLS boundary lacks authenticated SELECT/INSERT/UPDATE privileges';
+    ASSERT (
+        SELECT BOOL_AND(has_table_privilege(
+            'authenticated', 'public.' || table_name, 'SELECT'
+        ))
+        FROM (VALUES
+            ('parent_student_links'), ('classes'), ('result_slips'),
+            ('messages'), ('dismissals'), ('awards')
+        ) AS parent_boundary(table_name)
+    ), 'parent RLS boundary dependencies lack authenticated SELECT privileges';
+    ASSERT has_table_privilege(
+        'authenticated', 'public.awards', 'INSERT'
+    ), 'awards RLS boundary lacks authenticated INSERT privilege';
+    ASSERT has_table_privilege(
+        'anon', 'public.policy_documents', 'SELECT'
+    ) AND has_table_privilege(
+        'authenticated', 'public.policy_documents', 'SELECT'
+    ), 'policy-document RLS boundary lacks anon/authenticated SELECT privileges';
+    ASSERT has_table_privilege(
+        'service_role', 'public.result_slips', 'SELECT'
+    ) AND has_table_privilege(
+        'service_role', 'public.result_slip_upload_intents', 'SELECT'
+    ) AND has_table_privilege(
+        'service_role', 'public.result_slip_upload_intents', 'UPDATE'
+    ), 'trusted result-upload table privileges are incomplete';
 
     ASSERT NOT EXISTS (
         SELECT 1 FROM pg_policies

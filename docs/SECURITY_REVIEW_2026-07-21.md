@@ -1,10 +1,47 @@
-# Pre-production security review — 2026-07-21
+# Pre-production security review — 2026-07-21 (retested 2026-07-26)
 
 This review covered the Next.js dashboard, Supabase schema/RLS/Storage and Edge
 function, iOS and Android clients, dependencies, secrets handling, and CI. It
 did not mutate or deploy to production. Security is an ongoing control process;
 this document is evidence and a release checklist, not a claim that the system
 is impossible to compromise.
+
+## Adversarial retest — 2026-07-26
+
+A separate read-only attacker-style pass traced service-role callers, web auth
+and IDOR boundaries, RLS/RPC/Storage grants, Edge inputs and outbound requests,
+native local state and kiosk controls, dependency configuration, and Actions
+secret paths. It did not attack production. No new remote authorization bypass,
+SQL injection, SSRF, stored XSS, or unsafe service-role entry point was
+confirmed.
+
+The retest did confirm two repository defects, fixed after the pass:
+
+- Pull-request CI omitted `npm test`, so regressions in CSV formula
+  neutralisation and Study Space export exclusion could pass lint/build. The web
+  CI job now runs the existing Vitest suite.
+- Android PIN verification and failure counting were separate public
+  operations. Direct callers could skip the UI-only timer/failure callback, and
+  the overlay rendered pre-attempt counters. PIN checks now use one synchronized
+  operation that rejects during lockout, records failures/backoff, persists the
+  complete state, and returns the exact post-attempt result; pure tests cover a
+  correct PIN during lockout and five rapid failures.
+
+The pass also reconfirmed four open risks, none of which should be represented
+as solved by those patches:
+
+- The former App Review admin password remains recoverable from reachable Git
+  history, but the production account and App Store Connect value were rotated
+  on 2026-07-27. Coordinated history cleanup under §66 remains open.
+- Production Actions secrets were moved into the protected
+  `production-security` environment on 2026-07-27. It now requires non-self
+  approval and protected `main`; branch protection requires review and CI.
+  The pending `.github/CODEOWNERS` file must still merge.
+- Native offline attendance queues now use per-install Keychain/Keystore
+  AES-GCM encryption with verified plaintext migration and tamper tests.
+  Physical shared-device migration/account-transition QA under §64 remains.
+- Privileged accounts remain password-only and kiosk devices retain a reusable
+  admin session until §62/§63 are complete.
 
 ## Fixed in this change
 
@@ -71,20 +108,23 @@ is impossible to compromise.
   values are not reproduced here; both require rotation before release.
 - CI third-party actions and the Supabase CLI are immutable-version pinned;
   workflows use read-only repository permissions, verify the Gradle wrapper,
-  audit all npm dependencies, type-check Edge Functions, replay/lint migrations,
-  run SQL regressions, and assert critical production grants/RLS/Storage state
-  that structural drift filtering cannot safely compare.
+  audit all npm dependencies, run web security regressions, type-check Edge
+  Functions, replay/lint migrations, run SQL regressions, and assert critical
+  production grants/RLS/Storage state that structural drift filtering cannot
+  safely compare.
 
 ## Required before production
 
-1. Disable/rotate the exposed App Review admin credential, update App Store
-   Connect, and remove it from all reachable Git history (currently 63
-   revisions). Rotation is mandatory even if history is rewritten.
-2. Rotate the production database password found in the ignored local operator
-   note; update authorized pooler/deployment consumers and revoke the old value.
-3. Require pull requests on `main`: passing CI/security checks, review,
-   CODEOWNERS, protected deployment environments, admin enforcement, and no
-   force-push/deletion. The repository currently has no effective protection.
+1. Remove the former App Review credential from all reachable Git history
+   (currently 63 revisions) using a coordinated rewrite/fresh-clone procedure.
+   The account and App Store Connect credential were rotated on 2026-07-27.
+2. Review database/auth logs for historical unexpected use. The production
+   database password was rotated, pooler-verified, and updated in authorized
+   CI/Keychain consumers on 2026-07-27.
+3. Merge the exact `.github/CODEOWNERS` mapping added under `HUMANS.md` §67.
+   Environment protection, secret scoping, required CI/review, conversation
+   resolution, admin enforcement, and force-push/deletion restrictions were
+   configured on 2026-07-27.
 4. Replay migration 038 and every SQL regression against a clean Postgres/Supabase
    runtime, then apply it before dependent clients. Static parsing passed, but
    local runtime replay was unavailable because Docker/Postgres was not running.
@@ -102,8 +142,9 @@ is impossible to compromise.
 10. Implement TOTP MFA and AAL2 enforcement for privileged accounts.
 11. Require a configured kiosk PIN and plan a least-privileged kiosk identity;
     do not treat a full admin JWT plus a client-only PIN as the final boundary.
-12. Exercise account-transition/legacy-queue purging on physical shared devices,
-    then add app-level Keystore/Keychain authenticated encryption and move the
-    Android auth session manager off plaintext SharedPreferences.
+12. Exercise Android encrypted auth migration plus both platforms' encrypted
+    offline-queue plaintext migration, tamper failure, and account-transition
+    behavior on physical shared devices. Android auth/PKCE and both offline
+    queues are now app-level Keystore/Keychain protected in the current tree.
 
 The detailed operational checklist is in `HUMANS.md` §P.
