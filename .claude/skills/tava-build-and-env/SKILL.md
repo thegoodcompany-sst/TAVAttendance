@@ -17,14 +17,14 @@ against this repo; traps are listed at the point you'd hit them.
 ```bash
 # Requires the Supabase CLI (brew install supabase/tap/supabase)
 supabase start          # local Postgres + Auth + Storage + Studio
-supabase db reset       # applies migrations 001–016 in order + seed.sql
+supabase db reset --local # applies migrations 001–053 in order + seed.sql
 ```
 
 `db reset` also creates the two private Storage buckets (`result-slips`,
 `student-photos`). Studio: http://127.0.0.1:54323.
 
-**Trap:** local now has ALL migrations; prod does not (drift). Never reason
-about prod from local behaviour — see `tava-prod-drift-campaign`.
+**Trap:** a clean local replay proves only the files. Never infer production
+state from local behaviour; use the remote drift/security gates.
 
 ## 1. iOS (`iOS/`)
 
@@ -52,28 +52,33 @@ xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance \
 - `CODE_SIGNING_ALLOWED=NO` is mandatory here — a failure at `CodeSign swift-crypto_Crypto.bundle` is a pre-existing local keychain issue, NOT a code problem. Do not attempt to fix it.
 - Scheme name comes from `project.yml`. Target: iPadOS 17+; the app is iPad-first.
 - On a machine with a normal stable Xcode, drop the `DEVELOPER_DIR` override.
-- Fresh-checkout credential wiring into `Info.plist` has an open human decision (HUMANS.md §13) — if the app builds but has empty credentials, that's why.
+- Verify the generated `Info.plist` resolves the full URL without printing the
+  anon key. Never commit `Config.xcconfig`.
 
 ## 2. Android (`Android/`)
 
 ```bash
 cp Android/secrets.properties.example Android/secrets.properties   # fill in values
 cd Android
-./gradlew clean compileDebugKotlin      # the accepted local verification
+./gradlew testDebugUnitTest assembleDebug --no-daemon
 ```
 
 **Traps:**
-- **JDK 17 or 21 required** for full builds/tests (AGP's jlink step). This dev machine has only JDK 26 → `./gradlew test` and `assembleDebug` fail with a jlink error (HUMANS.md §34). Fix: `brew install --cask temurin@21`, point `JAVA_HOME` at it. Until then, `compileDebugKotlin` is the verification bar (CI runs `assembleDebug` on JDK 17 and covers the rest).
+- **JDK 17 or 21 required** for full builds/tests (AGP's jlink step). Point
+  `JAVA_HOME` at a supported JDK; a compile-only task is not the completion bar.
 - Release builds are R8-minified; Supabase/kotlinx-serialization keep rules live in `app/proguard-rules.pro` — test release builds after dependency bumps.
-- One unit test exists (`DayAwareKioskTest`) — run it once JDK is fixed: `./gradlew testDebugUnitTest`.
+- Auth sessions/PKCE verifiers use Android Keystore-backed AES-GCM. A corrupt
+  or invalidated key must fail closed to sign-in, never plaintext fallback.
 
 ## 3. Web (`web/`)
 
 ```bash
 cp web/.env.local.example web/.env.local   # NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY
-cd web && npm install
+cd web && npm ci
 npm run dev      # local dev
-npm run lint && npm run build   # the verification bar
+npm audit --audit-level=high
+npm test
+npm run lint && npm run build
 ```
 
 **Trap:** the repo pins a **non-standard Next.js (16.x)** — APIs and
@@ -92,14 +97,13 @@ delete them; never review, fix, or commit them.
 
 ## CI parity
 
-`.github/workflows/ci.yml`: web lint+build (Node 20, placeholder env),
-Android `assembleDebug` (temurin JDK 17, generated placeholder
-secrets.properties), non-blocking `supabase db lint`. iOS is NOT in CI —
-local build is the only iOS gate.
+`.github/workflows/ci.yml` pins actions and runs redacted secret scanning; web
+audit/lint/build on Node 22; Edge format/lint/type-check; Android tests/build on
+JDK 17; iOS XCTest; clean migration replay/lint and every SQL security test.
 
 ## Provenance and maintenance
 
-Current as of 2026-07-09.
-- Machine-specific facts (Xcode-beta path, JDK 26) are about the current dev Mac — re-check on any other machine: `xcode-select -p`, `/usr/libexec/java_home -V`.
-- Web deps: `head -30 web/package.json`
-- CI still matches: `cat .github/workflows/ci.yml`
+Audited 2026-07-26.
+- Re-check machine facts: `xcode-select -p`, `/usr/libexec/java_home -V`, `java -version`.
+- Web deps: `sed -n '1,100p' web/package.json`
+- CI source: `.github/workflows/ci.yml`

@@ -14,11 +14,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.tavattendance.core.Analytics
@@ -250,7 +250,7 @@ fun SessionListScreen(
     val timeFmt = SimpleDateFormat("h:mm a", Locale.US)
 
     fun formatDate(iso: String): String = runCatching {
-        prettyFmt.format(displayFmt.parse(iso)!!)
+        prettyFmt.format(requireNotNull(displayFmt.parse(iso)))
     }.getOrDefault(iso)
 
     Scaffold(
@@ -465,7 +465,7 @@ private fun EndClassRow(isEnding: Boolean, enabled: Boolean, onClick: () -> Unit
             onClick = { showConfirm = true },
             enabled = enabled && !isEnding,
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            border = ButtonDefaults.outlinedButtonBorder.copy(
+            border = ButtonDefaults.outlinedButtonBorder(enabled && !isEnding).copy(
                 brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
             )
         ) {

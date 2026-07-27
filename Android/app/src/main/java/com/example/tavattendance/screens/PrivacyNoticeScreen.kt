@@ -53,6 +53,8 @@ fun PrivacyNoticeScreen(
     val doc by vm.doc.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val error by vm.error.collectAsState()
+    val currentDoc = doc
+    val currentError = error
 
     Scaffold(
         topBar = {
@@ -69,15 +71,15 @@ fun PrivacyNoticeScreen(
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when {
                 isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                error != null -> Column(
+                currentError != null -> Column(
                     modifier = Modifier.align(Alignment.Center).padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(error!!, color = MaterialTheme.colorScheme.error)
+                    Text(currentError, color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(8.dp))
                     Button(onClick = { vm.load() }) { Text("Retry") }
                 }
-                doc == null -> Text(
+                currentDoc == null -> Text(
                     "No privacy notice is currently published.",
                     modifier = Modifier.align(Alignment.Center),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -88,15 +90,15 @@ fun PrivacyNoticeScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
-                    Text(doc!!.title, style = MaterialTheme.typography.headlineSmall)
+                    Text(currentDoc.title, style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Version ${doc!!.version}",
+                        "Version ${currentDoc.version}",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text(doc!!.body, style = MaterialTheme.typography.bodyMedium)
+                    Text(currentDoc.body, style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(32.dp))
                 }
             }

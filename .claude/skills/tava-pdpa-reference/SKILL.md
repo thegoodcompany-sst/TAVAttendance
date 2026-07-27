@@ -40,15 +40,15 @@ Frozen contract: `docs/pdpa/IMPLEMENTATION_CONTRACT.md`. Key objects:
 
 ```sql
 SELECT export_student_personal_data('<student_uuid>');  -- jsonb bundle; auto-logs a data_disclosures row
-SELECT anonymise_student('<student_uuid>');             -- redacts PII, KEEPS anonymous attendance rows
+SELECT anonymise_student('<student_uuid>');             -- rotates identifiers, keeps pseudonymised attendance
 SELECT erase_student('<student_uuid>');                 -- hard delete + audit scrub (right to erasure)
 ```
 
-All three are SECURITY DEFINER with an `is_admin()` guard. Explicit web/iOS/
-Android erase and anonymise flows first delete objects under the student's
-`result-slips` and `student-photos` Storage folders. **Remaining gap:** the
-database-only daily retention purge cannot call Storage and may leave orphaned
-files; HUMANS.md §9 tracks the required server-side cleanup.
+Migration 038 makes caller checks explicit and routes anonymise/erase through
+the trusted web service-role workflow rather than native direct execution.
+Database erasure also enqueues durable cleanup for both private buckets. The
+remaining production gate is Edge deployment, a dedicated Vault secret,
+cron/alert activation and drain verification (HUMANS.md §65).
 
 ### Consent model (agreed, do not redesign)
 
@@ -80,8 +80,8 @@ start the retention clocks.
 Source of truth: `docs/pdpa/DATA_PROTECTION_NOTICE.md` (DRAFT v1.1 — DPO name
 is a placeholder). The app renders whatever `policy_documents` row has
 `is_current=true`. **Editing the doc does nothing in-app** until you
-re-publish (HUMANS.md §7). On prod, run this via the prod-touch protocol in
-`tava-run-and-operate` (Supabase MCP, SQL recorded):
+re-publish (HUMANS.md §7). In production, use only the reviewed prod-touch
+protocol in `tava-run-and-operate`:
 
 ```sql
 UPDATE policy_documents SET is_current = false WHERE doc_type='data_protection_notice';
@@ -95,23 +95,28 @@ iOS shows it localized (String Catalog, en + zh-Hans; notice term 数据保护�
 
 1. **Study-space attendance is internal-only** — never in any parent view or report (architecture invariant #1; SEC-16d fixed a parent policy that missed it).
 2. New parent-visible surface? Check the notice's stated purposes cover it; if not, the notice needs a version bump + re-publish + fresh attestation consideration → flag to the human.
-3. Exports of personal data must route through `export_student_personal_data` (it logs the disclosure). Don't hand-roll SELECT dumps.
+3. Per-student subject-access exports route through
+   `export_student_personal_data` and log the disclosure. The separate
+   superadmin operational export remains a highly sensitive controlled export.
 4. Consent ledger is append-only; corrections table is the only correction path.
-5. Photos (`student-photos` bucket) are personal data of minors: private bucket, signed URLs only, 5 MB client-side cap, admin-only write (on prod since 2026-07-09).
-6. Web `PdpaPanel` (`web/app/(admin)/students/[id]/pdpa-panel.tsx`) is the built-but-unwired admin UI for consent/erasure/export — decision pending (HUMANS.md §29). Don't delete it; don't wire it without that decision.
+5. Photos/result slips are private minor data: use only signed
+   intent/finalisation/download workflows with server-side boundaries.
+6. Web `PdpaPanel` is wired. Native erasure/anonymisation controls intentionally
+   fail closed to the trusted web workflow.
+7. Retained attendance after anonymisation is **pseudonymised**, not guaranteed
+   anonymous; HUMANS.md §69 requires purpose/retention approval.
 
 ## What is still legally OPEN (don't claim compliance)
 
-DPO appointment (§1), legal sign-off on the three governance docs (§2),
-consent-wording validation for minors (§3), leaked-password protection toggle
-(§4), Singapore data-residency verification (§5), Supabase DPA signature
-(§6), breach-plan alerting (§10/§11). The honest status line is: "technical
-controls in place; legal formalisation pending."
+DPO/contact (§46), governance-doc sign-off (§47), consent wording and rollout
+(§§48–50), leaked-password decision (§51), cleanup activation (§65),
+credential rotation (§66), MFA (§62), and pseudonymised-retention approval
+(§69). Honest status: "technical controls implemented in the repository;
+production verification and legal formalisation remain."
 
 ## Provenance and maintenance
 
-Current as of 2026-07-09 (notice v1.1 DRAFT; gap analysis in
-`PDPA_COMPLIANCE.md`, audited 2026-06-15).
+Audited 2026-07-26 (notice v1.1 remains DRAFT).
 - Current notice version: `SELECT version, is_current FROM policy_documents WHERE doc_type='data_protection_notice';`
 - Purge job alive: `SELECT * FROM cron.job WHERE jobname='pdpa-daily-purge';`
-- Open legal items: `grep '^### ☐' HUMANS.md | head -8`
+- Open legal items: `rg '^### [☐◐]' HUMANS.md`
