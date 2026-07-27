@@ -15,7 +15,7 @@ fileTypes:
 packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift
-    from: "2.0.0"
+    from: "2.53.0"
 
 targets:
   TAVAttendance:
