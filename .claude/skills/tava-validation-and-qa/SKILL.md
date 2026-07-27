@@ -5,9 +5,9 @@ description: Use before claiming ANY TAVA change is done, tested, or safe — de
 
 # TAVA Validation and QA
 
-What "verified" means here. This project has **no automated test suite** —
-the verification bar is a combination of platform build commands, manual
-checklists, and direct DB queries. "It compiles" is the floor, not the bar.
+What "verified" means here. The repo has iOS/Android/web unit tests and SQL
+security regressions; the verification bar combines them with builds, manual
+flow checks and direct environment evidence. "It compiles" is the floor.
 
 **When NOT to use this skill:** the check fails and you need triage (use
 `tava-debugging-playbook`); validating a prod migration (the campaign skill
@@ -25,9 +25,9 @@ has its own gate queries).
 | Platform | Command (run from) | What it proves |
 |---|---|---|
 | iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` (from `iOS/`) | Compiles + any XCTests pass. CodeSign bundle failure = local keychain, ignore. Machine-specific flags: see `tava-build-and-env`. |
-| Android | `./gradlew clean compileDebugKotlin` (from `Android/`) | Compiles only. `./gradlew test` is blocked on this machine (JDK 26); CI's `assembleDebug` covers R8. Once JDK 17/21 exists: `./gradlew testDebugUnitTest`. |
-| Web | `npm run lint && npm run build` (from `web/`) | Lint + production build. CI runs the same. |
-| Migrations | `supabase db reset` (repo root) | All 16 migrations apply in order on a clean local DB. For a new migration also run its `down/` reverse script then the forward again. |
+| Android | `./gradlew testDebugUnitTest assembleDebug --no-daemon` (from `Android/`, JDK 17/21) | Unit tests + debug app build. Separately exercise a minified release when release/storage/serialization dependencies change. |
+| Web | `npm audit --audit-level=high && npm test && npm run lint && npm run build` (from `web/`, after `npm ci`) | Dependency, unit, lint and production build gates. |
+| Migrations | `supabase db reset --local && supabase db lint --local --schema public --level error --fail-on error`, then every `supabase/tests/*.sql` | All migrations through 053 replay plus SQL security regressions. |
 
 Note: this table matches CLAUDE.md §Running tests (the agent-facing source of
 truth, machine caveats included); CONTRIBUTING.md §5 defers to it.
@@ -49,7 +49,9 @@ re-lock hides overrides.
 
 **Teacher roster** (tutor login): Start Today's Class → mark present →
 "Marked HH:MM" shows → tap row: Student Profile sheet with history → Wi-Fi
-off, mark: orange pending dot → Wi-Fi on: dot clears (sync ran).
+off, mark: orange pending dot → Wi-Fi on: dot clears → verify the server row.
+Test sign-out/account transitions with pending data; foreign/mixed queues must
+fail closed, not cross-sync.
 
 **Profile history**: blank list with no error = swallowed PostgREST 400 —
 check Supabase logs, suspect the FK join string.
@@ -58,9 +60,10 @@ check Supabase logs, suspect the FK join string.
 all active students → Present/Not Here only → verify NOTHING appears in any
 report/parent view (invariant).
 
-**Web smoke**: login → dashboard renders (today's sessions + daily
-attendance) → student detail → CSV export. Superadmin: `/feature-flags`
-lists 5 flags (incl. test_mode), toggle persists across reload; other admin gets 404.
+**Web smoke**: login → dashboard/mobile staff surfaces → student detail →
+safe export. Superadmin: `/feature-flags` lists the live rows and toggle
+persists; ordinary admin gets 404. Parent/tutor/admin role boundaries are
+separate cases.
 
 ## DB-level checks (paste-ready)
 
@@ -78,10 +81,14 @@ SELECT jobname, active FROM cron.job WHERE jobname='pdpa-daily-purge';
 
 ## Adding automated tests (how to raise the bar)
 
-- **iOS**: XCTest target exists via the xcodebuild command above. Add tests under the test target in `project.yml`, `xcodegen generate`, then run. Good first targets: `worstStatus` merge, `classMeetsToday`, schedule-time parsing (pure logic, no network).
-- **Android**: mirror iOS tests as JUnit (`DayAwareKioskTest` is the pattern) — runnable in CI today even while blocked locally.
-- **Web**: no test runner configured; per project convention decide case-by-case — pure helpers in `web/lib/` (date, csv, status) are the natural first tests if one is added.
-- **DB**: the cheapest high-value check is a migration round-trip in CI (`db reset` already lints); assertions like the study-space-exclusion query above can live in a new migration-adjacent SQL check script.
+- **iOS**: XCTest target and `TAVAttendanceTests` exist; keep pure security and
+  queue logic testable outside UI/network.
+- **Android**: JUnit covers kiosk, analytics, parent RPC shape, queue ownership,
+  retrospective rules and secure auth key migration.
+- **Web**: Vitest is configured; security-sensitive pure helpers and export
+  filtering need regressions.
+- **DB**: migration self-checks plus `supabase/tests/*.sql` exercise roles,
+  grants, RLS/RPC and Storage boundaries.
 - Convention: don't build frameworks/fixtures for one test; smallest thing that fails when the logic breaks.
 
 ## Certified/golden inventory
@@ -92,7 +99,7 @@ use it as test fixtures (PDPA).
 
 ## Provenance and maintenance
 
-Current as of 2026-07-09.
-- Test suite still absent? `find . -name '*Tests*' -o -name '*.test.*' | grep -v node_modules`
-- Android test: `ls Android/app/src/test/java/com/example/tavattendance/`
+Audited 2026-07-26.
+- Test inventory: `find iOS/TAVAttendanceTests Android/app/src/test web supabase/tests -type f | sort`
+- Android tests: `ls Android/app/src/test/java/com/example/tavattendance/`
 - Checklists drift with UI changes — canonical copy is CLAUDE.md §Testing procedures.
