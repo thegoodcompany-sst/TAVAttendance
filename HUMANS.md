@@ -418,8 +418,9 @@ preconditions hold. A flag is global — every platform must handle it first.
 Version 1.0 in App Store Connect is staged: metadata, age rating, free pricing (base SGP),
 build 3 attached, release type MANUAL, review demo account
 with an admin role in production Supabase. Keep its identifier and password only in App Store
-Connect and the team password manager. The former plaintext password remains in Git history:
-rotate the account before release and update the App Review credentials.
+Connect and the team password manager. The production account password was rotated and the
+App Review credentials were synchronized through `asc` on 2026-07-27; the former plaintext
+password remains in Git history but no longer authenticates.
 `asc validate --app 6790169580 --version 1.0` reports two blockers:
 
 - [ ] **Availability** — run `asc web auth login --apple-id <your Apple ID>` once
@@ -665,10 +666,14 @@ Keychain/Keystore-backed storage.
 Migration-038 clients now use a versioned account-owner envelope plus per-row
 owner, purge legacy/corrupt/mixed/foreign queues, clear synchronously on
 sign-out/account transition, and recheck ownership immediately before sync.
-Physical-device QA must verify that fail-closed upgrade behavior. Remaining:
-encrypt the JSON with a Keychain/Keystore-held authenticated key and replace
-Android's default plaintext SharedPreferences auth session manager with a
-Keystore-backed implementation.
+Android auth sessions and PKCE verifiers now migrate into Keystore-backed
+AES-GCM storage and synchronously remove the verified plaintext source
+(build/unit-test verified 2026-07-26). Physical-device QA must still verify
+that migration and the queue's fail-closed account-transition behavior.
+The offline queue JSON now migrates to AES-GCM using a per-install
+Keychain/Keystore-held key on both native clients (build/unit-test verified
+2026-07-27). Remaining: exercise plaintext migration, tamper failure, and
+account-transition behavior on physical shared devices.
 
 ### ◐ 65. Activate scheduled Storage erasure
 
@@ -680,21 +685,39 @@ server; native controls fail closed to that trusted workflow.
 
 ### ☐ 66. Rotate exposed credentials and clean history
 
-- Disable/rotate the App Review admin account whose former password is present
-  in 63 reachable Git revisions; update App Store Connect and the team password
-  manager. Rotation comes before any history rewrite.
-- Rotate the production database password found in an ignored owner-only local
-  operator note. Update only authorized pooler/deployment consumers, revoke the
-  old value, and review database/auth logs for unexpected use.
+- [x] Rotated the App Review admin account in production Auth and updated App
+  Store Connect through `asc` on 2026-07-27. The former password is present in
+  63 reachable Git revisions but no longer authenticates.
+- [ ] Confirm the rotated App Review credential is recorded in the team password
+  manager, then clean the reachable history with coordinated fresh clones.
+- [x] Rotated the production database password through the supported Management
+  API on 2026-07-27, verified the production pooler, moved CI consumers to
+  environment-scoped secrets, removed repository-scoped copies, and replaced
+  the ignored plaintext note with a macOS Keychain reference.
+- [ ] Review database/auth logs for unexpected historical use.
 - Use a reviewed history-cleaning procedure and coordinate fresh clones. Never
   print either old value in an issue, PR, terminal transcript, or cleanup log.
 
-### ☐ 67. Protect `main` and production deployments
+### ◐ 67. Protect `main` and production deployments
 
-GitHub currently has no effective branch protection. Require pull requests,
-CODEOWNERS/review, passing CI and remote-security checks, resolved conversations,
-admin enforcement, and block force-push/deletion. Put production secrets and
-deploy jobs behind a protected environment with explicit reviewers.
+Configured on 2026-07-27: `main` requires one CODEOWNERS approval, all six CI
+jobs, current-branch review, resolved conversations and linear history, with
+admin enforcement and force-push/deletion disabled. The `production-security`
+environment is limited to protected branches, prevents self-review, and requires
+`waynetay` or `winson-lebron`; its three secrets were moved out of repository
+scope. Remaining: merge `.github/CODEOWNERS` so the configured CODEOWNERS rule
+has its reviewed source of truth.
+
+- [x] Protected the environment and `main` with the controls above.
+- [x] Moved `TAVA_DB_URL`, `SUPABASE_ACCESS_TOKEN`, and
+  `SUPABASE_DB_PASSWORD` into environment scope and deleted repository copies.
+- [ ] Merge the reviewed `.github/CODEOWNERS` entry. `remote-security` remains
+  a post-merge production check, not a substitute for the pre-merge CI gate.
+- [x] Confirmed workflow run `30239848443` remains waiting for environment
+  approval and cannot read its secrets.
+- [ ] Have `waynetay` or `winson-lebron` approve that known run; verify
+  remote-security and weekly advisor checks pass. Keep required-reviewer
+  approval in place for scheduled runs.
 
 ### ☐ 68. Deploy and verify the hardened web headers
 

@@ -214,10 +214,17 @@ SELECT pg_temp.expect_rejected($sql$
     UPDATE profiles SET role = 'tutor'
     WHERE id = '00000000-0000-0000-0000-000000000003'
 $sql$);
-SELECT pg_temp.expect_rejected($sql$
-    UPDATE feature_flags SET enabled = NOT enabled WHERE key = 'parent_portal'
-$sql$);
+-- RLS may reject an UPDATE by making zero rows visible rather than raising an
+-- error. Assert the protected value instead of requiring one PostgreSQL error
+-- shape.
+UPDATE feature_flags SET enabled = NOT enabled WHERE key = 'parent_portal';
 RESET ROLE;
+SELECT pg_temp.assert_true(
+    NOT enabled,
+    'ordinary admin changed a security feature flag'
+)
+FROM feature_flags
+WHERE key = 'parent_portal';
 
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000001');
 SET LOCAL ROLE authenticated;
@@ -558,7 +565,8 @@ $sql$);
 RESET ROLE;
 
 -- Retrospective tutor checks are also tied to the target session class.
-UPDATE feature_flags SET enabled = TRUE WHERE key = 'retrospective_sessions';
+UPDATE feature_flags SET enabled = TRUE
+WHERE key IN ('retrospective_sessions', 'session_notes');
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000002');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.expect_rejected($sql$
@@ -606,6 +614,7 @@ SELECT pg_temp.expect_rejected($sql$
     )
 $sql$);
 RESET ROLE;
+UPDATE feature_flags SET enabled = FALSE WHERE key = 'session_notes';
 
 -- Parent portal writes fail closed while disabled.
 INSERT INTO result_slips (student_id, exam_name, uploaded_by) VALUES (
@@ -647,7 +656,7 @@ INSERT INTO storage.objects (bucket_id, name) VALUES
     ),
     (
         'student-photos',
-        '38000000-0000-0000-0000-000000000020/staff-photo.png'
+        '38000000-0000-0000-0000-000000000026/too-late-photo.png'
     ),
     (
         'student-photos',
@@ -659,17 +668,72 @@ UPDATE feature_flags SET enabled = FALSE WHERE key = 'parent_portal';
 SELECT pg_temp.as_user('38000000-0000-0000-0000-000000000001');
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.assert_true(
+    is_tutor(),
+    'valid substitute lost tutor role before photo policy check'
+);
+SELECT pg_temp.assert_true(
+    substitute_covers_session('38000000-0000-0000-0000-000000000031'),
+    'valid substitute lost covered-session scope before photo policy check'
+);
+SELECT pg_temp.assert_true(
+    tutor_can_read_student_photo('38000000-0000-0000-0000-000000000021'),
+    'valid substitute lost enrolled-student photo scope'
+);
+SELECT pg_temp.assert_true(
+    NOT is_admin(),
+    'substitute unexpectedly gained admin Storage scope'
+);
+SELECT pg_temp.assert_true(
+    NOT EXISTS (
+        SELECT 1
+        FROM enrollments e
+        JOIN class_tutor_assignments cta ON cta.class_id = e.class_id
+        WHERE e.student_id = '38000000-0000-0000-0000-000000000026'
+          AND cta.tutor_id = auth.uid()
+          AND cta.assigned_from <=
+              (NOW() AT TIME ZONE 'Asia/Singapore')::DATE
+          AND (cta.assigned_until IS NULL OR cta.assigned_until >=
+              (NOW() AT TIME ZONE 'Asia/Singapore')::DATE)
+    ),
+    'substitute unexpectedly has a current assignment for denied student'
+);
+SELECT pg_temp.assert_true(
+    NOT EXISTS (
+        SELECT 1
+        FROM enrollments e
+        JOIN sessions s ON s.class_id = e.class_id
+        WHERE e.student_id = '38000000-0000-0000-0000-000000000026'
+          AND s.sub_tutor_id = auth.uid()
+          AND s.session_date BETWEEN
+              (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 7
+              AND (NOW() AT TIME ZONE 'Asia/Singapore')::DATE
+          AND (e.enrolled_at AT TIME ZONE 'Asia/Singapore')::DATE
+              <= s.session_date
+          AND (e.unenrolled_at IS NULL OR
+              (e.unenrolled_at AT TIME ZONE 'Asia/Singapore')::DATE
+              >= s.session_date)
+    ),
+    'future enrollment unexpectedly qualifies for substitute photo scope'
+);
+SELECT pg_temp.assert_true(
+    NOT tutor_can_read_student_photo('38000000-0000-0000-0000-000000000026'),
+    'photo predicate accepted enrollment starting after covered session'
+);
+SELECT pg_temp.assert_true(
     EXISTS (
         SELECT 1 FROM storage.objects
         WHERE bucket_id = 'student-photos'
           AND name = '38000000-0000-0000-0000-000000000021/substitute-photo.png'
-    )
-    AND NOT EXISTS (
+    ),
+    'valid substitute cannot read enrolled student photo'
+);
+SELECT pg_temp.assert_true(
+    NOT EXISTS (
         SELECT 1 FROM storage.objects
         WHERE bucket_id = 'student-photos'
-          AND name = '38000000-0000-0000-0000-000000000020/staff-photo.png'
+          AND name = '38000000-0000-0000-0000-000000000026/too-late-photo.png'
     ),
-    'substitute photo access ignores enrollment on the covered session date'
+    'substitute can read photo for enrollment starting after covered session'
 );
 RESET ROLE;
 SELECT pg_temp.as_user('00000000-0000-0000-0000-000000000003');
@@ -1427,7 +1491,7 @@ SELECT pg_temp.assert_true(
               '38000000-0000-0000-0000-000000000071'
           )
           AND disclosed_by = '38000000-0000-0000-0000-000000000002'
-          AND jsonb_object_length(detail) = 2
+          AND (SELECT COUNT(*) FROM jsonb_object_keys(detail)) = 2
           AND NOT (detail ? 'current_value')
           AND NOT (detail ? 'requested_value')
           AND NOT (detail ? 'applied_value')

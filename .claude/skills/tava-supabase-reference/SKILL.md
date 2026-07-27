@@ -21,16 +21,20 @@ that user**, and Row-Level Security policies decide row visibility. There is
 no API server to enforce anything — if RLS is wrong, the data is exposed.
 That's why the worst incidents here were RLS-class bugs.
 
-Key schema (migration 001 + successors): `profiles` (role: admin/tutor/parent),
+Key schema (migration 001 + successors through 053): `profiles` (role: admin/tutor/parent),
 `students`, `classes`, `enrollments`, `sessions` (one per class per date),
 `attendance_records` (status: `present|late|absent|excused`), `dismissals`,
 `parent_student_links`, `feature_flags`, PDPA tables (see sibling skill),
-Phase-2/3 stubs (`result_slips`, `messages`, `awards`, `food_polls`, ...).
+feature workflows (`result_slips`, `messages`, `awards`, retrospective
+sessions), security receipts/principals and durable Storage cleanup state.
 
 ## RLS here
 
 - Helper predicates (`is_admin()`, `is_parent()`, `tutor_owns_class(uuid)`) are SECURITY DEFINER functions callable by `authenticated` **by design** — advisors WARN about this; it's accepted (policies need them). Documented in HUMANS.md Notes.
-- Tutors see only their classes (`tutor_owns_class`); parents see only linked children (`parent_student_links`); admins see everything. This is why the kiosk iPad must be admin.
+- Tutors/substitutes receive bounded class/session capabilities. Parents use
+  migration-038 safe-column RPC projections for linked children rather than
+  broad base-table reads. Admins are broad but destructive/superadmin actions
+  are separately restricted.
 - `rate_limit_events` has RLS enabled with NO policies — service-role-only by design. Don't "fix" it.
 - Adding a policy? Test as each role in local Studio (`supabase start`, impersonate via the SQL editor's role switcher) before shipping.
 
@@ -49,11 +53,12 @@ SELECT reloptions FROM pg_class WHERE relname='attendance_summary';
 
 ## SECURITY DEFINER functions
 
-Used where a user must do something their RLS can't (e.g. PDPA
-`export_student_personal_data`, `anonymise_student`, `erase_student`). House
-rules, all enforced in migration 009/016:
+Used where a user must do something their RLS cannot, including shaped
+projections and trusted workflows. House rules, enforced and regression-tested
+in migration 038:
 
-1. First line of the body guards: `IF NOT is_admin() THEN RAISE EXCEPTION ... END IF;`
+1. Guard the caller/feature/capability inside the function; SECURITY DEFINER is
+   never authorisation by itself.
 2. Pin the search path: `SET search_path = public, pg_temp` in the function definition (prevents object-shadowing attacks).
 3. `REVOKE EXECUTE ... FROM anon, PUBLIC;` then grant to `authenticated` only if needed.
 
@@ -66,32 +71,21 @@ rules, all enforced in migration 009/016:
 
 ## The offline-sync RPC (worked example)
 
-`sync_attendance(records jsonb)` — the project's most instructive function:
-
-```text
-ON CONFLICT (session_id, student_id)
-  DO UPDATE ... WHERE attendance_records.marked_at <= EXCLUDED.marked_at
-```
-= last-write-wins by client timestamp (older offline records never clobber
-newer server rows). A second `ON CONFLICT (client_mutation_id) DO NOTHING`
-absorbs exact retries. Returns `{synced, skipped, blocked_ended_session}` —
-`skipped` = lost the timestamp race; `blocked_ended_session` = session had
-`ended_at` set (writes to ended sessions are trigger-blocked, migration
-008/016). Design lesson: idempotency + explicit rejection counts beat silent
-success.
+`sync_attendance(records jsonb)` accepts at most 500 items. Migration 038
+server-stamps actor/time, serialises each mutation ID with an advisory lock,
+recognises same-actor replays from live rows or durable receipts, and rejects
+collisions. It permits only bounded recent open-session offline replay; ended
+sessions increment `blocked_ended_session`. Client timestamps are not write
+authority.
 
 ## Storage
 
-Two **private** buckets (clients use short-lived signed URLs, never public
-URLs): `result-slips` (migration 011; admin write, parent reads own child)
-and `student-photos` (migration 014; admin write, authed read; **not yet
-applied to prod** as of 2026-07-09). Upload size caps are **client-side**
-checks, not bucket settings (result slips 10 MB, photos 5 MB — per
-CONTRIBUTING.md §1; the photo check lives in iOS `AttendanceService.swift`).
-Path convention:
-`<student_id>/<file>`. Explicit app-driven erase/anonymise sweeps both buckets
-before the database RPC. SQL-only scheduled retention still cannot delete
-Storage objects; HUMANS.md §9 tracks the orphan-cleanup gap.
+Two **private** buckets use server-minted signed upload/download flows.
+Migration 038 enforces canonical student paths, rate/size/MIME bounds, content
+signatures and atomic finalisation. Direct public URLs and client-only upload
+validation are not sufficient. Erasure/anonymisation enqueue durable Storage
+cleanup; a dedicated Edge worker drains it once the production function,
+Vault invocation secret and cron are active (HUMANS.md §65).
 
 ## Scheduled jobs
 
@@ -102,12 +96,15 @@ Safe to run the function manually — it returns counts.
 ## Auth
 
 - Accounts are invite-only. Prod must keep public signup OFF (dashboard toggle, HUMANS.md §31); local `supabase/config.toml` already sets `enable_signup = false` for the relevant provider.
-- `handle_new_user` trigger creates the `profiles` row on signup/invite. Post-016 it never trusts `raw_user_meta_data.role` for privileged roles.
+- `handle_new_user` creates a least-privilege profile and never trusts
+  `raw_user_meta_data.role` for privileged roles. Trusted web actions assign
+  approved roles; only the DB superadmin manages admins.
 - Local vs prod auth settings can drift — config.toml governs LOCAL ONLY; prod is dashboard-controlled.
 
 ## Provenance and maintenance
 
-Current as of 2026-07-09 (16 migrations; supabase-js 2.x, supabase-swift 2.x).
-- Function inventory: `grep -n 'CREATE OR REPLACE FUNCTION\|CREATE FUNCTION' supabase/migrations/*.sql | grep -v down`
-- Bucket definitions: `grep -n 'result-slips\|student-photos' supabase/migrations/011* supabase/migrations/014*`
-- RPC return shape: `grep -n 'blocked_ended_session' supabase/migrations/013_audit_fixes.sql`
+Audited 2026-07-26 (migrations 001–053; dependency lockfiles are the version
+sources).
+- Function inventory: `rg -n 'CREATE( OR REPLACE)? FUNCTION' supabase/migrations/*.sql`
+- Current security boundary: migration 038 + `scripts/prod-security-check.sql`
+- RPC return shape: `rg -n 'blocked_ended_session' supabase/migrations/038*`

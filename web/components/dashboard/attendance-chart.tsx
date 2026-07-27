@@ -1,8 +1,8 @@
 'use client'
 
 import {
-  AreaChart,
-  Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -30,22 +30,12 @@ export function AttendanceChart({ data }: { data: DailyAttendancePoint[] }) {
   }))
 
   return (
-    <ChartContainer config={chartConfig} className="h-[200px] w-full">
-      <AreaChart data={formatted} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
-        <defs>
-          <linearGradient id="grad-present" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-chart-1)" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="var(--color-chart-1)" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="grad-late" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--color-chart-2)" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="var(--color-chart-2)" stopOpacity={0} />
-          </linearGradient>
-        </defs>
+    <ChartContainer config={chartConfig} className="h-[220px] w-full">
+      <LineChart data={formatted} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
         <CartesianGrid
-          strokeDasharray="3 3"
           vertical={false}
-          stroke="var(--color-border)"
+          stroke="var(--color-brand)"
+          strokeOpacity={0.12}
         />
         <XAxis
           dataKey="label"
@@ -62,25 +52,23 @@ export function AttendanceChart({ data }: { data: DailyAttendancePoint[] }) {
           width={32}
         />
         <ChartTooltip content={<ChartTooltipContent />} />
-        <Area
+        <Line
           type="monotone"
           dataKey="present"
           stroke="var(--color-chart-1)"
           strokeWidth={2.5}
-          fill="url(#grad-present)"
           dot={false}
           activeDot={{ r: 4, strokeWidth: 0, fill: 'var(--color-chart-1)' }}
         />
-        <Area
+        <Line
           type="monotone"
           dataKey="late"
           stroke="var(--color-chart-2)"
           strokeWidth={2.5}
-          fill="url(#grad-late)"
           dot={false}
           activeDot={{ r: 4, strokeWidth: 0, fill: 'var(--color-chart-2)' }}
         />
-      </AreaChart>
+      </LineChart>
     </ChartContainer>
   )
 }
