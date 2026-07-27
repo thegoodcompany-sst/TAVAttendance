@@ -375,7 +375,7 @@ fun RosterScreen(
     val canEdit = sessionEditable && sessionDate == todayStr
 
     fun formatDate(iso: String): String = runCatching {
-        prettyFmt.format(isoFmt.parse(iso)!!)
+        prettyFmt.format(requireNotNull(isoFmt.parse(iso)))
     }.getOrDefault(iso)
 
     // PROD-03: count students still without a status (reads roster + local overrides).
@@ -621,7 +621,7 @@ private fun RosterRow(
                         containerColor = if (isSelected) color else Color.Transparent,
                         contentColor = if (isSelected) Color.White else color
                     ),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                    border = ButtonDefaults.outlinedButtonBorder(enabled).copy(
                         brush = androidx.compose.ui.graphics.SolidColor(if (isSelected) color else color.copy(alpha = 0.5f))
                     )
                 ) {

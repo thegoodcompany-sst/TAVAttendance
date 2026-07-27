@@ -19,6 +19,8 @@ Total time: about 15 minutes.
 2. Sign in with the **admin** email and password. → You land on the **Sign In** tab.
    - *Expected:* a grid of student cards, all **grey** (nobody signed in yet).
    - *If it says "No Classes Today":* tell Edmund — the demo class may not be loaded.
+   - *Safety check:* use demo-only records, confirm the iPad has an OS passcode,
+     and do not expose production credentials to observers.
 
 ---
 
@@ -41,7 +43,8 @@ Total time: about 15 minutes.
 
 ## Part B — Admin PIN lock and override (4 min)
 
-9. Tap the **gear icon** → **Kiosk Settings** → **Set PIN** (choose e.g. `1234`) → **Lock Kiosk Now**.
+9. Tap the **gear icon** → **Kiosk Settings** → **Set PIN** (use a temporary
+   non-production PIN; do not use `1234` on a live kiosk) → **Lock Kiosk Now**.
    - *Expected:* the tab bar and gear disappear. Only the sign-in grid is left — this is what students see.
 10. Tap the **lock icon** and enter your PIN.
     - *Expected:* an **ADMIN** badge appears in the header. You're unlocked.
@@ -64,9 +67,13 @@ Total time: about 15 minutes.
 16. Tap a student's **row** (not the mark button).
     - *Expected:* a profile sheet opens with their recent attendance.
 17. **Turn off Wi-Fi** on the device, then mark another student.
-    - *Expected:* the student is still marked, with a small **orange dot** next to the name (waiting to sync).
+    - *Expected:* the student is still marked, with a small **orange dot** next
+      to the name. This means pending on this device, not saved to the server.
 18. **Turn Wi-Fi back on**, wait a few seconds.
-    - *Expected:* the orange dot disappears on its own — it saved to the server.
+    - *Expected:* the orange dot disappears. Confirm the same record on the web
+      dashboard before marking this step passed.
+    - *If it remains:* do not sign out, clear app data, uninstall, or repeat the
+      mark. Note the time and continue the test on paper.
 
 ---
 
@@ -75,8 +82,10 @@ Total time: about 15 minutes.
 19. On a computer or phone, open **dash.thegoodcompanysg.dev** and log in with the admin account.
 20. Open the **Analytics / today's attendance** view.
     - *Expected:* the demo students you signed in appear, with the right status (on time / late / present).
-21. Use **Export** to download the attendance CSV.
-    - *Expected:* a spreadsheet downloads and lists the demo students.
+21. Use the dashboard export for the demo data.
+    - *Expected:* the downloaded file lists only the intended demo records.
+      Delete the local test download after verification; do not email it or
+      upload it to an unapproved drive.
 
 If Part D matches what you did on the iPad, the full loop works: **iPad → server → dashboard.**
 
@@ -84,8 +93,14 @@ If Part D matches what you did on the iPad, the full loop works: **iPad → serv
 
 ## If something goes wrong
 
-1. **Don't panic and don't stop taking attendance** — the app keeps working offline and nothing is lost.
-2. Take a **screenshot** of whatever is on screen. Note the **time** and **what you tapped just before**.
-3. Send the screenshot to **Edmund**, with one line describing the step number above where it happened.
+1. Switch to the paper attendance fallback if a pending indicator does not
+   clear. Do not claim the record is saved until the dashboard confirms it.
+2. Note the time, step, device, signed-in role and what you tapped.
+3. Screenshots can contain children's data. Crop/redact unrelated names and use
+   only the centre's approved private support channel.
+4. If another account's/child's data appears or compromise is suspected, stop
+   syncing, secure the device and activate the breach-response escalation.
+5. Do not uninstall, clear app data, change accounts or reset the device while
+   attendance is pending.
 
-**Contact:** Edmund — limboenedmund@gmail.com
+_Operational script audited 2026-07-26._

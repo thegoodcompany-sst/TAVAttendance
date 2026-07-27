@@ -1,40 +1,37 @@
-import { cn } from '@/lib/utils'
 import type { SessionSummary } from '@/lib/queries'
 import { SessionNote } from './session-note'
 
-// TAVA-toned bands: navy, bright blue, and marigold accents.
-const GRADIENTS = [
-  'from-blue-500 via-indigo-600 to-[#193775]',
-  'from-sky-400 via-blue-500 to-indigo-600',
-  'from-amber-300 via-[#FAC12F] to-orange-400',
-  'from-indigo-400 via-blue-500 to-[#193775]',
-  'from-[#FAC12F] via-amber-400 to-orange-500',
-]
-
 export function ClassTile({
   session,
-  index,
   showNotes = false,
 }: {
   session: SessionSummary
-  index: number
   showNotes?: boolean
 }) {
+  const hereCount = session.presentCount + session.lateCount
+  const attendanceRate = session.totalEnrolled > 0
+    ? Math.round((hereCount / session.totalEnrolled) * 100)
+    : 0
+
   return (
-    <div className="rounded-3xl overflow-hidden bg-white shadow-card">
-      <div
-        className={cn(
-          'h-28 bg-gradient-to-br',
-          GRADIENTS[index % GRADIENTS.length]
-        )}
-      />
-      <div className="p-4">
-        <p className="font-semibold text-sm">{session.className}</p>
-        <p className="text-xs text-muted-foreground mt-1">
-          {session.presentCount + session.lateCount} of {session.totalEnrolled} here today
-        </p>
+    <div className="grid gap-3 border-t border-brand/20 py-4 sm:grid-cols-[minmax(0,1fr)_8rem_5rem] sm:items-start sm:gap-6">
+      <div className="min-w-0">
+        <p className="text-sm font-bold text-foreground">{session.className}</p>
         {showNotes && <SessionNote sessionId={session.sessionId} note={session.notes} />}
       </div>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+          <span>Here</span>
+          <span className="font-mono tabular-nums">{attendanceRate}%</span>
+        </div>
+        <div className="h-1 bg-brand/10" aria-hidden="true">
+          <div className="h-full bg-brand" style={{ width: `${attendanceRate}%` }} />
+        </div>
+      </div>
+      <p className="font-mono text-sm font-semibold tabular-nums text-brand-ink sm:text-right">
+        {hereCount}
+        <span className="text-muted-foreground">/{session.totalEnrolled}</span>
+      </p>
     </div>
   )
 }
