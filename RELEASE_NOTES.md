@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Refreshed supported Android, iOS, and web dependencies, including AGP 9.3
+  with built-in Kotlin, Supabase Swift 2.53, Next 16.2.12, and React 19.2.8;
+  synchronized npm/Bun locks and retained incompatible ESLint 10/TypeScript 7
+  upgrades for a later toolchain release.
 - Fixed local/CI seed replay across the Singapore-midnight boundary by deriving
   the sample session date in the same timezone as session lifecycle guards.
 - Redesigned the web admin Today dashboard as a compact, card-free daily
