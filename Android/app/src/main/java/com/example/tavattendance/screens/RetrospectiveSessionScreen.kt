@@ -388,7 +388,8 @@ fun HistoricalSessionScreen(
             )
         }
     ) { padding ->
-        if (isLoading || session == null) {
+        val currentSession = session
+        if (isLoading || currentSession == null) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
@@ -400,7 +401,7 @@ fun HistoricalSessionScreen(
             ) {
                 if (!online) item { OnlineOnlyWarning("Historical changes are online only.") }
                 item { Text(className, style = MaterialTheme.typography.titleMedium) }
-                item { Text("Date: ${session!!.sessionDate}") }
+                item { Text("Date: ${currentSession.sessionDate}") }
                 item {
                     OutlinedTextField(
                         value = topic,

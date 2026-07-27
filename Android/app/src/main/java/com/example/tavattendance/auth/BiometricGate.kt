@@ -1,6 +1,7 @@
 package com.example.tavattendance.auth
 
 import android.content.Context
+import android.content.ContextWrapper
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -47,6 +48,12 @@ object BiometricPrefs {
             BiometricManager.BIOMETRIC_SUCCESS
 }
 
+private tailrec fun Context.fragmentActivityOrNull(): FragmentActivity? = when (this) {
+    is FragmentActivity -> this
+    is ContextWrapper -> baseContext.fragmentActivityOrNull()
+    else -> null
+}
+
 fun showBiometricPrompt(
     activity: FragmentActivity,
     title: String,
@@ -76,13 +83,14 @@ fun showBiometricPrompt(
 fun BiometricToggleAction() {
     val context = LocalContext.current
     if (!BiometricPrefs.isAvailable(context)) return
+    val activity = context.fragmentActivityOrNull() ?: return
     var enabled by rememberSaveable { mutableStateOf(BiometricPrefs.isEnabled(context)) }
     TextButton(onClick = {
         if (enabled) {
             BiometricPrefs.setEnabled(context, false)
             enabled = false
         } else {
-            showBiometricPrompt(context as FragmentActivity, "Enable biometric unlock") {
+            showBiometricPrompt(activity, "Enable biometric unlock") {
                 BiometricPrefs.setEnabled(context, true)
                 enabled = true
             }
@@ -107,6 +115,12 @@ fun BiometricGate(onSignOut: () -> Unit, content: @Composable () -> Unit) {
         return
     }
 
+    val activity = context.fragmentActivityOrNull()
+    if (activity == null) {
+        LaunchedEffect(Unit) { onSignOut() }
+        return
+    }
+
     // ponytail: relocks on every stop incl. brief app switches; add a grace timer if users complain.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -122,7 +136,6 @@ fun BiometricGate(onSignOut: () -> Unit, content: @Composable () -> Unit) {
         return
     }
 
-    val activity = context as FragmentActivity
     LaunchedEffect(Unit) {
         showBiometricPrompt(activity, "Unlock TAVA Attendance") { unlocked = true }
     }

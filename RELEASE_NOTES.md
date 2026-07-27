@@ -5,8 +5,28 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Redesigned the web admin Today dashboard as a compact, card-free daily
+  attendance register while preserving the existing TAVA type and colour system.
+- Encrypted pending attendance queues with per-install Keychain/Keystore
+  AES-GCM keys on iOS and Android, including verified migration from the former
+  plaintext account-owned envelope and tamper-detection tests; removed Android
+  biometric context-cast and nullable date/document/session crash paths.
+- Rotated the production App Review admin password and synchronized the new
+  credential to App Store Connect without storing it in the repository.
+- Made Android kiosk PIN throttling atomic and fail closed for every caller,
+  with accurate lockout UI/tests; pull-request CI now runs web security
+  regressions, and production-secret workflows declare the reviewer-gated
+  environment that operators must protect before merge.
+- Patched the web dashboard's Next.js and transitive dependency advisories;
+  Android auth sessions and PKCE verifiers now migrate from plaintext
+  SharedPreferences into Android Keystore-backed AES-GCM storage. Audited and
+  refreshed all operational runbooks against the current migrations, CI,
+  release paths and security boundaries; staff guidance no longer promises
+  infallible offline sync, and the breach plan now has evidence-preserving
+  containment and current PDPC notification criteria.
 - Restored superadmin feature-flag updates behind the database RLS boundary and
-  refreshed vulnerable transitive web dependencies used by CI/build tooling.
+  added regression coverage for ordinary-admin no-op writes; refreshed
+  vulnerable transitive web dependencies used by CI/build tooling.
 - Added a superadmin-only dashboard export that downloads a full operational
   data snapshot as a ZIP of CSV files, while excluding internal Study Space
   attendance and private file contents.

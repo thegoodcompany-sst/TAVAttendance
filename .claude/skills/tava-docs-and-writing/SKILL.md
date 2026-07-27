@@ -22,7 +22,7 @@ prod (use `tava-prod-drift-campaign` / `tava-run-and-operate`).
 | `README.md` | What the product does, stack, layout, roadmap | Features ship or roadmap changes |
 | `CONTRIBUTING.md` | Local setup for all platforms, storage buckets, ops/monitoring | Setup steps change |
 | `Android/PORTING_NOTES.md` | Authoritative iOS→Android file mapping + porting conventions | New screens/services appear on either side |
-| `supabase/migrations/README.md` | Migration table + down-migration convention | EVERY new migration adds a row (015/016 rows added 2026-07-09) |
+| `supabase/migrations/README.md` | Migration table + down-migration convention | EVERY new migration adds a row (currently through 053) |
 | `docs/API.md` | Backend↔iOS integration contract with working Swift snippets | RPCs/queries the apps call change |
 | `docs/pdpa/*` | Governance docs (notice, retention, breach plan, implementation contract) | Legal/DPO input; notice edits also need in-app re-publish (see `tava-pdpa-reference`) |
 | `web/AGENTS.md` | Pinned-Next.js warning | Next.js version changes |
@@ -66,7 +66,7 @@ the porting agent**.
 
 ## Provenance and maintenance
 
-Current as of 2026-07-09.
+Audited 2026-07-26.
 - Doc inventory: `ls *.md docs docs/pdpa`
-- Open human items: `grep -c '^### ☐' HUMANS.md`
-- Handoff template unchanged: `grep -n 'Paste-ready prompt template' CLAUDE.md`
+- Open human items: `rg -c '^### ☐' HUMANS.md`
+- Handoff template: `rg -n 'Paste-ready prompt template' CLAUDE.md`
