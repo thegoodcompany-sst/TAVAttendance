@@ -18,10 +18,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import java.text.SimpleDateFormat
 import java.util.*
@@ -756,7 +756,7 @@ object AttendanceService {
                 markedAt = r.markedAt
             )
         }
-        val paramsJson = Json.encodeToJsonElement(SyncParams(payload)) as JsonObject
+        val paramsJson = Json.encodeToJsonElement(SyncParams(payload)).jsonObject
         val result = db.postgrest.rpc("sync_attendance", paramsJson).decodeAs<Map<String, Int>>()
         return SyncResult(
             synced = result["synced"] ?: 0,
