@@ -5,6 +5,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Redesigned the web admin Today dashboard as a compact, card-free daily
+  attendance register while preserving the existing TAVA type and colour system.
 - Made Android kiosk PIN throttling atomic and fail closed for every caller,
   with accurate lockout UI/tests; pull-request CI now runs web security
   regressions, and production-secret workflows declare the reviewer-gated
