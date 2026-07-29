@@ -1,4 +1,4 @@
--- Offline-sync integrity self-check for sync_attendance (migration 038).
+-- Offline-sync integrity self-check for sync_attendance (migrations 038 + 054).
 -- Plain SQL + ASSERT, no pgTAP. Everything runs in one transaction and ROLLS
 -- BACK, so it is safe against any environment that has the current schema.
 --
@@ -7,10 +7,48 @@
 -- Success = "sync_attendance_test: all assertions passed"; any failure aborts.
 BEGIN;
 
+-- Migration 054 requires a staff actor. Create a tutor and a parent for the
+-- non-staff denial case, then bind JWT claims to the tutor for happy-path tests.
+INSERT INTO auth.users (
+    id, email, encrypted_password, email_confirmed_at, role, aud,
+    raw_user_meta_data, created_at, updated_at
+) VALUES
+(
+    '99999999-0000-0000-0000-000000000099',
+    'sync-attendance-tutor@tava.dev',
+    crypt('test', gen_salt('bf')), NOW(), 'authenticated', 'authenticated',
+    '{"full_name":"Sync Attendance Tutor"}', NOW(), NOW()
+),
+(
+    '99999999-0000-0000-0000-000000000098',
+    'sync-attendance-parent@tava.dev',
+    crypt('test', gen_salt('bf')), NOW(), 'authenticated', 'authenticated',
+    '{"full_name":"Sync Attendance Parent"}', NOW(), NOW()
+);
+UPDATE profiles SET role = 'tutor'
+WHERE id = '99999999-0000-0000-0000-000000000099';
+-- handle_new_user already created the parent profile as role=parent.
+
+CREATE FUNCTION pg_temp.as_user(p_user UUID)
+RETURNS VOID
+LANGUAGE SQL
+AS $$
+    SELECT set_config('request.jwt.claim.sub', p_user::TEXT, TRUE),
+           set_config('request.jwt.claim.role', 'authenticated', TRUE);
+$$;
+
+SELECT pg_temp.as_user('99999999-0000-0000-0000-000000000099');
+
 INSERT INTO classes (id, name)
 VALUES (
     '99999999-0000-0000-0000-000000000001',
     'sync_attendance test class'
+);
+INSERT INTO class_tutor_assignments (class_id, tutor_id, assigned_from)
+VALUES (
+    '99999999-0000-0000-0000-000000000001',
+    '99999999-0000-0000-0000-000000000099',
+    (NOW() AT TIME ZONE 'Asia/Singapore')::DATE - 1
 );
 INSERT INTO sessions (id, class_id, session_date)
 VALUES (
@@ -64,11 +102,25 @@ DECLARE
     v_session UUID := '99999999-0000-0000-0000-000000000002';
     v_student UUID := '99999999-0000-0000-0000-000000000003';
     v_other_student UUID := '99999999-0000-0000-0000-000000000004';
+    v_tutor UUID := '99999999-0000-0000-0000-000000000099';
     v_first_marked_at TIMESTAMPTZ;
     v_before TIMESTAMPTZ;
     v_after TIMESTAMPTZ;
     r JSONB;
 BEGIN
+    -- 0. Non-staff callers must fail closed (migration 054 staff gate).
+    PERFORM pg_temp.as_user('99999999-0000-0000-0000-000000000098');
+    BEGIN
+        PERFORM sync_attendance(pg_temp.payload(
+            v_student, 'present', NOW(), 'synctest-parent'
+        ));
+        RAISE EXCEPTION 'parent sync_attendance was accepted';
+    EXCEPTION
+        WHEN insufficient_privilege THEN NULL;
+        WHEN SQLSTATE '42501' THEN NULL;
+    END;
+    PERFORM pg_temp.as_user(v_tutor);
+
     -- 1. A fresh offline mutation syncs and is stamped with server time, not
     -- the caller's far-future device clock.
     v_before := clock_timestamp();

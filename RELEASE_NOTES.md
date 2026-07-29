@@ -9,7 +9,8 @@ This is the source draft for mobile release notes. Keep completed changes under
   canonical student path prefix; bulk student import is capped at 500 rows;
   invite/login Auth errors are sanitized; admin message/audit PostgREST filters
   validate UUIDs/timestamps; migration 054 gates study-space roster, offline
-  sync staff role, parent-link role, and device-token ownership; iOS kiosk PIN
+  sync staff role, parent-link role, and device-token ownership (applied to
+  prod); offline-sync SQL regression covers the staff gate; iOS kiosk PIN
   compare is constant-time; Android disables cloud backup of app data.
 - Restored the Android student-management entry point for consent status,
   subject-access export, and other PDPA data controls.
