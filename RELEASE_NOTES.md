@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Internal behaviour-preserving refactor: split native kiosk screens and
+  security policy modules, modularize AttendanceService behind stable facades,
+  split the Android student profile sheet, and turn `web/lib/queries` into a
+  compatibility barrel with domain modules; added characterization tests for
+  kiosk PIN/lockout policy, student-profile tab/state rules, and web
+  attendance/audit pure helpers.
 - Security hardening (2026-07-29 scan): parent result-slip signed URLs require a
   canonical student path prefix; bulk student import is capped at 500 rows;
   invite/login Auth errors are sanitized; admin message/audit PostgREST filters
