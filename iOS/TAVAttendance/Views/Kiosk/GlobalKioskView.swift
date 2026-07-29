@@ -1386,7 +1386,8 @@ private struct PINUnlockOverlay: View {
         error = ""
         entered += d
         if entered.count == 4 {
-            if hashPIN(entered) == storedPIN {
+            // Constant-time compare of the derived hash (not the short PIN itself).
+            if constantTimeEqualHex(hashPIN(entered), storedPIN) {
                 failedAttempts = 0
                 lockoutUntil = 0
                 onDone(true)
@@ -1444,6 +1445,20 @@ private func hashPIN(_ pin: String) -> String {
         &derived, derived.count
     )
     return "v1:" + derived.map { String(format: "%02x", $0) }.joined()
+}
+
+/// Constant-time equality for PIN hash strings (mirrors Android MessageDigest.isEqual).
+private func constantTimeEqualHex(_ left: String, _ right: String) -> Bool {
+    let a = Array(left.utf8)
+    let b = Array(right.utf8)
+    var difference = a.count ^ b.count
+    let limit = max(a.count, b.count)
+    for index in 0..<limit {
+        let leftByte = index < a.count ? a[index] : 0
+        let rightByte = index < b.count ? b[index] : 0
+        difference |= Int(leftByte ^ rightByte)
+    }
+    return difference == 0
 }
 
 // MARK: - Shared number pad builder

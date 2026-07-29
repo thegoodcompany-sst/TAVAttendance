@@ -113,3 +113,4 @@ application from this table; require the remote drift/security gates.
 | 051 | record_award_insert_grant | Record the admin-only, feature-gated award insert privilege | yes   |
 | 052 | record_public_policy_read_grant | Record the RLS-bounded public policy-document read privilege | yes   |
 | 053 | record_authenticated_policy_read_grant | Record the RLS-bounded authenticated policy-document read privilege | yes   |
+| 054 | defense_in_depth_authz | Study-space roster admin/flag gate, sync_attendance staff gate, parent-link role check, no device-token takeover | yes   |

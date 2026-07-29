@@ -17,7 +17,8 @@ export default async function AdminThreadPage({
   searchParams: Promise<{ parentId?: string }>
 }) {
   const [{ studentId }, { parentId }] = await Promise.all([params, searchParams])
-  if (!parentId) notFound()
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!parentId || !UUID_RE.test(parentId) || !UUID_RE.test(studentId)) notFound()
 
   const supabase = await createClient()
   const { data: link } = await supabase
@@ -34,6 +35,7 @@ export default async function AdminThreadPage({
     .eq('id', studentId)
     .maybeSingle()
 
+  // Bound values only after UUID validation so PostgREST .or() never sees free text.
   const { data: messages } = await supabase
     .from('messages')
     .select('id, sender_id, subject, body, sent_at')

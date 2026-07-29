@@ -64,6 +64,9 @@ export type BulkImportResult = {
  * gate applies — the admin attests that consent was obtained offline for all
  * rows. One granted consent_records row is written per created student.
  */
+/** Hard cap so a compromised admin session cannot mass-create unbounded rows. */
+const BULK_IMPORT_MAX_ROWS = 500
+
 export async function bulkImportStudents(
   rows: StudentInput[],
   consentAttested: boolean
@@ -74,6 +77,17 @@ export async function bulkImportStudents(
   if (!consentAttested) {
     return {
       error: 'Parent/guardian consent must be attested for all imported students.',
+      created: 0,
+      skipped: [],
+    }
+  }
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { error: 'No rows to import.', created: 0, skipped: [] }
+  }
+  if (rows.length > BULK_IMPORT_MAX_ROWS) {
+    return {
+      error: `Import is limited to ${BULK_IMPORT_MAX_ROWS} students at a time. Split the file and try again.`,
       created: 0,
       skipped: [],
     }

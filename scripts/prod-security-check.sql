@@ -170,8 +170,31 @@ BEGIN
     ), 'replaced attendance mutation IDs are not archived';
     ASSERT POSITION('attendance_mutation_is_replay' IN v_sync_attendance) > 0
        AND POSITION('pg_advisory_xact_lock' IN v_sync_attendance) > 0
-       AND POSITION('clock_timestamp()' IN v_sync_attendance) > 0,
-        'offline attendance replay/idempotency enforcement drifted';
+       AND POSITION('clock_timestamp()' IN v_sync_attendance) > 0
+       AND POSITION('is_admin()' IN v_sync_attendance) > 0
+       AND POSITION('is_tutor()' IN v_sync_attendance) > 0,
+        'offline attendance replay/idempotency or staff gate drifted';
+    ASSERT POSITION('is_admin()' IN LOWER(pg_get_functiondef(
+            'public.get_study_space_roster(uuid)'::REGPROCEDURE
+        ))) > 0
+       AND POSITION('study_space_tracking' IN LOWER(pg_get_functiondef(
+            'public.get_study_space_roster(uuid)'::REGPROCEDURE
+        ))) > 0
+       AND POSITION('is_study_space' IN LOWER(pg_get_functiondef(
+            'public.get_study_space_roster(uuid)'::REGPROCEDURE
+        ))) > 0,
+        'study-space roster lacks admin/flag/session gates (054)';
+    ASSERT POSITION('role = ''parent''' IN LOWER(pg_get_functiondef(
+            'public.link_parent_student(uuid,uuid)'::REGPROCEDURE
+        ))) > 0,
+        'link_parent_student no longer requires target role=parent (054)';
+    ASSERT POSITION('already registered' IN LOWER(pg_get_functiondef(
+            'public.register_device_token(text,text)'::REGPROCEDURE
+        ))) > 0
+       AND POSITION('device_tokens.user_id = auth.uid()' IN LOWER(pg_get_functiondef(
+            'public.register_device_token(text,text)'::REGPROCEDURE
+        ))) > 0,
+        'register_device_token still allows foreign token takeover (054)';
     ASSERT POSITION(
         'v_session_date < v_today - 7' IN LOWER(pg_get_functiondef(
             'public.check_session_not_ended()'::REGPROCEDURE

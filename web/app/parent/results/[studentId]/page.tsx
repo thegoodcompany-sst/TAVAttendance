@@ -37,10 +37,21 @@ export default async function ParentResultsPage({
   const adminClient = createAdminClient()
   const resultSlips = (slips ?? []) as ParentResultSlipRow[]
 
+  // Defense-in-depth: never mint a service-role signed URL for a path that is
+  // not under this student's canonical prefix, even if a row is mis-bound.
+  const pathIsForStudent = (path: string) => {
+    const [folder, objectName, ...extra] = path.split('/')
+    return (
+      extra.length === 0 &&
+      folder === studentId &&
+      /^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/.test(objectName ?? '')
+    )
+  }
+
   const rows = await Promise.all(
     resultSlips.map(async slip => {
       let fileUrl: string | null = null
-      if (slip.file_path) {
+      if (slip.file_path && pathIsForStudent(slip.file_path)) {
         const { data } = await adminClient.storage
           .from('result-slips')
           .createSignedUrl(slip.file_path, 5 * 60)

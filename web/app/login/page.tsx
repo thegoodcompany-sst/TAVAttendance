@@ -65,7 +65,8 @@ export default function LoginPage() {
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (authError) {
-      setError(authError.message)
+      // Stable message — do not surface raw Auth provider strings (enumeration / lockout detail).
+      setError('Invalid email or password.')
       setLoading(false)
       return
     }

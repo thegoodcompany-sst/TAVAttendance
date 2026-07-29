@@ -734,3 +734,12 @@ remain re-identifiable and must be handled as pseudonymised—not guaranteed
 anonymous—data. The DPO/legal reviewer must approve that purpose and retention,
 or require hard erasure when a request/outcome demands no reasonably linkable
 history. Republish the notice under §7 after approval.
+
+### ☐ 70. Apply migration 054 (defense-in-depth authz) to production
+
+Repo-only until applied. Migration `054_defense_in_depth_authz.sql` tightens
+study-space roster authorization, offline sync staff gates, parent-link role
+checks, and device-token ownership. Apply via the authorised production path
+(see `tava-prod-drift-campaign`), then run `scripts/prod-security-check.sql`
+and confirm the new asserts pass before shipping clients that depend on the
+stricter study-space roster errors.

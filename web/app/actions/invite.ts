@@ -70,7 +70,14 @@ export async function inviteUser(
     redirectTo: `${siteUrl}/auth/confirm`,
   })
 
-  if (error) return { error: error.message }
+  if (error) {
+    // Avoid leaking Auth enumeration details (e.g. "already registered") to the UI.
+    const msg = error.message.toLowerCase()
+    if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
+      return { error: 'Could not send invite for that email. It may already have an account.' }
+    }
+    return { error: 'Could not send the invite. Please try again.' }
+  }
 
   // The handle_new_user trigger creates every invited user as 'parent' (least
   // privilege) because metadata role is no longer trusted (migration 016). Set

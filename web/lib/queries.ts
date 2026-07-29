@@ -733,7 +733,18 @@ export async function getAuditLog({
     const separator = before.lastIndexOf('|')
     const beforeAt = before.slice(0, separator)
     const beforeId = before.slice(separator + 1)
-    if (separator > 0 && !Number.isNaN(Date.parse(beforeAt)) && /^[0-9a-f-]{36}$/i.test(beforeId)) {
+    // Timestamp + UUID only; reject characters that could break PostgREST `.or()` filters.
+    const isoOk =
+      /^\d{4}-\d{2}-\d{2}T[\d:.+-Z]+$/.test(beforeAt) &&
+      !beforeAt.includes(',') &&
+      !beforeAt.includes('(') &&
+      !beforeAt.includes(')') &&
+      !Number.isNaN(Date.parse(beforeAt))
+    if (
+      separator > 0 &&
+      isoOk &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(beforeId)
+    ) {
       query = query.or(`changed_at.lt.${beforeAt},and(changed_at.eq.${beforeAt},id.lt.${beforeId})`)
     }
   }
