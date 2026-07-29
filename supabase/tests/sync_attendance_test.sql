@@ -174,7 +174,7 @@ BEGIN
         WHERE mutation_id = 'synctest-1'
           AND session_id = v_session
           AND student_id = v_student
-          AND actor_id IS NULL
+          AND actor_id = v_tutor
           AND accepted_at = v_first_marked_at
     ), 'replaced mutation did not create a bound durable receipt';
 
