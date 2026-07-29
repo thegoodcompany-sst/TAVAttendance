@@ -228,7 +228,11 @@ BEGIN
 
     -- 7. Ended-session retries remain distinguishable from ordinary skips and
     -- leave the last accepted record untouched.
+    -- Authenticated actors cannot stamp lifecycle columns directly; use the
+    -- transaction-local capability the RPCs set, as superuser setup would.
+    PERFORM set_config('app.session_lifecycle_write', 'on', TRUE);
     UPDATE sessions SET ended_at = NOW() WHERE id = v_session;
+    PERFORM set_config('app.session_lifecycle_write', 'off', TRUE);
     r := sync_attendance(pg_temp.payload(
         v_student, 'late', NOW(), 'synctest-4'
     ));
