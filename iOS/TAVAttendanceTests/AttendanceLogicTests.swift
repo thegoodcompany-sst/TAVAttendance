@@ -39,6 +39,100 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertEqual(storedKioskPINDisposition("corrupt"), .requiresAuthenticatedReset)
     }
 
+    func testConfiguredKioskStartsLocked() {
+        XCTAssertTrue(shouldLockKioskOnStart(storedPIN: "v1:" + String(repeating: "a", count: 64)))
+        XCTAssertTrue(shouldLockKioskOnStart(storedPIN: "1234"))
+        XCTAssertFalse(shouldLockKioskOnStart(storedPIN: ""))
+    }
+
+    func testAdminAuthorizationPermitsOverridesAndDismissals() {
+        let adminActions: [GlobalKioskView.KioskAction] = [
+            .markLate, .markPresent, .markAbsent, .markNotHere,
+            .markDismissed, .undoDismissal, .addLateReason("traffic"),
+        ]
+        for action in adminActions {
+            XCTAssertTrue(isKioskActionAuthorized(action, isAdminMode: true), "\(action)")
+            XCTAssertFalse(isKioskActionAuthorized(action, isAdminMode: false), "\(action)")
+        }
+        XCTAssertTrue(isKioskActionAuthorized(.signIn, isAdminMode: false))
+        XCTAssertTrue(isKioskActionAuthorized(.signIn, isAdminMode: true))
+    }
+
+    func testActiveLockoutRejectsCorrectPINWithoutChangingState() {
+        let state = KioskPINLockoutState(failedAttempts: 0, lockoutUntil: 40_000)
+        let (next, result) = evaluateKioskPINAttempt(pinMatches: true, state: state, now: 10_000)
+        XCTAssertTrue(isKioskUnlockBlocked(lockoutUntil: state.lockoutUntil, now: 10_000))
+        XCTAssertEqual(next, state)
+        XCTAssertEqual(result, .lockedOut(until: 40_000))
+    }
+
+    func testFiveFailuresEnterEscalatingLockoutWindows() {
+        var state = KioskPINLockoutState()
+        var result: KioskPINAttemptResult = .unlocked
+        let now: TimeInterval = 10_000
+        for _ in 0..<5 {
+            (state, result) = evaluateKioskPINAttempt(pinMatches: false, state: state, now: now)
+        }
+        XCTAssertEqual(state.failedAttempts, 5)
+        XCTAssertEqual(state.lockoutUntil, now + 30)
+        XCTAssertEqual(result, .lockedOut(until: now + 30))
+
+        // After the window expires, another wrong entry escalates (6 failures → 60s).
+        let afterFirstWindow = state.lockoutUntil
+        (state, result) = evaluateKioskPINAttempt(
+            pinMatches: false,
+            state: state,
+            now: afterFirstWindow
+        )
+        XCTAssertEqual(state.failedAttempts, 6)
+        XCTAssertEqual(result, .lockedOut(until: afterFirstWindow + 60))
+        XCTAssertEqual(state.lockoutUntil, afterFirstWindow + 60)
+    }
+
+    func testSuccessfulAuthenticationResetsLockoutState() {
+        let state = KioskPINLockoutState(failedAttempts: 4, lockoutUntil: 0)
+        let (next, result) = evaluateKioskPINAttempt(pinMatches: true, state: state, now: 10_000)
+        XCTAssertEqual(next, KioskPINLockoutState())
+        XCTAssertEqual(result, .unlocked)
+    }
+
+    func testIncorrectPINReportsRemainingAttempts() {
+        let (state, result) = evaluateKioskPINAttempt(
+            pinMatches: false,
+            state: KioskPINLockoutState(),
+            now: 10_000
+        )
+        XCTAssertEqual(state.failedAttempts, 1)
+        XCTAssertEqual(result, .incorrect(attemptsRemaining: 4))
+    }
+
+    @MainActor
+    func testBackgroundingRevokesProcessLocalAdminAuthorization() {
+        let security = KioskSecurityState.shared
+        security.isAdminUnlocked = true
+        // Simulate a configured PIN for the shared process-local gate.
+        UserDefaults.standard.set("v1:" + String(repeating: "b", count: 64), forKey: "kioskPIN")
+        defer {
+            security.isAdminUnlocked = false
+            UserDefaults.standard.removeObject(forKey: "kioskPIN")
+        }
+        security.relockIfConfigured()
+        XCTAssertFalse(security.isAdminUnlocked)
+    }
+
+    func testConstantTimeHexEquality() {
+        XCTAssertTrue(constantTimeEqualHex("v1:abcd", "v1:abcd"))
+        XCTAssertFalse(constantTimeEqualHex("v1:abcd", "v1:abce"))
+        XCTAssertFalse(constantTimeEqualHex("v1:ab", "v1:abcd"))
+    }
+
+    func testLockoutDurationEscalatesAndCaps() {
+        XCTAssertEqual(kioskLockoutDuration(forFailures: 5), 30)
+        XCTAssertEqual(kioskLockoutDuration(forFailures: 6), 60)
+        XCTAssertEqual(kioskLockoutDuration(forFailures: 7), 120)
+        XCTAssertEqual(kioskLockoutDuration(forFailures: 100), 3600)
+    }
+
     func testAttendanceAppIntentsRequireLocalDeviceAuthentication() {
         let protectedPolicies: [IntentAuthenticationPolicy] = [
             SignInStudentIntent.authenticationPolicy,
