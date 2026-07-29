@@ -37,8 +37,8 @@ AS $$
            set_config('request.jwt.claim.role', 'authenticated', TRUE);
 $$;
 
-SELECT pg_temp.as_user('99999999-0000-0000-0000-000000000099');
-
+-- Fixture rows are inserted without a JWT so session lifecycle triggers allow
+-- superuser/test setup (they only gate when auth.uid() is present).
 INSERT INTO classes (id, name)
 VALUES (
     '99999999-0000-0000-0000-000000000001',
