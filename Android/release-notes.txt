@@ -1,5 +1,5 @@
-TAVA Attendance — v1.1.1 (build 4)
-- Adds the native parent Results and Messages experience.
-- Adds consent-attested student creation and privacy/security hardening.
-- Improves offline attendance cleanup and protects sensitive diagnostics.
-- Adds feature-flagged past-session creation and attendance correction.
+TAVA Attendance — v1.1.2 (build 5)
+- Bugfixes, security fixes, and more.
+- Encrypts offline attendance queues and hardens kiosk/admin lockout.
+- Restores PDPA privacy controls in student management.
+- Refreshes dependencies and production security controls.

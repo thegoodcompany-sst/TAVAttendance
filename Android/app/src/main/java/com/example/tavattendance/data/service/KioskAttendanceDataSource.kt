@@ -35,13 +35,13 @@ internal object KioskAttendanceDataSource {
         // kiosk on a non-tuition day doesn't spin up phantom sessions. Supports multiple
         // classes on the same day (e.g. Thu English + Thu Reading).
         val todayWeekday = weekdayName(Date())
-        val classes = fetchMyClasses().filter {
+        val classes = ClassStudentDataSource.fetchMyClasses().filter {
             it.canOperateTodaySession && classMeetsToday(it, todayWeekday)
         }
         val classMap = classes.associateBy { it.id }
 
         val sessionTuples = classes.map { cls ->
-            cls.id to getOrCreateTodaySession(classId = cls.id)
+            cls.id to SessionAttendanceDataSource.getOrCreateTodaySession(classId = cls.id)
         }
 
         // PERF-02: fetch rosters in parallel instead of sequentially.
@@ -50,7 +50,7 @@ internal object KioskAttendanceDataSource {
         val rosterResults: List<Pair<Pair<String, Session>, List<RosterEntry>>> =
             coroutineScope {
                 sessionTuples
-                    .map { pair -> async { pair to fetchRoster(pair.second.id) } }
+                    .map { pair -> async { pair to SessionAttendanceDataSource.fetchRoster(pair.second.id) } }
                     .awaitAll()
             }
 
@@ -170,7 +170,7 @@ internal object KioskAttendanceDataSource {
     /** Loads today's Study Space session (creating it on first use) and the roster of ALL
      * active students with their current Present/Not-Here status for it. */
     suspend fun loadStudySpace(): Pair<Session, List<RosterEntry>> {
-        val session = getOrCreateTodaySession(classId = STUDY_SPACE_CLASS_ID)
+        val session = SessionAttendanceDataSource.getOrCreateTodaySession(classId = STUDY_SPACE_CLASS_ID)
         val roster = db.postgrest
             .rpc("get_study_space_roster", buildJsonObject { put("p_session_id", session.id) })
             .decodeList<RosterEntry>()
@@ -179,17 +179,21 @@ internal object KioskAttendanceDataSource {
 
     suspend fun markKioskAttendance(entry: KioskEntry, status: AttendanceStatus) {
         for (session in entry.sessions) {
-            markAttendance(sessionId = session.id, studentId = entry.studentId, status = status)
+            SessionAttendanceDataSource.markAttendance(
+                sessionId = session.id,
+                studentId = entry.studentId,
+                status = status,
+            )
         }
     }
 
     suspend fun markKioskSignIn(entry: KioskEntry) {
         val now = Date()
         for (session in entry.sessions) {
-            markAttendance(
+            SessionAttendanceDataSource.markAttendance(
                 sessionId = session.id,
                 studentId = entry.studentId,
-                status = signInStatus(session, now)
+                status = signInStatus(session, now),
             )
         }
     }

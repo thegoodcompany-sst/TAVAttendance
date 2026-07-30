@@ -89,7 +89,7 @@ object AttendanceService {
         topic: String?,
         notes: String?,
         subTutorId: String?
-    ): Session = db.postgrest.rpc("create_retrospective_session", buildJsonObject =
+    ): Session =
         SessionAttendanceDataSource.createRetrospectiveSession(classId, sessionDate, topic, notes, subTutorId)
 
     suspend fun updateRetrospectiveSession(
@@ -97,7 +97,7 @@ object AttendanceService {
         topic: String?,
         notes: String?,
         subTutorId: String?
-    ): Session = db.postgrest.rpc("update_retrospective_session", buildJsonObject =
+    ): Session =
         SessionAttendanceDataSource.updateRetrospectiveSession(sessionId, topic, notes, subTutorId)
 
     suspend fun fetchSessionNotes(id: String): String? =

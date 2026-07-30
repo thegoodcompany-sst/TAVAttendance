@@ -13,7 +13,7 @@
     <key>provisioningProfiles</key>
     <dict>
         <key>com.tava.TAVAttendance</key>
-        <string>TAVAttendance App Store Codex 20260721</string>
+        <string>TAVAttendance App Store 20260731</string>
     </dict>
     <key>stripSwiftSymbols</key>
     <true/>

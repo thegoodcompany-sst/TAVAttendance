@@ -31,8 +31,8 @@ targets:
       path: TAVAttendance/Info.plist
       properties:
         CFBundleDisplayName: TAVAttendance
-        CFBundleShortVersionString: "1.1.1"
-        CFBundleVersion: "6"
+        CFBundleShortVersionString: "1.1.2"
+        CFBundleVersion: "7"
         ITSAppUsesNonExemptEncryption: false
         # Supabase credentials: values live in the gitignored Config.xcconfig;
         # Info.plist only references the build settings (so secrets stay out of source).
@@ -71,7 +71,7 @@ targets:
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "iPhone Distribution"
-          PROVISIONING_PROFILE_SPECIFIER: "TAVAttendance App Store Codex 20260721"
+          PROVISIONING_PROFILE_SPECIFIER: "TAVAttendance App Store 20260731"
     configFiles:
       Debug: Config.xcconfig
       Release: Config.xcconfig

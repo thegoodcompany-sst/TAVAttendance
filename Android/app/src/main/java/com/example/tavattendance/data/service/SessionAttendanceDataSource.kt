@@ -42,7 +42,7 @@ internal object SessionAttendanceDataSource {
         }).decodeSingle<Session>()
 
     suspend fun fetchClass(id: String): TAVClass? =
-        fetchMyClasses().firstOrNull { it.id == id }
+        ClassStudentDataSource.fetchMyClasses().firstOrNull { it.id == id }
 
     suspend fun startSession(id: String) {
         db.postgrest.rpc("set_session_lifecycle", buildJsonObject {

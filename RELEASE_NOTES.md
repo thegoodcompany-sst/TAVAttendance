@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+## 1.1.2 — 2026-07-31
+
+- Bugfixes, security fixes, and more.
+- Fixed Android AttendanceService/kiosk data-source wiring after the modular
+  split (retrospective session facade syntax, cross-source kiosk/roster calls)
+  so release builds compile again.
 - Quieted Dependabot version-update spam: monthly grouped patch/minor PRs,
   single web package manager (Bun / `bun.lock`; removed `package-lock.json` and
   npm Dependabot), ignored auto major bumps for tooling
@@ -56,7 +62,6 @@ This is the source draft for mobile release notes. Keep completed changes under
 - Added a superadmin-only dashboard export that downloads a full operational
   data snapshot as a ZIP of CSV files, while excluding internal Study Space
   attendance and private file contents.
-
 - Closed database authorization gaps around future tutor assignments,
   substitute tutors, attendance rosters/actor timestamps, historical edits,
   delayed offline replays, parent safe-column RPCs, account-role escalation,
