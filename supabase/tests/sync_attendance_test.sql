@@ -1,11 +1,24 @@
--- Offline-sync integrity self-check for sync_attendance (migration 038).
+-- Offline-sync integrity self-check for sync_attendance (migration 038 + 054).
 -- Plain SQL + ASSERT, no pgTAP. Everything runs in one transaction and ROLLS
 -- BACK, so it is safe against any environment that has the current schema.
+--
+-- Migration 054 requires an authenticated staff principal (admin or tutor).
+-- Setup uses the local seed admin so auth.uid() / is_admin() pass, while the
+-- connection remains superuser so receipt-ledger assertions can still read
+-- the RLS-hidden attendance_mutation_receipts table.
 --
 -- Run: psql "$DB_URL" -v ON_ERROR_STOP=1 \
 --        -f supabase/tests/sync_attendance_test.sql
 -- Success = "sync_attendance_test: all assertions passed"; any failure aborts.
 BEGIN;
+
+CREATE FUNCTION pg_temp.as_user(p_user UUID)
+RETURNS VOID
+LANGUAGE SQL
+AS $$
+    SELECT set_config('request.jwt.claim.sub', p_user::TEXT, TRUE),
+           set_config('request.jwt.claim.role', 'authenticated', TRUE);
+$$;
 
 INSERT INTO classes (id, name)
 VALUES (
@@ -64,11 +77,15 @@ DECLARE
     v_session UUID := '99999999-0000-0000-0000-000000000002';
     v_student UUID := '99999999-0000-0000-0000-000000000003';
     v_other_student UUID := '99999999-0000-0000-0000-000000000004';
+    -- Local seed admin (supabase/seed.sql). Staff gate from migration 054.
+    v_actor UUID := '00000000-0000-0000-0000-000000000001';
     v_first_marked_at TIMESTAMPTZ;
     v_before TIMESTAMPTZ;
     v_after TIMESTAMPTZ;
     r JSONB;
 BEGIN
+    PERFORM pg_temp.as_user(v_actor);
+
     -- 1. A fresh offline mutation syncs and is stamped with server time, not
     -- the caller's far-future device clock.
     v_before := clock_timestamp();
@@ -84,6 +101,11 @@ BEGIN
     WHERE session_id = v_session AND student_id = v_student;
     ASSERT v_first_marked_at BETWEEN v_before AND v_after,
        'fresh record trusted the device timestamp instead of server arrival';
+    ASSERT (
+        SELECT marked_by = v_actor
+        FROM attendance_records
+        WHERE session_id = v_session AND student_id = v_student
+    ), 'fresh record did not bind marked_by to the authenticated staff actor';
 
     -- 2. An exact mutation replay is idempotent even when its other fields
     -- differ. It neither duplicates nor mutates the accepted row.
@@ -122,7 +144,7 @@ BEGIN
         WHERE mutation_id = 'synctest-1'
           AND session_id = v_session
           AND student_id = v_student
-          AND actor_id IS NULL
+          AND actor_id = v_actor
           AND accepted_at = v_first_marked_at
     ), 'replaced mutation did not create a bound durable receipt';
 
@@ -176,7 +198,11 @@ BEGIN
 
     -- 7. Ended-session retries remain distinguishable from ordinary skips and
     -- leave the last accepted record untouched.
+    -- Session lifecycle is RPC-gated when auth.uid() is set (migration 038), so
+    -- open the dedicated write path only for this fixture update.
+    PERFORM set_config('app.session_lifecycle_write', 'on', TRUE);
     UPDATE sessions SET ended_at = NOW() WHERE id = v_session;
+    PERFORM set_config('app.session_lifecycle_write', 'off', TRUE);
     r := sync_attendance(pg_temp.payload(
         v_student, 'late', NOW(), 'synctest-4'
     ));
@@ -189,6 +215,22 @@ BEGIN
         FROM attendance_records
         WHERE session_id = v_session AND student_id = v_student
     ), 'ended-session retry changed the accepted record';
+
+    -- 8. Non-staff principals must fail closed (migration 054 staff gate).
+    -- Seed parent: authenticated, but neither admin nor tutor.
+    PERFORM pg_temp.as_user('00000000-0000-0000-0000-000000000003');
+    BEGIN
+        PERFORM sync_attendance(pg_temp.payload(
+            v_student, 'late', NOW(), 'synctest-parent'
+        ));
+        RAISE EXCEPTION 'parent sync_attendance was accepted';
+    EXCEPTION
+        WHEN insufficient_privilege THEN NULL;
+        WHEN OTHERS THEN
+            IF SQLERRM IS DISTINCT FROM 'not authorized' THEN
+                RAISE;
+            END IF;
+    END;
 
     RAISE NOTICE 'sync_attendance_test: all assertions passed';
 END;

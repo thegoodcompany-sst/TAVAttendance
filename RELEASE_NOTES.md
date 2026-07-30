@@ -5,6 +5,11 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Fixed `sync_attendance_test` after migration 054’s staff role gate: the offline
+  sync integrity suite authenticates as seed admin, binds receipt actors to that
+  principal, and uses the session-lifecycle write flag when fixture-ending a
+  session.
+
 ## 1.1.2 — 2026-07-31
 
 - Bugfixes, security fixes, and more.
