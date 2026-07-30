@@ -753,7 +753,7 @@
 			repositoryURL = "https://github.com/supabase/supabase-swift";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.53.0;
+				minimumVersion = 2.54.1;
 			};
 		};
 		8143F95B4809BE4DE5EE47CA /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */ = {
