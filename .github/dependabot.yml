@@ -93,6 +93,7 @@ updates:
         update-types: ["version-update:semver-major"]
       # Wrapper upgrades are supply-chain sensitive — do them manually.
       - dependency-name: "gradle"
+      - dependency-name: "gradle-wrapper"
       - dependency-name: "org.gradle:*"
 
   # Dependabot discovers the Xcode project's committed SwiftPM Package.resolved.
