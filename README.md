@@ -41,7 +41,7 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 |---|---|---|
 | iOS (kiosk + teacher) | `iOS/` | `open iOS/TAVAttendance.xcodeproj` |
 | Android | `Android/` | `cd Android && ./gradlew installDebug` |
-| Web (admin dashboard) | `web/` | `cd web && npm install && npm run dev` |
+| Web (admin dashboard) | `web/` | `cd web && bun install && bun run dev` |
 
 Each platform reads Supabase credentials from a gitignored config file — see
 [CONTRIBUTING.md](CONTRIBUTING.md). Feature flags in the `feature_flags` table gate

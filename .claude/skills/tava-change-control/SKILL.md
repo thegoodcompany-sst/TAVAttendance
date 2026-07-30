@@ -41,7 +41,7 @@ exists because breaking it already cost real time or caused a real outage.
 |---|---|
 | Schema (new table/column/function/policy) | New numbered migration + reverse script in `supabase/migrations/down/` (NOT beside the forward files — the CLI would apply it as a forward migration); verify locally with `supabase db reset`; prod application follows `tava-prod-drift-campaign` protocol; update `supabase/migrations/README.md` table. |
 | Prod SQL of any kind | Exact reviewed committed migration through the authorised production mechanism; no ad-hoc dashboard SQL. After function changes run `NOTIFY pgrst, 'reload schema';`, then drift/security checks. |
-| Web deploy | `npm ci`, high-severity audit, tests, lint/build, remote drift/security gates, then the `deploy` runbook. |
+| Web deploy | `bun install --frozen-lockfile`, high-severity audit, tests, lint/build, remote drift/security gates, then the `deploy` runbook. |
 | iOS change | Builds with the exact command in `tava-validation-and-qa`; manual checklist for touched flows; port handoff blocks emitted. |
 | Feature-flag flip | Human step. All platforms must be ready first (a flag is global across iOS/Android/web). Record in HUMANS.md. |
 | Anything needing dashboard/legal/device access | Stop. Add a numbered checklist item to HUMANS.md and list it at the end of your response. |

@@ -108,10 +108,12 @@ as `BuildConfig.SUPABASE_PROJECT_URL` etc. Release builds are minified
 ```bash
 cp web/.env.local.example web/.env.local   # NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY
 chmod 600 web/.env.local
-cd web && npm install && npm run dev
+cd web && bun install && bun run dev
 ```
 
-> The web app pins a non-standard Next.js — read `web/AGENTS.md` before editing.
+> Web uses **Bun** (`bun.lock` is the lockfile of record; do not reintroduce
+> `package-lock.json`). The app pins a non-standard Next.js — read
+> `web/AGENTS.md` before editing.
 
 ---
 
@@ -131,7 +133,7 @@ Android unit tests, and every `supabase/tests/*.sql` regression); test the rest 
 |---|---|---|
 | iOS | `xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17'` (or build via Xcode; scheme name comes from `project.yml`, XcodeGen-managed) | `iOS/` |
 | Android | `./gradlew testDebugUnitTest assembleDebug --no-daemon` (JDK 17/21) | `Android/` |
-| Web | `npm ci && npm audit --audit-level=high && npm test && npm run lint && npm run build` | `web/` |
+| Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build` | `web/` |
 
 Machine-specific caveats (Xcode-beta `DEVELOPER_DIR`, `CODE_SIGNING_ALLOWED=NO`)
 live in `CLAUDE.md` §Running tests — agents should use that table.

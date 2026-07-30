@@ -1,6 +1,6 @@
 ---
 name: tava-build-and-env
-description: Use when setting up TAVA Attendance from a fresh checkout or fresh machine, or when a BUILD fails (xcodebuild, xcodegen, gradle/JDK, npm, supabase CLI) — exact bootstrap commands per platform and the known environment traps (Xcode-beta DEVELOPER_DIR, CODE_SIGNING_ALLOWED, xcconfig // escaping, JDK 17/21 requirement, pinned Next.js).
+description: Use when setting up TAVA Attendance from a fresh checkout or fresh machine, or when a BUILD fails (xcodebuild, xcodegen, gradle/JDK, bun, supabase CLI) — exact bootstrap commands per platform and the known environment traps (Xcode-beta DEVELOPER_DIR, CODE_SIGNING_ALLOWED, xcconfig // escaping, JDK 17/21 requirement, Bun lockfile, pinned Next.js).
 ---
 
 # TAVA Build and Environment
@@ -74,17 +74,20 @@ cd Android
 
 ```bash
 cp web/.env.local.example web/.env.local   # NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY
-cd web && npm ci
-npm run dev      # local dev
-npm audit --audit-level=high
-npm test
-npm run lint && npm run build
+cd web && bun install --frozen-lockfile
+bun run dev      # local dev
+bun audit --audit-level=high
+bun run test
+bun run lint && bun run build
 ```
 
-**Trap:** the repo pins a **non-standard Next.js (16.x)** — APIs and
-conventions may differ from your training data. Read `web/AGENTS.md` and the
-guides in `node_modules/next/dist/docs/` before writing Next-specific code.
-React 19, Tailwind 4, Base UI + shadcn.
+**Trap:** web package manager is **Bun** (`packageManager` in `package.json`;
+`bun.lock` only — do not reintroduce `package-lock.json` or dual Dependabot
+ecosystems). Pin matches CI (`bun-version` in `.github/workflows/ci.yml`).
+The repo pins a **non-standard Next.js (16.x)** — APIs and conventions may
+differ from your training data. Read `web/AGENTS.md` and the guides in
+`node_modules/next/dist/docs/` before writing Next-specific code. React 19,
+Tailwind 4, Base UI + shadcn.
 
 ## 4. Repo hygiene (once per clone)
 
@@ -98,8 +101,9 @@ delete them; never review, fix, or commit them.
 ## CI parity
 
 `.github/workflows/ci.yml` pins actions and runs redacted secret scanning; web
-audit/lint/build on Node 22; Edge format/lint/type-check; Android tests/build on
-JDK 17; iOS XCTest; clean migration replay/lint and every SQL security test.
+audit/test/lint/build via Bun 1.3.14; Edge format/lint/type-check; Android
+tests/build on JDK 17; iOS XCTest; clean migration replay/lint and every SQL
+security test.
 
 ## Provenance and maintenance
 

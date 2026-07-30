@@ -46,11 +46,11 @@ migration 038 moved that authority to the single DB-managed
 4. From `web/`:
 
    ```bash
-   npm ci
-   npm audit --audit-level=high
-   npm test
-   npm run lint
-   npm run build
+   bun install --frozen-lockfile
+   bun audit --audit-level=high
+   bun run test
+   bun run lint
+   bun run build
    ```
 
 If a gate fails, stop. Apply any required migration and re-run the production

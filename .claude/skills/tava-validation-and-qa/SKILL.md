@@ -26,7 +26,7 @@ has its own gate queries).
 |---|---|---|
 | iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` (from `iOS/`) | Compiles + any XCTests pass. CodeSign bundle failure = local keychain, ignore. Machine-specific flags: see `tava-build-and-env`. |
 | Android | `./gradlew testDebugUnitTest assembleDebug --no-daemon` (from `Android/`, JDK 17/21) | Unit tests + debug app build. Separately exercise a minified release when release/storage/serialization dependencies change. |
-| Web | `npm audit --audit-level=high && npm test && npm run lint && npm run build` (from `web/`, after `npm ci`) | Dependency, unit, lint and production build gates. |
+| Web | `bun audit --audit-level=high && bun run test && bun run lint && bun run build` (from `web/`, after `bun install --frozen-lockfile`) | Dependency, unit, lint and production build gates. |
 | Migrations | `supabase db reset --local && supabase db lint --local --schema public --level error --fail-on error`, then every `supabase/tests/*.sql` | All migrations through 053 replay plus SQL security regressions. |
 
 Note: this table matches CLAUDE.md §Running tests (the agent-facing source of

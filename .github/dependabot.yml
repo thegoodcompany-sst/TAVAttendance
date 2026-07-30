@@ -8,8 +8,8 @@
 #
 # Version updates (this file):
 #   Monthly, grouped patch+minor, low open-PR caps, one web package
-#   manager only (npm — matches CI's `npm ci` + package-lock.json).
-#   Major tooling bumps are ignored so they don't spam failed PRs.
+#   manager only (bun — matches CI and packageManager; bun.lock is the
+#   lockfile of record). Major tooling bumps are ignored so they don't spam.
 #
 # History: weekly × 5 ecosystems (incl. dual npm+bun on /web) with limit 5
 # each produced ~19 concurrent non-security PRs and CODEOWNERS review spam.
@@ -30,11 +30,9 @@ updates:
           - minor
           - patch
 
-  # CI installs web deps with npm ci against package-lock.json.
-  # Do NOT also enable the bun ecosystem here — it opened duplicate PRs for
-  # the same package.json (e.g. shadcn npm #45 + bun #46). Refresh bun.lock
-  # locally after merging npm lockfile PRs if you develop with bun.
-  - package-ecosystem: npm
+  # bun.lock is the only web lockfile (package-lock.json removed).
+  # Do NOT also enable the npm ecosystem — dual managers open duplicate PRs.
+  - package-ecosystem: bun
     directory: /web
     schedule:
       interval: monthly
