@@ -1,33 +1,98 @@
+# Dependabot version updates — intentionally quiet.
+#
+# Security (priority #1):
+#   Repo setting "Dependabot security updates" is ENABLED. When GitHub
+#   opens a vulnerability alert, Dependabot opens a dedicated security PR
+#   regardless of the monthly schedule / groups / open-PR limits below.
+#   Do not disable that setting to "reduce noise".
+#
+# Version updates (this file):
+#   Monthly, grouped patch+minor, low open-PR caps, one web package
+#   manager only (npm — matches CI's `npm ci` + package-lock.json).
+#   Major tooling bumps are ignored so they don't spam failed PRs.
+#
+# History: weekly × 5 ecosystems (incl. dual npm+bun on /web) with limit 5
+# each produced ~19 concurrent non-security PRs and CODEOWNERS review spam.
+
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+      day: monday
+    open-pull-requests-limit: 2
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
+  # CI installs web deps with npm ci against package-lock.json.
+  # Do NOT also enable the bun ecosystem here — it opened duplicate PRs for
+  # the same package.json (e.g. shadcn npm #45 + bun #46). Refresh bun.lock
+  # locally after merging npm lockfile PRs if you develop with bun.
   - package-ecosystem: npm
     directory: /web
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  # web/bun.lock is the supported text lockfile (not the legacy bun.lockb).
-  - package-ecosystem: bun
-    directory: /web
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      web-production:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      web-development:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Intentional major upgrades only — auto majors routinely fail CI.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: eslint-config-next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: next
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: gradle
     directory: /Android
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+      day: monday
+    open-pull-requests-limit: 2
+    groups:
+      android-deps:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   # Dependabot discovers the Xcode project's committed SwiftPM Package.resolved.
   - package-ecosystem: swift
     directory: /iOS
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+      day: monday
+    open-pull-requests-limit: 2
+    groups:
+      ios-deps:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

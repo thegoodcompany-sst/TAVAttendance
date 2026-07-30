@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Quieted Dependabot version-update spam: monthly grouped patch/minor PRs,
+  dropped the duplicate `/web` bun ecosystem (CI uses npm), ignored auto major
+  bumps for tooling (TypeScript/ESLint/`@types/node`/Next/React), and enabled
+  Dependabot security updates so vulnerability PRs still open immediately.
 - Internal behaviour-preserving refactor: split native kiosk screens and
   security policy modules, modularize AttendanceService behind stable facades,
   split the Android student profile sheet, and turn `web/lib/queries` into a
