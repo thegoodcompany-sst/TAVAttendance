@@ -9,13 +9,15 @@
   --color-brand-ink: var(--brand-ink);
   --color-accent-marigold: var(--accent-marigold);
   --color-accent-marigold-foreground: var(--accent-marigold-foreground);
+  --color-bright: var(--bright);
   --color-surface: var(--surface);
+  --color-cream: var(--cream);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-display);
-  --font-heading: var(--font-display);
+  --font-display: var(--font-sans);
+  --font-heading: var(--font-sans);
   --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.02), 0 4px 16px -4px rgba(25, 55, 117, 0.1);
   --shadow-card-lg: 0 1px 0 rgba(0, 0, 0, 0.02), 0 8px 24px -4px rgba(25, 55, 117, 0.18);
   --color-chart-5: var(--chart-5);
@@ -49,48 +51,53 @@
 }
 
 :root {
-  /* TAVA brand palette — sampled from tava.sg.
-     Navy #193775 · Marigold #FAC12F · Bright blue #116DFF · Cream #FFFBF2 */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.25 0.05 266); /* navy ink #14213D */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.05 266);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.05 266);
-  --primary: oklch(0.35 0.11 264); /* navy */
-  --primary-foreground: oklch(0.99 0.012 90); /* cream */
-  --secondary: oklch(0.95 0.025 255); /* soft cool tint */
-  --secondary-foreground: oklch(0.35 0.11 264);
-  --muted: oklch(0.96 0.015 255);
-  --muted-foreground: oklch(0.52 0.04 264);
-  --accent: oklch(0.95 0.025 255); /* shadcn hover bg — kept quiet */
-  --accent-foreground: oklch(0.35 0.11 264);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.012 255);
-  --input: oklch(0.9 0.012 255);
-  --ring: oklch(0.585 0.215 262); /* bright blue focus */
-  --chart-1: oklch(0.35 0.11 264); /* present — navy */
-  --chart-2: oklch(0.83 0.155 85); /* late — marigold */
-  --chart-3: oklch(0.585 0.215 262); /* bright blue */
-  --chart-4: oklch(0.7 0.12 230);
-  --chart-5: oklch(0.55 0.09 280);
+  /*
+   * Exact palette from docs/drafts/web-dashboard-ui.html
+   * Navy #193775 · Marigold #FAC12F · Bright #116DFF · Cream #FFFBF2
+   */
+  --brand: #193775;
+  --brand-soft: #e8eef8;
+  --brand-ink: #14213d;
+  --accent-marigold: #fac12f;
+  --accent-marigold-foreground: #14213d;
+  --bright: #116dff;
+  --cream: #fffbf2;
+  --surface: #fffbf2;
+  --background: #fffbf2;
+  --foreground: #14213d;
+  --card: #ffffff;
+  --card-foreground: #14213d;
+  --popover: #ffffff;
+  --popover-foreground: #14213d;
+  --primary: #193775;
+  --primary-foreground: #fffbf2;
+  --secondary: #e8eef8;
+  --secondary-foreground: #193775;
+  --muted: #f2f4f8;
+  --muted-foreground: #6b7385;
+  --accent: #e8eef8;
+  --accent-foreground: #193775;
+  --destructive: #be123c;
+  --border: #e2e6ef;
+  --input: #e2e6ef;
+  --ring: #116dff;
+  --chart-1: #193775;
+  --chart-2: #fac12f;
+  --chart-3: #116dff;
+  --chart-4: #047857;
+  --chart-5: #b45309;
   --radius: 0.625rem;
-  --brand: oklch(0.35 0.11 264); /* navy */
-  --brand-soft: oklch(0.94 0.035 255); /* pale navy — active nav bg */
-  --brand-ink: oklch(0.3 0.1 264); /* deep navy — active nav text */
-  --accent-marigold: oklch(0.83 0.155 85); /* marigold — deliberate accents only */
-  --accent-marigold-foreground: oklch(0.3 0.1 264); /* navy text on marigold */
-  --surface: oklch(0.99 0.012 90); /* warm cream page bg */
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+  }
+  body {
+    @apply bg-surface text-brand-ink antialiased;
+    line-height: 1.45;
   }
 }

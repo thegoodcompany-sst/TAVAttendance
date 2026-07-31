@@ -42,11 +42,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ])
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-surface">
       <AnalyticsCapture enabled={showHealth} userId={user.id} role={profile.role} />
       <Sidebar userName={userName} isSuperadmin={superadmin} showAwards={showAwards} showHealth={showHealth} />
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-surface">
         {/* Mobile top nav */}
         <header className="md:hidden print:hidden bg-white border-b border-border h-14 flex items-center justify-between gap-3 px-4 sticky top-0 z-10">
           <span className="flex-shrink-0 font-display font-semibold text-brand text-xl">TAVA</span>
@@ -104,11 +104,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <footer className="print:hidden bg-surface border-t border-border px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>TAVA Attendance</span>
           <span className="text-border">·</span>
-          <Link href="/privacy" prefetch className="hover:text-foreground transition-colors">
+          <Link href="/privacy" prefetch className="hover:text-brand-ink transition-colors">
             Data Protection Notice
           </Link>
           <span className="text-border">·</span>
-          <Link href="/corrections" prefetch className="hover:text-foreground transition-colors">
+          <Link href="/corrections" prefetch className="hover:text-brand-ink transition-colors">
             Correction requests
           </Link>
         </footer>

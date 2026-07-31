@@ -33,9 +33,6 @@ export default async function TodayPage() {
   const totalExpected = roster.length
   const onTimeRate    = totalExpected > 0 ? Math.round((presentCount / totalExpected) * 100) : 0
 
-  // No day-over-day delta: TAVA runs classes only Mon + Thu, so "yesterday" is
-  // almost always a zero-class day and the comparison is noise, not signal.
-
   const dayLabel = new Intl.DateTimeFormat('en-SG', {
     timeZone: 'Asia/Singapore',
     weekday: 'long',
@@ -57,10 +54,10 @@ export default async function TodayPage() {
       <div className="mx-auto max-w-7xl">
         <header className="flex flex-col gap-5 border-b border-brand/20 pb-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-brand/60">
+            <p className="mb-1 text-[0.7rem] font-bold uppercase tracking-[0.16em] text-brand/60">
               Daily register
             </p>
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-brand-ink sm:text-4xl">
+            <h1 className="font-display text-[2rem] font-semibold tracking-tight text-brand-ink sm:text-4xl">
               Good {greeting()}
             </h1>
             <div className="mt-2 flex items-center gap-3">
@@ -83,12 +80,15 @@ export default async function TodayPage() {
               ].join(' ')}
             >
               {metric.accent && (
-                <span className="absolute inset-y-3 left-0 w-1 bg-accent-marigold sm:left-0" aria-hidden="true" />
+                <span
+                  className="absolute inset-y-3 left-0 w-[3px] bg-accent-marigold sm:left-0"
+                  aria-hidden="true"
+                />
               )}
-              <dt className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              <dt className="text-[0.65rem] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 {metric.label}
               </dt>
-              <dd className="mt-1 font-display text-3xl font-semibold tracking-tight text-brand-ink">
+              <dd className="mt-1 font-display text-[1.85rem] font-semibold tracking-tight text-brand-ink sm:text-3xl">
                 {metric.value}
               </dd>
             </div>
@@ -108,11 +108,11 @@ export default async function TodayPage() {
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground" aria-label="Chart legend">
                 <span className="flex items-center gap-2">
-                  <span className="h-0.5 w-5 bg-[var(--color-chart-1)]" aria-hidden="true" />
+                  <span className="h-0.5 w-5 bg-brand" aria-hidden="true" />
                   Present
                 </span>
                 <span className="flex items-center gap-2">
-                  <span className="h-0.5 w-5 bg-[var(--color-chart-2)]" aria-hidden="true" />
+                  <span className="h-0.5 w-5 bg-accent-marigold" aria-hidden="true" />
                   Late
                 </span>
               </div>
@@ -128,7 +128,7 @@ export default async function TodayPage() {
               <h2 id="schedule-heading" className="font-display text-xl font-semibold text-brand-ink">
                 Today&apos;s schedule
               </h2>
-              <span className="text-xs tabular-nums text-muted-foreground">
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {sessions.length} class{sessions.length === 1 ? '' : 'es'}
               </span>
             </div>
