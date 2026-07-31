@@ -44,7 +44,7 @@ export function Sidebar({ userName, isSuperadmin = false, showAwards = false, sh
       )}
     >
       {/* Brand mark — left-aligned, never recenters */}
-      <div className="flex items-center h-11 mb-5 flex-shrink-0 pl-[1.15rem]">
+      <div className="flex items-center justify-center group-hover/sidebar:justify-start h-11 mb-5 flex-shrink-0 group-hover/sidebar:pl-[1.15rem]">
         <Image
           src="/tava-logo.png"
           alt="TAVA"
@@ -56,22 +56,28 @@ export function Sidebar({ userName, isSuperadmin = false, showAwards = false, sh
         />
       </div>
 
-      {/* Nav: min-width keeps full layout so labels don't reflow icons when clipped */}
-      <nav className="flex flex-col gap-1 flex-1 w-full min-w-[13.5rem] px-2">
+      {/* Nav: full layout width so labels don't reflow icons when clipped */}
+      <nav className="flex flex-col gap-1 flex-1 w-full min-w-[13.5rem] px-0 group-hover/sidebar:px-2">
         {nav.map(({ href, label, Icon }) => {
           const active = pathname === href
           const isExport = href === '/api/export'
           const itemClass = cn(
-            'group/nav relative flex items-center justify-start gap-3',
-            'h-11 w-full max-w-[12.5rem] pl-[0.7rem] pr-3',
+            'group/nav relative flex items-center',
+            // Collapsed: center icon + squircle in the rail
+            'h-11 w-[5.75rem] justify-center',
+            // Expanded: full-width row, left-aligned content
+            'group-hover/sidebar:w-full group-hover/sidebar:max-w-[12.5rem] group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:pl-[0.7rem] group-hover/sidebar:pr-3',
             'text-sm font-medium text-left transition-colors duration-200',
             active ? 'text-brand-ink' : 'text-muted-foreground hover:text-brand-ink',
           )
+          // Squircle: centered on icon when collapsed; full-row pill when expanded
           const highlightClass = cn(
-            'pointer-events-none absolute z-0 top-0 left-[0.35rem]',
+            'pointer-events-none absolute z-0',
             'h-11 w-11 rounded-[1.05rem]',
+            'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
             'transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
-            'group-hover/sidebar:left-0 group-hover/sidebar:w-full group-hover/sidebar:rounded-[0.85rem]',
+            'group-hover/sidebar:left-0 group-hover/sidebar:top-0 group-hover/sidebar:translate-x-0 group-hover/sidebar:translate-y-0',
+            'group-hover/sidebar:w-full group-hover/sidebar:h-full group-hover/sidebar:rounded-[0.85rem]',
             active ? 'bg-brand-soft' : 'bg-transparent group-hover/nav:bg-muted',
           )
           const iconClass = cn(
@@ -81,9 +87,9 @@ export function Sidebar({ userName, isSuperadmin = false, showAwards = false, sh
           )
           const labelClass = cn(
             'relative z-[1] whitespace-nowrap',
-            'opacity-0 -translate-x-1 pointer-events-none',
+            'opacity-0 -translate-x-1 pointer-events-none w-0 overflow-hidden',
             'transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
-            'group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 group-hover/sidebar:pointer-events-auto',
+            'group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 group-hover/sidebar:pointer-events-auto group-hover/sidebar:w-auto group-hover/sidebar:overflow-visible',
           )
 
           return isExport ? (
@@ -102,15 +108,15 @@ export function Sidebar({ userName, isSuperadmin = false, showAwards = false, sh
         })}
       </nav>
 
-      {/* User avatar — same no-reflow clip pattern */}
-      <div className="flex items-center h-8 pl-[1.05rem] gap-3 flex-shrink-0 min-w-[13.5rem]">
+      {/* User avatar — centered when collapsed, left-aligned when expanded */}
+      <div className="flex items-center justify-center group-hover/sidebar:justify-start h-8 gap-3 flex-shrink-0 min-w-[13.5rem] group-hover/sidebar:pl-[1.05rem]">
         <Avatar name={userName} size="sm" className="flex-shrink-0" />
         <span
           className={cn(
             'whitespace-nowrap text-sm font-medium text-muted-foreground truncate',
-            'opacity-0 -translate-x-1',
+            'opacity-0 -translate-x-1 w-0 overflow-hidden',
             'transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
-            'group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0',
+            'group-hover/sidebar:opacity-100 group-hover/sidebar:translate-x-0 group-hover/sidebar:w-auto group-hover/sidebar:overflow-visible',
           )}
         >
           {userName}
