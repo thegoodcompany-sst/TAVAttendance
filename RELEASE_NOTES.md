@@ -6,12 +6,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 ## Unreleased
 
 - Web admin dashboard visual pass aligned to `docs/drafts/web-dashboard-ui.html`:
-  Elms Sans + exact navy/marigold/cream hex palette, cream surface shell,
-  sidebar squircle/expand motion, draft status badges (On time / Unsigned),
-  Today paired present/late bar chart + quick actions, Analytics by-class
-  progress rows + student risk bands, Students marigold Add + dashed add-card,
-  Messages chat bubbles/unread marigold, Users team table + invite side card.
-  No schema or new product features.
+  exact navy/marigold/cream hex palette, cream surface shell, sidebar
+  squircle/expand motion, draft status badges (On time / Unsigned), Today
+  paired present/late bar chart + quick actions, Analytics by-class progress
+  rows + student risk bands, Students marigold Add + dashed add-card, Messages
+  chat bubbles/unread marigold, Users team table + invite side card. Keeps Lato
+  + Fredoka (not Elms Sans). No schema or new product features.
 - Fixed `sync_attendance_test` after migration 054’s staff role gate: the offline
   sync integrity suite authenticates as seed admin, binds receipt actors to that
   principal, and uses the session-lifecycle write flag when fixture-ending a

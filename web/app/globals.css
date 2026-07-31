@@ -16,8 +16,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-sans);
-  --font-heading: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-heading: var(--font-display);
   --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.02), 0 4px 16px -4px rgba(25, 55, 117, 0.1);
   --shadow-card-lg: 0 1px 0 rgba(0, 0, 0, 0.02), 0 8px 24px -4px rgba(25, 55, 117, 0.18);
   --color-chart-5: var(--chart-5);

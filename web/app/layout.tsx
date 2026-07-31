@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
-import { Elms_Sans, Geist_Mono } from "next/font/google";
+import { Lato, Fredoka, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// Mockup face (docs/drafts/web-dashboard-ui.html) — single family for UI + display.
-const elmsSans = Elms_Sans({
+// Body / UI face — exact match to the tava.sg marketing site.
+const lato = Lato({
   variable: "--font-sans",
   subsets: ["latin"],
-  // Variable font; expose full weight range so font-medium/semibold/bold map cleanly.
-  weight: "variable",
+  weight: ["400", "700", "900"],
+});
+
+// Display face — bubbly, rounded; closest legible match to TAVA's hand-drawn
+// marker headers. Used only on titles, headers, and the wordmark.
+const fredoka = Fredoka({
+  variable: "--font-display",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
@@ -28,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${elmsSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${lato.variable} ${fredoka.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">{children}</body>
     </html>
