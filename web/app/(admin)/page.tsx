@@ -102,7 +102,9 @@ export default async function TodayPage() {
                 <h2 id="attendance-heading" className="font-display text-xl font-semibold text-brand-ink">
                   Attendance
                 </h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">Last 14 days</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Last 14 days · Mon & Thu tuition days
+                </p>
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground" aria-label="Chart legend">
                 <span className="flex items-center gap-2">

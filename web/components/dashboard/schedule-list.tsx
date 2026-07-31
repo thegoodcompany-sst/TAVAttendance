@@ -20,7 +20,10 @@ export function ScheduleList({ sessions }: { sessions: SessionSummary[] }) {
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-foreground">{s.className}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {s.totalEnrolled} expected
+              {s.totalEnrolled} enrolled
+              {s.presentCount + s.lateCount > 0
+                ? ` · ${s.presentCount + s.lateCount} here`
+                : ''}
             </p>
           </div>
           <p className="text-right font-mono text-sm font-semibold tabular-nums text-brand-ink">

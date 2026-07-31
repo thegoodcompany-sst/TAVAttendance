@@ -56,35 +56,50 @@ export default async function AdminThreadPage({
         <ArrowLeft size={14} /> All conversations
       </Link>
 
-      <div className="bg-white rounded-3xl p-5 shadow-card space-y-3">
-        {(messages ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">No messages in this conversation.</p>
-        ) : (
-          (messages ?? []).map(m => {
-            const fromCentre = m.sender_id !== parentId
-            return (
-              <div key={m.id} className={fromCentre ? 'flex justify-end' : 'flex justify-start'}>
-                <div
-                  className={
-                    fromCentre
-                      ? 'max-w-[80%] rounded-2xl bg-brand-soft px-4 py-2'
-                      : 'max-w-[80%] rounded-2xl bg-muted px-4 py-2'
-                  }
-                >
-                  <p className="text-[11px] font-medium text-muted-foreground mb-0.5">
-                    {fromCentre ? 'Centre' : 'Parent'}
-                  </p>
-                  {m.subject && <p className="text-sm font-semibold">{m.subject}</p>}
-                  <p className="text-sm whitespace-pre-wrap">{m.body}</p>
+      <div className="bg-white rounded-[1.25rem] shadow-card overflow-hidden">
+        <div className="space-y-3 bg-surface/50 p-5 min-h-[12rem]">
+          {(messages ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No messages in this conversation.</p>
+          ) : (
+            (messages ?? []).map(m => {
+              const fromCentre = m.sender_id !== parentId
+              return (
+                <div key={m.id} className={fromCentre ? 'flex justify-end' : 'flex justify-start'}>
+                  <div
+                    className={
+                      fromCentre
+                        ? 'max-w-[80%] rounded-2xl rounded-tr-sm bg-brand px-3.5 py-2.5 text-primary-foreground shadow-card'
+                        : 'max-w-[80%] rounded-2xl rounded-tl-sm border border-border bg-white px-3.5 py-2.5 shadow-card'
+                    }
+                  >
+                    {m.subject && (
+                      <p className={`text-sm font-semibold mb-0.5 ${fromCentre ? 'text-white' : ''}`}>
+                        {m.subject}
+                      </p>
+                    )}
+                    <p className={`text-sm whitespace-pre-wrap ${fromCentre ? 'text-white/95' : ''}`}>
+                      {m.body}
+                    </p>
+                    <time
+                      className={`mt-1.5 block font-mono text-[0.6rem] ${
+                        fromCentre ? 'text-white/65' : 'text-muted-foreground'
+                      }`}
+                    >
+                      {new Intl.DateTimeFormat('en-SG', {
+                        timeZone: 'Asia/Singapore',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }).format(new Date(m.sent_at))}
+                    </time>
+                  </div>
                 </div>
-              </div>
-            )
-          })
-        )}
-      </div>
-
-      <div className="bg-white rounded-3xl p-5 shadow-card">
-        <MessageComposer studentId={studentId} recipientId={parentId} action={replyToThread} />
+              )
+            })
+          )}
+        </div>
+        <div className="border-t border-border p-4">
+          <MessageComposer studentId={studentId} recipientId={parentId} action={replyToThread} />
+        </div>
       </div>
     </div>
   )

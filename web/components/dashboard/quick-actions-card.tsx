@@ -1,15 +1,18 @@
 import Link from 'next/link'
-import { UserPlus, Upload, BarChart3, ArrowUpRight } from 'lucide-react'
+import { Users, LineChart, BarChart3, ArrowUpRight } from 'lucide-react'
 
 const ACTIONS = [
-  { href: '/students/new', label: 'Add student', Icon: UserPlus },
-  { href: '/students/import', label: 'Import CSV', Icon: Upload },
+  { href: '/students', label: 'Students', Icon: Users },
+  { href: '/analytics', label: 'Analytics', Icon: LineChart },
   { href: '/overview', label: 'Overview', Icon: BarChart3 },
 ]
 
 export function QuickActionsCard() {
   return (
-    <nav aria-label="Quick actions" className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:justify-end">
+    <nav
+      aria-label="Quick actions"
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl bg-white px-4 py-3 shadow-[0_0_0_1px_rgba(20,33,61,0.08)] sm:justify-end"
+    >
       {ACTIONS.map(({ href, label, Icon }) => (
         <Link
           key={href}

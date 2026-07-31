@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Cell } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import {
   ChartContainer,
@@ -26,46 +26,52 @@ export type StudentStat = {
   attendancePct: number
 }
 
-function pctColor(pct: number): string {
-  if (pct >= 90) return 'var(--color-chart-1)'
-  if (pct >= 75) return 'var(--color-accent-marigold)'
-  return 'var(--color-chart-2)'
+function riskBand(pct: number): { label: string; className: string } {
+  if (pct >= 95) {
+    return {
+      label: 'Excellent',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    }
+  }
+  if (pct >= 85) {
+    return {
+      label: 'Good',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    }
+  }
+  if (pct >= 75) {
+    return {
+      label: 'Watch',
+      className: 'bg-amber-50 text-amber-700 border-amber-200',
+    }
+  }
+  return {
+    label: 'At risk',
+    className: 'bg-rose-50 text-rose-700 border-rose-200',
+  }
 }
 
+/** Draft-style progress rows (replaces vertical recharts bar for visual parity). */
 export function ClassAttendanceChart({ classes }: { classes: ClassStat[] }) {
-  const config = { attendancePct: { label: 'Attendance %' } }
   return (
-    <ChartContainer config={config} className="h-[280px] w-full">
-      <BarChart
-        data={classes}
-        layout="vertical"
-        margin={{ top: 4, right: 12, left: 8, bottom: 0 }}
-      >
-        <CartesianGrid horizontal={false} stroke="var(--color-border)" strokeDasharray="3 3" />
-        <XAxis
-          type="number"
-          domain={[0, 100]}
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
-          unit="%"
-        />
-        <YAxis
-          type="category"
-          dataKey="className"
-          tickLine={false}
-          axisLine={false}
-          width={110}
-          tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
-        />
-        <ChartTooltip content={<ChartTooltipContent />} />
-        <Bar dataKey="attendancePct" radius={[0, 6, 6, 0]} maxBarSize={26}>
-          {classes.map(c => (
-            <Cell key={c.classId} fill={pctColor(c.attendancePct)} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ChartContainer>
+    <div className="space-y-4">
+      {classes.map(c => (
+        <div key={c.classId}>
+          <div className="mb-1.5 flex items-center justify-between text-sm">
+            <span className="font-bold text-foreground">{c.className}</span>
+            <span className="font-mono text-sm font-bold tabular-nums text-brand-ink">
+              {c.attendancePct}%
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-brand/10">
+            <div
+              className="h-full rounded-full bg-brand transition-[width]"
+              style={{ width: `${Math.min(100, c.attendancePct)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -111,14 +117,14 @@ export function WeeklyTrendChart({ points }: { points: WeeklyTrendPoint[] }) {
           stroke="var(--color-chart-1)"
           strokeWidth={2.5}
           dot={{ r: 3, fill: 'var(--color-chart-1)' }}
-          activeDot={{ r: 5 }}
+          activeDot={{ r: 5, stroke: 'var(--color-accent-marigold)', strokeWidth: 2 }}
         />
       </LineChart>
     </ChartContainer>
   )
 }
 
-type SortKey = 'studentName' | 'attendancePct' | 'totalSessions'
+type SortKey = 'studentName' | 'attendancePct' | 'totalSessions' | 'classCount'
 
 export function StudentAttendanceTable({ students }: { students: StudentStat[] }) {
   const [sortKey, setSortKey] = useState<SortKey>('attendancePct')
@@ -140,7 +146,12 @@ export function StudentAttendanceTable({ students }: { students: StudentStat[] }
   }
 
   const header = (label: string, k: SortKey, align?: 'right') => (
-    <th className={cn('px-4 py-3 font-medium', align === 'right' ? 'text-right' : 'text-left')}>
+    <th
+      className={cn(
+        'bg-muted/70 px-5 py-3 text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground',
+        align === 'right' ? 'text-right' : 'text-left',
+      )}
+    >
       <button
         onClick={() => toggle(k)}
         className={cn(
@@ -159,36 +170,55 @@ export function StudentAttendanceTable({ students }: { students: StudentStat[] }
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
+        <thead>
           <tr>
             {header('Student', 'studentName')}
+            {header('Classes', 'classCount')}
             {header('Sessions', 'totalSessions', 'right')}
-            {header('Attendance', 'attendancePct', 'right')}
+            {header('Rate', 'attendancePct', 'right')}
+            <th className="bg-muted/70 px-5 py-3 text-left text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
+              Status
+            </th>
           </tr>
         </thead>
         <tbody>
-          {sorted.map(s => (
-            <tr key={s.studentId} className="border-b border-border/60 last:border-0 hover:bg-muted/40 transition-colors">
-              <td className="px-4 py-3">
-                <p className="font-medium">{s.studentName}</p>
-                <p className="text-xs text-muted-foreground">
-                  {s.classCount} class{s.classCount !== 1 ? 'es' : ''}
-                </p>
-              </td>
-              <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{s.totalSessions}</td>
-              <td className="px-4 py-3">
-                <div className="flex items-center justify-end gap-2.5">
-                  <div className="hidden sm:block w-24 h-1.5 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${s.attendancePct}%`, backgroundColor: pctColor(s.attendancePct) }}
-                    />
-                  </div>
-                  <span className="font-medium tabular-nums w-11 text-right">{s.attendancePct}%</span>
-                </div>
-              </td>
-            </tr>
-          ))}
+          {sorted.map(s => {
+            const band = riskBand(s.attendancePct)
+            const atRisk = s.attendancePct < 75
+            return (
+              <tr
+                key={s.studentId}
+                className={cn(
+                  'border-t border-border hover:bg-muted/40 transition-colors',
+                  atRisk && 'bg-rose-50/40',
+                )}
+              >
+                <td className="px-5 py-3 font-bold text-foreground">{s.studentName}</td>
+                <td className="px-5 py-3 text-muted-foreground">{s.classCount}</td>
+                <td className="px-5 py-3 text-right font-mono tabular-nums text-muted-foreground">
+                  {s.totalSessions}
+                </td>
+                <td
+                  className={cn(
+                    'px-5 py-3 text-right font-mono text-sm font-bold tabular-nums',
+                    atRisk ? 'text-rose-600' : s.attendancePct < 85 ? 'text-amber-600' : 'text-brand-ink',
+                  )}
+                >
+                  {s.attendancePct}%
+                </td>
+                <td className="px-5 py-3">
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[0.7rem] font-bold',
+                      band.className,
+                    )}
+                  >
+                    {band.label}
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

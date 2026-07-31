@@ -12,7 +12,7 @@ function StudentCard({ student }: { student: StudentTodayEntry }) {
       <Avatar name={student.fullName} size="sm" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{student.fullName}</p>
-        <p className="text-xs text-muted-foreground truncate">{student.classNames.join(', ')}</p>
+        <p className="text-xs text-muted-foreground truncate">{student.classNames.join(' · ')}</p>
       </div>
       <StatusBadge status={student.status} />
     </div>
@@ -33,7 +33,7 @@ function Column({
   accent: string
 }) {
   return (
-    <div className="bg-white rounded-3xl p-5 shadow-card flex flex-col">
+    <div className="bg-white rounded-[1.25rem] p-5 shadow-card flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className={`text-sm font-semibold ${accent}`}>{title}</h3>
         <span className="bg-muted rounded-full px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
@@ -89,15 +89,15 @@ export default async function OverviewPage() {
               title="Present"
               count={present.length}
               students={present}
-              emptyText="No one marked present yet"
-              accent="text-emerald-600"
+              emptyText="No one marked on time yet"
+              accent="text-emerald-700"
             />
             <Column
               title="Late"
               count={late.length}
               students={late}
               emptyText="No late arrivals"
-              accent="text-amber-500"
+              accent="text-amber-600"
             />
             <Column
               title="Not here yet"
@@ -113,6 +113,7 @@ export default async function OverviewPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <OtherSection title="Absent" students={absent} accent="text-rose-600" />
             <OtherSection title="Excused" students={excused} accent="text-slate-500" />
+
           </div>
         )}
       </div>
@@ -132,19 +133,19 @@ function OtherSection({
   if (students.length === 0) return null
   return (
     <div>
-      <p className={`text-xs font-semibold uppercase tracking-wide mb-3 ${accent}`}>
+      <p className={`text-[0.7rem] font-bold uppercase tracking-[0.05em] mb-3 ${accent}`}>
         {title} · {students.length}
       </p>
       <div className="space-y-3">
         {students.map(s => (
           <div
             key={s.studentId}
-            className="flex items-center gap-3 bg-white rounded-2xl p-4 shadow-card"
+            className="flex items-center gap-3 bg-white rounded-[1.25rem] p-4 shadow-card"
           >
             <Avatar name={s.fullName} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{s.fullName}</p>
-              <p className="text-xs text-muted-foreground truncate">{s.classNames.join(', ')}</p>
+              <p className="text-xs text-muted-foreground truncate">{s.classNames.join(' · ')}</p>
             </div>
             <StatusBadge status={s.status} />
           </div>

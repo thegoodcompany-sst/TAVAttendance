@@ -5,6 +5,13 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web admin dashboard visual pass aligned to `docs/drafts/web-dashboard-ui.html`:
+  sidebar squircle/expand motion, draft status badge copy (On time / Unsigned)
+  and colours, Today quick actions (Students · Analytics · Overview) and class
+  tiles, Analytics progress-style by-class rows + student risk bands, Students
+  marigold Add + dashed add-card, Messages chat bubbles/unread marigold, Users
+  team table + invite side card. Typography stays Lato + Fredoka; no schema or
+  new product features.
 - Fixed `sync_attendance_test` after migration 054’s staff role gate: the offline
   sync integrity suite authenticates as seed admin, binds receipt actors to that
   principal, and uses the session-lifecycle write flag when fixture-ending a
