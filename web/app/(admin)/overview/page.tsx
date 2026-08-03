@@ -59,9 +59,7 @@ export default async function OverviewPage() {
   const present = roster.filter(s => s.status === 'present')
   const late    = roster.filter(s => s.status === 'late')
   const notHere = roster.filter(s => !s.status)
-  // SP-08: separate Absent from Excused so each has its own count and section.
   const absent  = roster.filter(s => s.status === 'absent')
-  const excused = roster.filter(s => s.status === 'excused')
 
   const dayLabel = new Intl.DateTimeFormat('en-SG', {
     timeZone: 'Asia/Singapore',
@@ -109,11 +107,9 @@ export default async function OverviewPage() {
           </div>
         )}
 
-        {(absent.length > 0 || excused.length > 0) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {absent.length > 0 && (
+          <div>
             <OtherSection title="Absent" students={absent} accent="text-rose-600" />
-            <OtherSection title="Excused" students={excused} accent="text-slate-500" />
-
           </div>
         )}
       </div>

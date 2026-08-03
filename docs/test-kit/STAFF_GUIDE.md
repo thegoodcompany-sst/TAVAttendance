@@ -42,9 +42,9 @@ The **Sign In** tab shows a card for every student with class today.
 - **Tap a student's card** → they are signed in.
   - Card turns **green** = **On Time**.
   - Card turns **orange** = **Late** (they tapped after the class start time).
-- **Not Here** — if a student is marked by mistake, an admin can set the card back to grey ("Not Here"). The student can then tap again to sign in.
+- **Not Here Yet** — if a student is marked by mistake, an admin can clear the mark and return the card to grey. The student can then tap again to sign in.
 
-Grey card = not signed in yet. Green = on time. Orange = late.
+Grey card = Not Here Yet. Green = on time. Orange = late.
 
 ### Locking the kiosk (so students can't change things)
 
@@ -56,7 +56,7 @@ Grey card = not signed in yet. Green = on time. Orange = late.
 - **Admin overrides** (only when unlocked): **press and hold** a student's card to:
   - change Late back to On Time,
   - mark a student **Absent** (red),
-  - mark **Not Here**.
+  - mark **Not Here Yet**.
 - Lock it again with the gear → **Lock Kiosk Now**.
 
 > *Screenshot of the kiosk grid is omitted here — during your trial it shows student

@@ -207,7 +207,7 @@ struct Session: Codable, Identifiable {
 }
 
 enum AttendanceStatus: String, Codable, CaseIterable {
-    case present, absent, late, excused
+    case present, absent, late
 }
 
 struct AttendanceRecord: Codable, Identifiable {
@@ -426,7 +426,36 @@ func markAttendance(
 
 `onConflict: "session_id,student_id"` means calling this function twice for the same student in the same session updates, not duplicates.
 
-### 5.2 Recommended UI Flow
+### 5.2 Clear a Student Back to Not Here Yet
+
+"Not Here Yet" is the absence of an attendance row, not a fourth status. Use
+the idempotent RPC so retries cannot resurrect or reorder a cleared mark.
+
+```swift
+func clearAttendance(sessionId: UUID, studentId: UUID) async throws {
+    struct Params: Encodable {
+        let sessionId: UUID
+        let studentId: UUID
+        let clientMutationId: String
+
+        enum CodingKeys: String, CodingKey {
+            case sessionId = "p_session_id"
+            case studentId = "p_student_id"
+            case clientMutationId = "p_client_mutation_id"
+        }
+    }
+
+    try await SupabaseManager.shared.client
+        .rpc("clear_attendance", params: Params(
+            sessionId: sessionId,
+            studentId: studentId,
+            clientMutationId: UUID().uuidString
+        ))
+        .execute()
+}
+```
+
+### 5.3 Recommended UI Flow
 
 ```
 TutorHomeView
@@ -435,7 +464,9 @@ TutorHomeView
             └─ RosterRow    [markAttendance() or queue locally]
 ```
 
-Each `RosterRow` shows the student's name and four status buttons (P / A / L / E). Tapping one calls `markAttendance` immediately if online, or queues the record locally if offline (see §6).
+Each `RosterRow` shows three status buttons (P / A / L). Tapping one marks it;
+tapping the selected button again calls `clearAttendance` and returns the row
+to Not Here Yet. Both operations queue locally when offline (see §6).
 
 ---
 
@@ -447,8 +478,8 @@ The app must work without internet. The strategy:
 
 1. **Before class** — download and cache the class roster and today's session in
    app-private storage.
-2. **During class** — mark attendance locally. Every queue envelope and record is
-   bound to the current authenticated user.
+2. **During class** — mark or clear attendance locally. Every queue envelope
+   and record is bound to the current authenticated user.
 3. **On reconnect** — recheck that all records still belong to the current user,
    then call `sync_attendance` with at most 500 unsynced records. Purge
    legacy/corrupt/mixed/foreign-owner queues and clear synchronously on sign-out.
@@ -466,7 +497,7 @@ struct PendingAttendanceRecord: Codable {
     let ownerUserId: UUID
     let sessionId: UUID
     let studentId: UUID
-    var status: AttendanceStatus
+    var status: AttendanceStatus?  // nil queues clear_attendance
     var notes: String?
     let clientMutationId: String   // Never changes once created
     let markedAt: Date
@@ -474,14 +505,14 @@ struct PendingAttendanceRecord: Codable {
 }
 ```
 
-### 6.3 Queue a Record Locally
+### 6.3 Queue an Attendance Mutation Locally
 
 ```swift
 func queueAttendanceLocally(
     ownerUserId: UUID,
     sessionId: UUID,
     studentId: UUID,
-    status: AttendanceStatus
+    status: AttendanceStatus?
 ) {
     var pending = loadPendingFromDisk()
     let idx = pending.firstIndex { $0.sessionId == sessionId && $0.studentId == studentId }
@@ -520,12 +551,13 @@ func syncPendingAttendance() async throws {
     let unsynced = pending.filter { !$0.isSynced }
     guard !unsynced.isEmpty else { return }
 
-    // Build JSON array expected by sync_attendance()
+    // A nil status becomes JSON null; sync_attendance deletes the live row.
+    // Build JSON array expected by sync_attendance().
     let payload = unsynced.map { r in
         [
             "session_id":          r.sessionId.uuidString,
             "student_id":          r.studentId.uuidString,
-            "status":              r.status.rawValue,
+            "status":              (r.status?.rawValue as Any?) ?? NSNull(),
             "notes":               r.notes ?? "",
             "client_mutation_id":  r.clientMutationId
         ]

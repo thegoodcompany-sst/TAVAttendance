@@ -94,9 +94,8 @@ fun StudentProfileSheet(
     val presentCount = history.count { it.status == AttendanceStatus.present }
     val lateCount = history.count { it.status == AttendanceStatus.late }
     val absentCount = history.count { it.status == AttendanceStatus.absent }
-    val excusedCount = history.count { it.status == AttendanceStatus.excused }
     val attendanceRate = if (history.isNotEmpty())
-        (presentCount + lateCount + excusedCount).toFloat() / history.size else 0f
+        (presentCount + lateCount).toFloat() / history.size else 0f
 
     val isoFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
     val prettyFmt = SimpleDateFormat("MMM d, yyyy", Locale.US)
@@ -147,7 +146,6 @@ fun StudentProfileSheet(
                             presentCount = presentCount,
                             lateCount = lateCount,
                             absentCount = absentCount,
-                            excusedCount = excusedCount,
                             attendanceRate = attendanceRate,
                             formatDate = ::formatDate,
                             timeFmt = timeFmt,

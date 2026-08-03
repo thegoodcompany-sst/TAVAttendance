@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Internal Study Space (drop-in room) attendance — migration 015.
 ///
-/// Present / Not Here only (no late/absent). Roster is ALL active students.
+/// Present / Not Here Yet only (no late/absent). Roster is ALL active students.
 /// This attendance is internal reference ONLY and is EXCLUDED from every report,
 /// report card, and parent view (see CLAUDE.md "Study Space tracking" invariant).
 /// Gated by the `study_space_tracking` feature flag; reached from the kiosk header.
@@ -93,17 +93,21 @@ struct StudySpaceView: View {
         }
     }
 
-    /// Toggles a student between Present and Not Here (excused). Unmarked → Present.
+    /// Toggles a student between Present and Not Here Yet. Not Here Yet → Present.
     private func toggle(_ entry: RosterEntry) async {
         guard let session else { return }
-        let newStatus: AttendanceStatus = (entry.status == .present) ? .excused : .present
         pendingIds.insert(entry.studentId)
         defer { pendingIds.remove(entry.studentId) }
         do {
-            try await AttendanceService.shared.markAttendance(
-                sessionId: session.id, studentId: entry.studentId, status: newStatus)
+            if entry.status == .present {
+                try await AttendanceService.shared.clearAttendance(
+                    sessionId: session.id, studentId: entry.studentId)
+            } else {
+                try await AttendanceService.shared.markAttendance(
+                    sessionId: session.id, studentId: entry.studentId, status: .present)
+            }
             if let idx = roster.firstIndex(where: { $0.studentId == entry.studentId }) {
-                roster[idx].status = newStatus
+                roster[idx].status = entry.status == .present ? nil : .present
             }
         } catch {
             self.error = AppError("Couldn't update attendance. Check your connection and try again.",
@@ -129,7 +133,7 @@ private struct StudySpaceCard: View {
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.primary)
-                Text(isPresent ? "Present" : "Not Here")
+                Text(isPresent ? "Present" : "Not Here Yet")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(isPresent ? Color.green : Color.secondary)
             }

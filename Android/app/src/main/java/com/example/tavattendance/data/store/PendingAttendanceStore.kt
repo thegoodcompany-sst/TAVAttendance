@@ -16,7 +16,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-private const val PENDING_QUEUE_VERSION = 2
+private const val PENDING_QUEUE_VERSION = 3
 private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 private const val PENDING_QUEUE_KEY_ALIAS = "tava.pending.attendance.aes.v1"
 private const val ENCRYPTED_PREFIX = "enc-v1:"
@@ -30,7 +30,7 @@ data class PendingAttendanceRecord(
     val ownerUserId: String,
     val sessionId: String,
     val studentId: String,
-    var status: AttendanceStatus,
+    var status: AttendanceStatus?,
     var notes: String? = null,
     val clientMutationId: String,
     val markedAt: String,
@@ -42,6 +42,25 @@ internal data class PendingAttendanceEnvelope(
     val version: Int,
     val ownerUserId: String,
     val records: List<PendingAttendanceRecord>
+)
+
+@Serializable
+private data class LegacyPendingAttendanceRecord(
+    val ownerUserId: String,
+    val sessionId: String,
+    val studentId: String,
+    val status: String,
+    val notes: String? = null,
+    val clientMutationId: String,
+    val markedAt: String,
+    val isSynced: Boolean = false,
+)
+
+@Serializable
+private data class LegacyPendingAttendanceEnvelope(
+    val version: Int,
+    val ownerUserId: String,
+    val records: List<LegacyPendingAttendanceRecord>,
 )
 
 private fun canonicalOwnerUserId(ownerUserId: String): String? =
@@ -77,8 +96,28 @@ internal fun encodePendingQueue(
 internal fun decodePendingQueue(raw: String, expectedOwnerUserId: String): List<PendingAttendanceRecord>? {
     val envelope = runCatching {
         pendingQueueJson.decodeFromString<PendingAttendanceEnvelope>(raw)
+    }.getOrNull()
+    if (envelope?.version == PENDING_QUEUE_VERSION) {
+        return envelope.records.takeIf { envelope.belongsTo(expectedOwnerUserId) }
+    }
+
+    val legacy = runCatching {
+        pendingQueueJson.decodeFromString<LegacyPendingAttendanceEnvelope>(raw)
     }.getOrNull() ?: return null
-    return envelope.records.takeIf { envelope.belongsTo(expectedOwnerUserId) }
+    val canonicalOwner = canonicalOwnerUserId(expectedOwnerUserId) ?: return null
+    if (legacy.version != 2 || canonicalOwnerUserId(legacy.ownerUserId) != canonicalOwner) return null
+    return legacy.records.map { record ->
+        PendingAttendanceRecord(
+            ownerUserId = record.ownerUserId,
+            sessionId = record.sessionId,
+            studentId = record.studentId,
+            status = AttendanceStatus.entries.firstOrNull { it.name == record.status },
+            notes = record.notes,
+            clientMutationId = record.clientMutationId,
+            markedAt = record.markedAt,
+            isSynced = record.isSynced,
+        )
+    }.takeIf { pendingRecordsBelongToOwner(it, canonicalOwner) }
 }
 
 internal object PendingQueueCipher {
@@ -126,7 +165,10 @@ class PendingAttendanceStore(context: Context) {
         synchronized(queueLock) {
             activeOwnerUserId = canonicalOwner
             val raw = prefs.getString(key, null) ?: return true
-            if (decryptAndDecode(raw, canonicalOwner) != null) return true
+            decryptAndDecode(raw, canonicalOwner)?.let { records ->
+                saveLocked(canonicalOwner, records)
+                return true
+            }
 
             // One-time migration from the former plaintext JSON preference.
             // saveLocked verifies the encrypted value before it replaces it.
@@ -205,7 +247,7 @@ class PendingAttendanceStore(context: Context) {
         ownerUserId: String,
         sessionId: String,
         studentId: String,
-        status: AttendanceStatus,
+        status: AttendanceStatus?,
         notes: String?
     ): Boolean = synchronized(queueLock) {
         val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return@synchronized false

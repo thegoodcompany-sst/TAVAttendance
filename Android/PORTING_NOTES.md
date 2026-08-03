@@ -62,7 +62,7 @@ The build fails at the `google-services` plugin step until the file exists.
 These iOS items are ported at the data/service layer but still need Compose UI:
 
 - Kiosk UX: auto-refresh (UX-01), search (UX-02), bulk-action confirm (UX-03),
-  absent-tap confirm (UX-04), Not-Here/Absent info (UX-07), unsigned text label (A11Y-02),
+  absent-tap confirm (UX-04), Not-Here-Yet/Absent info (UX-07),
   photo display (PROD-04).
 - Parent portal (PROD-01) ported 2026-07-12.
 - Kiosk QR sign-in (flag `qr_sign_in`) ported 2026-07-12 (CameraX + ML Kit,

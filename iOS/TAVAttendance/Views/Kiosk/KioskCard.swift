@@ -28,7 +28,7 @@ struct KioskCard: View {
         case .present: return .green
         case .late:    return .orange
         case .absent:  return .red
-        case .excused, nil: return Color(.tertiaryLabel)
+        case nil:      return Color(.tertiaryLabel)
         }
     }
 
@@ -38,7 +38,6 @@ struct KioskCard: View {
         case .present: return "checkmark.circle.fill"
         case .late:    return "clock.badge.exclamationmark.fill"
         case .absent:  return "person.slash.fill"
-        case .excused: return "person.badge.minus"
         case nil:      return "person.circle"
         }
     }
@@ -54,10 +53,7 @@ struct KioskCard: View {
         case .present: return "On Time"
         case .late:    return "Late"
         case .absent:  return "Absent"
-        case .excused: return "Not Here"
-        // A11Y-02: give the unsigned state a text label too, so it doesn't rely on
-        // a grey icon alone to be distinguished from "Not Here".
-        case nil:      return "Not Signed In"
+        case nil:      return "Not Here Yet"
         }
     }
 
@@ -75,7 +71,7 @@ struct KioskCard: View {
         guard !entry.isDismissed else { return false }
         // UX-04: absent cards are tappable for students too, to raise an "Are you
         // here?" confirmation (an escape hatch from an accidental absent mark).
-        return entry.status == nil || entry.status == .excused || entry.status == .absent ||
+        return entry.status == nil || entry.status == .absent ||
             (isAdminMode && entry.status == .late)
     }
 
@@ -85,7 +81,7 @@ struct KioskCard: View {
                 onToggleSelection()
                 return
             }
-            if entry.status == nil || entry.status == .excused {
+            if entry.status == nil {
                 onAction(.signIn)
             } else if entry.status == .absent && !isAdminMode {
                 showAbsentSignInConfirm = true   // UX-04
@@ -130,8 +126,8 @@ struct KioskCard: View {
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
 
-                        // A11Y-02: always show a text status label (including the
-                        // unsigned state) so colour/icon isn't the only signal.
+                        // A11Y-02: always show a text status label so colour/icon
+                        // isn't the only signal.
                         VStack(spacing: 2) {
                                 Text(statusLabel)
                                     .font(.caption.weight(.semibold))
@@ -142,13 +138,13 @@ struct KioskCard: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 if !entry.isDismissed, let status = entry.status {
-                                    if status != .excused, let t = entry.markedAt {
+                                    if let t = entry.markedAt {
                                         Text(Self.timeFormatter.string(from: t))
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                             .accessibilityHidden(true)
                                     }
-                                    if isAdminMode && status != .present && status != .excused {
+                                    if isAdminMode && status != .present {
                                         Text("Tap to change…")
                                             .font(.caption2.italic())
                                             .foregroundStyle(.secondary)
@@ -261,9 +257,9 @@ struct KioskCard: View {
             }
             if entry.status == .late || entry.status == .present {
                 Button {
-                    onAction(.markNotHere)
+                    onAction(.clearAttendance)
                 } label: {
-                    Label("Mark as Not Here", systemImage: "person.badge.minus")
+                    Label("Mark as Not Here Yet", systemImage: "person.badge.minus")
                 }
             }
             if isAdminMode {
@@ -281,7 +277,7 @@ struct KioskCard: View {
                         Label(entry.lateReason == nil ? "Add Late Reason…" : "Edit Late Reason…", systemImage: "pencil")
                     }
                 }
-                if entry.status != .present && entry.status != nil && entry.status != .excused {
+                if entry.status != .present && entry.status != nil {
                     Button {
                         onAction(.markPresent)
                     } label: {

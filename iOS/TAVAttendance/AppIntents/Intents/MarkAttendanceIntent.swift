@@ -1,13 +1,13 @@
 import Foundation
 import AppIntents
 
-/// "Mark Wayne Tan absent" / "...late" / "...present" / "...not here" — sets an explicit
+/// "Mark Wayne Tan absent" / "...late" / "...present" / "...not here yet" — updates
 /// attendance status across all of today's sessions for the student. Marking Absent asks
 /// for confirmation first, since it cannot be undone by the student.
 struct MarkAttendanceIntent: AppIntent {
     static var title: LocalizedStringResource = "Mark Attendance"
     static var description = IntentDescription(
-        "Marks a student as On Time, Late, Absent, or Not Here for today's class.")
+        "Marks a student as On Time, Late, Absent, or Not Here Yet for today's class.")
 
     static var openAppWhenRun: Bool = false
     static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
@@ -36,8 +36,11 @@ struct MarkAttendanceIntent: AppIntent {
                 result: .result(dialog: "Mark \(student.name) absent for today?"))
         }
 
-        try await AttendanceService.shared.markKioskAttendance(entry: entry, status: status.status)
-
-        return .result(dialog: "Marked \(student.name) as \(status.status.spokenLabel).")
+        if let attendanceStatus = status.status {
+            try await AttendanceService.shared.markKioskAttendance(entry: entry, status: attendanceStatus)
+            return .result(dialog: "Marked \(student.name) as \(attendanceStatus.spokenLabel).")
+        }
+        try await AttendanceService.shared.clearKioskAttendance(entry: entry)
+        return .result(dialog: "Marked \(student.name) as Not Here Yet.")
     }
 }

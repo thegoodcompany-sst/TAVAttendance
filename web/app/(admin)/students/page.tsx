@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { QrCode, Plus } from 'lucide-react'
+import { QrCode } from 'lucide-react'
 import { getAllStudents, getStudentResults } from '@/lib/queries'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { Avatar } from '@/components/dashboard/avatar'
@@ -28,24 +28,15 @@ export default async function StudentsPage() {
         title="Students"
         subtitle={`${students.length} active student${students.length !== 1 ? 's' : ''}`}
       >
-        <div className="flex flex-wrap items-center gap-2">
-          {showQr && (
-            <Link
-              href="/students/qr"
-              prefetch
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/15"
-            >
-              <QrCode size={15} /> QR codes
-            </Link>
-          )}
+        {showQr && (
           <Link
-            href="/students/new"
+            href="/students/qr"
             prefetch
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent-marigold px-3.5 text-sm font-bold text-accent-marigold-foreground transition-opacity hover:opacity-90"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/15 bg-white/10 px-3.5 text-sm font-semibold text-white transition-colors hover:bg-white/15"
           >
-            <Plus size={15} strokeWidth={2.5} /> Add student
+            <QrCode size={15} /> QR codes
           </Link>
-        </div>
+        )}
       </PageHeader>
 
       {students.length === 0 ? (
@@ -70,6 +61,16 @@ export default async function StudentsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <Link href="/students/new" prefetch>
+            <article className="flex min-h-[148px] flex-col items-center justify-center rounded-[1.25rem] border-2 border-dashed border-brand/20 bg-brand-soft/40 p-5 text-center transition-colors hover:border-brand/40 hover:bg-brand-soft/60">
+              <div className="grid size-10 place-items-center rounded-full bg-white text-xl font-bold text-brand shadow-card">
+                +
+              </div>
+              <p className="mt-2 text-sm font-semibold text-brand-ink">Add student</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Or import a CSV</p>
+            </article>
+          </Link>
+
           {students.map(s => (
             <Link key={s.id} href={`/students/${s.id}`}>
               <article className="bg-white rounded-[1.25rem] p-5 shadow-card hover:shadow-card-lg transition-shadow cursor-pointer group h-full">
@@ -90,16 +91,6 @@ export default async function StudentsPage() {
               </article>
             </Link>
           ))}
-
-          <Link href="/students/new" prefetch>
-            <article className="flex min-h-[148px] flex-col items-center justify-center rounded-[1.25rem] border-2 border-dashed border-brand/20 bg-brand-soft/40 p-5 text-center transition-colors hover:border-brand/40 hover:bg-brand-soft/60">
-              <div className="grid size-10 place-items-center rounded-full bg-white text-xl font-bold text-brand shadow-card">
-                +
-              </div>
-              <p className="mt-2 text-sm font-semibold text-brand-ink">Add student</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Or import a CSV</p>
-            </article>
-          </Link>
         </div>
       )}
     </div>

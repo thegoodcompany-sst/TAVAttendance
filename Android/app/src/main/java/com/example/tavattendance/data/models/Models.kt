@@ -135,7 +135,7 @@ object RetrospectiveSessionRules {
 }
 
 @Serializable
-enum class AttendanceStatus { present, absent, late, excused }
+enum class AttendanceStatus { present, absent, late }
 
 @Serializable
 data class AttendanceInsert(

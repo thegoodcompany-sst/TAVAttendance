@@ -36,8 +36,6 @@ struct SessionDetailView: View {
     private var presentCount: Int { roster.filter { $0.status == .present }.count }
     private var lateCount: Int    { roster.filter { $0.status == .late }.count }
     private var absentCount: Int  { roster.filter { $0.status == .absent }.count }
-    private var excusedCount: Int { roster.filter { $0.status == .excused }.count }
-    private var unmarkedCount: Int { roster.filter { $0.status == nil }.count }
     private var totalCount: Int   { roster.count }
 
     var body: some View {
@@ -101,9 +99,6 @@ struct SessionDetailView: View {
                     statPill("Present", count: presentCount, color: .green)
                     statPill("Late",    count: lateCount,    color: .orange)
                     statPill("Absent",  count: absentCount,  color: .red)
-                    if excusedCount > 0 {
-                        statPill("Excused", count: excusedCount, color: .gray)
-                    }
                 }
                 .frame(maxWidth: .infinity)
 
@@ -185,8 +180,7 @@ struct SessionDetailView: View {
         case .present: return 0
         case .late:    return 1
         case .absent:  return 2
-        case .excused: return 3
-        case nil:      return 4
+        case nil:      return 3
         }
     }
 
@@ -219,8 +213,7 @@ struct SessionDetailView: View {
         case .present: return ("Present", .green)
         case .late:    return ("Late",    .orange)
         case .absent:  return ("Absent",  .red)
-        case .excused: return ("Excused", .gray)
-        case nil:      return ("—",       .secondary)
+        case nil:      return ("Not Here Yet", .secondary)
         }
     }
 

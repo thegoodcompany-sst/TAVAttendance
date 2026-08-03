@@ -179,7 +179,7 @@ export async function getMobileSignInEntries(): Promise<KioskEntry[]> {
   )
 
   const merged = new Map<string, KioskEntry>()
-  const rank: Record<string, number> = { late: 4, present: 3, absent: 2, excused: 1 }
+  const rank: Record<string, number> = { late: 3, present: 2, absent: 1 }
   await Promise.all((sessions ?? []).filter(session => classNames.has(session.class_id)).map(async (session: any) => {
     const { data: roster, error: rosterError } = await supabase.rpc('get_session_roster', { p_session_id: session.id })
     if (rosterError) throw new Error(`getMobileSignInEntries roster: ${rosterError.message}`)

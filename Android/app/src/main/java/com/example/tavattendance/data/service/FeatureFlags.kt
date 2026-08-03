@@ -14,6 +14,7 @@ object FeatureFlags {
     const val PUSH_NOTIFICATIONS = "push_notifications"
     const val STUDENT_PHOTOS = "student_photos"
     const val STUDY_SPACE_TRACKING = "study_space_tracking"
+    const val TEST_MODE = "test_mode"
     const val SESSION_NOTES = "session_notes"
     const val QR_SIGN_IN = "qr_sign_in"
     const val ANALYTICS = "analytics"

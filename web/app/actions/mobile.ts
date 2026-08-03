@@ -121,6 +121,19 @@ export async function markAttendance(sessionId: string, studentId: string, statu
   return { error: null }
 }
 
+export async function clearAttendance(sessionId: string, studentId: string): Promise<Result> {
+  const { error: authError, supabase } = await requireStaff()
+  if (authError) return { error: authError }
+  const { error } = await supabase.rpc('clear_attendance', {
+    p_session_id: sessionId,
+    p_student_id: studentId,
+    p_client_mutation_id: crypto.randomUUID(),
+  })
+  if (error) return { error: error.message }
+  refreshMobile(`/mobile/sessions/${sessionId}`, '/mobile/sign-in')
+  return { error: null }
+}
+
 export async function markRemainingAbsent(sessionId: string, studentIds: string[]): Promise<Result> {
   const { error: authError, supabase, user } = await requireStaff()
   if (authError) return { error: authError }
@@ -258,6 +271,22 @@ export async function markKioskAttendance(sessionIds: string[], studentId: strin
     { onConflict: 'session_id,student_id' }
   )
   if (error) return { error: error.message }
+  refreshMobile('/mobile/sign-in')
+  return { error: null }
+}
+
+export async function clearKioskAttendance(sessionIds: string[], studentId: string): Promise<Result> {
+  const { error: authError, supabase } = await requireAdmin()
+  if (authError) return { error: authError }
+  const results = await Promise.all(sessionIds.map(sessionId =>
+    supabase.rpc('clear_attendance', {
+      p_session_id: sessionId,
+      p_student_id: studentId,
+      p_client_mutation_id: crypto.randomUUID(),
+    })
+  ))
+  const failed = results.find(result => result.error)
+  if (failed?.error) return { error: failed.error.message }
   refreshMobile('/mobile/sign-in')
   return { error: null }
 }

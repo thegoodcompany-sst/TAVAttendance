@@ -44,7 +44,6 @@ export type SessionSummary = {
   presentCount: number
   lateCount: number
   absentCount: number
-  excusedCount: number
   notHereCount: number
   totalEnrolled: number
   notes: string | null
@@ -87,11 +86,9 @@ export const getTodaySessions = cache(async (): Promise<SessionSummary[]> => {
       presentCount: records.filter(r => r.status === 'present').length,
       lateCount:    records.filter(r => r.status === 'late').length,
       absentCount:  records.filter(r => r.status === 'absent').length,
-      excusedCount: records.filter(r => r.status === 'excused').length,
       notHereCount: Math.max(0, total - records.length),
       totalEnrolled: total,
       notes: s.notes ?? null,
     }
   })
 })
-

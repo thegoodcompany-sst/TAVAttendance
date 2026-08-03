@@ -30,18 +30,17 @@ internal fun KioskCard(
         AttendanceStatus.present -> Color(0xFF34C759)
         AttendanceStatus.late -> Color(0xFFFF9500)
         AttendanceStatus.absent -> Color(0xFFFF3B30)
-        AttendanceStatus.excused, null -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+        null -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     }
 
     val statusLabel = when (entry.status) {
         AttendanceStatus.present -> "On Time"
         AttendanceStatus.late -> "Late"
         AttendanceStatus.absent -> "Absent"
-        AttendanceStatus.excused -> "Not Here"
-        null -> "Not signed in"
+        null -> "Not Here Yet"
     }
 
-    val canTap = entry.status == null || entry.status == AttendanceStatus.excused ||
+    val canTap = entry.status == null ||
             (isAdminMode && (entry.status == AttendanceStatus.late || entry.status == AttendanceStatus.absent))
 
     val timeFmt = SimpleDateFormat("h:mm a", Locale.US)
@@ -55,10 +54,10 @@ internal fun KioskCard(
                 if (entry.status != AttendanceStatus.late && entry.status != AttendanceStatus.absent) {
                     add("Mark as Late" to KioskAction.MarkLate)
                 }
-                if (entry.status == AttendanceStatus.late || entry.status == AttendanceStatus.present) {
-                    add("Mark as Not Here" to KioskAction.MarkNotHere)
+                if (entry.status != null) {
+                    add("Clear attendance" to KioskAction.Clear)
                 }
-                if (entry.status != AttendanceStatus.present && entry.status != null && entry.status != AttendanceStatus.excused) {
+                if (entry.status != AttendanceStatus.present && entry.status != null) {
                     add("Mark as On Time" to KioskAction.MarkPresent)
                 }
                 if (entry.status != AttendanceStatus.absent) {
@@ -97,10 +96,10 @@ internal fun KioskCard(
                             textAlign = TextAlign.Center,
                             maxLines = 2
                         )
+                        Spacer(Modifier.height(4.dp))
+                        Text(statusLabel, style = MaterialTheme.typography.labelSmall, color = statusColor)
                         if (entry.status != null) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(statusLabel, style = MaterialTheme.typography.labelSmall, color = statusColor)
-                            if (entry.status != AttendanceStatus.excused && entry.markedAt != null) {
+                            if (entry.markedAt != null) {
                                 val markedDate = runCatching {
                                     Date(java.time.Instant.parse(entry.markedAt).toEpochMilli())
                                 }.getOrNull()
@@ -112,7 +111,7 @@ internal fun KioskCard(
                                     )
                                 }
                             }
-                            if (isAdminMode && entry.status != AttendanceStatus.present && entry.status != AttendanceStatus.excused) {
+                            if (isAdminMode && entry.status != AttendanceStatus.present) {
                                 Text(
                                     "Tap → On Time",
                                     style = MaterialTheme.typography.labelSmall,

@@ -6,7 +6,7 @@ struct PendingAttendanceRecord: Codable {
     let ownerUserId: UUID
     let sessionId: UUID
     let studentId: UUID
-    var status: AttendanceStatus
+    var status: AttendanceStatus?
     var notes: String?
     // var (not let): an in-place correction reassigns a fresh clientMutationId and
     // markedAt so an in-flight sync of the old id can't clobber the newer tap.
@@ -21,8 +21,25 @@ struct PendingAttendanceEnvelope: Codable {
     let records: [PendingAttendanceRecord]
 }
 
+private struct LegacyPendingAttendanceRecord: Codable {
+    let ownerUserId: UUID
+    let sessionId: UUID
+    let studentId: UUID
+    let status: String
+    let notes: String?
+    let clientMutationId: String
+    let markedAt: Date
+    let isSynced: Bool
+}
+
+private struct LegacyPendingAttendanceEnvelope: Codable {
+    let version: Int
+    let ownerUserId: UUID
+    let records: [LegacyPendingAttendanceRecord]
+}
+
 enum PendingAttendanceQueueCodec {
-    static let version = 2
+    static let version = 3
 
     static func recordsBelongToOwner(
         _ records: [PendingAttendanceRecord],
@@ -42,13 +59,29 @@ enum PendingAttendanceQueueCodec {
 
     /// Returns nil for malformed, legacy-unowned, wrong-owner, or mixed-owner data.
     static func decode(_ data: Data, expectedOwnerUserId: UUID) -> [PendingAttendanceRecord]? {
-        guard let envelope = try? JSONDecoder().decode(PendingAttendanceEnvelope.self, from: data),
-              envelope.version == version,
-              envelope.ownerUserId == expectedOwnerUserId,
-              recordsBelongToOwner(envelope.records, ownerUserId: expectedOwnerUserId) else {
-            return nil
+        let decoder = JSONDecoder()
+        if let envelope = try? decoder.decode(PendingAttendanceEnvelope.self, from: data),
+           envelope.version == version,
+           envelope.ownerUserId == expectedOwnerUserId,
+           recordsBelongToOwner(envelope.records, ownerUserId: expectedOwnerUserId) {
+            return envelope.records
         }
-        return envelope.records
+        guard let envelope = try? decoder.decode(LegacyPendingAttendanceEnvelope.self, from: data),
+              envelope.version == 2,
+              envelope.ownerUserId == expectedOwnerUserId else { return nil }
+        let records = envelope.records.map {
+            PendingAttendanceRecord(
+                ownerUserId: $0.ownerUserId,
+                sessionId: $0.sessionId,
+                studentId: $0.studentId,
+                status: AttendanceStatus(rawValue: $0.status),
+                notes: $0.notes,
+                clientMutationId: $0.clientMutationId,
+                markedAt: $0.markedAt,
+                isSynced: $0.isSynced
+            )
+        }
+        return recordsBelongToOwner(records, ownerUserId: expectedOwnerUserId) ? records : nil
     }
 }
 
@@ -151,7 +184,10 @@ final class PendingAttendanceStore: ObservableObject {
     func activateOwner(_ ownerUserId: UUID) {
         activeOwnerUserId = ownerUserId
         guard let data = UserDefaults.standard.data(forKey: key) else { return }
-        if decryptAndDecode(data, ownerUserId: ownerUserId) != nil { return }
+        if let records = decryptAndDecode(data, ownerUserId: ownerUserId) {
+            _ = save(ownerUserId: ownerUserId, records: records)
+            return
+        }
 
         // One-time migration from the former plaintext JSON value. Only replace
         // it after the encrypted write can be read back successfully.
@@ -214,7 +250,7 @@ final class PendingAttendanceStore: ObservableObject {
         ownerUserId: UUID,
         sessionId: UUID,
         studentId: UUID,
-        status: AttendanceStatus,
+        status: AttendanceStatus?,
         notes: String?
     ) -> Bool {
         guard activeOwnerUserId == ownerUserId else { return false }

@@ -46,6 +46,29 @@ class PendingAttendanceStoreTest {
     }
 
     @Test
+    fun clearMutationRoundTripsWithNullStatus() {
+        val encoded = requireNotNull(encodePendingQueue(owner, listOf(record("clear").copy(status = null))))
+
+        assertNull(decodePendingQueue(encoded, owner)?.single()?.status)
+    }
+
+    @Test
+    fun versionTwoQueueMigratesKnownMarksAndUnknownStatusToClear() {
+        val legacy = """{
+            "version":2,
+            "ownerUserId":"$owner",
+            "records":[
+                {"ownerUserId":"$owner","sessionId":"s1","studentId":"a","status":"present","clientMutationId":"m1","markedAt":"2026-07-15T00:00:00Z"},
+                {"ownerUserId":"$owner","sessionId":"s1","studentId":"b","status":"retired","clientMutationId":"m2","markedAt":"2026-07-15T00:00:00Z"}
+            ]
+        }""".trimIndent()
+
+        val migrated = requireNotNull(decodePendingQueue(legacy, owner))
+        assertEquals(AttendanceStatus.present, migrated[0].status)
+        assertNull(migrated[1].status)
+    }
+
+    @Test
     fun legacyUnownedArrayAndMixedOwnerQueueFailClosed() {
         val foreign = record("foreign", ownerUserId = "20000000-0000-0000-0000-000000000002")
         assertNull(decodePendingQueue("[]", owner))

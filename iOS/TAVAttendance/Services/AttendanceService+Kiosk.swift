@@ -61,9 +61,9 @@ extension AttendanceService {
         return Array(entryMap.values).sorted { $0.fullName < $1.fullName }
     }
 
-    // late > present > absent > excused — worst shown when a student spans multiple sessions
+    // late > present > absent — worst shown when a student spans multiple sessions
     static func worstStatus(_ a: AttendanceStatus?, _ b: AttendanceStatus?) -> AttendanceStatus? {
-        let rank: [AttendanceStatus: Int] = [.late: 4, .present: 3, .absent: 2, .excused: 1]
+        let rank: [AttendanceStatus: Int] = [.late: 3, .present: 2, .absent: 1]
         switch (a, b) {
         case (nil, let x): return x
         case (let x, nil): return x
@@ -81,6 +81,12 @@ extension AttendanceService {
     func markKioskAttendance(entry: KioskEntry, status: AttendanceStatus, lateReason: String? = nil) async throws {
         for session in entry.sessions {
             try await markAttendance(sessionId: session.id, studentId: entry.studentId, status: status, lateReason: lateReason)
+        }
+    }
+
+    func clearKioskAttendance(entry: KioskEntry) async throws {
+        for session in entry.sessions {
+            try await clearAttendance(sessionId: session.id, studentId: entry.studentId)
         }
     }
 
@@ -174,11 +180,11 @@ extension AttendanceService {
     // MARK: - Study Space (internal-only; migration 015)
 
     /// The singleton internal Study Space (drop-in room) class. Attendance here is
-    /// Present / Not Here only and is EXCLUDED from all reports & parent views.
+    /// Present / Not Here Yet only and is EXCLUDED from all reports & parent views.
     static let studySpaceClassId = UUID(uuidString: "57000000-0000-0000-0000-000000000001")!
 
     /// Loads today's Study Space session (creating it on first use) and the roster of
-    /// ALL active students with their current Present/Not-Here status for it.
+    /// ALL active students with their current Present/Not-Here-Yet status for it.
     func loadStudySpace() async throws -> (session: Session, roster: [RosterEntry]) {
         let session = try await getOrCreateTodaySession(classId: Self.studySpaceClassId)
         let roster: [RosterEntry] = try await db

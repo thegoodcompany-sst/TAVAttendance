@@ -13,7 +13,7 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 |---|---|
 | Global sign-in kiosk (all classes, one iPad) | Students |
 | Auto-marks late based on class start time | Kiosk |
-| Long-press to force-late or "not here" | PIN-unlocked kiosk admin |
+| Long-press to force-late or "not here yet" | PIN-unlocked kiosk admin |
 | PIN-locked kiosk with admin override mode | Admin |
 | Per-class roster with P/A/L/E marking | Teachers |
 | Arrival time display in roster | Teachers |

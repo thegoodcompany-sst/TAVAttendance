@@ -70,6 +70,37 @@ BEGIN
     ASSERT to_regprocedure(
         'public.invoke_student_storage_cleanup()'
     ) IS NOT NULL, '038 Storage cleanup invoker is missing';
+    ASSERT to_regprocedure(
+        'public.clear_attendance(uuid,uuid,text)'
+    ) IS NOT NULL, '055 guarded attendance clear is missing';
+
+    ASSERT NOT EXISTS (
+        SELECT 1 FROM public.attendance_records
+        WHERE status NOT IN ('present', 'late', 'absent')
+    ), 'attendance_records contains a retired status';
+    ASSERT (
+        SELECT LOWER(pg_get_constraintdef(oid))
+               NOT LIKE '%excused%'
+        FROM pg_constraint
+        WHERE conrelid = 'public.attendance_records'::REGCLASS
+          AND conname = 'attendance_records_status_check'
+    ), 'attendance status constraint still accepts the retired state';
+    ASSERT NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'attendance_summary'
+          AND column_name = 'excused_count'
+    ), 'attendance summary still exposes the retired count';
+    ASSERT (
+        SELECT COALESCE('security_invoker=true' = ANY (reloptions), FALSE)
+        FROM pg_class
+        WHERE oid = 'public.attendance_summary'::REGCLASS
+    ), 'attendance_summary lost security_invoker';
+    ASSERT has_function_privilege(
+        'authenticated', 'public.clear_attendance(uuid,uuid,text)', 'EXECUTE'
+    ) AND NOT has_function_privilege(
+        'anon', 'public.clear_attendance(uuid,uuid,text)', 'EXECUTE'
+    ), 'attendance clear RPC grants are unsafe';
 
     v_attendance_integrity := LOWER(pg_get_functiondef(
         'public.enforce_attendance_write_integrity()'::REGPROCEDURE

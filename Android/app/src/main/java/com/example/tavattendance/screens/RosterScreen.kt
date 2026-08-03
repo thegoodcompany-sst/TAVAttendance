@@ -82,7 +82,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     fun clearSnackbar() { _snackbarMessage.value = null }
 
     // Optimistic local overrides: studentId → status
-    private val _localStatus = MutableStateFlow<Map<String, AttendanceStatus>>(emptyMap())
+    private val _localStatus = MutableStateFlow<Map<String, AttendanceStatus?>>(emptyMap())
     val localStatus = _localStatus.asStateFlow()
 
     private val _localMarkedAt = MutableStateFlow<Map<String, Date>>(emptyMap())
@@ -183,7 +183,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun markAttendance(entry: RosterEntry, status: AttendanceStatus) {
+    fun markAttendance(entry: RosterEntry, status: AttendanceStatus?) {
         if (!_sessionEditable.value) {
             _snackbarMessage.value = "This session is read-only."
             return
@@ -195,16 +195,24 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         }
         // Optimistic update
         _localStatus.value = _localStatus.value + (entry.studentId to status)
-        _localMarkedAt.value = _localMarkedAt.value + (entry.studentId to Date())
+        _localMarkedAt.value = if (status == null) {
+            _localMarkedAt.value - entry.studentId
+        } else {
+            _localMarkedAt.value + (entry.studentId to Date())
+        }
 
         viewModelScope.launch {
             if (isOnline.value) {
                 runCatching {
-                    AttendanceService.markAttendance(
-                        sessionId = sessionId,
-                        studentId = entry.studentId,
-                        status = status
-                    )
+                    if (status == null) {
+                        AttendanceService.clearAttendance(sessionId, entry.studentId)
+                    } else {
+                        AttendanceService.markAttendance(
+                            sessionId = sessionId,
+                            studentId = entry.studentId,
+                            status = status
+                        )
+                    }
                     // PERF-04: trust the optimistic override instead of re-fetching the
                     // whole roster on every tap. The override stays until loadRoster()
                     // is called again (pull-to-refresh / later read-only review).
@@ -217,7 +225,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun queuePending(ownerUserId: String, entry: RosterEntry, status: AttendanceStatus) {
+    private fun queuePending(ownerUserId: String, entry: RosterEntry, status: AttendanceStatus?) {
         val stillCurrent = currentOwnerUserId()?.equals(ownerUserId, ignoreCase = true) == true
         val queued = stillCurrent && pendingStore.add(
             ownerUserId = ownerUserId,
@@ -307,7 +315,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun effectiveStatus(entry: RosterEntry): AttendanceStatus? {
-        _localStatus.value[entry.studentId]?.let { return it }
+        if (_localStatus.value.containsKey(entry.studentId)) {
+            return _localStatus.value[entry.studentId]
+        }
         pendingForCurrentUser().firstOrNull {
             it.studentId == entry.studentId && it.sessionId == sessionId
         }?.let { return it.status }
@@ -490,8 +500,12 @@ fun RosterScreen(
                 items(roster, key = { it.studentId }) { entry ->
                     val status = vm.effectiveStatus(entry)
                     val pending = vm.isPending(entry)
-                    val markedAt = localMarkedAt[entry.studentId]
-                        ?: entry.markedAt?.let { runCatching { Date(Instant.parse(it).toEpochMilli()) }.getOrNull() }
+                    val markedAt = if (localStatus.containsKey(entry.studentId) && status == null) {
+                        null
+                    } else {
+                        localMarkedAt[entry.studentId]
+                            ?: entry.markedAt?.let { runCatching { Date(Instant.parse(it).toEpochMilli()) }.getOrNull() }
+                    }
 
                     RosterRow(
                         entry = entry,
@@ -573,7 +587,7 @@ private fun RosterRow(
     enabled: Boolean,
     markedAt: Date?,
     timeFmt: SimpleDateFormat,
-    onStatusClick: (AttendanceStatus) -> Unit,
+    onStatusClick: (AttendanceStatus?) -> Unit,
     profileEnabled: Boolean,
     onTap: () -> Unit
 ) {
@@ -628,6 +642,14 @@ private fun RosterRow(
                     Text(status.name.take(1).uppercase(), style = MaterialTheme.typography.labelMedium)
                 }
             }
+            OutlinedButton(
+                onClick = { onStatusClick(null) },
+                enabled = enabled && effectiveStatus != null,
+                modifier = Modifier.size(44.dp, 36.dp),
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text("—", style = MaterialTheme.typography.labelMedium)
+            }
         }
     }
 }
@@ -636,5 +658,4 @@ fun statusColor(status: AttendanceStatus): Color = when (status) {
     AttendanceStatus.present -> Color(0xFF34C759)
     AttendanceStatus.late -> Color(0xFFFF9500)
     AttendanceStatus.absent -> Color(0xFFFF3B30)
-    AttendanceStatus.excused -> Color(0xFF8E8E93)
 }
