@@ -755,12 +755,15 @@ Applied exact committed `054_defense_in_depth_authz.sql` to prod
 `get_study_space_roster` is SECURITY DEFINER; anon cannot EXECUTE roster or
 `sync_attendance`; `service_role` cannot EXECUTE `register_device_token`.
 
-### ☐ 71. Apply migration 055 before deploying the attendance-state cleanup
+### ☑ 71. Apply migration 055 before deploying the attendance-state cleanup — DONE (2026-08-03)
 
-Apply the exact reviewed `supabase/migrations/055_merge_not_here_yet.sql` from
-its committed revision through the authorised production mechanism, then reload
-PostgREST and run the production drift/security gates. This migration removes
-the retired stored attendance state and its live rows, adds idempotent
-`clear_attendance`, and removes the retired summary column. Record the number of
-rows removed before applying it. Do not deploy the matching web/mobile clients
-first; they depend on the new clear RPC and nullable sync contract.
+Pre-apply inventory: **7** `attendance_records` rows with `status = 'excused'`
+(present 23 / late 22 / absent 5 / excused 7). Applied exact committed
+`055_merge_not_here_yet.sql` to prod (`zgikcbsxzjgbigywxbbj`) via
+`supabase db query --linked --file`, then `NOTIFY pgrst, 'reload schema'`.
+Migration self-asserts and `scripts/prod-security-check.sql` (meta-commands
+stripped for Management API) returned success. Spot-check: no excused rows;
+status check is present/absent/late only; `clear_attendance(uuid,uuid,text)`
+exists; `attendance_summary.excused_count` gone; view keeps
+`security_invoker=true`. Clients that depend on the clear RPC / nullable sync
+contract may now deploy.
