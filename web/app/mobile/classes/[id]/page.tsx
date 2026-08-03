@@ -1,21 +1,18 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, CalendarDays, CheckCircle2, Clock3 } from 'lucide-react'
-import { getMobileClass } from '@/lib/mobile-queries'
+import { getMobileClass, getMobileProfile } from '@/lib/mobile-queries'
 import { todayInTz } from '@/lib/date'
 import { ClassActionButton } from '@/components/mobile/start-class-button'
-import { createClient } from '@/lib/supabase/server'
 import { DeactivateClassButton } from '@/components/mobile/deactivate-class-button'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MobileClassPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const [result, { data: profile }] = await Promise.all([
+  const [result, profile] = await Promise.all([
     getMobileClass(id),
-    supabase.from('profiles').select('role').eq('id', user!.id).single(),
+    getMobileProfile(),
   ])
   if (!result) notFound()
   const { classInfo, sessions } = result

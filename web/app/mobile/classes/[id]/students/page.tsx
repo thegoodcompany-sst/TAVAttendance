@@ -1,18 +1,15 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
-import { getMobileClass, getMobileEnrollmentData } from '@/lib/mobile-queries'
+import { getMobileClass, getMobileEnrollmentData, getMobileProfile } from '@/lib/mobile-queries'
 import { EnrollmentList } from '@/components/mobile/enrollment-list'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MobileEnrollmentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const [{ data: profile }, classResult, enrollment] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user!.id).single(),
+  const [profile, classResult, enrollment] = await Promise.all([
+    getMobileProfile(),
     getMobileClass(id),
     getMobileEnrollmentData(id),
   ])

@@ -9,7 +9,7 @@ import {
   exportStudentData,
   withdrawConsent,
 } from '@/app/actions/students'
-import type { ConsentRecord } from '@/lib/queries'
+import type { ConsentRecord } from '@/lib/queries/pdpa'
 
 function statusColor(status: string) {
   return status === 'granted'

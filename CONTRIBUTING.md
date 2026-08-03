@@ -132,7 +132,7 @@ Android unit tests, and every `supabase/tests/*.sql` regression); test the rest 
 | Platform | Command | Dir |
 |---|---|---|
 | iOS | `xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17'` (or build via Xcode; scheme name comes from `project.yml`, XcodeGen-managed) | `iOS/` |
-| Android | `./gradlew testDebugUnitTest assembleDebug --no-daemon` (JDK 17/21) | `Android/` |
+| Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` (JDK 17/21) | `Android/` |
 | Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build` | `web/` |
 
 Machine-specific caveats (Xcode-beta `DEVELOPER_DIR`, `CODE_SIGNING_ALLOWED=NO`)

@@ -1,4 +1,4 @@
-import type { SessionSummary } from '@/lib/queries'
+import type { SessionSummary } from '@/lib/queries/attendance'
 import { formatScheduleTime } from '@/lib/date'
 import { SessionNote } from './session-note'
 

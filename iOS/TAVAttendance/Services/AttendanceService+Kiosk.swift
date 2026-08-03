@@ -203,8 +203,7 @@ extension AttendanceService {
                 case sessionId = "session_id"; case studentId = "student_id"; case dismissedAt = "dismissed_at"
             }
         }
-        // Upsert on (session_id, student_id) unique constraint to avoid duplicate rows
-        // that would crash Dictionary(uniqueKeysWithValues:) in fetchTodaysDismissals.
+        // A student can have one dismissal per session; the upsert keeps retries idempotent.
         return try await db.from("dismissals")
             .upsert(DismissalInsert(sessionId: sessionId, studentId: studentId, dismissedAt: Date()),
                     onConflict: "session_id,student_id")
@@ -226,7 +225,13 @@ extension AttendanceService {
             .select()
             .in("session_id", values: sessionIds.map(\.uuidString))
             .execute().value
-        return Dictionary(uniqueKeysWithValues: rows.map { ($0.studentId, $0) })
+        return Self.latestDismissalsByStudent(rows)
+    }
+
+    static func latestDismissalsByStudent(_ rows: [Dismissal]) -> [UUID: Dismissal] {
+        Dictionary(rows.map { ($0.studentId, $0) }, uniquingKeysWith: {
+            ($0.dismissedAt ?? .distantPast) >= ($1.dismissedAt ?? .distantPast) ? $0 : $1
+        })
     }
 
     // MARK: - Safely home (migration 030, flag: push_notifications)

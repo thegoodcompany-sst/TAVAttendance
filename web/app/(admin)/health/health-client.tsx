@@ -1,7 +1,6 @@
 'use client'
 
-import { Line, LineChart, XAxis, YAxis, CartesianGrid } from 'recharts'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
 export function HealthEventsChart({
   points,
@@ -16,21 +15,18 @@ export function HealthEventsChart({
       timeZone: 'UTC',
     }),
   }))
-  const config = {
-    events: { label: 'Events', color: 'var(--color-chart-1)' },
-    errors: { label: 'Errors', color: 'var(--color-chart-2)' },
-  }
-
   return (
-    <ChartContainer config={config} className="h-[260px] w-full" role="img" aria-label="Daily app events and errors for the last 14 days">
-      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="3 3" />
-        <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }} />
-        <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }} />
-        <ChartTooltip content={<ChartTooltipContent />} />
-        <Line type="monotone" dataKey="events" stroke="var(--color-chart-1)" strokeWidth={2.5} dot={false} />
-        <Line type="monotone" dataKey="errors" stroke="var(--color-chart-2)" strokeWidth={2.5} dot={false} />
-      </LineChart>
-    </ChartContainer>
+    <div className="h-[260px] w-full text-xs" role="img" aria-label="Daily app events and errors for the last 14 days">
+      <ResponsiveContainer initialDimension={{ width: 320, height: 200 }}>
+        <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="3 3" />
+          <XAxis dataKey="day" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }} />
+          <YAxis allowDecimals={false} tickLine={false} axisLine={false} width={36} tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }} />
+          <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+          <Line type="monotone" dataKey="events" name="Events" stroke="var(--color-chart-1)" strokeWidth={2.5} dot={false} />
+          <Line type="monotone" dataKey="errors" name="Errors" stroke="var(--color-chart-2)" strokeWidth={2.5} dot={false} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   )
 }

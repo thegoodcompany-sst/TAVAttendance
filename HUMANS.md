@@ -401,8 +401,7 @@ the erase/anonymise/export backend all pass; the export now includes grades, mig
 
 ### ☐ 42. Kiosk iPad setup on launch day
 Signed in as an **admin** account (RLS makes a tutor login useless for the kiosk),
-kiosk PIN set, AltStore refresh routine confirmed (personal-team signing expires
-every 7 days — keep AltServer reachable on the same Wi-Fi).
+kiosk PIN set, and the current TestFlight build installed and launch-tested.
 
 ### ☐ 43. Flip the new feature flags when ready (migration 026, all OFF)
 Shipped dark 2026-07-12; flip via the superadmin `/feature-flags` page when the
@@ -512,8 +511,13 @@ be marked done.
 
 ## L. TestFlight staff trial (date TBD — waiting on the centre)
 
-The guided test kit is ready in `docs/test-kit/` (STAFF_GUIDE.md + a 15-minute
-TEST_SCRIPT.md). These are the day-of steps only a human can do.
+The guided test kit is in `docs/test-kit/`:
+- `STAFF_GUIDE.md` — everyday how-to
+- `TEST_SCRIPT.md` — 15-minute first trial
+- `PRE_PILOT_CHECKLIST.md` — readiness / go-no-go before real-student pilot
+  (for staff who already know the UI but need exact things to verify)
+
+These are the day-of steps only a human can do.
 
 ### ☐ 53. On the confirmed trial morning: seed the demo data
 Apply `docs/test-kit/SEED_DEMO_DATA.sql` to prod (5 "Demo …" students + 1 ad-hoc
@@ -525,7 +529,14 @@ fill a real tutor UUID into the commented `class_tutor_assignments` insert first
 ### ☐ 54. Hand the staff their access
 Give the trial staff the admin login for the kiosk iPad and have them set a kiosk
 PIN (the test script walks them through it). Print or send `STAFF_GUIDE.md` and
-`TEST_SCRIPT.md`.
+`TEST_SCRIPT.md`. Before the real-student pilot batch, walk staff through
+`PRE_PILOT_CHECKLIST.md` and collect the go/no-go sign-off.
+
+### ☐ 54b. Pre-pilot readiness complete before live student batch
+Staff who have finished UI orientation complete `docs/test-kit/PRE_PILOT_CHECKLIST.md`
+(data readiness, must-pass kiosk/tutor/web loops, paper fallback, sign-off).
+Do not expand from “playing with the app” to real pilot students until the
+centre lead ticks GO.
 
 ### ☐ 55. (Optional) richer screenshots for the guide
 Only the login screen could be captured safely — the current prod test students

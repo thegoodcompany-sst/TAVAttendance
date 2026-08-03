@@ -10,7 +10,7 @@ type RootMatches = {
   files: Set<string>
 }
 
-export const PRIVATE_STUDENT_BUCKETS = ['result-slips', 'student-photos'] as const
+const PRIVATE_STUDENT_BUCKETS = ['result-slips', 'student-photos'] as const
 
 const PAGE_SIZE = 100
 const REMOVE_BATCH_SIZE = 100

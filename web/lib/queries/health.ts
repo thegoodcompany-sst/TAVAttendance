@@ -2,7 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { todayInTz, dateOffsetInTz, weekStartOf } from '@/lib/date'
 
-export type HealthMetric = {
+type HealthMetric = {
   current: number
   previous: number
   delta: number

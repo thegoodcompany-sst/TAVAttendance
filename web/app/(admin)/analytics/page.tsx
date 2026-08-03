@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/dashboard/page-header'
 import { KpiTile } from '@/components/dashboard/kpi-tile'
-import { getAttendanceSummary, getMonthlyAttendanceDrops, getWeeklyAttendanceTrend } from '@/lib/queries'
+import { getAttendanceSummary, getMonthlyAttendanceDrops, getWeeklyAttendanceTrend } from '@/lib/queries/analytics'
 import {
   ClassAttendanceChart,
   StudentAttendanceTable,

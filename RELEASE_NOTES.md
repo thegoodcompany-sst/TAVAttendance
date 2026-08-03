@@ -5,6 +5,14 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Fixed iOS kiosk reloads for students dismissed from multiple same-day classes;
+  the latest dismissal now wins instead of duplicate student keys crashing.
+- Trimmed the web app by removing its compatibility query barrel, generic chart
+  framework, unused public exports, and four unnecessary direct dependencies;
+  mobile pages now share one request-cached profile/class mapping path, and
+  Android CI now runs the platform lint task.
+- Retired the legacy AltStore/development-export path, redundant Android clean
+  script, duplicate iOS export plist, and obsolete Phase 2/3 RLS plan.
 - Consolidated all unmarked attendance into one “Not Here Yet” state across iOS,
   Android, web, and Supabase. Clearing attendance now deletes the row through
   an actor-bound, replay-safe RPC; reports use Present, Late, and Absent only.
@@ -12,6 +20,10 @@ This is the source draft for mobile release notes. Keep completed changes under
   duplicate yellow header action.
 - Restored the web Users “Remove” action after the table redesign hid it
   (hover-only control with no `group` parent).
+- Added staff pre-pilot readiness checklist (`docs/test-kit/PRE_PILOT_CHECKLIST.md`)
+  and rewrote the staff test-kit guides (guide, 15-minute script, pre-pilot) in
+  informal first-person voice: what must work before real kids, what’s simply
+  not ready yet if still off, go/no-go without product-brochure tone.
 - Web admin dashboard visual pass aligned to `docs/drafts/web-dashboard-ui.html`:
   exact navy/marigold/cream hex palette, cream surface shell, sidebar
   squircle/expand motion, draft status badges (On time / Not Here Yet), Today

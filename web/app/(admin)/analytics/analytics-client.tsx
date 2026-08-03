@@ -1,13 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart'
 import { cn } from '@/lib/utils'
 
 export type ClassStat = {
@@ -90,37 +85,39 @@ function weekLabel(weekStart: string): string {
 }
 
 export function WeeklyTrendChart({ points }: { points: WeeklyTrendPoint[] }) {
-  const config = { attendancePct: { label: 'Attendance %' } }
   const data = points.map(p => ({ ...p, week: weekLabel(p.weekStart) }))
   return (
-    <ChartContainer config={config} className="h-[220px] w-full">
-      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="3 3" />
-        <XAxis
-          dataKey="week"
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
-        />
-        <YAxis
-          domain={[0, 100]}
-          tickLine={false}
-          axisLine={false}
-          width={36}
-          tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
-          unit="%"
-        />
-        <ChartTooltip content={<ChartTooltipContent />} />
-        <Line
-          type="monotone"
-          dataKey="attendancePct"
-          stroke="var(--color-chart-1)"
-          strokeWidth={2.5}
-          dot={{ r: 3, fill: 'var(--color-chart-1)' }}
-          activeDot={{ r: 5, stroke: 'var(--color-accent-marigold)', strokeWidth: 2 }}
-        />
-      </LineChart>
-    </ChartContainer>
+    <div className="h-[220px] w-full text-xs" role="img" aria-label="Weekly attendance percentage">
+      <ResponsiveContainer initialDimension={{ width: 320, height: 200 }}>
+        <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid vertical={false} stroke="var(--color-border)" strokeDasharray="3 3" />
+          <XAxis
+            dataKey="week"
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
+          />
+          <YAxis
+            domain={[0, 100]}
+            tickLine={false}
+            axisLine={false}
+            width={36}
+            tick={{ fontSize: 11, fill: 'var(--color-muted-foreground)' }}
+            unit="%"
+          />
+          <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+          <Line
+            type="monotone"
+            dataKey="attendancePct"
+            name="Attendance %"
+            stroke="var(--color-chart-1)"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: 'var(--color-chart-1)' }}
+            activeDot={{ r: 5, stroke: 'var(--color-accent-marigold)', strokeWidth: 2 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 

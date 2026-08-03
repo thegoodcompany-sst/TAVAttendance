@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, X, ArrowRight } from 'lucide-react'
 import { applyCorrection, rejectCorrection } from '@/app/actions/corrections'
-import type { PendingCorrection } from '@/lib/queries'
+import type { PendingCorrection } from '@/lib/queries/pdpa'
 
 export function CorrectionRow({ request }: { request: PendingCorrection }) {
   const router = useRouter()

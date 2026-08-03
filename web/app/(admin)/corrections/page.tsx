@@ -1,4 +1,4 @@
-import { getPendingCorrections } from '@/lib/queries'
+import { getPendingCorrections } from '@/lib/queries/pdpa'
 import { CorrectionRow } from './correction-row'
 import { PageHeader } from '@/components/dashboard/page-header'
 

@@ -4,7 +4,7 @@ import { RemoveUserButton } from './remove-button'
 import { ManageChildren } from './manage-children'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { isSuperadmin } from '@/lib/superadmin'
-import { getAllStudents } from '@/lib/queries'
+import { getAllStudents } from '@/lib/queries/students'
 import { cn } from '@/lib/utils'
 
 const ROLE_BADGE: Record<string, { label: string; className: string }> = {

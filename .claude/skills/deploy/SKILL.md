@@ -86,7 +86,7 @@ Verify:
 - HSTS, frame denial, `nosniff`, referrer, permissions and COOP headers exist;
 - an admin can sign in and load the dashboard;
 - a non-admin cannot enter the admin layout;
-- `/privacy` and `/altstore.json` remain public;
+- `/privacy` remains public;
 - invite links return to the production origin.
 
 Supabase Auth must separately allowlist:

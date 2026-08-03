@@ -1,6 +1,6 @@
 ---
 name: release
-description: Use when preparing or shipping TAVA mobile builds — version intake, Android Firebase App Distribution, iOS TestFlight/App Store Connect, the optional AltStore fallback, verification, and release-ledger updates.
+description: Use when preparing or shipping TAVA mobile builds — version intake, Android Firebase App Distribution, iOS TestFlight/App Store Connect, verification, and release-ledger updates.
 ---
 
 # TAVA mobile release
@@ -8,8 +8,7 @@ description: Use when preparing or shipping TAVA mobile builds — version intak
 | Channel | Current path | Consumer |
 |---|---|---|
 | Android | `Android/distribute.sh` → Firebase App Distribution | approved testers |
-| iOS primary | signed archive + `ExportOptionsTestFlight.plist` → App Store Connect/TestFlight | beta/review users |
-| iOS fallback | `iOS/build-ipa.sh` + GitHub `pre-release` asset + `altstore.json` | legacy AltStore installs |
+| iOS | signed archive + `ExportOptionsTestFlight.plist` → App Store Connect/TestFlight | beta/review users |
 
 The web dashboard has a separate `deploy` runbook.
 
@@ -58,7 +57,7 @@ R8-minified release APK, and uploads using `release-notes.txt` and
 `versionName`, `versionCode`, signing identity and source commit. Back up the
 keystore separately; losing it prevents updates under the same identity.
 
-## 3. iOS primary → TestFlight/App Store Connect
+## 3. iOS → TestFlight/App Store Connect
 
 The source of truth is `iOS/project.yml`. It currently selects the distribution
 profile for Release builds; `ExportOptionsTestFlight.plist` is the App Store
@@ -89,35 +88,17 @@ Store submission record. App Review credentials belong only in App Store
 Connect and the team password manager. HUMANS.md §66 requires rotation of the
 former exposed review account before release.
 
-## 4. Optional iOS AltStore fallback
-
-`iOS/build-ipa.sh` uses `ExportOptions.plist`, which is a development export.
-It is not the TestFlight path. If the fallback is deliberately requested:
-
-```bash
-cd iOS
-./build-ipa.sh
-gh release upload pre-release export-builds/TAVAttendance.ipa --clobber
-```
-
-Then prepend the new entry in `web/public/altstore.json` with exact version,
-build, date and IPA byte size. Keep the fixed `pre-release` download URL. Ship
-the JSON through the web `deploy` runbook and verify the public response. A
-development-signed fallback may expire; do not describe it as an App Store
-release.
-
-## 5. Close the release
+## 4. Close the release
 
 - Verify install/launch/sign-in on each requested channel without real student
   data in screenshots or logs.
 - Move Unreleased bullets into `## VERSION — YYYY-MM-DD`; preserve history and
   leave an empty Unreleased section.
-- Commit version files, regenerated Xcode project, release notes and
-  `altstore.json` only if that fallback was used.
+- Commit version files, regenerated Xcode project and release notes.
 - Record immutable external build/release identifiers in the handoff.
 
 ## Provenance
 
 Audited 2026-07-26 against the 1.1.1 version sources,
-`Android/distribute.sh`, both iOS export plists, `iOS/build-ipa.sh`,
-`web/public/altstore.json`, and the App Store Connect notes in `CLAUDE.md`.
+`Android/distribute.sh`, `iOS/ExportOptionsTestFlight.plist`, and the App Store
+Connect notes in `CLAUDE.md`.

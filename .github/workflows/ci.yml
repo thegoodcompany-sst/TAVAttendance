@@ -121,7 +121,7 @@ jobs:
             "configuration_version": "1"
           }
           EOF
-      - run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
+      - run: ./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
 
   ios:
     name: iOS (unit tests)

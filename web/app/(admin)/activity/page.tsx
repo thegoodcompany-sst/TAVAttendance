@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/dashboard/page-header'
-import { getAuditActors, getAuditLog, getRecentEvents } from '@/lib/queries'
+import { getAuditActors, getAuditLog, getRecentEvents } from '@/lib/queries/activity'
 import { ActivityClient } from './activity-client'
 
 export const dynamic = 'force-dynamic'

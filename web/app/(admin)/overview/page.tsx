@@ -2,7 +2,7 @@ import { AutoRefresh } from '@/components/auto-refresh'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PageHeader } from '@/components/dashboard/page-header'
-import { getTodayRoster, type StudentTodayEntry } from '@/lib/queries'
+import { getTodayRoster, type StudentTodayEntry } from '@/lib/queries/attendance'
 
 export const dynamic = 'force-dynamic'
 

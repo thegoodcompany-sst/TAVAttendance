@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
-import { getPrivacyNotice } from '@/lib/queries'
+import { getPrivacyNotice } from '@/lib/queries/pdpa'
 
 export const dynamic = 'force-dynamic'
 

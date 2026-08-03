@@ -7,7 +7,7 @@ description: Use before any production schema work, when a migration fails in pr
 
 The 2026-07-09 reconciliation repaired the historical 001–017 drift. That is
 history, not proof of current state. The repository now contains migrations
-through 053; never write “prod matches migrations” unless the current commit's
+through 055; never write “prod matches migrations” unless the current commit's
 remote drift and security gates have just passed.
 
 ## Prevention protocol
@@ -100,6 +100,6 @@ The detailed human record remains in `HUMANS.md` §§14 and 30.
 
 ## Provenance
 
-Protocol audited 2026-07-26 against migrations 001–053, the two production
+Protocol audited 2026-08-03 against migrations 001–055, the two production
 workflows, `scripts/drift-check.sh`, and `scripts/prod-security-check.sql`.
 No live production claim is embedded in this document.

@@ -18,7 +18,7 @@ stays the compact source of truth; the skills carry the runbooks.
 
 Prod Supabase (`zgikcbsxzjgbigywxbbj`) had its historical 001–017 drift
 reconciled on **2026-07-09** (HUMANS.md §14/§30). The repo now contains
-migrations through 053. Never embed a newer “prod matches” snapshot here:
+migrations through 055. Never embed a newer “prod matches” snapshot here:
 require the protected-main remote drift job and `scripts/prod-security-check.sql`
 for the exact commit. **Never edit an existing migration; every schema fix
 ships as a new numbered one**, and apply it to prod BEFORE deploying app code
@@ -201,7 +201,7 @@ manual. Manual testing checklist:
 | Platform | Command | Working directory |
 |---|---|---|
 | iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` (scheme name from `project.yml`; project is XcodeGen-managed — run `xcodegen generate` first if `.xcodeproj` is stale) | `iOS/` |
-| Android | `./gradlew testDebugUnitTest assembleDebug --no-daemon` — requires JDK 17/21 | `Android/` |
+| Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` — requires JDK 17/21 | `Android/` |
 | Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build`; deploy via the `deploy` skill | `web/` |
 | Supabase | `supabase db reset --local`, lint, then every `supabase/tests/*.sql`; production claims additionally require remote drift/security gates | repo root |
 

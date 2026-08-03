@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Award, Clock, Loader2, Check } from 'lucide-react'
 import { giveAward, type AwardType } from '@/app/actions/awards'
-import type { AwardCandidate, GivenAward } from '@/lib/queries'
+import type { AwardCandidate, GivenAward } from '@/lib/queries/awards'
 
 type Props = {
   period: string

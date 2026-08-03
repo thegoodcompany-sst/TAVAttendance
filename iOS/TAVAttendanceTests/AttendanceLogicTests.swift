@@ -304,8 +304,8 @@ final class AttendanceLogicTests: XCTestCase {
 
     // MARK: safely-home filter (migration 030, flag: push_notifications)
 
-    private func dismissal(dismissedAt: Date?, safelyHomeAt: Date?) -> Dismissal {
-        Dismissal(id: UUID(), sessionId: UUID(), studentId: UUID(),
+    private func dismissal(studentId: UUID = UUID(), dismissedAt: Date?, safelyHomeAt: Date?) -> Dismissal {
+        Dismissal(id: UUID(), sessionId: UUID(), studentId: studentId,
                   dismissedAt: dismissedAt, dismissedBy: nil, safelyHomeAt: safelyHomeAt)
     }
 
@@ -315,6 +315,14 @@ final class AttendanceLogicTests: XCTestCase {
         let noTimestamp = dismissal(dismissedAt: nil, safelyHomeAt: nil)
         let result = AttendanceService.awaitingSafelyHome([confirmed, awaiting, noTimestamp])
         XCTAssertEqual(result.map(\.id), [awaiting.id])
+    }
+
+    func testLatestDismissalWinsWhenStudentHasMultipleSessions() {
+        let studentId = UUID()
+        let earlier = dismissal(studentId: studentId, dismissedAt: at(9, 0), safelyHomeAt: nil)
+        let later = dismissal(studentId: studentId, dismissedAt: at(10, 0), safelyHomeAt: nil)
+
+        XCTAssertEqual(AttendanceService.latestDismissalsByStudent([earlier, later])[studentId]?.id, later.id)
     }
 
     func testPushNotificationsDisabledHidesDismissals() {

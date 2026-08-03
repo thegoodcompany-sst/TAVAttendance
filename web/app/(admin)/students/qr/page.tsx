@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import QRCode from 'qrcode'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { isFeatureEnabled } from '@/lib/feature-flags'
-import { getAllStudents } from '@/lib/queries'
+import { getAllStudents } from '@/lib/queries/students'
 import { PrintButton } from './print-button'
 
 export const dynamic = 'force-dynamic'

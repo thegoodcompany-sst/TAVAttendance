@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { QrCode } from 'lucide-react'
-import { getAllStudents, getStudentResults } from '@/lib/queries'
+import { getAllStudents, getStudentResults } from '@/lib/queries/students'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PageHeader } from '@/components/dashboard/page-header'

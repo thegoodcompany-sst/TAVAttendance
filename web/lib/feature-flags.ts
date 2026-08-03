@@ -8,7 +8,7 @@ export type FeatureFlagKey = 'parent_portal' | 'push_notifications' | 'student_p
  * them when a feature is ready. Fails closed: if the table can't be read, every
  * flag is treated as disabled. Request-cached so a page render hits it once.
  */
-export const getFeatureFlags = cache(async (): Promise<Record<string, boolean>> => {
+const getFeatureFlags = cache(async (): Promise<Record<string, boolean>> => {
   const supabase = await createClient()
   const { data, error } = await supabase.from('feature_flags').select('key, enabled')
   if (error || !data) return {}

@@ -17,7 +17,7 @@ against this repo; traps are listed at the point you'd hit them.
 ```bash
 # Requires the Supabase CLI (brew install supabase/tap/supabase)
 supabase start          # local Postgres + Auth + Storage + Studio
-supabase db reset --local # applies migrations 001–053 in order + seed.sql
+supabase db reset --local # applies migrations 001–055 in order + seed.sql
 ```
 
 `db reset` also creates the two private Storage buckets (`result-slips`,
@@ -45,7 +45,7 @@ Build/test from CLI **on this dev machine** (2026-07-09: requires Xcode-beta):
 cd iOS
 DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
 xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance \
-  -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO
+  -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
 ```
 
 **Traps:**
@@ -60,7 +60,7 @@ xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance \
 ```bash
 cp Android/secrets.properties.example Android/secrets.properties   # fill in values
 cd Android
-./gradlew testDebugUnitTest assembleDebug --no-daemon
+./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon
 ```
 
 **Traps:**
@@ -87,7 +87,7 @@ ecosystems). Pin matches CI (`bun-version` in `.github/workflows/ci.yml`).
 The repo pins a **non-standard Next.js (16.x)** — APIs and conventions may
 differ from your training data. Read `web/AGENTS.md` and the guides in
 `node_modules/next/dist/docs/` before writing Next-specific code. React 19,
-Tailwind 4, Base UI + shadcn.
+Tailwind 4.
 
 ## 4. Repo hygiene (once per clone)
 
@@ -102,7 +102,7 @@ delete them; never review, fix, or commit them.
 
 `.github/workflows/ci.yml` pins actions and runs redacted secret scanning; web
 audit/test/lint/build via Bun 1.3.14; Edge format/lint/type-check; Android
-tests/build on JDK 17; iOS XCTest; clean migration replay/lint and every SQL
+tests/lint/build on JDK 17; iOS XCTest; clean migration replay/lint and every SQL
 security test.
 
 ## Provenance and maintenance

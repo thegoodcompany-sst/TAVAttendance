@@ -1,5 +1,5 @@
 import { formatScheduleTime } from '@/lib/date'
-import type { SessionSummary } from '@/lib/queries'
+import type { SessionSummary } from '@/lib/queries/attendance'
 
 export function ScheduleList({ sessions }: { sessions: SessionSummary[] }) {
   if (sessions.length === 0) {

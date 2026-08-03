@@ -59,7 +59,7 @@ Never reorder 2 and 4. That exact inversion took prod down.
 
 ## Provenance and maintenance
 
-Audited 2026-07-26 (migrations 001–053; flag state remains environment-specific).
+Audited 2026-08-03 (migrations 001–055; flag state remains environment-specific).
 - Migration list: `ls supabase/migrations/`
 - Open human gates: `rg '^### ☐' HUMANS.md`
 - Flag keys: `SELECT key, enabled FROM feature_flags ORDER BY key;`

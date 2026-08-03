@@ -1,112 +1,90 @@
-# TAVA Attendance — Staff Guide
+# How we take attendance
 
-A one-page guide for trying the app. No technical knowledge needed.
-Keep this open on your phone while you set up.
+Short guide. Keep it on your phone if it helps.
 
----
+If I haven't turned a feature on, **it's not ready** — ignore it for now.
+Some things just aren't built far enough yet.
 
-## What the app is
-
-TAVA Attendance is how the centre takes attendance.
-
-- The **iPad** by the front desk is the **kiosk**. Students tap their own name to sign in.
-- **Tutors** use the app on their phone or iPad to mark their class roster.
-- **Admin staff** use the **website** to see reports and download attendance.
-
-Attendance can be queued briefly if the internet drops. Do not assume it has
-reached the server until the pending indicator clears and the dashboard agrees.
+Want a timed first try? → [`TEST_SCRIPT.md`](TEST_SCRIPT.md)
+Ready to pilot with real kids? → [`PRE_PILOT_CHECKLIST.md`](PRE_PILOT_CHECKLIST.md)
 
 ---
 
-## 1. Setting up the kiosk iPad
+## The idea
 
-<p align="center"><img src="img/01-login.png" width="520" alt="TAVA Attendance sign-in screen"></p>
+- **iPad at the front desk** = kiosk. Kids tap their own name.
+- **Tutors** mark their class on phone/iPad if the kiosk missed someone.
+- **Website** is where admin checks reports and downloads the spreadsheet.
 
-1. Open the **TAVA Attendance** app on the iPad.
-2. Sign in with the **admin account** (email + password given to you).
-
-> **Important:** the kiosk iPad must ALWAYS be signed in with an **admin** account.
-> A tutor account only sees its own classes, so the kiosk would be missing students.
-> This is a rule, not a setting — if the kiosk looks empty, check you are signed in as admin.
-
-3. Stand the iPad up at the front desk where students can reach it.
-4. Confirm the iPad has an OS passcode, current updates, and no student can
-   leave the TAVA app or view notification previews.
+If the internet drops, a mark can sit pending for a bit. **Don't trust it** until
+the little pending indicator is gone *and* the website shows the same thing.
 
 ---
 
-## 2. Students signing in (the kiosk)
+## 1. Kiosk iPad
 
-The **Sign In** tab shows a card for every student with class today.
+<p align="center"><img src="img/01-login.png" width="520" alt="Sign-in screen"></p>
 
-- **Tap a student's card** → they are signed in.
-  - Card turns **green** = **On Time**.
-  - Card turns **orange** = **Late** (they tapped after the class start time).
-- **Not Here Yet** — if a student is marked by mistake, an admin can clear the mark and return the card to grey. The student can then tap again to sign in.
+1. Open the app.
+2. Sign in with the **admin** login I gave you.
 
-Grey card = Not Here Yet. Green = on time. Orange = late.
+> **Please:** always leave the kiosk on an **admin** account.
+> Tutor logins only see their own classes, so half the kids would be missing.
+> Empty-looking kiosk? Check you're not signed in as a tutor.
 
-### Locking the kiosk (so students can't change things)
-
-- Before students use it, set a **PIN**: tap the **gear icon** → Kiosk Settings
-  → Set PIN → **Lock Kiosk Now**. Do not use the example PIN from the test
-  script in production.
-- When locked, students only see the sign-in grid. No settings, no overrides.
-- To make a change as staff: tap the **lock icon**, enter the PIN. An **ADMIN** badge appears.
-- **Admin overrides** (only when unlocked): **press and hold** a student's card to:
-  - change Late back to On Time,
-  - mark a student **Absent** (red),
-  - mark **Not Here Yet**.
-- Lock it again with the gear → **Lock Kiosk Now**.
-
-> *Screenshot of the kiosk grid is omitted here — during your trial it shows student
-> names, and we don't put names in shared documents. You'll see it live on the iPad.*
+3. Stand it where kids can reach it.
+4. iPad should have a passcode, be updated, and not let kids wander into other apps or read staff notifications.
 
 ---
 
-## 3. Tutors marking their class
+## 2. Kids signing in
 
-On the tutor's device:
+**Sign In** tab = a card per kid with class today.
 
-1. Go to **Classes** → pick your class → **Start Today's Class**.
-2. Tap each student to mark them **Present**. You'll see **"Marked HH:MM"** under their name.
-3. Tap a student's row to see their **profile and recent attendance**.
-4. **No internet?** You can mark attendance for a short interruption. A small
-   **orange dot** means the record is only pending on that signed-in device.
-   Restore the connection promptly and keep the same staff account signed in.
-   The dot must clear and the web dashboard must show the record before you
-   treat it as saved. Ended sessions, records more than seven days old, account
-   changes, or a damaged queue can reject pending work.
+- **Tap** → signed in
+  - **Green** = on time
+  - **Orange** = late (after class start time)
+- Wrong mark? Unlock with the PIN, set **Not Here Yet** (grey again). This clears the attendance row, and they can tap again.
 
-> *Screenshot of the roster is omitted here for the same privacy reason (student names).*
+Grey = not here yet. Green = on time. Orange = late.
 
----
+### Lock it when kids are around
 
-## 4. The web dashboard (admin)
-
-Open **dash.thegoodcompanysg.dev** in any browser and log in with your admin account.
-
-- **Analytics** — today's sessions, attendance over time, and students to watch.
-- **Export** — download attendance as a spreadsheet (CSV) for your records.
-
-This is where you check that what happened on the iPad shows up correctly.
-
-> *Dashboard screenshots are omitted here because they list student names.*
+- Gear → Kiosk Settings → Set PIN → **Lock Kiosk Now**
+  (use a real PIN, not something dumb from a test)
+- Locked = only the grid. No settings, no overrides.
+- Staff need to fix something → lock icon + PIN → **ADMIN** badge
+- Hold a card to: fix late → on time, mark **Absent** (red), or **Not Here Yet**
+- Lock again when you're done
 
 ---
 
-## If something goes wrong
+## 3. Tutors
 
-- Note the exact time, device, signed-in role, app version, screen and action.
-- A screenshot may contain children's personal data. Send it only through the
-  centre's approved private support channel; crop/redact unrelated names and
-  never post it in a public/shared chat.
-- If the wrong child's data appears, another account's pending records appear,
-  or a device/account may be compromised: stop syncing, do not sign in as a
-  different user, secure the device and escalate as a possible data breach.
-- For an ordinary connection failure, continue on paper if pending indicators
-  do not clear. Reconcile paper, device and dashboard before ending the shift.
-- Do not uninstall the app, clear its data, repeatedly toggle accounts, or
-  reset the device while attendance is pending.
+1. **Classes** → your class → **Start Today's Class**
+2. Tap kids **Present** — you should see a marked time under the name
+3. Tap the row for history / profile
+4. **No Wi‑Fi?** You can still mark for a short while. Orange dot = only on *this* device, not saved yet. Get online again, same account, wait for the dot to clear, then check the website before you relax. Old sessions, week-old marks, switching accounts, or a broken queue can reject pending stuff.
 
-_Operational guidance audited 2026-07-26._
+---
+
+## 4. Website (admin)
+
+**dash.thegoodcompanysg.dev** with your admin login.
+
+- **Analytics** — today, trends, kids to watch
+- **Export** — spreadsheet for records
+
+If the iPad said one thing and the site says another, believe the mismatch and sort it — don't assume.
+
+---
+
+## If something's off
+
+- Note time, device, who was signed in, what you tapped
+- Screenshots can have kids' names — private staff chat to me only, crop extras
+- Wrong kid's data, weird other-account stuff, possible compromise → stop, don't switch users, secure the device, tell me
+- Normal net flake: paper if the pending won't clear. Reconcile paper + device + site before you leave
+- Don't uninstall / clear data / hop accounts / reset while something's still pending
+
+Questions → me. Don't guess on attendance.

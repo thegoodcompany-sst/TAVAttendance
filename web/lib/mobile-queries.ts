@@ -4,6 +4,26 @@ import { createClient } from '@/lib/supabase/server'
 import { todayInTz } from '@/lib/date'
 import type { AttendanceStatus } from '@/lib/status'
 
+type MobileProfile = {
+  role: string
+  fullName: string
+}
+
+export const getMobileProfile = cache(async (): Promise<MobileProfile | null> => {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role, full_name')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (error) throw new Error(`getMobileProfile: ${error.message}`)
+  if (!data) return null
+  return { role: data.role, fullName: data.full_name }
+})
+
 export type MobileClass = {
   id: string
   name: string
@@ -35,12 +55,8 @@ export type MobileRosterEntry = {
   lateReason: string | null
 }
 
-export const getMobileClasses = cache(async (): Promise<MobileClass[]> => {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .rpc('get_my_classes')
-  if (error) throw new Error(`getMobileClasses: ${error.message}`)
-  return (data ?? []).map((row: any) => ({
+function mobileClass(row: any): MobileClass {
+  return {
     id: row.id,
     name: row.name,
     subject: row.subject,
@@ -52,13 +68,21 @@ export const getMobileClasses = cache(async (): Promise<MobileClass[]> => {
     recurrenceEndDate: row.recurrence_end_date,
     canManageSessions: row.can_manage_sessions === true,
     canOperateTodaySession: row.can_operate_today_session === true,
-  }))
+  }
+}
+
+export const getMobileClasses = cache(async (): Promise<MobileClass[]> => {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .rpc('get_my_classes')
+  if (error) throw new Error(`getMobileClasses: ${error.message}`)
+  return (data ?? []).map(mobileClass)
 })
 
 export async function getMobileClass(classId: string): Promise<{ classInfo: MobileClass; sessions: MobileSession[] } | null> {
   const supabase = await createClient()
-  const [{ data: classes, error: classError }, { data: sessions, error: sessionError }] = await Promise.all([
-    supabase.rpc('get_my_classes'),
+  const [classes, { data: sessions, error: sessionError }] = await Promise.all([
+    getMobileClasses(),
     supabase
       .from('sessions')
       .select('id, class_id, session_date, notes, started_at, ended_at')
@@ -66,24 +90,11 @@ export async function getMobileClass(classId: string): Promise<{ classInfo: Mobi
       .order('session_date', { ascending: false })
       .limit(24),
   ])
-  if (classError) throw new Error(`getMobileClass: ${classError.message}`)
   if (sessionError) throw new Error(`getMobileClass sessions: ${sessionError.message}`)
-  const cls = (classes ?? []).find((row: any) => row.id === classId)
+  const cls = classes.find(row => row.id === classId)
   if (!cls) return null
   return {
-    classInfo: {
-      id: cls.id,
-      name: cls.name,
-      subject: cls.subject,
-      level: cls.level,
-      scheduleDay: cls.schedule_day,
-      scheduleTime: cls.schedule_time,
-      durationMinutes: cls.duration_minutes,
-      recurrenceRule: cls.recurrence_rule,
-      recurrenceEndDate: cls.recurrence_end_date,
-      canManageSessions: cls.can_manage_sessions === true,
-      canOperateTodaySession: cls.can_operate_today_session === true,
-    },
+    classInfo: cls,
     sessions: (sessions ?? []).map((row: any) => ({
       id: row.id,
       classId: row.class_id,
@@ -104,13 +115,12 @@ export async function getMobileSession(sessionId: string): Promise<{ session: Mo
     .maybeSingle()
   if (error) throw new Error(`getMobileSession: ${error.message}`)
   if (!session) return null
-  const [{ data: classes, error: classError }, { data: roster, error: rosterError }] = await Promise.all([
-    supabase.rpc('get_my_classes'),
+  const [classes, { data: roster, error: rosterError }] = await Promise.all([
+    getMobileClasses(),
     supabase.rpc('get_session_roster', { p_session_id: sessionId }),
   ])
-  if (classError) throw new Error(`getMobileSession class: ${classError.message}`)
   if (rosterError) throw new Error(`getMobileSession roster: ${rosterError.message}`)
-  const cls = (classes ?? []).find((row: any) => row.id === session.class_id)
+  const cls = classes.find(row => row.id === session.class_id)
   if (!cls) return null
   return {
     session: {
@@ -121,19 +131,7 @@ export async function getMobileSession(sessionId: string): Promise<{ session: Mo
       startedAt: session.started_at,
       endedAt: session.ended_at,
     },
-    classInfo: {
-      id: cls.id,
-      name: cls.name,
-      subject: cls.subject,
-      level: cls.level,
-      scheduleDay: cls.schedule_day,
-      scheduleTime: cls.schedule_time,
-      durationMinutes: cls.duration_minutes,
-      recurrenceRule: cls.recurrence_rule,
-      recurrenceEndDate: cls.recurrence_end_date,
-      canManageSessions: cls.can_manage_sessions === true,
-      canOperateTodaySession: cls.can_operate_today_session === true,
-    },
+    classInfo: cls,
     roster: (roster ?? []).map((row: any) => ({
       studentId: row.student_id,
       fullName: row.full_name,
@@ -165,17 +163,18 @@ export type KioskEntry = MobileRosterEntry & {
 
 export async function getMobileSignInEntries(): Promise<KioskEntry[]> {
   const supabase = await createClient()
-  const [{ data: sessions, error }, { data: classes, error: classError }] = await Promise.all([
+  const [{ data: sessions, error }, classes] = await Promise.all([
     supabase
       .from('sessions')
       .select('id, class_id')
       .eq('session_date', todayInTz()),
-    supabase.rpc('get_my_classes'),
+    getMobileClasses(),
   ])
   if (error) throw new Error(`getMobileSignInEntries: ${error.message}`)
-  if (classError) throw new Error(`getMobileSignInEntries classes: ${classError.message}`)
   const classNames = new Map<string, string>(
-    (classes ?? []).map((cls: { id: string; name: string }): [string, string] => [cls.id, cls.name])
+    classes
+      .filter(cls => cls.canOperateTodaySession)
+      .map(cls => [cls.id, cls.name])
   )
 
   const merged = new Map<string, KioskEntry>()

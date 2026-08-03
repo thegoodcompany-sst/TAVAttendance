@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
-import { getStudent, getStudentClassSummary, getStudentRecentRecords, getStudentResults } from '@/lib/queries'
+import { getMobileProfile } from '@/lib/mobile-queries'
+import { getStudent, getStudentClassSummary, getStudentRecentRecords, getStudentResults } from '@/lib/queries/students'
 import { statusLabel, statusColor } from '@/lib/status'
 import { StudentDetailActions } from '@/components/mobile/student-detail-actions'
 
@@ -10,10 +10,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function MobileStudentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const [{ data: profile }, student, summaries, records, results] = await Promise.all([
-    supabase.from('profiles').select('role').eq('id', user!.id).single(),
+  const [profile, student, summaries, records, results] = await Promise.all([
+    getMobileProfile(),
     getStudent(id),
     getStudentClassSummary(id),
     getStudentRecentRecords(id),

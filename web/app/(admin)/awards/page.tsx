@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { PageHeader } from '@/components/dashboard/page-header'
 import { isFeatureEnabled } from '@/lib/feature-flags'
-import { getAwardCandidates, getAwardsForPeriod } from '@/lib/queries'
+import { getAwardCandidates, getAwardsForPeriod } from '@/lib/queries/awards'
 import { todayInTz } from '@/lib/date'
 import { AwardsClient } from './awards-client'
 

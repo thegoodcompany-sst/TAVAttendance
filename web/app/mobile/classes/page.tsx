@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { CalendarDays, ChevronRight, Clock3, Plus } from 'lucide-react'
-import { getMobileClasses } from '@/lib/mobile-queries'
-import { createClient } from '@/lib/supabase/server'
+import { getMobileClasses, getMobileProfile } from '@/lib/mobile-queries'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,11 +12,9 @@ function displayTime(value: string | null) {
 }
 
 export default async function MobileClassesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const [classes, { data: profile }] = await Promise.all([
+  const [classes, profile] = await Promise.all([
     getMobileClasses(),
-    supabase.from('profiles').select('role').eq('id', user!.id).single(),
+    getMobileProfile(),
   ])
   return (
     <div className="space-y-5">

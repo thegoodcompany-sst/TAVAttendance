@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ChevronRight, Search, X } from 'lucide-react'
-import type { StudentRow, StudentResult } from '@/lib/queries'
+import type { StudentRow, StudentResult } from '@/lib/queries/students'
 
 export function MobileStudentList({ students, results }: { students: StudentRow[]; results: StudentResult[] }) {
   const [query, setQuery] = useState('')

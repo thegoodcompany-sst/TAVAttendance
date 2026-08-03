@@ -1,6 +1,6 @@
 'use client'
 
-import type { DailyAttendancePoint } from '@/lib/queries'
+import type { DailyAttendancePoint } from '@/lib/queries/analytics'
 import { cn } from '@/lib/utils'
 
 /**

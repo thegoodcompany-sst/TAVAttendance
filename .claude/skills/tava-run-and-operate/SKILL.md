@@ -22,8 +22,7 @@ claiming a result.
 - Web: use `.claude/skills/deploy/SKILL.md`; it includes dependency, drift,
   security-header and post-deploy gates.
 - Android: Firebase App Distribution through `Android/distribute.sh`.
-- iOS: TestFlight/App Store Connect is primary; AltStore is an explicit legacy
-  fallback. Use the `release` runbook.
+- iOS: TestFlight/App Store Connect through the `release` runbook.
 
 Any migration a client requires must be verified in production before that
 client is shipped.

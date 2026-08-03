@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
-import type { AuditActor, AuditLogEntry, RecentAppEvent } from '@/lib/queries'
+import type { AuditActor, AuditLogEntry, RecentAppEvent } from '@/lib/queries/activity'
 import { cn } from '@/lib/utils'
 
 const ACTION_COLOR = {
