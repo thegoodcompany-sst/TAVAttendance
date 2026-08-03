@@ -4,6 +4,9 @@ Things that cannot be derived by reading the codebase. Read this before writing 
 
 ---
 
+## Other notes
+always push to main, not a branch + pr, unless specified.
+
 ## Skill library (start here)
 
 `.claude/skills/tava-*` (13 skills, audited 2026-07-26) is the expanded, task-routed version
@@ -12,7 +15,7 @@ of this file — load the matching skill before working: `tava-change-control` (
 the top open problem), `tava-failure-archaeology` (before proposing a fix), plus references for
 architecture, Supabase, PDPA, config/flags, build, operations, QA, docs, and roadmap. The
 `deploy` and `release` skills carry the production delivery runbooks. This file
-stays the compact source of truth; the skills carry the runbooks.
+stays the compact source of truth; the skills carry the runbooks. The if the runbooks stop specific things from working, let the user know, and the user may give you permission to rewrite or bypass some of the instructions in the runbook.
 
 ## Migrations
 
@@ -118,12 +121,6 @@ When a student is enrolled in more than one class today, `KioskEntry.status` is 
 
 ---
 
-## Dead code
-
-`KioskView.swift` — a single-class kiosk view — was removed (it was not wired to any navigation path and predated the global kiosk). If a per-class kiosk mode is needed later, it can be recreated from `GlobalKioskView.swift` as a reference.
-
----
-
 ## Phase 2/3 tables
 
 These tables exist in Postgres and have RLS enabled (admin-only until implemented):
@@ -211,7 +208,7 @@ pre-existing local keychain issue, not a code problem — do not try to "fix" it
 
 ## Release change ledger
 
-`RELEASE_NOTES.md` is the staging area for changes between mobile releases.
+`RELEASE_NOTES.md` is the staging area for changes between releases.
 Every completed product, behaviour, schema, security, operational, test, or
 release-process change must add a concise bullet under `Unreleased` in the same
 change set. Do not rely only on memory or commit subjects. The `release` skill
