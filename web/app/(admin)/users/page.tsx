@@ -82,7 +82,7 @@ export default async function UsersPage() {
                       Joined
                     </th>
                     <th className="bg-muted/70 px-5 py-3 text-right text-[0.7rem] font-bold uppercase tracking-wide text-muted-foreground">
-                      {/* actions */}
+                      Actions
                     </th>
                   </tr>
                 </thead>

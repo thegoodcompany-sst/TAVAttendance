@@ -53,11 +53,14 @@ export function RemoveUserButton({ userId, name }: { userId: string; name: strin
 
   return (
     <button
+      type="button"
       onClick={() => setConfirming(true)}
-      className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/8 transition-colors opacity-0 group-hover:opacity-100"
+      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/8 transition-colors"
       title={`Remove ${name}`}
+      aria-label={`Remove ${name}`}
     >
       <Trash2 size={14} />
+      <span>Remove</span>
     </button>
   )
 }

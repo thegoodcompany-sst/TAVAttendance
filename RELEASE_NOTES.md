@@ -5,6 +5,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Restored the web Users “Remove” action after the table redesign hid it
+  (hover-only control with no `group` parent).
 - Web admin dashboard visual pass aligned to `docs/drafts/web-dashboard-ui.html`:
   exact navy/marigold/cream hex palette, cream surface shell, sidebar
   squircle/expand motion, draft status badges (On time / Unsigned), Today
