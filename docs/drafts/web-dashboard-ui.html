@@ -267,7 +267,7 @@
   .badge-present { background: var(--emerald-bg); color: var(--emerald); border-color: var(--emerald-border); }
   .badge-late { background: var(--amber-bg); color: var(--amber); border-color: var(--amber-border); }
   .badge-absent { background: var(--rose-bg); color: var(--rose); border-color: var(--rose-border); }
-  .badge-excused { background: var(--slate-bg); color: var(--slate); border-color: #E2E8F0; }
+  .badge-parent { background: var(--slate-bg); color: var(--slate); border-color: #E2E8F0; }
   .badge-none { background: #F8FAFC; color: #64748B; border-color: #E2E8F0; }
   .badge-admin { background: var(--brand-soft); color: var(--brand); border-color: #C5D2EA; }
   .today-header {
@@ -711,7 +711,7 @@
               <div class="class-tile">
                 <div>
                   <p class="title mb-0" style="font-size:0.875rem;font-weight:700">S1 Reading</p>
-                  <p class="meta">Starts 19:00 · 6 present · 1 not here</p>
+                  <p class="meta">Starts 19:00 · 6 present · 1 not here yet</p>
                   <div class="progress"><span style="width:86%"></span></div>
                 </div>
                 <p class="count mono" style="font-weight:600;color:var(--brand-ink)">86%</p>
@@ -747,26 +747,18 @@
             </div>
             <div class="card col-card">
               <div class="col-card-head"><h3 class="muted">Not here yet</h3><span class="count-pill">3</span></div>
-              <div class="student-row"><div class="avatar sm" style="background:var(--muted);color:var(--muted-fg)">ZY</div><div class="info"><p class="name">Zara Yong</p><p class="cls">S1 Reading</p></div><span class="badge badge-none">Unsigned</span></div>
-              <div class="student-row"><div class="avatar sm" style="background:var(--muted);color:var(--muted-fg)">DO</div><div class="info"><p class="name">Dylan Ong</p><p class="cls">P4 Math</p></div><span class="badge badge-none">Unsigned</span></div>
-              <div class="student-row"><div class="avatar sm" style="background:var(--muted);color:var(--muted-fg)">IT</div><div class="info"><p class="name">Isabelle Teo</p><p class="cls">P5 English</p></div><span class="badge badge-none">Unsigned</span></div>
+              <div class="student-row"><div class="avatar sm" style="background:var(--muted);color:var(--muted-fg)">ZY</div><div class="info"><p class="name">Zara Yong</p><p class="cls">S1 Reading</p></div><span class="badge badge-none">Not here yet</span></div>
+              <div class="student-row"><div class="avatar sm" style="background:var(--muted);color:var(--muted-fg)">DO</div><div class="info"><p class="name">Dylan Ong</p><p class="cls">P4 Math</p></div><span class="badge badge-none">Not here yet</span></div>
+              <div class="student-row"><div class="avatar sm" style="background:var(--muted);color:var(--muted-fg)">IT</div><div class="info"><p class="name">Isabelle Teo</p><p class="cls">P5 English</p></div><span class="badge badge-none">Not here yet</span></div>
             </div>
           </div>
-          <div class="cols-2">
+          <div>
             <div>
               <p class="section-label rose">Absent · 1</p>
               <div class="card student-row" style="padding:1rem">
                 <div class="avatar sm" style="background:var(--rose-bg);color:var(--rose)">BK</div>
                 <div class="info"><p class="name">Ben Koh</p><p class="cls">P4 Math</p></div>
                 <span class="badge badge-absent">Absent</span>
-              </div>
-            </div>
-            <div>
-              <p class="section-label slate">Excused · 1</p>
-              <div class="card student-row" style="padding:1rem">
-                <div class="avatar sm" style="background:#e2e8f0;color:#475569">CL</div>
-                <div class="info"><p class="name">Chloe Lim</p><p class="cls">P5 English · medical</p></div>
-                <span class="badge badge-excused">Excused</span>
               </div>
             </div>
           </div>
@@ -936,7 +928,7 @@
                     <tr><td class="font-bold">Wayne Tan</td><td><span class="badge badge-admin">Admin</span></td><td class="muted">wayne@…</td><td class="tright text-xs muted font-bold">You</td></tr>
                     <tr><td class="font-bold">Sarah Lim</td><td><span class="badge badge-present">Tutor</span></td><td class="muted">sarah@…</td><td class="tright"><button type="button" class="linkish">Manage</button></td></tr>
                     <tr><td class="font-bold">David Ng</td><td><span class="badge badge-present">Tutor</span></td><td class="muted">david@…</td><td class="tright"><button type="button" class="linkish">Manage</button></td></tr>
-                    <tr><td class="font-bold">Mrs Lim</td><td><span class="badge badge-excused">Parent</span></td><td class="muted">parent.lim@…</td><td class="tright"><button type="button" class="linkish">Children</button></td></tr>
+                    <tr><td class="font-bold">Mrs Lim</td><td><span class="badge badge-parent">Parent</span></td><td class="muted">parent.lim@…</td><td class="tright"><button type="button" class="linkish">Children</button></td></tr>
                   </tbody>
                 </table>
               </div>

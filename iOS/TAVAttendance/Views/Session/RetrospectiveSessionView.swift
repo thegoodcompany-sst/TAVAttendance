@@ -157,7 +157,7 @@ struct HistoricalSessionEditorView: View {
                                     Text(entry.fullName)
                                     Spacer()
                                     Picker("Status", selection: statusBinding(for: entry)) {
-                                        Text("Unmarked").tag(nil as AttendanceStatus?)
+                                        Text("Not Here Yet").tag(nil as AttendanceStatus?)
                                         ForEach(AttendanceStatus.allCases, id: \.self) { status in
                                             Text(statusLabel(status)).tag(status as AttendanceStatus?)
                                         }
@@ -207,7 +207,6 @@ struct HistoricalSessionEditorView: View {
         Binding(
             get: { roster.first(where: { $0.id == entry.id })?.status },
             set: { status in
-                guard let status else { return }
                 Task { await mark(studentId: entry.studentId, status: status, isAdded: false) }
             })
     }
@@ -245,7 +244,7 @@ struct HistoricalSessionEditorView: View {
         }
     }
 
-    private func mark(studentId: UUID, status: AttendanceStatus, isAdded: Bool) async {
+    private func mark(studentId: UUID, status: AttendanceStatus?, isAdded: Bool) async {
         guard network.isConnected else {
             error = AppError("Historical attendance changes require an internet connection.")
             return
@@ -256,7 +255,7 @@ struct HistoricalSessionEditorView: View {
             roster = try await AttendanceService.shared.fetchRetrospectiveRoster(sessionId: session.id)
             Analytics.shared.track(.ops,
                 name: isAdded ? "retrospective_student_added" : "retrospective_attendance_corrected",
-                properties: ["screen": .string("historical_editor"), "status": .string(status.rawValue)])
+                properties: ["screen": .string("historical_editor"), "status": .string(status?.rawValue ?? "unmarked")])
         } catch {
             self.error = AppError("Could not update historical attendance.", underlyingError: error)
         }
@@ -267,7 +266,6 @@ struct HistoricalSessionEditorView: View {
         case .present: return "Present"
         case .late: return "Late"
         case .absent: return "Absent"
-        case .excused: return "Excused"
         }
     }
 }

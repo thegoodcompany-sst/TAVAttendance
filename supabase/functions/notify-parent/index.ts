@@ -24,7 +24,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2.109.0";
 
 interface Payload {
   student_id: string;
-  status: "present" | "late" | "absent" | "excused" | "dismissed";
+  status: "present" | "late" | "absent" | "dismissed";
   session_id?: string;
   dismissal_id?: string;
 }

@@ -37,7 +37,6 @@ export type ParentClassSummary = {
   presentCount: number
   lateCount: number
   absentCount: number
-  excusedCount: number
   attendancePct: number | null
 }
 
@@ -57,7 +56,6 @@ export async function getParentStudentClassSummary(
     present_count: number
     late_count: number
     absent_count: number
-    excused_count: number
     attendance_pct: number | null
   }) => ({
     classId: row.class_id,
@@ -66,7 +64,6 @@ export async function getParentStudentClassSummary(
     presentCount: row.present_count,
     lateCount: row.late_count,
     absentCount: row.absent_count,
-    excusedCount: row.excused_count,
     attendancePct: row.attendance_pct,
   }))
 }

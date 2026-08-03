@@ -103,12 +103,16 @@ fun StudySpaceScreen(onDismiss: () -> Unit) {
                             val s = session
                             if (s != null) {
                                 val newStatus =
-                                    if (entry.status == AttendanceStatus.present) AttendanceStatus.excused
+                                    if (entry.status == AttendanceStatus.present) null
                                     else AttendanceStatus.present
                                 pendingIds = pendingIds + entry.studentId
                                 scope.launch {
                                     runCatching {
-                                        AttendanceService.markAttendance(s.id, entry.studentId, newStatus)
+                                        if (newStatus == null) {
+                                            AttendanceService.clearAttendance(s.id, entry.studentId)
+                                        } else {
+                                            AttendanceService.markAttendance(s.id, entry.studentId, newStatus)
+                                        }
                                     }.onSuccess {
                                         roster = roster.map {
                                             if (it.studentId == entry.studentId) it.copy(status = newStatus) else it

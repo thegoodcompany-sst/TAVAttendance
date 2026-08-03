@@ -1,6 +1,37 @@
 import Foundation
 import Supabase
 
+struct SyncAttendancePayload: Encodable {
+    let sessionId: UUID
+    let studentId: UUID
+    let status: AttendanceStatus?
+    let notes: String
+    let clientMutationId: String
+    let markedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case status, notes
+        case sessionId = "session_id"
+        case studentId = "student_id"
+        case clientMutationId = "client_mutation_id"
+        case markedAt = "marked_at"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sessionId, forKey: .sessionId)
+        try container.encode(studentId, forKey: .studentId)
+        if let status {
+            try container.encode(status, forKey: .status)
+        } else {
+            try container.encodeNil(forKey: .status)
+        }
+        try container.encode(notes, forKey: .notes)
+        try container.encode(clientMutationId, forKey: .clientMutationId)
+        try container.encode(markedAt, forKey: .markedAt)
+    }
+}
+
 extension AttendanceService {
     // MARK: - Sessions
 
@@ -131,21 +162,32 @@ extension AttendanceService {
     }
 
     func markRetrospectiveAttendance(
-        sessionId: UUID, studentId: UUID, status: AttendanceStatus
+        sessionId: UUID, studentId: UUID, status: AttendanceStatus?
     ) async throws {
         struct Params: Encodable {
             let sessionId: UUID
             let studentId: UUID
-            let status: String
+            let status: String?
             enum CodingKeys: String, CodingKey {
                 case status
                 case sessionId = "session_id"
                 case studentId = "student_id"
             }
+
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(sessionId, forKey: .sessionId)
+                try container.encode(studentId, forKey: .studentId)
+                if let status {
+                    try container.encode(status, forKey: .status)
+                } else {
+                    try container.encodeNil(forKey: .status)
+                }
+            }
         }
         try await db.rpc(
             "mark_retrospective_attendance",
-            params: Params(sessionId: sessionId, studentId: studentId, status: status.rawValue)
+            params: Params(sessionId: sessionId, studentId: studentId, status: status?.rawValue)
         ).execute()
     }
 
@@ -155,6 +197,23 @@ extension AttendanceService {
             notes: notes, lateReason: lateReason, clientMutationId: UUID().uuidString)
         try await db.from("attendance_records")
             .upsert(record, onConflict: "session_id,student_id").execute()
+    }
+
+    func clearAttendance(sessionId: UUID, studentId: UUID, clientMutationId: String = UUID().uuidString) async throws {
+        struct Params: Encodable {
+            let sessionId: UUID
+            let studentId: UUID
+            let clientMutationId: String
+            enum CodingKeys: String, CodingKey {
+                case sessionId = "p_session_id"
+                case studentId = "p_student_id"
+                case clientMutationId = "p_client_mutation_id"
+            }
+        }
+        try await db.rpc(
+            "clear_attendance",
+            params: Params(sessionId: sessionId, studentId: studentId, clientMutationId: clientMutationId)
+        ).execute()
     }
 
     func fetchStudentAttendanceHistory(studentId: UUID, limit: Int = 100, since: Date? = nil) async throws -> [AttendanceHistoryRecord] {
@@ -196,11 +255,15 @@ extension AttendanceService {
         ) else {
             throw AppError("Pending attendance belongs to a different account.")
         }
-        let payload = records.map { r -> [String: String] in
-            ["session_id": r.sessionId.uuidString, "student_id": r.studentId.uuidString,
-             "status": r.status.rawValue, "notes": r.notes ?? "",
-             "client_mutation_id": r.clientMutationId,
-             "marked_at": ISO8601DateFormatter().string(from: r.markedAt)]
+        let payload = records.map { r in
+            SyncAttendancePayload(
+                sessionId: r.sessionId,
+                studentId: r.studentId,
+                status: r.status,
+                notes: r.notes ?? "",
+                clientMutationId: r.clientMutationId,
+                markedAt: ISO8601DateFormatter().string(from: r.markedAt)
+            )
         }
         // Decode all three counters (migration 013 + 016). skipped (newer server row
         // won) and blocked_ended_session (session already ended) are both TERMINAL —
@@ -225,7 +288,7 @@ extension AttendanceService {
             .execute().value
         return rows.first ?? PunctualitySummary(
             presentCount: 0, lateCount: 0, absentCount: 0,
-            excusedCount: 0, totalCount: 0, onTimeRate: nil)
+            totalCount: 0, onTimeRate: nil)
     }
 
     // MARK: - Substitution (#16)

@@ -1,13 +1,12 @@
 import Foundation
 import AppIntents
 
-/// App Intents-facing enum for attendance status. Mirrors `AttendanceStatus` but uses
-/// the kiosk's user-facing labels ("On Time", "Not Here") so spoken phrases feel natural.
+/// App Intents-facing choices, including clearing a mark back to Not Here Yet.
 enum AttendanceStatusAppEnum: String, AppEnum {
     case present
     case late
     case absent
-    case excused
+    case notHereYet
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Attendance Status"
 
@@ -15,16 +14,16 @@ enum AttendanceStatusAppEnum: String, AppEnum {
         .present: "On Time",
         .late:    "Late",
         .absent:  "Absent",
-        .excused: "Not Here",
+        .notHereYet: "Not Here Yet",
     ]
 
     /// Bridge to the domain model used by `AttendanceService`.
-    var status: AttendanceStatus {
+    var status: AttendanceStatus? {
         switch self {
         case .present: return .present
         case .late:    return .late
         case .absent:  return .absent
-        case .excused: return .excused
+        case .notHereYet: return nil
         }
     }
 }

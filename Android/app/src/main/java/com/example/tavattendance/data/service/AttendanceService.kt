@@ -118,9 +118,12 @@ object AttendanceService {
     suspend fun markRetrospectiveAttendance(
         sessionId: String,
         studentId: String,
-        status: AttendanceStatus
+        status: AttendanceStatus?
     ) =
         SessionAttendanceDataSource.markRetrospectiveAttendance(sessionId, studentId, status)
+
+    suspend fun clearAttendance(sessionId: String, studentId: String) =
+        SessionAttendanceDataSource.clearAttendance(sessionId, studentId)
 
     suspend fun markAttendance(
         sessionId: String, studentId: String, status: AttendanceStatus, notes: String? = null
@@ -142,11 +145,24 @@ object AttendanceService {
     fun classMeetsToday(cls: TAVClass, weekday: String): Boolean =
         KioskAttendanceDataSource.classMeetsToday(cls, weekday)
 
+    fun shouldShowKioskClass(
+        canOperateTodaySession: Boolean,
+        meetsToday: Boolean,
+        testMode: Boolean,
+    ): Boolean = KioskAttendanceDataSource.shouldShowKioskClass(
+        canOperateTodaySession,
+        meetsToday,
+        testMode,
+    )
+
     suspend fun loadStudySpace(): Pair<Session, List<RosterEntry>> =
         KioskAttendanceDataSource.loadStudySpace()
 
     suspend fun markKioskAttendance(entry: KioskEntry, status: AttendanceStatus) =
         KioskAttendanceDataSource.markKioskAttendance(entry, status)
+
+    suspend fun clearKioskAttendance(entry: KioskEntry) =
+        KioskAttendanceDataSource.clearKioskAttendance(entry)
 
     suspend fun markKioskSignIn(entry: KioskEntry) =
         KioskAttendanceDataSource.markKioskSignIn(entry)

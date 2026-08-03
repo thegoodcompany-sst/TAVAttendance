@@ -22,9 +22,8 @@ export default async function AnalyticsPage() {
     getWeeklyAttendanceTrend(),
   ])
 
-  // attended = present + late + excused, matching the attendance_summary view.
-  const attendedOf = (r: { presentCount: number; lateCount: number; excusedCount: number }) =>
-    r.presentCount + r.lateCount + r.excusedCount
+  const attendedOf = (r: { presentCount: number; lateCount: number }) =>
+    r.presentCount + r.lateCount
 
   const classMap = new Map<string, { className: string; total: number; attended: number; students: number }>()
   const studentMap = new Map<string, { studentName: string; total: number; attended: number; classes: number }>()
@@ -82,7 +81,7 @@ export default async function AnalyticsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="bg-white rounded-[1.25rem] p-5 shadow-card min-w-0">
           <h2 className="font-display text-[1.1rem] font-semibold text-brand-ink mb-1">By class</h2>
-          <p className="text-xs text-muted-foreground mb-4">Attendance % · present, late or excused</p>
+          <p className="text-xs text-muted-foreground mb-4">Attendance % · present or late</p>
           {classes.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-12">No attendance recorded yet.</p>
           ) : (

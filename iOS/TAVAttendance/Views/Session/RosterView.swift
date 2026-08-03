@@ -21,6 +21,7 @@ struct RosterView: View {
 
     // Track optimistic status updates and mark times locally for instant UI feedback
     @State private var localStatus: [UUID: AttendanceStatus] = [:]
+    @State private var locallyCleared: Set<UUID> = []
     @State private var localMarkedAt: [UUID: Date] = [:]
     @State private var selectedStudent: RosterEntry? = nil
 
@@ -116,7 +117,7 @@ struct RosterView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("\(unmarkedEntries.count) student\(unmarkedEntries.count == 1 ? "" : "s") have no status yet. Mark them all as Absent?")
+            Text("\(unmarkedEntries.count) student\(unmarkedEntries.count == 1 ? " is" : "s are") Not Here Yet. Mark them all as Absent?")
         }
         .confirmationDialog("End Class", isPresented: $showEndClassConfirm, titleVisibility: .visible) {
             Button("End Class", role: .destructive) {
@@ -207,6 +208,7 @@ struct RosterView: View {
                 ForEach(AttendanceStatus.allCases, id: \.self) { status in
                     statusButton(status: status, entry: entry)
                 }
+                clearButton(entry: entry)
             }
         }
         .padding(.vertical, 6)
@@ -243,6 +245,24 @@ struct RosterView: View {
         .accessibilityLabel("Mark as \(fullLabel(for: status))")
     }
 
+    private func clearButton(entry: RosterEntry) -> some View {
+        let isSelected = effectiveStatus(for: entry) == nil
+        return Button {
+            guard session.endedAt == nil else { return }
+            Task { await clearAttendance(entry: entry) }
+        } label: {
+            Text("N")
+                .font(.subheadline.weight(.semibold))
+                .frame(width: 44, height: 36)
+                .foregroundStyle(isSelected ? .white : .gray)
+                .background(isSelected ? Color.gray : Color.gray.opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(session.endedAt != nil || isSaving)
+        .accessibilityLabel("Not Here Yet")
+    }
+
     // MARK: - Computed helpers
 
     private var currentOwnerUserId: UUID? {
@@ -270,6 +290,7 @@ struct RosterView: View {
 
     private func effectiveStatus(for entry: RosterEntry) -> AttendanceStatus? {
         // 1. Optimistic local override (set during this session)
+        if locallyCleared.contains(entry.studentId) { return nil }
         if let local = localStatus[entry.studentId] {
             return local
         }
@@ -285,6 +306,10 @@ struct RosterView: View {
     }
 
     private func effectiveMarkedAt(for entry: RosterEntry) -> Date? {
+        if locallyCleared.contains(entry.studentId) { return nil }
+        if let pending = pendingForCurrentUser.first(where: {
+            $0.studentId == entry.studentId && $0.sessionId == session.id
+        }), pending.status == nil { return nil }
         if let local = localMarkedAt[entry.studentId] { return local }
         return entry.markedAt
     }
@@ -328,6 +353,7 @@ struct RosterView: View {
         if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
             roster = updated
             localStatus.removeAll()
+            locallyCleared.removeAll()
             localMarkedAt.removeAll()
         }
     }
@@ -344,6 +370,7 @@ struct RosterView: View {
             return
         }
         // Optimistic update
+        locallyCleared.remove(entry.studentId)
         localStatus[entry.studentId] = status
         localMarkedAt[entry.studentId] = Date()
 
@@ -378,10 +405,36 @@ struct RosterView: View {
         }
     }
 
+    private func clearAttendance(entry: RosterEntry) async {
+        guard let ownerUserId = currentOwnerUserId else {
+            self.error = AppError("Your session changed. Sign in again before clearing attendance.")
+            return
+        }
+        localStatus.removeValue(forKey: entry.studentId)
+        localMarkedAt.removeValue(forKey: entry.studentId)
+        locallyCleared.insert(entry.studentId)
+
+        if network.isConnected {
+            do {
+                try await AttendanceService.shared.clearAttendance(
+                    sessionId: session.id, studentId: entry.studentId)
+            } catch {
+                if error is URLError {
+                    queuePending(ownerUserId: ownerUserId, entry: entry, status: nil)
+                } else {
+                    locallyCleared.remove(entry.studentId)
+                    self.error = AppError("Could not clear attendance", underlyingError: error)
+                }
+            }
+        } else {
+            queuePending(ownerUserId: ownerUserId, entry: entry, status: nil)
+        }
+    }
+
     private func queuePending(
         ownerUserId: UUID,
         entry: RosterEntry,
-        status: AttendanceStatus
+        status: AttendanceStatus?
     ) {
         let queued = currentOwnerUserId == ownerUserId && pendingStore.add(
             ownerUserId: ownerUserId,
@@ -392,6 +445,7 @@ struct RosterView: View {
         )
         guard queued else {
             localStatus.removeValue(forKey: entry.studentId)
+            locallyCleared.remove(entry.studentId)
             localMarkedAt.removeValue(forKey: entry.studentId)
             self.error = AppError(
                 "Attendance was not queued because the signed-in account changed. Please retry."
@@ -431,6 +485,7 @@ struct RosterView: View {
             roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             for record in unsynced {
                 localStatus.removeValue(forKey: record.studentId)
+                locallyCleared.remove(record.studentId)
                 localMarkedAt.removeValue(forKey: record.studentId)
             }
         } catch {
@@ -456,7 +511,6 @@ struct RosterView: View {
         case .present: return .green
         case .absent:  return .red
         case .late:    return .orange
-        case .excused: return .gray
         }
     }
 
@@ -465,7 +519,6 @@ struct RosterView: View {
         case .present: return "P"
         case .absent:  return "A"
         case .late:    return "L"
-        case .excused: return "E"
         }
     }
 
@@ -474,7 +527,6 @@ struct RosterView: View {
         case .present: return "Present"
         case .absent:  return "Absent"
         case .late:    return "Late"
-        case .excused: return "Excused"
         }
     }
 }

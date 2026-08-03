@@ -76,7 +76,6 @@ export type AttendanceSummaryRow = {
   presentCount: number
   lateCount: number
   absentCount: number
-  excusedCount: number
   attendancePct: number | null
 }
 
@@ -89,7 +88,7 @@ export const getAttendanceSummary = cache(async (): Promise<AttendanceSummaryRow
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('attendance_summary')
-    .select('student_id, student_name, class_id, class_name, total_sessions, present_count, late_count, absent_count, excused_count, attendance_pct')
+    .select('student_id, student_name, class_id, class_name, total_sessions, present_count, late_count, absent_count, attendance_pct')
     .order('class_name')
 
   if (error) {
@@ -105,7 +104,6 @@ export const getAttendanceSummary = cache(async (): Promise<AttendanceSummaryRow
     presentCount: r.present_count,
     lateCount: r.late_count,
     absentCount: r.absent_count,
-    excusedCount: r.excused_count,
     attendancePct: r.attendance_pct,
   }))
 })
@@ -152,7 +150,6 @@ export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]>
 
   const testMode = await isFeatureEnabled('test_mode')
 
-  // attended = present|late|excused, matching the attendance_summary definition.
   type Bucket = { total: number; attended: number }
   const agg = new Map<string, { name: string; thisM: Bucket; lastM: Bucket }>()
   for (const r of (data ?? []) as any[]) {
@@ -167,7 +164,7 @@ export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]>
     }
     const bucket = date >= thisMonthStart ? entry.thisM : entry.lastM
     bucket.total++
-    if (r.status === 'present' || r.status === 'late' || r.status === 'excused') bucket.attended++
+    if (r.status === 'present' || r.status === 'late') bucket.attended++
     agg.set(r.student_id, entry)
   }
 
@@ -223,4 +220,3 @@ export async function getWeeklyAttendanceTrend(weeks = 12): Promise<WeeklyAttend
   }
   return weeklyAttendanceFromRecords(records)
 }
-

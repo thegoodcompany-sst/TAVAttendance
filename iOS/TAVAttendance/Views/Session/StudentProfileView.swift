@@ -47,11 +47,10 @@ struct StudentProfileView: View {
     private var presentCount: Int { history.filter { $0.status == .present }.count }
     private var lateCount: Int    { history.filter { $0.status == .late }.count }
     private var absentCount: Int  { history.filter { $0.status == .absent }.count }
-    private var excusedCount: Int { history.filter { $0.status == .excused }.count }
     private var attendanceRate: Double {
         guard !history.isEmpty else { return 0 }
         // QA-08 / PROD-05: match the Postgres `attendance_summary` view.
-        return Double(presentCount + lateCount + excusedCount) / Double(history.count)
+        return Double(presentCount + lateCount) / Double(history.count)
     }
 
     var body: some View {
@@ -220,7 +219,6 @@ struct StudentProfileView: View {
                 statPill(value: presentCount, label: "Present", color: .green)
                 statPill(value: lateCount,    label: "Late",    color: .orange)
                 statPill(value: absentCount,  label: "Absent",  color: .red)
-                statPill(value: excusedCount, label: "Excused", color: .gray)
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -241,7 +239,6 @@ struct StudentProfileView: View {
                     bar(count: presentCount, total: history.count, color: .green, width: geo.size.width)
                     bar(count: lateCount,    total: history.count, color: .orange, width: geo.size.width)
                     bar(count: absentCount,  total: history.count, color: .red,    width: geo.size.width)
-                    bar(count: excusedCount, total: history.count, color: .gray,   width: geo.size.width)
                 }
                 .clipShape(Capsule())
             }
@@ -400,7 +397,6 @@ struct StudentProfileView: View {
         case .present: return .green
         case .late:    return .orange
         case .absent:  return .red
-        case .excused: return .gray
         }
     }
 }

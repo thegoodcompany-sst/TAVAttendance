@@ -311,7 +311,7 @@ class HistoricalSessionViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun mark(studentId: String, status: AttendanceStatus, isAdded: Boolean) {
+    fun mark(studentId: String, status: AttendanceStatus?, isAdded: Boolean) {
         viewModelScope.launch {
             runCatching {
                 AttendanceService.markRetrospectiveAttendance(sessionId, studentId, status)
@@ -323,7 +323,7 @@ class HistoricalSessionViewModel(app: Application) : AndroidViewModel(app) {
                     if (isAdded) "retrospective_student_added" else "retrospective_attendance_corrected",
                     buildJsonObject {
                         put("screen", "historical_editor")
-                        put("status", status.name)
+                        put("status", status?.name ?: "clear")
                     }
                 )
             }.onFailure {
@@ -533,7 +533,7 @@ private fun TutorSelector(tutors: List<Profile>, selectedId: String?, onSelected
 private fun StatusSelector(
     status: AttendanceStatus?,
     enabled: Boolean,
-    onSelected: (AttendanceStatus) -> Unit
+    onSelected: (AttendanceStatus?) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -545,6 +545,12 @@ private fun StatusSelector(
                 DropdownMenuItem(
                     text = { Text(option.label) },
                     onClick = { onSelected(option); expanded = false }
+                )
+            }
+            if (status != null) {
+                DropdownMenuItem(
+                    text = { Text("Clear attendance") },
+                    onClick = { onSelected(null); expanded = false },
                 )
             }
         }

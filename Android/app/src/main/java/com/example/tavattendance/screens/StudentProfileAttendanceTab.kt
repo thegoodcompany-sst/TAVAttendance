@@ -49,7 +49,6 @@ internal fun AttendanceTabContent(
     presentCount: Int,
     lateCount: Int,
     absentCount: Int,
-    excusedCount: Int,
     attendanceRate: Float,
     formatDate: (String) -> String,
     timeFmt: SimpleDateFormat,
@@ -93,7 +92,6 @@ internal fun AttendanceTabContent(
                                 StatPill(presentCount, "Present", Color(0xFF34C759))
                                 StatPill(lateCount, "Late", Color(0xFFFF9500))
                                 StatPill(absentCount, "Absent", Color(0xFFFF3B30))
-                                StatPill(excusedCount, "Excused", Color(0xFF8E8E93))
                             }
                             Spacer(Modifier.height(12.dp))
                             Row(verticalAlignment = Alignment.Bottom) {
@@ -128,7 +126,6 @@ internal fun AttendanceTabContent(
                                     if (presentCount > 0) Surface(modifier = Modifier.weight(presentCount / total), color = Color(0xFF34C759)) {}
                                     if (lateCount > 0) Surface(modifier = Modifier.weight(lateCount / total), color = Color(0xFFFF9500)) {}
                                     if (absentCount > 0) Surface(modifier = Modifier.weight(absentCount / total), color = Color(0xFFFF3B30)) {}
-                                    if (excusedCount > 0) Surface(modifier = Modifier.weight(excusedCount / total), color = Color(0xFF8E8E93)) {}
                                 }
                             }
                         }

@@ -24,7 +24,7 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markLate, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markPresent, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markAbsent, isAdminMode: false))
-        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markNotHere, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.clearAttendance, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markDismissed, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.undoDismissal, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.addLateReason("traffic"), isAdminMode: false))
@@ -47,7 +47,7 @@ final class AttendanceLogicTests: XCTestCase {
 
     func testAdminAuthorizationPermitsOverridesAndDismissals() {
         let adminActions: [GlobalKioskView.KioskAction] = [
-            .markLate, .markPresent, .markAbsent, .markNotHere,
+            .markLate, .markPresent, .markAbsent, .clearAttendance,
             .markDismissed, .undoDismissal, .addLateReason("traffic"),
         ]
         for action in adminActions {
@@ -216,8 +216,6 @@ final class AttendanceLogicTests: XCTestCase {
     func testWorstStatusRanking() {
         XCTAssertEqual(AttendanceService.worstStatus(.late, .present), .late)
         XCTAssertEqual(AttendanceService.worstStatus(.present, .absent), .present)
-        XCTAssertEqual(AttendanceService.worstStatus(.absent, .excused), .absent)
-        XCTAssertEqual(AttendanceService.worstStatus(.late, .excused), .late)
     }
 
     func testWorstStatusNilHandling() {
@@ -329,12 +327,16 @@ final class AttendanceLogicTests: XCTestCase {
 
     // MARK: offline queue account binding
 
-    private func pendingRecord(ownerUserId: UUID, mutationId: String = "pending") -> PendingAttendanceRecord {
+    private func pendingRecord(
+        ownerUserId: UUID,
+        mutationId: String = "pending",
+        status: AttendanceStatus? = .present
+    ) -> PendingAttendanceRecord {
         PendingAttendanceRecord(
             ownerUserId: ownerUserId,
             sessionId: UUID(),
             studentId: UUID(),
-            status: .present,
+            status: status,
             notes: nil,
             clientMutationId: mutationId,
             markedAt: Date(timeIntervalSince1970: 1_700_000_000),
@@ -355,6 +357,64 @@ final class AttendanceLogicTests: XCTestCase {
             ["pending"]
         )
         XCTAssertNil(PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: foreignOwner))
+    }
+
+    func testPendingClearRoundTripsAndSyncPayloadEncodesNullStatus() throws {
+        let owner = UUID()
+        let record = pendingRecord(ownerUserId: owner, status: nil)
+        let data = try XCTUnwrap(PendingAttendanceQueueCodec.encode(
+            ownerUserId: owner, records: [record]))
+        let decoded = try XCTUnwrap(PendingAttendanceQueueCodec.decode(
+            data, expectedOwnerUserId: owner))
+        XCTAssertNil(try XCTUnwrap(decoded.first).status)
+
+        let payload = SyncAttendancePayload(
+            sessionId: record.sessionId,
+            studentId: record.studentId,
+            status: nil,
+            notes: "",
+            clientMutationId: record.clientMutationId,
+            markedAt: ISO8601DateFormatter().string(from: record.markedAt)
+        )
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+        XCTAssertTrue(object["status"] is NSNull)
+    }
+
+    func testPendingQueueMigratesVersionTwoStatusesGenerically() throws {
+        struct LegacyRecord: Codable {
+            let ownerUserId: UUID
+            let sessionId: UUID
+            let studentId: UUID
+            let status: String
+            let notes: String?
+            let clientMutationId: String
+            let markedAt: Date
+            let isSynced: Bool
+        }
+        struct LegacyEnvelope: Codable {
+            let version: Int
+            let ownerUserId: UUID
+            let records: [LegacyRecord]
+        }
+
+        let owner = UUID()
+        let base = pendingRecord(ownerUserId: owner)
+        let records = [
+            LegacyRecord(
+                ownerUserId: owner, sessionId: base.sessionId, studentId: base.studentId,
+                status: "present", notes: nil, clientMutationId: "known",
+                markedAt: base.markedAt, isSynced: false),
+            LegacyRecord(
+                ownerUserId: owner, sessionId: UUID(), studentId: UUID(),
+                status: "removed-status", notes: nil, clientMutationId: "clear",
+                markedAt: base.markedAt, isSynced: false),
+        ]
+        let data = try JSONEncoder().encode(
+            LegacyEnvelope(version: 2, ownerUserId: owner, records: records))
+        let decoded = try XCTUnwrap(PendingAttendanceQueueCodec.decode(
+            data, expectedOwnerUserId: owner))
+        XCTAssertEqual(decoded.map(\.status), [.present, nil])
     }
 
     func testPendingQueueRejectsLegacyAndMixedOwnerData() {

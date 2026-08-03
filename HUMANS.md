@@ -743,3 +743,13 @@ Applied exact committed `054_defense_in_depth_authz.sql` to prod
 `scripts/prod-security-check.sql` both returned success. Spot-check:
 `get_study_space_roster` is SECURITY DEFINER; anon cannot EXECUTE roster or
 `sync_attendance`; `service_role` cannot EXECUTE `register_device_token`.
+
+### ☐ 71. Apply migration 055 before deploying the attendance-state cleanup
+
+Apply the exact reviewed `supabase/migrations/055_merge_not_here_yet.sql` from
+its committed revision through the authorised production mechanism, then reload
+PostgREST and run the production drift/security gates. This migration removes
+the retired stored attendance state and its live rows, adds idempotent
+`clear_attendance`, and removes the retired summary column. Record the number of
+rows removed before applying it. Do not deploy the matching web/mobile clients
+first; they depend on the new clear RPC and nullable sync contract.

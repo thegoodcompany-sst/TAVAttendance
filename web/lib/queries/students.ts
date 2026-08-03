@@ -37,7 +37,6 @@ export type ClassSummary = {
   presentCount: number
   lateCount: number
   absentCount: number
-  excusedCount: number
   attendancePct: number | null
 }
 
@@ -45,7 +44,7 @@ export async function getStudentClassSummary(studentId: string): Promise<ClassSu
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('attendance_summary')
-    .select('class_id, class_name, total_sessions, present_count, late_count, absent_count, excused_count, attendance_pct')
+    .select('class_id, class_name, total_sessions, present_count, late_count, absent_count, attendance_pct')
     .eq('student_id', studentId)
     .order('class_name')
 
@@ -60,7 +59,6 @@ export async function getStudentClassSummary(studentId: string): Promise<ClassSu
     presentCount: r.present_count,
     lateCount: r.late_count,
     absentCount: r.absent_count,
-    excusedCount: r.excused_count,
     attendancePct: r.attendance_pct,
   }))
 }
@@ -136,4 +134,3 @@ export async function getStudent(id: string) {
 }
 
 // ── PDPA ────────────────────────────────────────────────────────────────
-

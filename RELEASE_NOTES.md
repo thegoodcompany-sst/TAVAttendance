@@ -5,11 +5,16 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Consolidated all unmarked attendance into one “Not Here Yet” state across iOS,
+  Android, web, and Supabase. Clearing attendance now deletes the row through
+  an actor-bound, replay-safe RPC; reports use Present, Late, and Absent only.
+- Moved the web Add Student tile to the first student-grid slot and removed the
+  duplicate yellow header action.
 - Restored the web Users “Remove” action after the table redesign hid it
   (hover-only control with no `group` parent).
 - Web admin dashboard visual pass aligned to `docs/drafts/web-dashboard-ui.html`:
   exact navy/marigold/cream hex palette, cream surface shell, sidebar
-  squircle/expand motion, draft status badges (On time / Unsigned), Today
+  squircle/expand motion, draft status badges (On time / Not Here Yet), Today
   paired present/late bar chart + quick actions, Analytics by-class progress
   rows + student risk bands, Students marigold Add + dashed add-card, Messages
   chat bubbles/unread marigold, Users team table + invite side card. Keeps Lato

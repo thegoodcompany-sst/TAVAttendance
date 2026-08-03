@@ -71,7 +71,7 @@ analytics. Kiosk preparation must filter `can_operate_today_session` first.
 The `feature_flags` table (migration 012) gates in-progress features; flags ship OFF. Read it via `FeatureFlagStore` (iOS, `Services/FeatureFlags.swift`), `FeatureFlags` (Android), or `getFeatureFlags()` (web, `lib/feature-flags.ts`). Current keys: `parent_portal` (PROD-01), `push_notifications` (PROD-02), `student_photos` (PROD-04), `study_space_tracking` (migration 015 — see below), `test_mode` (migration 020 — kiosk shows all classes regardless of weekday, web analytics shows all days; seeded ON only for demo day 2026-07-11, normally OFF — see below), `session_notes` (migration 026 — tutor free-text note on today's session: iOS/Android roster + web session detail), `qr_sign_in` (migration 026 — kiosk camera QR scanner reusing the tap-to-sign path; web prints per-student QR codes, payload = student UUID), `awards` (migration 026 — admin web page computing candidates from `attendance_summary` and recording rows in `awards`), `analytics` (migrations 031–033 — Supabase-native staff events, Activity feed, and Health dashboard; all clients capture only while ON; raw events purge after 90 days), `retrospective_sessions` (migration 037 — iOS/Android past-session creation/editing plus guarded historical roster/attendance RPCs; applied to prod 2026-07-21 and OFF until physical-device QA). Flipping a flag is admin-only (RLS); the web toggle UI (`web/app/(admin)/feature-flags/`) is superadmin-only. Migration 038 removes parent base-table access: clients must use the shaped `get_parent_*` / parent-write RPCs, and result files use server-minted upload/download tokens.
 
 ### Study Space tracking (`study_space_tracking`, migration 015) — INTERNAL ONLY
-TAVA also runs an open drop-in study space (Mon–Fri 12–6pm) separate from tuition. This feature lets staff record who is in that room. It is modelled as a **single flagged class** (`classes.is_study_space = TRUE`, fixed UUID `57000000-0000-0000-0000-000000000001`) so it reuses the sessions/attendance_records/offline stack. Roster = **all active students** (not enrollment-based, via the `get_study_space_roster` RPC). Status is **Present / Not Here (`excused`) only** — no late/absent, no auto-late. Marked on the **iPad kiosk** (`StudySpaceView`, reached from the kiosk header when the flag is on); no web marking UI.
+TAVA also runs an open drop-in study space (Mon–Fri 12–6pm) separate from tuition. This feature lets staff record who is in that room. It is modelled as a **single flagged class** (`classes.is_study_space = TRUE`, fixed UUID `57000000-0000-0000-0000-000000000001`) so it reuses the sessions/attendance_records/offline stack. Roster = **all active students** (not enrollment-based, via the `get_study_space_roster` RPC). Status is **Present / Not Here Yet (no row)** only — no late/absent, no auto-late. Marked on the **iPad kiosk** (`StudySpaceView`, reached from the kiosk header when the flag is on); no web marking UI.
 
 **INVARIANT — study-space attendance is internal reference ONLY and must NEVER appear in any report, report card, or parent view.** Enforced by excluding `classes.is_study_space = TRUE` at the source: the `attendance_summary` view and `get_roster_for_date` RPC (migration 015), plus `fetchMyClasses` (hides the class from the kiosk/class list/export picker), iOS `fetchStudentAttendanceHistory`, and the web queries `getTodaySessions` / `getDailyAttendance` / `getStudentRecentRecords`. **Any new report / report-card / parent query MUST filter `classes.is_study_space = FALSE`.**
 
@@ -101,21 +101,20 @@ Admin mode persists until the kiosk is re-locked (gear → Lock Kiosk Now). It d
 
 | Kiosk shows | DB row | Card colour | Tappable? |
 |---|---|---|---|
-| Unsigned | `attendance_records` row absent or `nil` status | Grey (default) | Yes → auto sign-in |
+| Not Here Yet | `attendance_records` row absent or `nil` status | Grey (default) | Yes → auto sign-in |
 | On Time | `.present` | Green | No (admin: tap to override) |
 | Late | `.late` | Orange | No (admin: tap to mark On Time) |
 | Late + reason | `.late` + `late_reason IS NOT NULL` | Orange + `info.circle.fill` glyph | Admin: tap glyph to see reason |
-| Not Here | `.excused` | Grey (default) | Yes → student can still sign in |
 | Absent | `.absent` | Red | No (admin context-menu only) |
 | Dismissed | `.present` or `.late` + row in `dismissals` table | Purple | No (admin: long-press → Undo Dismissal) |
 
-**"Not Here" vs "Absent" vs "Dismissed"**:
-- **Not Here** (excused): soft undo — card goes grey, student can tap to sign in again.
+**"Not Here Yet" vs "Absent" vs "Dismissed"**:
+- **Not Here Yet**: no attendance row. Clearing uses the `clear_attendance` RPC with a fresh client mutation ID; the grey card remains tappable.
 - **Absent**: hard admin mark (red, context-menu only). Cannot be undone by the student.
 - **Dismissed**: student was physically present (attendance row unchanged, counts toward attendance %) but has been signed out early by admin. Stored in the `dismissals` table, not `attendance_records`. Purple card with a secondary label showing the original On Time / Late status underneath.
 
 ### Status aggregation across multiple sessions
-When a student is enrolled in more than one class today, `KioskEntry.status` is the "worst" status across all their sessions: `late > present > absent > excused`. The merge logic is in `AttendanceService.worstStatus(_:_:)`.
+When a student is enrolled in more than one class today, `KioskEntry.status` is the "worst" stored status across all their sessions: `late > present > absent`; it is `nil` only when every session has no attendance row. The merge logic is in `AttendanceService.worstStatus(_:_:)`.
 
 ---
 
@@ -171,10 +170,10 @@ manual. Manual testing checklist:
 1. Log in as admin, open Sign In tab.
 2. Ensure at least one class has a `schedule_time` set in the past (e.g., 08:00 if it's afternoon).
 3. Tap a student → card should go **orange** (Late) if class time has passed, **green** (On Time) if not.
-4. Long-press a green card → context menu should offer "Mark as Late" and "Mark as Not Here".
+4. Long-press a green card → context menu should offer "Mark as Late" and "Mark as Not Here Yet".
 5. Tap "Mark as Late" → card turns orange.
-6. Long-press an orange card → context menu should offer "Mark as Not Here".
-7. Tap "Mark as Not Here" → card returns to grey, student name is still listed but card is tappable again.
+6. Long-press an orange card → context menu should offer "Mark as Not Here Yet".
+7. Tap "Mark as Not Here Yet" → its attendance row is cleared, the card returns to grey, and the card is tappable again.
 8. Tap the grey card → should auto-sign-in again (late or on time based on time).
 
 ### Admin mode

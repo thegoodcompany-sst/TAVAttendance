@@ -112,7 +112,6 @@ extension AttendanceStatus {
         case .present: return "On Time"
         case .late:    return "Late"
         case .absent:  return "Absent"
-        case .excused: return "Not Here"
         }
     }
 }

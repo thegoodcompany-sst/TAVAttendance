@@ -23,7 +23,7 @@ export async function getAwardCandidates(): Promise<AwardCandidate[]> {
   for (const r of rows) {
     const e = agg.get(r.studentId) ?? { name: r.studentName, total: 0, attended: 0, late: 0 }
     e.total += r.totalSessions
-    e.attended += r.presentCount + r.lateCount + r.excusedCount
+    e.attended += r.presentCount + r.lateCount
     e.late += r.lateCount
     agg.set(r.studentId, e)
   }
@@ -65,4 +65,3 @@ export async function getAwardsForPeriod(period: string): Promise<GivenAward[]> 
     awardedAt: r.awarded_at,
   }))
 }
-

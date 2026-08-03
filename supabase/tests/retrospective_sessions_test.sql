@@ -122,6 +122,13 @@ BEGIN
             WHERE session_id = v_tutor_session.id
               AND student_id = '37000000-0000-0000-0000-000000000021'),
            'assigned tutor attendance correction failed';
+    PERFORM mark_retrospective_attendance(
+        v_tutor_session.id, '37000000-0000-0000-0000-000000000021', NULL);
+    ASSERT NOT EXISTS (
+        SELECT 1 FROM attendance_records
+        WHERE session_id = v_tutor_session.id
+          AND student_id = '37000000-0000-0000-0000-000000000021'
+    ), 'retrospective Unmarked did not clear attendance';
 
     PERFORM pg_temp.as_user('00000000-0000-0000-0000-000000000001');
     SELECT ARRAY_AGG(r.student_id ORDER BY r.student_id)

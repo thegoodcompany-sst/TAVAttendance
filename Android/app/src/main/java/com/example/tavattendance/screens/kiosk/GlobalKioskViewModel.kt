@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.util.Date
 
 class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     private val prefs = app.getSharedPreferences("kiosk_settings", Context.MODE_PRIVATE)
@@ -106,7 +105,7 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onCardTap(entry: KioskEntry) {
         when {
-            entry.status == null || entry.status == AttendanceStatus.excused ->
+            entry.status == null ->
                 handleAction(entry, KioskAction.SignIn)
             isAdminMode.value && entry.status != AttendanceStatus.present ->
                 handleAction(entry, KioskAction.MarkPresent)
@@ -139,9 +138,9 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
                         AttendanceService.markKioskAttendance(entry, AttendanceStatus.absent)
                         updateEntry(entry.studentId, AttendanceStatus.absent)
                     }
-                    KioskAction.MarkNotHere -> {
-                        AttendanceService.markKioskAttendance(entry, AttendanceStatus.excused)
-                        updateEntry(entry.studentId, AttendanceStatus.excused)
+                    KioskAction.Clear -> {
+                        AttendanceService.clearKioskAttendance(entry)
+                        updateEntry(entry.studentId, null)
                     }
                 }
             }.onFailure { e ->
@@ -152,9 +151,10 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private suspend fun performSignIn(entry: KioskEntry) {
-        AttendanceService.markKioskSignIn(entry)
-        updateEntry(entry.studentId, computeSignInStatus(entry))
+    private suspend fun performSignIn(entry: KioskEntry): AttendanceStatus {
+        val status = AttendanceService.markKioskSignIn(entry)
+        updateEntry(entry.studentId, status)
+        return status
     }
 
     /**
@@ -167,15 +167,19 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
             ?: return "Not a student QR code"
         val entry = _entries.value.firstOrNull { it.studentId.lowercase() == id }
             ?: return "Student not found for today's classes"
+        if (entry.studentId in _pendingIds.value) return "Sign-in already in progress"
         return when (entry.status) {
-            null, AttendanceStatus.excused -> {
-                val result = runCatching { performSignIn(entry) }
-                val updated = _entries.value.firstOrNull { it.studentId == entry.studentId }
-                val status = updated?.status
-                if (result.isSuccess && status != null && status != AttendanceStatus.excused) {
-                    "${entry.fullName} — ${if (status == AttendanceStatus.late) "Late" else "On Time"}"
-                } else {
-                    "Sign-in failed — please try again"
+            null -> {
+                _pendingIds.value = _pendingIds.value + entry.studentId
+                try {
+                    val status = runCatching { performSignIn(entry) }.getOrNull()
+                    if (status != null) {
+                        "${entry.fullName} — ${if (status == AttendanceStatus.late) "Late" else "On Time"}"
+                    } else {
+                        "Sign-in failed — please try again"
+                    }
+                } finally {
+                    _pendingIds.value = _pendingIds.value - entry.studentId
                 }
             }
             AttendanceStatus.absent -> "${entry.fullName} — marked Absent, ask a teacher"
@@ -183,18 +187,14 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun updateEntry(studentId: String, status: AttendanceStatus) {
+    private fun updateEntry(studentId: String, status: AttendanceStatus?) {
         _entries.value = _entries.value.map { e ->
-            if (e.studentId == studentId) e.copy(status = status, markedAt = java.time.Instant.now().toString())
+            if (e.studentId == studentId) e.copy(
+                status = status,
+                markedAt = status?.let { java.time.Instant.now().toString() },
+            )
             else e
         }
-    }
-
-    /** Late if any of the student's sessions has passed its start/scheduled time. */
-    private fun computeSignInStatus(entry: KioskEntry): AttendanceStatus {
-        val now = Date()
-        return if (entry.sessions.any { AttendanceService.signInStatus(it, now) == AttendanceStatus.late })
-            AttendanceStatus.late else AttendanceStatus.present
     }
 
     // -----------------------------------------------------------------------
@@ -334,4 +334,3 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun hideSettingsDialog() { _showSettings.value = false }
 }
-

@@ -23,7 +23,7 @@ That's why the worst incidents here were RLS-class bugs.
 
 Key schema (migration 001 + successors through 053): `profiles` (role: admin/tutor/parent),
 `students`, `classes`, `enrollments`, `sessions` (one per class per date),
-`attendance_records` (status: `present|late|absent|excused`), `dismissals`,
+`attendance_records` (status: `present|late|absent`; no row = Not Here Yet), `dismissals`,
 `parent_student_links`, `feature_flags`, PDPA tables (see sibling skill),
 feature workflows (`result_slips`, `messages`, `awards`, retrospective
 sessions), security receipts/principals and durable Storage cleanup state.
@@ -77,6 +77,12 @@ recognises same-actor replays from live rows or durable receipts, and rejects
 collisions. It permits only bounded recent open-session offline replay; ended
 sessions increment `blocked_ended_session`. Client timestamps are not write
 authority.
+
+Clearing attendance is also mutation-receipted: call
+`clear_attendance(p_session_id, p_student_id, p_client_mutation_id)` with a
+fresh mutation ID. It deletes the live row; native offline queues represent
+the same operation with `status: null`. Never write a placeholder status to
+mean "not here yet".
 
 ## Storage
 

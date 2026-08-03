@@ -40,8 +40,8 @@ procedures; condensed:
 **Kiosk sign-in** (admin login → Sign In tab; needs a class with
 `schedule_time` in the past to exercise Late):
 tap student → green (on time) / orange (late) → long-press green: "Mark as
-Late"/"Mark as Not Here" offered → mark late: turns orange → mark not-here:
-grey and tappable again → tap again: re-signs-in.
+Late"/"Mark as Not Here Yet" offered → mark late: turns orange → clear to
+Not Here Yet: attendance row removed, card grey and tappable again → tap again: re-signs-in.
 
 **Admin mode**: set PIN → lock → unlock with PIN shows ADMIN badge → tap
 orange card flips to green → long-press offers "Mark as Absent" (red) →
@@ -57,7 +57,7 @@ fail closed, not cross-sync.
 check Supabase logs, suspect the FK join string.
 
 **Study space (flag on, iPad)**: header button → `StudySpaceView` → roster =
-all active students → Present/Not Here only → verify NOTHING appears in any
+all active students → Present/Not Here Yet only → verify NOTHING appears in any
 report/parent view (invariant).
 
 **Web smoke**: login → dashboard/mobile staff surfaces → student detail →

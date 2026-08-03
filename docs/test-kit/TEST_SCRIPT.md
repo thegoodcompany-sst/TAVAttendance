@@ -31,11 +31,11 @@ Total time: about 15 minutes.
 4. Tap **Demo Ben Lim's** card.
    - *Expected:* it turns green or orange the same way.
 5. Find a **green** card. **Press and hold** it.
-   - *Expected:* a menu appears with **"Mark as Late"** and **"Mark as Not Here"**.
+   - *Expected:* a menu appears with **"Mark as Late"** and **"Mark as Not Here Yet"**.
 6. Tap **"Mark as Late"**.
    - *Expected:* the card turns **orange**.
-7. **Press and hold** that **orange** card → tap **"Mark as Not Here"**.
-   - *Expected:* the card goes **grey** again. The student is still listed, and the card is tappable.
+7. **Press and hold** that **orange** card → tap **"Mark as Not Here Yet"**.
+   - *Expected:* its attendance row is cleared and the card goes **grey** again. The student is still listed, and the card is tappable.
 8. Tap that **grey** card again.
    - *Expected:* it signs the student back in (green or orange). This proves a mistap can always be undone.
 

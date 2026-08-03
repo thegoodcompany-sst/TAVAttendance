@@ -20,7 +20,7 @@ export function ClassTile({
   }
   if (session.presentCount > 0) parts.push(`${session.presentCount} present`)
   if (session.lateCount > 0) parts.push(`${session.lateCount} late`)
-  if (session.notHereCount > 0) parts.push(`${session.notHereCount} not here`)
+  if (session.notHereCount > 0) parts.push(`${session.notHereCount} not here yet`)
   if (session.absentCount > 0) parts.push(`${session.absentCount} absent`)
   if (parts.length === 0 || (parts.length === 1 && session.scheduleTime)) {
     parts.push(`${session.totalEnrolled} expected`)

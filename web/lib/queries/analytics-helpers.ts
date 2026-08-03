@@ -1,20 +1,17 @@
 import { isTuitionDay, weekStartOf } from '../date'
 
-/** Count present / late / excused statuses from a list of status strings. */
+/** Count attended statuses from a list of status strings. */
 export function countAttendanceStatuses(statuses: Array<string | null | undefined>): {
   present: number
   late: number
-  excused: number
 } {
   let present = 0
   let late = 0
-  let excused = 0
   for (const status of statuses) {
     if (status === 'present') present++
     else if (status === 'late') late++
-    else if (status === 'excused') excused++
   }
-  return { present, late, excused }
+  return { present, late }
 }
 
 /** Tuition-day filter used by daily/monthly/weekly analytics. */
@@ -78,7 +75,7 @@ export function weeklyAttendanceFromRecords(
     const week = weekStartOf(r.date)
     const bucket = agg.get(week) ?? { total: 0, attended: 0 }
     bucket.total++
-    if (r.status === 'present' || r.status === 'late' || r.status === 'excused') {
+    if (r.status === 'present' || r.status === 'late') {
       bucket.attended++
     }
     agg.set(week, bucket)
@@ -91,4 +88,3 @@ export function weeklyAttendanceFromRecords(
       totalRecords: b.total,
     }))
 }
-

@@ -1,7 +1,10 @@
 package com.example.tavattendance
 
 import com.example.tavattendance.data.models.TAVClass
+import com.example.tavattendance.data.models.AttendanceStatus
+import com.example.tavattendance.data.models.KioskSession
 import com.example.tavattendance.data.service.AttendanceService
+import java.util.Calendar
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -53,5 +56,34 @@ class DayAwareKioskTest {
         val adhoc = cls()
         assertTrue(AttendanceService.classMeetsToday(adhoc, "Monday"))
         assertTrue(AttendanceService.classMeetsToday(adhoc, "Sunday"))
+    }
+
+    @Test
+    fun testModeBypassesOnlyTheDayFilter() {
+        assertTrue(AttendanceService.shouldShowKioskClass(true, false, true))
+        assertFalse(AttendanceService.shouldShowKioskClass(false, true, true))
+        assertFalse(AttendanceService.shouldShowKioskClass(true, false, false))
+    }
+
+    @Test
+    fun worstStatusUsesThreeStoredValuesAndHandlesUnmarkedStudents() {
+        assertEquals(AttendanceStatus.late, AttendanceService.worstStatus(AttendanceStatus.present, AttendanceStatus.late))
+        assertEquals(AttendanceStatus.present, AttendanceService.worstStatus(AttendanceStatus.present, AttendanceStatus.absent))
+        assertEquals(AttendanceStatus.absent, AttendanceService.worstStatus(null, AttendanceStatus.absent))
+        assertNull(AttendanceService.worstStatus(null, null))
+    }
+
+    @Test
+    fun futureStartedAtStillFallsBackToPastSchedule() {
+        val now = Calendar.getInstance().apply {
+            set(2026, Calendar.JULY, 10, 20, 30, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.time
+        val future = java.time.Instant.ofEpochMilli(now.time + 30 * 60 * 1000).toString()
+
+        assertEquals(
+            AttendanceStatus.late,
+            AttendanceService.signInStatus(KioskSession("s", "20:00:00", future), now),
+        )
     }
 }

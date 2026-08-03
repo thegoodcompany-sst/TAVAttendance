@@ -115,12 +115,20 @@ internal object SessionAttendanceDataSource {
     suspend fun markRetrospectiveAttendance(
         sessionId: String,
         studentId: String,
-        status: AttendanceStatus
+        status: AttendanceStatus?
     ) {
         db.postgrest.rpc("mark_retrospective_attendance", buildJsonObject {
             put("session_id", sessionId)
             put("student_id", studentId)
-            put("status", status.name)
+            put("status", status?.name?.let(::JsonPrimitive) ?: JsonNull)
+        })
+    }
+
+    suspend fun clearAttendance(sessionId: String, studentId: String) {
+        db.postgrest.rpc("clear_attendance", buildJsonObject {
+            put("p_session_id", sessionId)
+            put("p_student_id", studentId)
+            put("p_client_mutation_id", UUID.randomUUID().toString())
         })
     }
 
@@ -159,7 +167,7 @@ internal object SessionAttendanceDataSource {
     private data class SyncRecord(
         @SerialName("session_id") val sessionId: String,
         @SerialName("student_id") val studentId: String,
-        val status: String,
+        val status: String?,
         val notes: String,
         @SerialName("client_mutation_id") val clientMutationId: String,
         @SerialName("marked_at") val markedAt: String
@@ -181,7 +189,7 @@ internal object SessionAttendanceDataSource {
             SyncRecord(
                 sessionId = r.sessionId,
                 studentId = r.studentId,
-                status = r.status.name,
+                status = r.status?.name,
                 notes = r.notes ?: "",
                 clientMutationId = r.clientMutationId,
                 markedAt = r.markedAt

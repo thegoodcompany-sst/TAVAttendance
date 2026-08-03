@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Clock3, FileText, Search, UserX, X } from 'lucide-react'
-import { endClass, markAttendance, markRemainingAbsent, saveMobileSessionNote } from '@/app/actions/mobile'
+import { clearAttendance, endClass, markAttendance, markRemainingAbsent, saveMobileSessionNote } from '@/app/actions/mobile'
 import type { AttendanceStatus } from '@/lib/status'
 import type { MobileRosterEntry } from '@/lib/mobile-queries'
 
@@ -11,7 +11,6 @@ const statuses: { value: Exclude<AttendanceStatus, null>; short: string; label: 
   { value: 'present', short: 'P', label: 'Present', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 data-[selected=true]:border-emerald-600 data-[selected=true]:bg-emerald-600 data-[selected=true]:text-white' },
   { value: 'late', short: 'L', label: 'Late', className: 'border-amber-200 bg-amber-50 text-amber-700 data-[selected=true]:border-amber-500 data-[selected=true]:bg-amber-500 data-[selected=true]:text-brand-ink' },
   { value: 'absent', short: 'A', label: 'Absent', className: 'border-red-200 bg-red-50 text-red-700 data-[selected=true]:border-red-600 data-[selected=true]:bg-red-600 data-[selected=true]:text-white' },
-  { value: 'excused', short: 'E', label: 'Excused', className: 'border-slate-200 bg-slate-50 text-slate-600 data-[selected=true]:border-slate-500 data-[selected=true]:bg-slate-500 data-[selected=true]:text-white' },
 ]
 
 function markedTime(value: string | null) {
@@ -34,15 +33,26 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
   function updateStatus(entry: MobileRosterEntry, status: Exclude<AttendanceStatus, null>) {
     if (readOnly) return
     const previous = entry.status
-    const now = new Date().toISOString()
+    const previousMarkedAt = entry.markedAt
+    const nextStatus = previous === status ? null : status
     setError(null)
-    setRoster(current => current.map(row => row.studentId === entry.studentId ? { ...row, status, markedAt: now } : row))
+    setRoster(current => current.map(row => row.studentId === entry.studentId ? {
+      ...row,
+      status: nextStatus,
+      markedAt: nextStatus ? new Date().toISOString() : null,
+    } : row))
     setBusyIds(current => new Set(current).add(entry.studentId))
     startTransition(async () => {
-      const result = await markAttendance(sessionId, entry.studentId, status)
+      const result = nextStatus
+        ? await markAttendance(sessionId, entry.studentId, nextStatus)
+        : await clearAttendance(sessionId, entry.studentId)
       setBusyIds(current => { const next = new Set(current); next.delete(entry.studentId); return next })
       if (result.error) {
-        setRoster(current => current.map(row => row.studentId === entry.studentId ? { ...row, status: previous } : row))
+        setRoster(current => current.map(row => row.studentId === entry.studentId ? {
+          ...row,
+          status: previous,
+          markedAt: previousMarkedAt,
+        } : row))
         setError(result.error)
       }
     })
@@ -82,9 +92,9 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-5 overflow-hidden rounded-2xl border border-brand/10 bg-white shadow-card">
+      <div className="grid grid-cols-4 overflow-hidden rounded-2xl border border-brand/10 bg-white shadow-card">
         {statuses.map(status => <div key={status.value} className="border-r border-brand/8 px-1 py-3 text-center last:border-0"><p className="font-mono text-xl font-black text-brand-ink">{counts[status.value]}</p><p className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">{status.label}</p></div>)}
-        <div className="px-1 py-3 text-center"><p className="font-mono text-xl font-black text-brand-ink">{unmarked.length}</p><p className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">Unmarked</p></div>
+        <div className="px-1 py-3 text-center"><p className="font-mono text-xl font-black text-brand-ink">{unmarked.length}</p><p className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">Not here yet</p></div>
       </div>
 
       <div className="flex gap-2">
@@ -109,7 +119,7 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
               </div>
               {entry.status && <Check size={18} className="text-emerald-600" />}
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {statuses.map(status => (
                 <button
                   key={status.value}

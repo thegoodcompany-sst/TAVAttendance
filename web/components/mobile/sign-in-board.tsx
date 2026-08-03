@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, UserCheck, X } from 'lucide-react'
-import { markKioskAttendance, prepareSignInBoard, signInKioskStudent } from '@/app/actions/mobile'
+import { clearKioskAttendance, markKioskAttendance, prepareSignInBoard, signInKioskStudent } from '@/app/actions/mobile'
 import type { KioskEntry } from '@/lib/mobile-queries'
 import type { AttendanceStatus } from '@/lib/status'
 
@@ -11,7 +11,6 @@ const style: Record<string, string> = {
   present: 'border-emerald-300 bg-emerald-50 text-emerald-800',
   late: 'border-amber-300 bg-amber-50 text-amber-900',
   absent: 'border-red-300 bg-red-50 text-red-800',
-  excused: 'border-slate-200 bg-white text-brand-ink',
   unmarked: 'border-brand/10 bg-white text-brand-ink',
 }
 
@@ -46,8 +45,23 @@ export function SignInBoard({ initialEntries }: { initialEntries: KioskEntry[] }
     })
   }
 
+  function clear(entry: KioskEntry) {
+    const previous = entry.status
+    const previousMarkedAt = entry.markedAt
+    setEntries(current => current.map(row => row.studentId === entry.studentId ? { ...row, status: null, markedAt: null } : row))
+    setBusy(current => new Set(current).add(entry.studentId))
+    startTransition(async () => {
+      const result = await clearKioskAttendance(entry.sessionIds, entry.studentId)
+      setBusy(current => { const next = new Set(current); next.delete(entry.studentId); return next })
+      if (result.error) {
+        setEntries(current => current.map(row => row.studentId === entry.studentId ? { ...row, status: previous, markedAt: previousMarkedAt } : row))
+        setError(result.error)
+      }
+    })
+  }
+
   function signIn(entry: KioskEntry) {
-    if (entry.status === 'present') return mark(entry, 'excused')
+    if (entry.status === 'present') return clear(entry)
     const previous = entry.status
     setEntries(current => current.map(row => row.studentId === entry.studentId ? { ...row, status: 'present', markedAt: new Date().toISOString() } : row))
     setBusy(current => new Set(current).add(entry.studentId))
@@ -71,7 +85,10 @@ export function SignInBoard({ initialEntries }: { initialEntries: KioskEntry[] }
       <button type="button" disabled={busy.has(entry.studentId)} onClick={() => signIn(entry)} className="flex h-full w-full flex-col text-left disabled:opacity-60">
         <p className="font-display text-lg font-semibold leading-tight">{entry.fullName}</p><p className="mt-1 line-clamp-2 text-[11px] font-bold opacity-65">{entry.classNames.join(' · ')}</p><span className="mt-auto rounded-full bg-current/10 px-2 py-1 text-[10px] font-black uppercase tracking-wide">{busy.has(entry.studentId) ? 'Saving' : entry.status === 'present' ? 'On time' : entry.status === 'late' ? 'Late' : entry.status === 'absent' ? 'Absent' : 'Tap to sign in'}</span>
       </button>
-      <div className="mt-2 grid grid-cols-3 gap-1 border-t border-current/10 pt-2">{(['late','absent','excused'] as const).map(status => <button key={status} onClick={() => mark(entry, status)} aria-label={`Mark ${entry.fullName} ${status}`} className="min-h-8 rounded-lg bg-white/65 text-[10px] font-black uppercase">{status === 'excused' ? 'Not here' : status}</button>)}</div>
+      <div className="mt-2 grid grid-cols-3 gap-1 border-t border-current/10 pt-2">
+        {(['late', 'absent'] as const).map(status => <button key={status} onClick={() => mark(entry, status)} aria-label={`Mark ${entry.fullName} ${status}`} className="min-h-8 rounded-lg bg-white/65 text-[10px] font-black uppercase">{status}</button>)}
+        <button onClick={() => clear(entry)} aria-label={`Mark ${entry.fullName} not here yet`} className="min-h-8 rounded-lg bg-white/65 text-[10px] font-black uppercase">Not here yet</button>
+      </div>
     </article>)}</div>
     {entries.length === 0 && <div className="rounded-[1.5rem] bg-white p-8 text-center shadow-card"><p className="font-bold">No sign-in cards yet</p><p className="mt-1 text-sm text-muted-foreground">Prepare the board to create today&apos;s scheduled sessions.</p></div>}
   </div>

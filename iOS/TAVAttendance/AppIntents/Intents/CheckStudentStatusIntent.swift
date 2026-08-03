@@ -26,7 +26,7 @@ struct CheckStudentStatusIntent: AppIntent {
         }
 
         guard let status = entry.status else {
-            return .result(dialog: "\(student.name) hasn't signed in yet today.")
+            return .result(dialog: "\(student.name) is Not Here Yet today.")
         }
 
         let dialog: IntentDialog
@@ -37,8 +37,6 @@ struct CheckStudentStatusIntent: AppIntent {
             dialog = "\(student.name) is here, but signed in Late."
         case .absent:
             dialog = "\(student.name) is marked Absent today."
-        case .excused:
-            dialog = "\(student.name) is marked Not Here today."
         }
         return .result(dialog: dialog)
     }

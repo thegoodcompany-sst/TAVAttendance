@@ -2,30 +2,15 @@ package com.example.tavattendance.data.service
 
 import com.example.tavattendance.core.SupabaseClient
 import com.example.tavattendance.data.models.*
-import com.example.tavattendance.data.store.PendingAttendanceRecord
-import com.example.tavattendance.data.store.pendingRecordsBelongToOwner
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Columns
-import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.rpc
-import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import java.text.SimpleDateFormat
 import java.util.*
-import kotlin.time.Duration.Companion.seconds
 
 internal object KioskAttendanceDataSource {
     private val db get() = SupabaseClient.client
@@ -35,8 +20,13 @@ internal object KioskAttendanceDataSource {
         // kiosk on a non-tuition day doesn't spin up phantom sessions. Supports multiple
         // classes on the same day (e.g. Thu English + Thu Reading).
         val todayWeekday = weekdayName(Date())
+        val testMode = FeatureFlags.isEnabled(FeatureFlags.TEST_MODE)
         val classes = ClassStudentDataSource.fetchMyClasses().filter {
-            it.canOperateTodaySession && classMeetsToday(it, todayWeekday)
+            shouldShowKioskClass(
+                canOperateTodaySession = it.canOperateTodaySession,
+                meetsToday = classMeetsToday(it, todayWeekday),
+                testMode = testMode,
+            )
         }
         val classMap = classes.associateBy { it.id }
 
@@ -88,13 +78,12 @@ internal object KioskAttendanceDataSource {
         return entryMap.values.sortedBy { it.fullName }
     }
 
-    // late > present > absent > excused
+    // late > present > absent
     fun worstStatus(a: AttendanceStatus?, b: AttendanceStatus?): AttendanceStatus? {
         val rank = mapOf(
             AttendanceStatus.late to 4,
             AttendanceStatus.present to 3,
             AttendanceStatus.absent to 2,
-            AttendanceStatus.excused to 1
         )
         return when {
             a == null -> b
@@ -103,6 +92,12 @@ internal object KioskAttendanceDataSource {
             else -> a
         }
     }
+
+    fun shouldShowKioskClass(
+        canOperateTodaySession: Boolean,
+        meetsToday: Boolean,
+        testMode: Boolean,
+    ): Boolean = canOperateTodaySession && (testMode || meetsToday)
 
     private val UUID_REGEX =
         Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -187,15 +182,25 @@ internal object KioskAttendanceDataSource {
         }
     }
 
-    suspend fun markKioskSignIn(entry: KioskEntry) {
-        val now = Date()
+    suspend fun clearKioskAttendance(entry: KioskEntry) {
         for (session in entry.sessions) {
+            SessionAttendanceDataSource.clearAttendance(session.id, entry.studentId)
+        }
+    }
+
+    suspend fun markKioskSignIn(entry: KioskEntry): AttendanceStatus {
+        val now = Date()
+        var worst = AttendanceStatus.present
+        for (session in entry.sessions) {
+            val status = signInStatus(session, now)
             SessionAttendanceDataSource.markAttendance(
                 sessionId = session.id,
                 studentId = entry.studentId,
-                status = signInStatus(session, now),
+                status = status,
             )
+            if (status == AttendanceStatus.late) worst = status
         }
+        return worst
     }
 
     /** Present, or late when the session has started (or its scheduled time has passed). */
@@ -203,15 +208,12 @@ internal object KioskAttendanceDataSource {
         val startedAt = session.startedAt?.let {
             runCatching { java.time.Instant.parse(it).let { i -> Date(i.toEpochMilli()) } }.getOrNull()
         }
-        if (startedAt != null) {
-            if (now.after(startedAt)) return AttendanceStatus.late
-        } else if (session.scheduleTime != null) {
-            // Falls through here both when startedAt is null AND when it failed to parse —
-            // an unparsable startedAt must not silently default to Present.
+        if (startedAt != null && now.after(startedAt)) return AttendanceStatus.late
+        if (session.scheduleTime != null) {
             // Split on ":" taking first two parts — handles both "HH:mm" and "HH:mm:ss"
             val parts = session.scheduleTime.split(":").mapNotNull { it.toIntOrNull() }
             if (parts.size >= 2) {
-                val classCal = Calendar.getInstance()
+                val classCal = Calendar.getInstance().apply { time = now }
                 classCal.set(Calendar.HOUR_OF_DAY, parts[0])
                 classCal.set(Calendar.MINUTE, parts[1])
                 classCal.set(Calendar.SECOND, 0)

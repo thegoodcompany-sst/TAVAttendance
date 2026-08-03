@@ -164,7 +164,7 @@ enum RetrospectiveSessionRules {
 }
 
 enum AttendanceStatus: String, Codable, CaseIterable {
-    case present, absent, late, excused
+    case present, absent, late
 }
 
 struct AttendanceInsert: Encodable {
@@ -283,7 +283,7 @@ struct KioskEntry: Identifiable {
     var avatarUrl: String?          // PROD-04; storage path, shown when student_photos flag is on
     var id: UUID { studentId }
 
-    // Attending = physically present, whether on time or late (excludes absent/excused)
+    // Attending = physically present, whether on time or late.
     var isAttending: Bool { status == .present || status == .late }
 
     // Dismissed = attended AND has been signed out by admin
@@ -317,7 +317,6 @@ struct PunctualitySummary: Codable {
     let presentCount: Int
     let lateCount: Int
     let absentCount: Int
-    let excusedCount: Int
     let totalCount: Int
     let onTimeRate: Double?   // 0.0–1.0, nil when totalCount == 0
 
@@ -325,7 +324,6 @@ struct PunctualitySummary: Codable {
         case presentCount = "present_count"
         case lateCount    = "late_count"
         case absentCount  = "absent_count"
-        case excusedCount = "excused_count"
         case totalCount   = "total_count"
         case onTimeRate   = "on_time_rate"
     }

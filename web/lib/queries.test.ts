@@ -10,10 +10,10 @@ import { auditEntityLabel, parseAuditCursor } from './queries/activity-helpers'
 import { weekStartOf } from './date'
 
 describe('attendance status counting', () => {
-  it('counts present, late, and excused', () => {
+  it('counts present and late', () => {
     expect(
-      countAttendanceStatuses(['present', 'late', 'excused', 'absent', 'present', null]),
-    ).toEqual({ present: 2, late: 1, excused: 1 })
+      countAttendanceStatuses(['present', 'late', 'absent', 'present', null]),
+    ).toEqual({ present: 2, late: 1 })
   })
 })
 

@@ -181,7 +181,41 @@ BEGIN
         WHERE session_id = v_session AND student_id = v_student
     ), 'future device clock escaped server-time stamping';
 
-    -- 6. Reusing an older, receipted mutation identifier for another logical
+    -- 6. A null status clears the row, records both the replaced mutation and
+    -- the clear mutation, and remains idempotent on replay.
+    r := sync_attendance(pg_temp.payload(
+        v_student, NULL, NOW(), 'synctest-clear'
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1,
+       'clear mutation should sync, got ' || r::TEXT;
+    ASSERT NOT EXISTS (
+        SELECT 1 FROM attendance_records
+        WHERE session_id = v_session AND student_id = v_student
+    ), 'clear mutation left an attendance row';
+    ASSERT (
+        SELECT COUNT(*) = 2
+        FROM attendance_mutation_receipts
+        WHERE mutation_id IN ('synctest-3', 'synctest-clear')
+          AND session_id = v_session
+          AND student_id = v_student
+          AND actor_id = v_actor
+    ), 'clear did not preserve both mutation receipts';
+    r := sync_attendance(pg_temp.payload(
+        v_student, 'absent', NOW(), 'synctest-clear'
+    ));
+    ASSERT (r->>'skipped')::INTEGER = 1,
+       'clear replay should be skipped, got ' || r::TEXT;
+    ASSERT NOT EXISTS (
+        SELECT 1 FROM attendance_records
+        WHERE session_id = v_session AND student_id = v_student
+    ), 'clear replay recreated attendance';
+    r := sync_attendance(pg_temp.payload(
+        v_student, 'present', NOW(), 'synctest-5'
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1,
+       'post-clear mark should sync, got ' || r::TEXT;
+
+    -- 7. Reusing an older, receipted mutation identifier for another logical
     -- row is a hard collision. It must not be silently counted as skipped.
     BEGIN
         PERFORM sync_attendance(pg_temp.payload(
@@ -196,7 +230,7 @@ BEGIN
         WHERE session_id = v_session AND student_id = v_other_student
     ), 'collision created attendance for the wrong logical row';
 
-    -- 7. Ended-session retries remain distinguishable from ordinary skips and
+    -- 8. Ended-session retries remain distinguishable from ordinary skips and
     -- leave the last accepted record untouched.
     -- Session lifecycle is RPC-gated when auth.uid() is set (migration 038), so
     -- open the dedicated write path only for this fixture update.
@@ -211,12 +245,12 @@ BEGIN
        'ended session must be reported as blocked, got ' || r::TEXT;
     ASSERT (
         SELECT status = 'present'
-           AND client_mutation_id = 'synctest-3'
+           AND client_mutation_id = 'synctest-5'
         FROM attendance_records
         WHERE session_id = v_session AND student_id = v_student
     ), 'ended-session retry changed the accepted record';
 
-    -- 8. Non-staff principals must fail closed (migration 054 staff gate).
+    -- 9. Non-staff principals must fail closed (migration 054 staff gate).
     -- Seed parent: authenticated, but neither admin nor tutor.
     PERFORM pg_temp.as_user('00000000-0000-0000-0000-000000000003');
     BEGIN
