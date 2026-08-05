@@ -13,6 +13,7 @@
 		10BC5C64E7AD432622E17329 /* TAVAttendanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */; };
 		135C5B0F8A62B43146F4B8C3 /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CC1BD809880605E561BC0F /* AppError.swift */; };
 		182629C14ED9DA07F22B0223 /* StudentEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4527A7623645D63DEDC2198 /* StudentEntity.swift */; };
+		1A01AFDC1CE1FB853B6F3641 /* StudentAttendanceHistoryQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = F901E97705AA5E096E17C2A1 /* StudentAttendanceHistoryQuery.swift */; };
 		2016432196785011366FAB4C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 309D5646A5E18F3D281FEABD /* Assets.xcassets */; };
 		2ADC0F222562BC8827278955 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543023F8203B0054936C6A20 /* NetworkMonitor.swift */; };
 		2DD2DE76549D495E0FDDC43B /* GlobalKioskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */; };
@@ -147,12 +148,13 @@
 		F1598BFBB09802266CB1F424 /* ClassFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassFormView.swift; sourceTree = "<group>"; };
 		F3063799091ACD1EB194B57C /* KioskRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskRouter.swift; sourceTree = "<group>"; };
 		F35156E0A7B45FBBCD28DC38 /* GlobalKioskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalKioskView.swift; sourceTree = "<group>"; };
+		F901E97705AA5E096E17C2A1 /* StudentAttendanceHistoryQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentAttendanceHistoryQuery.swift; sourceTree = "<group>"; };
 		FBBE84083C2C744F309E821D /* TAVAttendanceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TAVAttendanceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC417A8F8EEBDF5283E05E74 /* KioskSelectionControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskSelectionControls.swift; sourceTree = "<group>"; };
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
 		FF5EC050D1FB11BF60A79BDD /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
-		"TEMP_2813387B-1D3D-422D-8633-1CCA37578F5C" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -271,6 +273,7 @@
 				63E432A0AA36DD32D1759090 /* AttendanceService+PrivacyAdmin.swift */,
 				3AECF3AEC20EF5ACE0F8DB73 /* AttendanceService+SessionsAttendance.swift */,
 				42E65CF322BFF554E531CA30 /* FeatureFlags.swift */,
+				F901E97705AA5E096E17C2A1 /* StudentAttendanceHistoryQuery.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -368,10 +371,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_1BF1D949-B6E3-46F1-A073-A87417AA4872" /* iOS */ = {
+		"TEMP_2267C834-C829-473B-914E-041E7C705963" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_2813387B-1D3D-422D-8633-1CCA37578F5C" /* Config.xcconfig */,
+				"TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -528,6 +531,7 @@
 				5F60A9C0CC3678AEC4069EEA /* SessionDetailView.swift in Sources */,
 				79A73C09091FD25379D235F8 /* SessionListView.swift in Sources */,
 				88A9F854E30944841383A5A5 /* SignInStudentIntent.swift in Sources */,
+				1A01AFDC1CE1FB853B6F3641 /* StudentAttendanceHistoryQuery.swift in Sources */,
 				BAFF49E2F26D7AC1DD4937BB /* StudentAttendanceRateIntent.swift in Sources */,
 				182629C14ED9DA07F22B0223 /* StudentEntity.swift in Sources */,
 				F7217E3079E64AAB8DDECED7 /* StudentFormView.swift in Sources */,
@@ -677,7 +681,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2813387B-1D3D-422D-8633-1CCA37578F5C" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Distribution";
@@ -699,7 +703,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2813387B-1D3D-422D-8633-1CCA37578F5C" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

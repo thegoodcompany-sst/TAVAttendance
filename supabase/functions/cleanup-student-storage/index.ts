@@ -3,6 +3,12 @@ import {
   createClient,
   type SupabaseClient,
 } from "jsr:@supabase/supabase-js@2.109.0";
+import {
+  canonicalUuid,
+  joinStoragePath,
+  normalizeUuidLike,
+  rootNameMatchesStudent,
+} from "./paths.ts";
 
 const QUEUE_TABLE = "student_storage_cleanup_queue";
 const UPLOAD_INTENTS_TABLE = "result_slip_upload_intents";
@@ -20,7 +26,6 @@ const CLAIM_HEADROOM_MS = 5 * 1000;
 const LEASE_DURATION_MS = 10 * 60 * 1000;
 const MAX_SECRET_LENGTH = 512;
 const GENERIC_FAILURE = "storage_cleanup_failed";
-const UUID_HEX_PATTERN = /^[0-9a-f]{32}$/;
 
 interface QueueRow {
   id: string;
@@ -81,24 +86,6 @@ async function secretsMatch(
   }
 
   return difference === 0;
-}
-
-function normalizeUuidLike(value: string): string | null {
-  const unwrapped = value.startsWith("{") && value.endsWith("}")
-    ? value.slice(1, -1)
-    : value;
-  const hex = unwrapped.replaceAll("-", "").toLowerCase();
-  return UUID_HEX_PATTERN.test(hex) ? hex : null;
-}
-
-function canonicalUuid(hex: string): string {
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${
-    hex.slice(16, 20)
-  }-${hex.slice(20)}`;
-}
-
-function joinStoragePath(folder: string, name: string): string {
-  return folder ? `${folder}/${name}` : name;
 }
 
 function consumeListBudget(budget: WorkBudget): void {
@@ -229,7 +216,7 @@ async function findEquivalentRootObjects(
     const objects = await listObjects(supabase, bucketName, "", budget, offset);
     for (const object of objects) {
       if (
-        !object.name || normalizeUuidLike(object.name) !== normalizedStudentId
+        !object.name || !rootNameMatchesStudent(object.name, normalizedStudentId)
       ) continue;
       if (object.id) matches.files.add(object.name);
       else matches.prefixes.add(object.name);

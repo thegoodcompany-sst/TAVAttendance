@@ -152,11 +152,14 @@ internal object SessionAttendanceDataSource {
         db.from("attendance_records")
             // QA-05: filter the window by session_date (the real class date), not
             // marked_at; `!inner` makes the embedded filter apply to the top-level rows.
-            .select(Columns.raw("id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name))")) {
+            .select(Columns.raw(StudentAttendanceHistoryQuery.SELECT)) {
                 filter {
                     eq("student_id", studentId)
                     // Study Space attendance is internal-only — never show it in student history.
-                    eq("session.class.is_study_space", false)
+                    eq(
+                        StudentAttendanceHistoryQuery.STUDY_SPACE_FILTER_COLUMN,
+                        StudentAttendanceHistoryQuery.STUDY_SPACE_FILTER_VALUE
+                    )
                     if (since != null) gte("session.session_date", since)
                 }
                 order("marked_at", Order.DESCENDING)

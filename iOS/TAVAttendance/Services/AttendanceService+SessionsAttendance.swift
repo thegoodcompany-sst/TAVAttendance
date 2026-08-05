@@ -223,10 +223,10 @@ extension AttendanceService {
         // join so the embedded `session_date` filter applies to the top-level rows.
         var filterBuilder = db
             .from("attendance_records")
-            .select("id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name, is_study_space))")
+            .select(StudentAttendanceHistoryQuery.select)
             .eq("student_id", value: studentId)
             // Study Space attendance is internal-only — never show it in student history.
-            .eq("session.class.is_study_space", value: false)
+            .eq(StudentAttendanceHistoryQuery.studySpaceFilterColumn, value: StudentAttendanceHistoryQuery.studySpaceFilterValue)
 
         if let since {
             let fmt = DateFormatter()

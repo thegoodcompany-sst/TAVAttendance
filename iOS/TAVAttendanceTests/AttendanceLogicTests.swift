@@ -563,4 +563,22 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertFalse(RetrospectiveSessionRules.editorEnabled(
             for: retrospectiveSession(date: "2026-07-09"), flagEnabled: false, today: today))
     }
+
+    // MARK: Study-space history exclusion (shipped query contract)
+
+    func testStudentAttendanceHistoryQueryExcludesStudySpace() {
+        XCTAssertTrue(
+            StudentAttendanceHistoryQuery.excludesStudySpace,
+            "staff history select/filter must drop study-space classes"
+        )
+        XCTAssertTrue(
+            StudentAttendanceHistoryQuery.select.contains("is_study_space"),
+            "select must embed is_study_space so the filter can bind"
+        )
+        XCTAssertEqual(
+            StudentAttendanceHistoryQuery.studySpaceFilterColumn,
+            "session.class.is_study_space"
+        )
+        XCTAssertFalse(StudentAttendanceHistoryQuery.studySpaceFilterValue)
+    }
 }

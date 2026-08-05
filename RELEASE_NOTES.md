@@ -5,6 +5,13 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Bridged high-priority automated coverage gaps: study-space exclusion contracts
+  for staff attendance history (iOS/Android query constants + tests), migration/
+  view source contracts and optional SQL for `attendance_summary` / parent
+  summary, Deno unit tests for notify-parent payload validation and
+  cleanup-student-storage UUID path matching (pure helpers extracted from edge
+  handlers), plus removal of Finder-duplicate junk that polluted suite scans
+  and Android BuildConfig compiles.
 - Fixed iOS kiosk reloads for students dismissed from multiple same-day classes;
   the latest dismissal now wins instead of duplicate student keys crashing.
 - Trimmed the web app by removing its compatibility query barrel, generic chart

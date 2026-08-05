@@ -21,17 +21,8 @@
 
 // deno-lint-ignore-file no-import-prefix -- Edge Functions pin JSR imports here.
 import { createClient } from "jsr:@supabase/supabase-js@2.109.0";
+import { parsePayload } from "./payload.ts";
 
-interface Payload {
-  student_id: string;
-  status: "present" | "late" | "absent" | "dismissed";
-  session_id?: string;
-  dismissal_id?: string;
-}
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NOTIFIABLE_STATUSES = new Set(["late", "absent", "dismissed"]);
 const MAX_REQUEST_BYTES = 4 * 1024;
 const MAX_SECRET_LENGTH = 512;
 const GOOGLE_TOKEN_URI = "https://oauth2.googleapis.com/token";
@@ -56,35 +47,6 @@ async function secretsMatch(
     difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
   }
   return difference === 0;
-}
-
-function parsePayload(raw: string): Payload | null {
-  let value: unknown;
-  try {
-    value = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const body = value as Record<string, unknown>;
-  if (
-    typeof body.student_id !== "string" || !UUID_PATTERN.test(body.student_id)
-  ) return null;
-  if (
-    typeof body.status !== "string" || !NOTIFIABLE_STATUSES.has(body.status)
-  ) return null;
-  if (
-    body.session_id !== undefined &&
-    (typeof body.session_id !== "string" || !UUID_PATTERN.test(body.session_id))
-  ) return null;
-  if (
-    body.dismissal_id !== undefined &&
-    (typeof body.dismissal_id !== "string" ||
-      !UUID_PATTERN.test(body.dismissal_id))
-  ) return null;
-
-  return body as unknown as Payload;
 }
 
 const b64url = (data: Uint8Array | string): string => {
