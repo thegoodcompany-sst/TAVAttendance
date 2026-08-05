@@ -3,11 +3,17 @@ package com.example.tavattendance.data.service
 /**
  * PostgREST shape for staff student attendance history.
  * Study Space rows must never appear in this projection (CLAUDE.md invariant).
+ *
+ * SELECT stays name-only so [AttendanceHistoryRecord.ClassSummary] can decode with
+ * the client's default Json (ignoreUnknownKeys=false). Exclusion is the filter.
  */
 object StudentAttendanceHistoryQuery {
-    /** Embed includes `is_study_space` so the filter can target the class row. */
+    /**
+     * Columns decoded into [AttendanceHistoryRecord]. Do not add `is_study_space`
+     * here unless ClassSummary gains a matching optional field.
+     */
     const val SELECT =
-        "id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name, is_study_space))"
+        "id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name))"
 
     /** PostgREST filter path used to drop study-space classes. */
     const val STUDY_SPACE_FILTER_COLUMN = "session.class.is_study_space"
@@ -17,7 +23,8 @@ object StudentAttendanceHistoryQuery {
 
     /** Contract helper for unit tests and any future call sites. */
     fun excludesStudySpace(): Boolean =
-        SELECT.contains("is_study_space") &&
-            STUDY_SPACE_FILTER_COLUMN == "session.class.is_study_space" &&
-            !STUDY_SPACE_FILTER_VALUE
+        STUDY_SPACE_FILTER_COLUMN == "session.class.is_study_space" &&
+            !STUDY_SPACE_FILTER_VALUE &&
+            // DECODE safety: payload must not request fields ClassSummary cannot hold.
+            !SELECT.contains("is_study_space")
 }

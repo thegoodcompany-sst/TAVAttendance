@@ -67,8 +67,14 @@ describe('study-space exclusion contracts (shipped sources)', () => {
     const service = readRepo(
       'Android/app/src/main/java/com/example/tavattendance/data/service/SessionAttendanceDataSource.kt',
     )
-    expect(query).toContain('is_study_space')
+    // Filter excludes study space; SELECT stays name-only for ClassSummary decode.
     expect(query).toContain('session.class.is_study_space')
+    expect(query).toMatch(
+      /SELECT\s*=\s*"id, status, marked_at, session:sessions!inner\(session_date, class:classes!inner\(name\)\)"/,
+    )
+    expect(query).not.toMatch(
+      /SELECT\s*=\s*"[^"]*is_study_space/,
+    )
     expect(service).toContain('StudentAttendanceHistoryQuery.SELECT')
     expect(service).toContain('StudentAttendanceHistoryQuery.STUDY_SPACE_FILTER_COLUMN')
   })
