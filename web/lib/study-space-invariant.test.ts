@@ -67,16 +67,30 @@ describe('study-space exclusion contracts (shipped sources)', () => {
     const service = readRepo(
       'Android/app/src/main/java/com/example/tavattendance/data/service/SessionAttendanceDataSource.kt',
     )
-    // Filter excludes study space; SELECT stays name-only for ClassSummary decode.
+    // Filter excludes study space; SELECT stays name-only for ClassSummary decode
+    // (absence_informed is on the attendance row, not nested under class).
     expect(query).toContain('session.class.is_study_space')
     expect(query).toMatch(
-      /SELECT\s*=\s*"id, status, marked_at, session:sessions!inner\(session_date, class:classes!inner\(name\)\)"/,
+      /SELECT\s*=\s*"id, status, marked_at, absence_informed, session:sessions!inner\(session_date, class:classes!inner\(name\)\)"/,
     )
     expect(query).not.toMatch(
       /SELECT\s*=\s*"[^"]*is_study_space/,
     )
     expect(service).toContain('StudentAttendanceHistoryQuery.SELECT')
     expect(service).toContain('StudentAttendanceHistoryQuery.STUDY_SPACE_FILTER_COLUMN')
+  })
+
+  it('web staff year-history query excludes study space and selects absence_informed', () => {
+    const src = readRepo('web/lib/queries/students.ts')
+    expect(src).toContain('getStudentYearHistory')
+    expect(src).toContain('session.class.is_study_space')
+    expect(src).toContain('absence_informed')
+    expect(src).not.toMatch(/from\('attendance_summary'\)/)
+  })
+
+  it('web parent queries do not select absence_informed', () => {
+    const src = readRepo('web/lib/parent-queries.ts')
+    expect(src).not.toContain('absence_informed')
   })
 
   it('web export helper still strips study-space related rows', () => {

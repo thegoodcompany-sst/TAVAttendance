@@ -105,13 +105,19 @@ export async function endClass(sessionId: string): Promise<Result> {
   return { error: null }
 }
 
-export async function markAttendance(sessionId: string, studentId: string, status: Exclude<AttendanceStatus, null>): Promise<Result> {
+export async function markAttendance(
+  sessionId: string,
+  studentId: string,
+  status: Exclude<AttendanceStatus, null>,
+  absenceInformed: boolean | null = null,
+): Promise<Result> {
   const { error: authError, supabase, user } = await requireStaff()
   if (authError) return { error: authError }
   const { error } = await supabase.from('attendance_records').upsert({
     session_id: sessionId,
     student_id: studentId,
     status,
+    absence_informed: status === 'absent' ? absenceInformed : null,
     marked_by: user!.id,
     marked_at: new Date().toISOString(),
     client_mutation_id: crypto.randomUUID(),
@@ -139,11 +145,13 @@ export async function markRemainingAbsent(sessionId: string, studentIds: string[
   if (authError) return { error: authError }
   if (studentIds.length === 0) return { error: null }
   const now = new Date().toISOString()
+  // Bulk end-of-class remainder = nobody told us (absence_informed = false).
   const { error } = await supabase.from('attendance_records').upsert(
     studentIds.map(studentId => ({
       session_id: sessionId,
       student_id: studentId,
       status: 'absent',
+      absence_informed: false,
       marked_by: user!.id,
       marked_at: now,
       client_mutation_id: crypto.randomUUID(),
@@ -255,7 +263,12 @@ export async function prepareSignInBoard(): Promise<Result> {
   return { error: null }
 }
 
-export async function markKioskAttendance(sessionIds: string[], studentId: string, status: Exclude<AttendanceStatus, null>): Promise<Result> {
+export async function markKioskAttendance(
+  sessionIds: string[],
+  studentId: string,
+  status: Exclude<AttendanceStatus, null>,
+  absenceInformed: boolean | null = null,
+): Promise<Result> {
   const { error: authError, supabase, user } = await requireAdmin()
   if (authError) return { error: authError }
   const now = new Date().toISOString()
@@ -264,6 +277,7 @@ export async function markKioskAttendance(sessionIds: string[], studentId: strin
       session_id: sessionId,
       student_id: studentId,
       status,
+      absence_informed: status === 'absent' ? absenceInformed : null,
       marked_by: user!.id,
       marked_at: now,
       client_mutation_id: crypto.randomUUID(),
@@ -315,6 +329,7 @@ export async function signInKioskStudent(sessionIds: string[], studentId: string
       session_id: session.id,
       student_id: studentId,
       status,
+      absence_informed: null,
       marked_by: user!.id,
       marked_at: now.toISOString(),
       client_mutation_id: crypto.randomUUID(),

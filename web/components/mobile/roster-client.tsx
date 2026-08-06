@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Clock3, FileText, Search, UserX, X } from 'lucide-react'
 import { clearAttendance, endClass, markAttendance, markRemainingAbsent, saveMobileSessionNote } from '@/app/actions/mobile'
-import type { AttendanceStatus } from '@/lib/status'
+import { rosterStatusLabel, type AttendanceStatus } from '@/lib/status'
 import type { MobileRosterEntry } from '@/lib/mobile-queries'
 
 const statuses: { value: Exclude<AttendanceStatus, null>; short: string; label: string; className: string }[] = [
@@ -24,33 +24,41 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
   const [query, setQuery] = useState('')
   const [notes, setNotes] = useState(initialNotes)
   const [showNotes, setShowNotes] = useState(false)
+  const [absentChoiceFor, setAbsentChoiceFor] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const unmarked = roster.filter(entry => !entry.status)
   const filtered = useMemo(() => roster.filter(entry => entry.fullName.toLowerCase().includes(query.toLowerCase())), [roster, query])
 
-  function updateStatus(entry: MobileRosterEntry, status: Exclude<AttendanceStatus, null>) {
+  function applyMark(
+    entry: MobileRosterEntry,
+    status: Exclude<AttendanceStatus, null> | null,
+    absenceInformed: boolean | null = null,
+  ) {
     if (readOnly) return
     const previous = entry.status
     const previousMarkedAt = entry.markedAt
-    const nextStatus = previous === status ? null : status
+    const previousInformed = entry.absenceInformed
     setError(null)
+    setAbsentChoiceFor(null)
     setRoster(current => current.map(row => row.studentId === entry.studentId ? {
       ...row,
-      status: nextStatus,
-      markedAt: nextStatus ? new Date().toISOString() : null,
+      status,
+      absenceInformed: status === 'absent' ? absenceInformed : null,
+      markedAt: status ? new Date().toISOString() : null,
     } : row))
     setBusyIds(current => new Set(current).add(entry.studentId))
     startTransition(async () => {
-      const result = nextStatus
-        ? await markAttendance(sessionId, entry.studentId, nextStatus)
+      const result = status
+        ? await markAttendance(sessionId, entry.studentId, status, absenceInformed)
         : await clearAttendance(sessionId, entry.studentId)
       setBusyIds(current => { const next = new Set(current); next.delete(entry.studentId); return next })
       if (result.error) {
         setRoster(current => current.map(row => row.studentId === entry.studentId ? {
           ...row,
           status: previous,
+          absenceInformed: previousInformed,
           markedAt: previousMarkedAt,
         } : row))
         setError(result.error)
@@ -58,12 +66,32 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
     })
   }
 
+  function updateStatus(entry: MobileRosterEntry, status: Exclude<AttendanceStatus, null>) {
+    if (readOnly) return
+    if (status === 'absent') {
+      // Already absent with a known flag → tapping A clears (same toggle as P/L).
+      if (entry.status === 'absent') {
+        applyMark(entry, null)
+        return
+      }
+      setAbsentChoiceFor(entry.studentId)
+      return
+    }
+    const nextStatus = entry.status === status ? null : status
+    applyMark(entry, nextStatus)
+  }
+
   function markRest() {
     if (readOnly) return
-    if (!window.confirm(`Mark ${unmarked.length} remaining student${unmarked.length === 1 ? '' : 's'} absent?`)) return
+    if (!window.confirm(`Mark ${unmarked.length} remaining student${unmarked.length === 1 ? '' : 's'} Absent (no notice)? Bulk end-of-class marking means nobody told us in advance.`)) return
     const ids = unmarked.map(entry => entry.studentId)
     const now = new Date().toISOString()
-    setRoster(current => current.map(row => ids.includes(row.studentId) ? { ...row, status: 'absent', markedAt: now } : row))
+    setRoster(current => current.map(row => ids.includes(row.studentId) ? {
+      ...row,
+      status: 'absent',
+      absenceInformed: false,
+      markedAt: now,
+    } : row))
     startTransition(async () => {
       const result = await markRemainingAbsent(sessionId, ids)
       if (result.error) setError(result.error)
@@ -89,6 +117,7 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
   }
 
   const counts = Object.fromEntries(statuses.map(status => [status.value, roster.filter(row => row.status === status.value).length]))
+  const choiceEntry = absentChoiceFor ? roster.find(row => row.studentId === absentChoiceFor) : null
 
   return (
     <div className="space-y-4">
@@ -115,7 +144,13 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="truncate text-base font-black text-brand-ink">{entry.fullName}</h2>
-                <p className="flex h-4 items-center gap-1 text-[11px] font-bold text-muted-foreground">{busyIds.has(entry.studentId) ? <><Clock3 size={11} /> Saving…</> : markedTime(entry.markedAt) ? `Marked ${markedTime(entry.markedAt)}` : 'Not marked yet'}</p>
+                <p className="flex h-4 items-center gap-1 text-[11px] font-bold text-muted-foreground">
+                  {busyIds.has(entry.studentId)
+                    ? <><Clock3 size={11} /> Saving…</>
+                    : markedTime(entry.markedAt)
+                      ? `Marked ${markedTime(entry.markedAt)}${entry.status === 'absent' ? ` · ${rosterStatusLabel('absent', entry.absenceInformed)}` : ''}`
+                      : 'Not marked yet'}
+                </p>
               </div>
               {entry.status && <Check size={18} className="text-emerald-600" />}
             </div>
@@ -139,6 +174,39 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
 
       {!readOnly && unmarked.length > 0 && <button type="button" onClick={markRest} disabled={isPending} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-sm font-black text-red-700"><UserX size={18} /> Mark {unmarked.length} remaining absent</button>}
       {!readOnly && <button type="button" onClick={toggleEnded} disabled={isPending} className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700">{isPending ? 'Working…' : 'End class'}</button>}
+
+      {choiceEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-brand/35 p-3 backdrop-blur-sm"
+          onMouseDown={event => { if (event.target === event.currentTarget) setAbsentChoiceFor(null) }}
+        >
+          <div className="mx-auto w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="font-display text-2xl font-semibold text-brand-ink">Mark as Absent?</h2>
+              <button onClick={() => setAbsentChoiceFor(null)} className="grid h-10 w-10 place-items-center rounded-full bg-muted" aria-label="Cancel"><X size={19} /></button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Informed only records whether the family told us in advance — it does not change the attendance percentage.
+            </p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => applyMark(choiceEntry, 'absent', true)}
+                className="min-h-12 w-full rounded-2xl border border-red-200 bg-red-50 text-sm font-black text-red-700"
+              >
+                Absent (informed)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyMark(choiceEntry, 'absent', false)}
+                className="min-h-12 w-full rounded-2xl border border-red-200 bg-red-50 text-sm font-black text-red-700"
+              >
+                Absent (no notice)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {notesEnabled && showNotes && <div className="fixed inset-0 z-50 flex items-end bg-brand/35 p-3 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setShowNotes(false) }}>
         <div className="mx-auto w-full max-w-lg rounded-[2rem] bg-white p-5 shadow-2xl">

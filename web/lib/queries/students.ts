@@ -2,6 +2,12 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { type AttendanceStatus } from '@/lib/status'
+import {
+  summarizeByClass,
+  yearWindowStart,
+  type ClassYearSummary,
+  type YearHistoryRecord,
+} from '@/lib/student-year-summary'
 
 export type StudentRow = {
   id: string
@@ -30,69 +36,48 @@ export const getAllStudents = cache(async (): Promise<StudentRow[]> => {
   }))
 })
 
-export type ClassSummary = {
-  classId: string
-  className: string
-  totalSessions: number
-  presentCount: number
-  lateCount: number
-  absentCount: number
-  attendancePct: number | null
-}
+export type ClassSummary = ClassYearSummary
 
-export async function getStudentClassSummary(studentId: string): Promise<ClassSummary[]> {
+export type AttendanceRecord = YearHistoryRecord
+
+/**
+ * Staff student history over a rolling 12-month window (matches iOS
+ * StudentDetailView). Aggregated client-side for by-class summary; recent
+ * register is the same list (newest first). Study-space rows are excluded.
+ */
+export async function getStudentYearHistory(studentId: string): Promise<AttendanceRecord[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('attendance_summary')
-    .select('class_id, class_name, total_sessions, present_count, late_count, absent_count, attendance_pct')
-    .eq('student_id', studentId)
-    .order('class_name')
-
-  if (error) {
-    throw new Error(`getStudentClassSummary: ${error.message}`)
-  }
-
-  return (data ?? []).map((r: any) => ({
-    classId: r.class_id,
-    className: r.class_name,
-    totalSessions: r.total_sessions,
-    presentCount: r.present_count,
-    lateCount: r.late_count,
-    absentCount: r.absent_count,
-    attendancePct: r.attendance_pct,
-  }))
-}
-
-export type AttendanceRecord = {
-  id: string
-  status: AttendanceStatus
-  markedAt: string
-  sessionDate: string
-  className: string
-}
-
-export async function getStudentRecentRecords(studentId: string): Promise<AttendanceRecord[]> {
-  const supabase = await createClient()
+  const since = yearWindowStart()
   const { data, error } = await supabase
     .from('attendance_records')
-    .select('id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name, is_study_space))')
+    .select('id, status, marked_at, absence_informed, session:sessions!inner(session_date, class:classes!inner(id, name, is_study_space))')
     .eq('student_id', studentId)
     // Exclude internal Study Space attendance from student history (migration 015).
     .eq('session.class.is_study_space', false)
+    .gte('session.session_date', since)
     .order('marked_at', { ascending: false })
-    .limit(50)
+    // ~104 tuition sessions/year at Mon+Thu; 1000 leaves headroom for multi-class
+    // students and test_mode days (matches iOS fetch limit).
+    .limit(1000)
 
   if (error) {
-    throw new Error(`getStudentRecentRecords: ${error.message}`)
+    throw new Error(`getStudentYearHistory: ${error.message}`)
   }
 
   return (data ?? []).map((r: any) => ({
     id: r.id,
     status: r.status as AttendanceStatus,
+    absenceInformed: (r.absence_informed ?? null) as boolean | null,
     markedAt: r.marked_at,
     sessionDate: r.session?.session_date ?? '',
+    classId: r.session?.class?.id ?? '',
     className: r.session?.class?.name ?? 'Unknown',
   }))
+}
+
+/** By-class summary derived from year history (prefer fetching history once in pages). */
+export function classSummaryFromHistory(records: AttendanceRecord[]): ClassSummary[] {
+  return summarizeByClass(records)
 }
 
 export type StudentResult = {

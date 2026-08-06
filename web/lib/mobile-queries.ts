@@ -53,6 +53,7 @@ export type MobileRosterEntry = {
   status: AttendanceStatus
   markedAt: string | null
   lateReason: string | null
+  absenceInformed: boolean | null
 }
 
 function mobileClass(row: any): MobileClass {
@@ -138,6 +139,7 @@ export async function getMobileSession(sessionId: string): Promise<{ session: Mo
       status: row.status as AttendanceStatus,
       markedAt: row.marked_at,
       lateReason: row.late_reason,
+      absenceInformed: (row.absence_informed ?? null) as boolean | null,
     })),
   }
 }
@@ -192,6 +194,7 @@ export async function getMobileSignInEntries(): Promise<KioskEntry[]> {
           status: incoming,
           markedAt: row.marked_at,
           lateReason: row.late_reason,
+          absenceInformed: (row.absence_informed ?? null) as boolean | null,
           sessionIds: [session.id],
           classNames: [classNames.get(session.class_id) ?? 'Class'],
         })
@@ -201,6 +204,9 @@ export async function getMobileSignInEntries(): Promise<KioskEntry[]> {
         if (incoming && (!existing.status || rank[incoming] > rank[existing.status])) existing.status = incoming
         if (row.marked_at && (!existing.markedAt || row.marked_at > existing.markedAt)) existing.markedAt = row.marked_at
         if (row.late_reason) existing.lateReason = row.late_reason
+        if (existing.absenceInformed == null && row.absence_informed != null) {
+          existing.absenceInformed = row.absence_informed as boolean
+        }
       }
     }
   }))

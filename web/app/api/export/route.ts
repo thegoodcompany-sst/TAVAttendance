@@ -20,7 +20,7 @@ const FILES: Array<{ table: string; file: string; columns: string[] }> = [
   { table: 'class_tutor_assignments', file: 'class_tutor_assignments.csv', columns: ['id', 'class_id', 'tutor_id', 'assigned_from', 'assigned_until'] },
   { table: 'enrollments', file: 'enrollments.csv', columns: ['id', 'student_id', 'class_id', 'enrolled_at', 'unenrolled_at', 'is_active'] },
   { table: 'sessions', file: 'sessions.csv', columns: ['id', 'class_id', 'session_date', 'start_time', 'end_time', 'topic', 'notes', 'created_at', 'created_by', 'sub_tutor_id', 'started_at', 'ended_at'] },
-  { table: 'attendance_records', file: 'attendance_records.csv', columns: ['id', 'session_id', 'student_id', 'status', 'marked_by', 'marked_at', 'notes', 'late_reason', 'client_mutation_id'] },
+  { table: 'attendance_records', file: 'attendance_records.csv', columns: ['id', 'session_id', 'student_id', 'status', 'marked_by', 'marked_at', 'notes', 'late_reason', 'absence_informed', 'client_mutation_id'] },
   { table: 'student_results', file: 'student_results.csv', columns: ['id', 'student_id', 'subject', 'grade', 'updated_by', 'created_at', 'updated_at'] },
   { table: 'awards', file: 'awards.csv', columns: ['id', 'student_id', 'award_type', 'period', 'awarded_at', 'awarded_by'] },
   { table: 'dismissals', file: 'dismissals.csv', columns: ['id', 'session_id', 'student_id', 'dismissed_at', 'dismissed_by', 'safely_home_at', 'confirmed_by'] },

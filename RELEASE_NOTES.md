@@ -12,6 +12,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 - Android Students tab opens a rolling 12-month year-detail sheet (by-class
   summary + recent register, cap 50), separate from the 30-day roster profile
   sheet; tutor caption when role is not admin.
+- Web: roster and sign-in board can mark Absent as informed vs no notice
+  (`absence_informed`); status badges / student recent register show the three-way
+  labels; CSV export includes the column. Parent surfaces unchanged.
+- Web student detail (admin + mobile) uses a rolling 12-month by-class summary
+  aggregated from session history (matching iOS), with a tutor caption on mobile
+  when the viewer is not admin.
 - Split Absent into informed vs did not inform via companion column
   `attendance_records.absence_informed` (migration 056, applied to prod
   2026-08-07). Status domain stays present/late/absent; iOS kiosk/roster can

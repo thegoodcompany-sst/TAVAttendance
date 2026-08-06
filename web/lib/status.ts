@@ -1,9 +1,39 @@
 export type AttendanceStatus = 'present' | 'late' | 'absent' | null
 
-/** Dashboard/kiosk-facing labels. */
-export function statusLabel(status: AttendanceStatus): string {
+/**
+ * Dashboard/kiosk-facing labels. Absent is one status with an optional companion
+ * flag (`absence_informed`) — never a fourth status value.
+ *   TRUE  → "Absent (informed)"
+ *   FALSE → "Absent (no notice)"
+ *   NULL  → "Absent"
+ */
+export function statusLabel(
+  status: AttendanceStatus,
+  absenceInformed: boolean | null = null,
+): string {
   if (!status) return 'Not here yet'
-  return { present: 'On time', late: 'Late', absent: 'Absent' }[status] ?? status
+  if (status === 'absent') {
+    if (absenceInformed === true) return 'Absent (informed)'
+    if (absenceInformed === false) return 'Absent (no notice)'
+    return 'Absent'
+  }
+  return { present: 'On time', late: 'Late' }[status] ?? status
+}
+
+/** Roster / session-detail wording uses "Present" instead of "On time". */
+export function rosterStatusLabel(
+  status: AttendanceStatus,
+  absenceInformed: boolean | null = null,
+): string {
+  if (!status) return 'Not here yet'
+  if (status === 'present') return 'Present'
+  if (status === 'late') return 'Late'
+  if (status === 'absent') {
+    if (absenceInformed === true) return 'Absent (informed)'
+    if (absenceInformed === false) return 'Absent (no notice)'
+    return 'Absent'
+  }
+  return status
 }
 
 export function statusColor(status: AttendanceStatus): string {

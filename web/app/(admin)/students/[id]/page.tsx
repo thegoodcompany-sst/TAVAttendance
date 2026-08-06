@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getStudentConsent } from '@/lib/queries/pdpa'
-import { getStudent, getStudentClassSummary, getStudentRecentRecords, getStudentResults } from '@/lib/queries/students'
+import { classSummaryFromHistory, getStudent, getStudentResults, getStudentYearHistory } from '@/lib/queries/students'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PdpaPanel } from './pdpa-panel'
@@ -20,15 +20,17 @@ function PctBadge({ pct }: { pct: number | null }) {
 
 export default async function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [student, classSummary, recentRecords, results, consent] = await Promise.all([
+  const [student, yearHistory, results, consent] = await Promise.all([
     getStudent(id),
-    getStudentClassSummary(id),
-    getStudentRecentRecords(id),
+    getStudentYearHistory(id),
     getStudentResults(id),
     getStudentConsent(id),
   ])
 
   if (!student) notFound()
+
+  const classSummary = classSummaryFromHistory(yearHistory)
+  const recentRecords = yearHistory.slice(0, 50)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -63,14 +65,14 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {/* Class summary */}
+      {/* Class summary — rolling 12 months (matches iOS StudentDetailView) */}
       <div>
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Attendance by class
+          Attendance by class (last 12 months)
         </p>
         {classSummary.length === 0 ? (
           <div className="bg-white rounded-3xl p-10 text-center shadow-card">
-            <p className="text-sm text-muted-foreground">No attendance records yet.</p>
+            <p className="text-sm text-muted-foreground">No attendance records in the last 12 months.</p>
           </div>
         ) : (
           <div className="bg-white rounded-3xl overflow-hidden shadow-card">
@@ -88,7 +90,7 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
               <tbody>
                 {classSummary.map((c, i) => (
                   <tr
-                    key={c.classId}
+                    key={c.classId || c.className}
                     className={i < classSummary.length - 1 ? 'border-b border-border/50' : ''}
                   >
                     <td className="px-5 py-3.5 font-medium">{c.className}</td>
@@ -135,7 +137,9 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
                   >
                     <td className="px-5 py-3.5 text-muted-foreground font-mono text-xs">{r.sessionDate}</td>
                     <td className="px-5 py-3.5">{r.className}</td>
-                    <td className="px-5 py-3.5"><StatusBadge status={r.status} /></td>
+                    <td className="px-5 py-3.5">
+                      <StatusBadge status={r.status} absenceInformed={r.absenceInformed} />
+                    </td>
                     <td className="px-5 py-3.5 text-right text-muted-foreground text-xs hidden sm:table-cell">
                       {new Date(r.markedAt).toLocaleTimeString('en-SG', {
                         hour: '2-digit',
