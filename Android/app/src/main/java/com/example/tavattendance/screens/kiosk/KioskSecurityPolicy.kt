@@ -48,7 +48,7 @@ internal fun secureEquals(a: String, b: String): Boolean =
 /** Shared across ViewModel instances so a second caller cannot race persisted PIN state. */
 internal val kioskPinAttemptLock = Any()
 
-enum class KioskAction { SignIn, MarkPresent, MarkLate, MarkAbsent, Clear }
+enum class KioskAction { SignIn, MarkPresent, MarkLate, MarkAbsentInformed, MarkAbsentNoNotice, Clear }
 
 /** Pure policy helpers kept separate from Compose so the security boundary is unit-testable. */
 internal fun shouldLockKioskOnStart(storedPin: String): Boolean = storedPin.isNotEmpty()

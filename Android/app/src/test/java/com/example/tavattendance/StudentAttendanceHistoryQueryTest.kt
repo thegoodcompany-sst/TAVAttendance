@@ -37,6 +37,7 @@ class StudentAttendanceHistoryQueryTest {
               "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
               "status": "present",
               "marked_at": "2026-08-05T10:00:00Z",
+              "absence_informed": null,
               "session": {
                 "session_date": "2026-08-05",
                 "class": { "name": "P5 Math" }
@@ -53,6 +54,13 @@ class StudentAttendanceHistoryQueryTest {
             com.example.tavattendance.data.models.AttendanceStatus.present,
             record.status
         )
+        assertEquals(null, record.absenceInformed)
+    }
+
+    @Test
+    fun historySelectIncludesAbsenceInformedWithoutStudySpace() {
+        assertTrue(StudentAttendanceHistoryQuery.SELECT.contains("absence_informed"))
+        assertFalse(StudentAttendanceHistoryQuery.SELECT.contains("is_study_space"))
     }
 
     @Test

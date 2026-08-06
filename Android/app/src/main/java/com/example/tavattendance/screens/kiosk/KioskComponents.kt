@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.tavattendance.data.models.AttendanceStatus
+import com.example.tavattendance.data.models.AttendanceStatusLabel
 import com.example.tavattendance.data.models.KioskEntry
 import java.text.SimpleDateFormat
 import java.util.*
@@ -33,12 +34,7 @@ internal fun KioskCard(
         null -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
     }
 
-    val statusLabel = when (entry.status) {
-        AttendanceStatus.present -> "On Time"
-        AttendanceStatus.late -> "Late"
-        AttendanceStatus.absent -> "Absent"
-        null -> "Not Here Yet"
-    }
+    val statusLabel = AttendanceStatusLabel.text(entry.status, entry.absenceInformed)
 
     val canTap = entry.status == null ||
             (isAdminMode && (entry.status == AttendanceStatus.late || entry.status == AttendanceStatus.absent))
@@ -60,8 +56,12 @@ internal fun KioskCard(
                 if (entry.status != AttendanceStatus.present && entry.status != null) {
                     add("Mark as On Time" to KioskAction.MarkPresent)
                 }
-                if (entry.status != AttendanceStatus.absent) {
-                    add("Mark as Absent" to KioskAction.MarkAbsent)
+                // Allow correcting informed/no-notice without clearing first.
+                if (entry.status != AttendanceStatus.absent || entry.absenceInformed != true) {
+                    add("Absent — Informed" to KioskAction.MarkAbsentInformed)
+                }
+                if (entry.status != AttendanceStatus.absent || entry.absenceInformed != false) {
+                    add("Absent — Did not inform" to KioskAction.MarkAbsentNoNotice)
                 }
             }
         },
@@ -157,11 +157,13 @@ internal fun DropdownMenuCard(
         if (contextMenuItems.isNotEmpty()) {
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 contextMenuItems.forEach { (label, action) ->
+                    val destructive = action == KioskAction.MarkAbsentInformed ||
+                        action == KioskAction.MarkAbsentNoNotice
                     DropdownMenuItem(
                         text = {
                             Text(
                                 label,
-                                color = if (action == KioskAction.MarkAbsent)
+                                color = if (destructive)
                                     MaterialTheme.colorScheme.error
                                 else
                                     MaterialTheme.colorScheme.onSurface

@@ -128,19 +128,27 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
                     KioskAction.SignIn -> performSignIn(entry)
                     KioskAction.MarkPresent -> {
                         AttendanceService.markKioskAttendance(entry, AttendanceStatus.present)
-                        updateEntry(entry.studentId, AttendanceStatus.present)
+                        updateEntry(entry.studentId, AttendanceStatus.present, absenceInformed = null)
                     }
                     KioskAction.MarkLate -> {
                         AttendanceService.markKioskAttendance(entry, AttendanceStatus.late)
-                        updateEntry(entry.studentId, AttendanceStatus.late)
+                        updateEntry(entry.studentId, AttendanceStatus.late, absenceInformed = null)
                     }
-                    KioskAction.MarkAbsent -> {
-                        AttendanceService.markKioskAttendance(entry, AttendanceStatus.absent)
-                        updateEntry(entry.studentId, AttendanceStatus.absent)
+                    KioskAction.MarkAbsentInformed -> {
+                        AttendanceService.markKioskAttendance(
+                            entry, AttendanceStatus.absent, absenceInformed = true
+                        )
+                        updateEntry(entry.studentId, AttendanceStatus.absent, absenceInformed = true)
+                    }
+                    KioskAction.MarkAbsentNoNotice -> {
+                        AttendanceService.markKioskAttendance(
+                            entry, AttendanceStatus.absent, absenceInformed = false
+                        )
+                        updateEntry(entry.studentId, AttendanceStatus.absent, absenceInformed = false)
                     }
                     KioskAction.Clear -> {
                         AttendanceService.clearKioskAttendance(entry)
-                        updateEntry(entry.studentId, null)
+                        updateEntry(entry.studentId, null, absenceInformed = null)
                     }
                 }
             }.onFailure { e ->
@@ -182,16 +190,28 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
                     _pendingIds.value = _pendingIds.value - entry.studentId
                 }
             }
-            AttendanceStatus.absent -> "${entry.fullName} — marked Absent, ask a teacher"
+            AttendanceStatus.absent -> {
+                val suffix = when (entry.absenceInformed) {
+                    true -> " (informed)"
+                    false -> " (no notice)"
+                    null -> ""
+                }
+                "${entry.fullName} — marked Absent$suffix, ask a teacher"
+            }
             else -> "${entry.fullName} — already signed in"
         }
     }
 
-    private fun updateEntry(studentId: String, status: AttendanceStatus?) {
+    private fun updateEntry(
+        studentId: String,
+        status: AttendanceStatus?,
+        absenceInformed: Boolean? = null
+    ) {
         _entries.value = _entries.value.map { e ->
             if (e.studentId == studentId) e.copy(
                 status = status,
                 markedAt = status?.let { java.time.Instant.now().toString() },
+                absenceInformed = if (status == AttendanceStatus.absent) absenceInformed else null,
             )
             else e
         }

@@ -32,6 +32,8 @@ data class PendingAttendanceRecord(
     val studentId: String,
     var status: AttendanceStatus?,
     var notes: String? = null,
+    // Optional companion for absent; null-safe so codec version stays at 3.
+    var absenceInformed: Boolean? = null,
     val clientMutationId: String,
     val markedAt: String,
     var isSynced: Boolean = false
@@ -248,7 +250,8 @@ class PendingAttendanceStore(context: Context) {
         sessionId: String,
         studentId: String,
         status: AttendanceStatus?,
-        notes: String?
+        notes: String?,
+        absenceInformed: Boolean? = null
     ): Boolean = synchronized(queueLock) {
         val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return@synchronized false
         if (activeOwnerUserId != canonicalOwner) return@synchronized false
@@ -261,6 +264,7 @@ class PendingAttendanceStore(context: Context) {
             records[idx] = records[idx].copy(
                 status = status,
                 notes = notes,
+                absenceInformed = absenceInformed,
                 markedAt = java.time.Instant.now().toString(),
                 clientMutationId = UUID.randomUUID().toString(),
                 isSynced = false
@@ -273,6 +277,7 @@ class PendingAttendanceStore(context: Context) {
                     studentId = studentId,
                     status = status,
                     notes = notes,
+                    absenceInformed = absenceInformed,
                     clientMutationId = UUID.randomUUID().toString(),
                     markedAt = java.time.Instant.now().toString(),
                     isSynced = false

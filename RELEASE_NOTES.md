@@ -5,6 +5,13 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Android: wire `absence_informed` through mark/sync/retrospective/roster/kiosk
+  (Informed / Did not inform; Mark Rest Absent = no notice). Status enum unchanged;
+  parents still never see the flag. Decode-safe optional `late_reason` on roster
+  rows only (no late-reason UI yet).
+- Android Students tab opens a rolling 12-month year-detail sheet (by-class
+  summary + recent register, cap 50), separate from the 30-day roster profile
+  sheet; tutor caption when role is not admin.
 - Split Absent into informed vs did not inform via companion column
   `attendance_records.absence_informed` (migration 056, applied to prod
   2026-08-07). Status domain stays present/late/absent; iOS kiosk/roster can

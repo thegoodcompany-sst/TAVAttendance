@@ -30,6 +30,7 @@ import com.example.tavattendance.core.SafeLog
 import com.example.tavattendance.core.SupabaseClient
 import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceStatus
+import com.example.tavattendance.data.models.AttendanceStatusLabel
 import com.example.tavattendance.data.models.RosterEntry
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
@@ -84,6 +85,10 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     // Optimistic local overrides: studentId → status
     private val _localStatus = MutableStateFlow<Map<String, AttendanceStatus?>>(emptyMap())
     val localStatus = _localStatus.asStateFlow()
+
+    // Companion flag for absent; value is Bool? so null means unspecified.
+    private val _localAbsenceInformed = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
+    val localAbsenceInformed = _localAbsenceInformed.asStateFlow()
 
     private val _localMarkedAt = MutableStateFlow<Map<String, Date>>(emptyMap())
     val localMarkedAt = _localMarkedAt.asStateFlow()
@@ -174,7 +179,12 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             _isLoading.value = true
             _loadError.value = null
             runCatching { AttendanceService.fetchRoster(sessionId) }
-                .onSuccess { _roster.value = it }
+                .onSuccess {
+                    _roster.value = it
+                    _localStatus.value = emptyMap()
+                    _localAbsenceInformed.value = emptyMap()
+                    _localMarkedAt.value = emptyMap()
+                }
                 .onFailure { e ->
                     SafeLog.error("Roster", "loadRoster failed", e)
                     _loadError.value = e.localizedMessage ?: "Failed to load roster"
@@ -183,7 +193,11 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun markAttendance(entry: RosterEntry, status: AttendanceStatus?) {
+    fun markAttendance(
+        entry: RosterEntry,
+        status: AttendanceStatus?,
+        absenceInformed: Boolean? = null
+    ) {
         if (!_sessionEditable.value) {
             _snackbarMessage.value = "This session is read-only."
             return
@@ -193,8 +207,14 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             _snackbarMessage.value = "Your session changed. Sign in again before marking attendance."
             return
         }
+        val flag = if (status == AttendanceStatus.absent) absenceInformed else null
         // Optimistic update
         _localStatus.value = _localStatus.value + (entry.studentId to status)
+        _localAbsenceInformed.value = if (status == AttendanceStatus.absent) {
+            _localAbsenceInformed.value + (entry.studentId to flag)
+        } else {
+            _localAbsenceInformed.value - entry.studentId
+        }
         _localMarkedAt.value = if (status == null) {
             _localMarkedAt.value - entry.studentId
         } else {
@@ -210,32 +230,40 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                         AttendanceService.markAttendance(
                             sessionId = sessionId,
                             studentId = entry.studentId,
-                            status = status
+                            status = status,
+                            absenceInformed = flag
                         )
                     }
                     // PERF-04: trust the optimistic override instead of re-fetching the
                     // whole roster on every tap. The override stays until loadRoster()
                     // is called again (pull-to-refresh / later read-only review).
                 }.onFailure {
-                    queuePending(ownerUserId, entry, status)
+                    queuePending(ownerUserId, entry, status, flag)
                 }
             } else {
-                queuePending(ownerUserId, entry, status)
+                queuePending(ownerUserId, entry, status, flag)
             }
         }
     }
 
-    private fun queuePending(ownerUserId: String, entry: RosterEntry, status: AttendanceStatus?) {
+    private fun queuePending(
+        ownerUserId: String,
+        entry: RosterEntry,
+        status: AttendanceStatus?,
+        absenceInformed: Boolean? = null
+    ) {
         val stillCurrent = currentOwnerUserId()?.equals(ownerUserId, ignoreCase = true) == true
         val queued = stillCurrent && pendingStore.add(
             ownerUserId = ownerUserId,
             sessionId = sessionId,
             studentId = entry.studentId,
             status = status,
-            notes = null
+            notes = null,
+            absenceInformed = absenceInformed
         )
         if (!queued) {
             _localStatus.value = _localStatus.value - entry.studentId
+            _localAbsenceInformed.value = _localAbsenceInformed.value - entry.studentId
             _localMarkedAt.value = _localMarkedAt.value - entry.studentId
             _snackbarMessage.value = "Attendance was not queued because the signed-in account changed. Please retry."
         }
@@ -247,7 +275,8 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     fun markAllUnmarkedAbsent() {
         if (!_sessionEditable.value) return
         for (entry in unmarkedEntries()) {
-            markAttendance(entry, AttendanceStatus.absent)
+            // Bulk end-of-class remainder = nobody told us (absence_informed = false).
+            markAttendance(entry, AttendanceStatus.absent, absenceInformed = false)
         }
     }
 
@@ -294,6 +323,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                     pendingStore.markSynced(ownerUserId, unsynced.map { it.clientMutationId }.toSet())
                     for (r in unsynced.filter { it.sessionId == sessionId }) {
                         _localStatus.value = _localStatus.value - r.studentId
+                        _localAbsenceInformed.value = _localAbsenceInformed.value - r.studentId
                         _localMarkedAt.value = _localMarkedAt.value - r.studentId
                     }
                     _roster.value = AttendanceService.fetchRoster(sessionId)
@@ -322,6 +352,18 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             it.studentId == entry.studentId && it.sessionId == sessionId
         }?.let { return it.status }
         return entry.status
+    }
+
+    /** Companion flag for `.absent`. */
+    fun effectiveAbsenceInformed(entry: RosterEntry): Boolean? {
+        if (effectiveStatus(entry) != AttendanceStatus.absent) return null
+        if (_localAbsenceInformed.value.containsKey(entry.studentId)) {
+            return _localAbsenceInformed.value[entry.studentId]
+        }
+        pendingForCurrentUser().firstOrNull {
+            it.studentId == entry.studentId && it.sessionId == sessionId
+        }?.let { return it.absenceInformed }
+        return entry.absenceInformed
     }
 
     fun isPending(entry: RosterEntry): Boolean =
@@ -510,6 +552,7 @@ fun RosterScreen(
                     RosterRow(
                         entry = entry,
                         effectiveStatus = status,
+                        absenceInformed = vm.effectiveAbsenceInformed(entry),
                         isPending = pending,
                         enabled = canEdit,
                         markedAt = markedAt,
@@ -583,6 +626,7 @@ private fun SessionNotesDialog(
 private fun RosterRow(
     entry: RosterEntry,
     effectiveStatus: AttendanceStatus?,
+    absenceInformed: Boolean?,
     isPending: Boolean,
     enabled: Boolean,
     markedAt: Date?,
@@ -612,6 +656,13 @@ private fun RosterRow(
                         modifier = Modifier.size(8.dp)
                     ) {}
                 }
+            }
+            if (effectiveStatus == AttendanceStatus.absent && absenceInformed != null) {
+                Text(
+                    text = AttendanceStatusLabel.rosterText(effectiveStatus, absenceInformed),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = statusColor(AttendanceStatus.absent)
+                )
             }
             if (markedAt != null) {
                 Text(

@@ -61,7 +61,8 @@ internal object KioskAttendanceDataSource {
                     entryMap[r.studentId] = existing.copy(
                         sessions = existing.sessions + slot,
                         status = worstStatus(existing.status, r.status),
-                        markedAt = if (rMarkedAt != null && (exMarkedAt == null || rMarkedAt > exMarkedAt)) rMarkedAt else exMarkedAt
+                        markedAt = if (rMarkedAt != null && (exMarkedAt == null || rMarkedAt > exMarkedAt)) rMarkedAt else exMarkedAt,
+                        absenceInformed = existing.absenceInformed ?: r.absenceInformed,
                     )
                 } else {
                     entryMap[r.studentId] = KioskEntry(
@@ -70,6 +71,7 @@ internal object KioskAttendanceDataSource {
                         status = r.status,
                         sessions = listOf(slot),
                         markedAt = rMarkedAt,
+                        absenceInformed = r.absenceInformed,
                         avatarUrl = r.avatarUrl  // PROD-04
                     )
                 }
@@ -172,12 +174,17 @@ internal object KioskAttendanceDataSource {
         return session to roster
     }
 
-    suspend fun markKioskAttendance(entry: KioskEntry, status: AttendanceStatus) {
+    suspend fun markKioskAttendance(
+        entry: KioskEntry,
+        status: AttendanceStatus,
+        absenceInformed: Boolean? = null
+    ) {
         for (session in entry.sessions) {
             SessionAttendanceDataSource.markAttendance(
                 sessionId = session.id,
                 studentId = entry.studentId,
                 status = status,
+                absenceInformed = if (status == AttendanceStatus.absent) absenceInformed else null,
             )
         }
     }

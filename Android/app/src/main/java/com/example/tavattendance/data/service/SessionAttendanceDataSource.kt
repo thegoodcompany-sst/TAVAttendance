@@ -27,6 +27,21 @@ import java.text.SimpleDateFormat
 import java.util.*
 import kotlin.time.Duration.Companion.seconds
 
+/**
+ * Offline sync envelope. [absenceInformed] is omitted from JSON when null
+ * (`encodeDefaults = false`) so legacy/unspecified absences stay unspecified.
+ */
+@Serializable
+data class SyncAttendancePayload(
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("student_id") val studentId: String,
+    val status: String?,
+    val notes: String,
+    @SerialName("client_mutation_id") val clientMutationId: String,
+    @SerialName("marked_at") val markedAt: String,
+    @SerialName("absence_informed") val absenceInformed: Boolean? = null
+)
+
 internal object SessionAttendanceDataSource {
     private val db get() = SupabaseClient.client
 
@@ -115,12 +130,14 @@ internal object SessionAttendanceDataSource {
     suspend fun markRetrospectiveAttendance(
         sessionId: String,
         studentId: String,
-        status: AttendanceStatus?
+        status: AttendanceStatus?,
+        absenceInformed: Boolean? = null
     ) {
         db.postgrest.rpc("mark_retrospective_attendance", buildJsonObject {
             put("session_id", sessionId)
             put("student_id", studentId)
             put("status", status?.name?.let(::JsonPrimitive) ?: JsonNull)
+            if (absenceInformed != null) put("absence_informed", absenceInformed)
         })
     }
 
@@ -133,13 +150,18 @@ internal object SessionAttendanceDataSource {
     }
 
     suspend fun markAttendance(
-        sessionId: String, studentId: String, status: AttendanceStatus, notes: String? = null
+        sessionId: String,
+        studentId: String,
+        status: AttendanceStatus,
+        notes: String? = null,
+        absenceInformed: Boolean? = null
     ) {
         val record = AttendanceInsert(
             sessionId = sessionId,
             studentId = studentId,
             status = status,
             notes = notes,
+            absenceInformed = if (status == AttendanceStatus.absent) absenceInformed else null,
             clientMutationId = UUID.randomUUID().toString()
         )
         db.from("attendance_records").upsert(record) { onConflict = "session_id,student_id" }
@@ -167,17 +189,7 @@ internal object SessionAttendanceDataSource {
             }.decodeList<AttendanceHistoryRecord>()
 
     @Serializable
-    private data class SyncRecord(
-        @SerialName("session_id") val sessionId: String,
-        @SerialName("student_id") val studentId: String,
-        val status: String?,
-        val notes: String,
-        @SerialName("client_mutation_id") val clientMutationId: String,
-        @SerialName("marked_at") val markedAt: String
-    )
-
-    @Serializable
-    private data class SyncParams(val records: List<SyncRecord>)
+    private data class SyncParams(val records: List<SyncAttendancePayload>)
 
     /** synced, skipped (newer server record won), blocked_ended_session (session already ended — migration 016). */
     // Result type exposed via AttendanceService.SyncResult
@@ -189,13 +201,14 @@ internal object SessionAttendanceDataSource {
             throw SecurityException("Pending attendance belongs to a different account")
         }
         val payload = records.map { r ->
-            SyncRecord(
+            SyncAttendancePayload(
                 sessionId = r.sessionId,
                 studentId = r.studentId,
                 status = r.status?.name,
                 notes = r.notes ?: "",
                 clientMutationId = r.clientMutationId,
-                markedAt = r.markedAt
+                markedAt = r.markedAt,
+                absenceInformed = r.absenceInformed
             )
         }
         val paramsJson = Json.encodeToJsonElement(SyncParams(payload)).jsonObject

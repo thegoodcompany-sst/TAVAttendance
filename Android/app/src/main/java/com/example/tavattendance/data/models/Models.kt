@@ -143,6 +143,10 @@ data class AttendanceInsert(
     @SerialName("student_id") val studentId: String,
     val status: AttendanceStatus,
     val notes: String? = null,
+    // Decode-only today; Android has no late-reason UI yet.
+    @SerialName("late_reason") val lateReason: String? = null,
+    // Companion to absent: true=informed, false=no notice, null=unspecified.
+    @SerialName("absence_informed") val absenceInformed: Boolean? = null,
     @SerialName("client_mutation_id") val clientMutationId: String
 )
 
@@ -154,6 +158,9 @@ data class RosterEntry(
     val status: AttendanceStatus? = null,
     @SerialName("marked_at") val markedAt: String? = null,
     val notes: String? = null,
+    // Returned by get_session_roster; kept for decode safety (no UI yet).
+    @SerialName("late_reason") val lateReason: String? = null,
+    @SerialName("absence_informed") val absenceInformed: Boolean? = null,
     @SerialName("avatar_url") val avatarUrl: String? = null  // PROD-04
 )
 
@@ -204,6 +211,8 @@ data class KioskEntry(
     var status: AttendanceStatus?,
     var sessions: List<KioskSession>,
     var markedAt: String? = null,
+    /** Companion to absent; nil/null = unspecified / legacy. */
+    var absenceInformed: Boolean? = null,
     var avatarUrl: String? = null  // PROD-04
 ) {
     val isAttending: Boolean get() = status == AttendanceStatus.present || status == AttendanceStatus.late
@@ -258,6 +267,8 @@ data class AttendanceHistoryRecord(
     val id: String,
     val status: AttendanceStatus,
     @SerialName("marked_at") val markedAt: String? = null,
+    // Staff history SELECT may include this; parent RPC deliberately omits it.
+    @SerialName("absence_informed") val absenceInformed: Boolean? = null,
     val session: SessionSummary
 ) {
     @Serializable
@@ -268,6 +279,37 @@ data class AttendanceHistoryRecord(
         @Serializable
         data class ClassSummary(val name: String)
     }
+}
+
+/**
+ * Shared attendance status labels. Absent is one status with an optional companion
+ * flag — never a fourth enum case.
+ */
+object AttendanceStatusLabel {
+    fun text(status: AttendanceStatus?, absenceInformed: Boolean? = null): String =
+        when (status) {
+            AttendanceStatus.present -> "On Time"
+            AttendanceStatus.late -> "Late"
+            AttendanceStatus.absent -> when (absenceInformed) {
+                true -> "Absent (informed)"
+                false -> "Absent (no notice)"
+                null -> "Absent"
+            }
+            null -> "Not Here Yet"
+        }
+
+    /** Roster / session-detail wording uses "Present" instead of "On Time". */
+    fun rosterText(status: AttendanceStatus?, absenceInformed: Boolean? = null): String =
+        when (status) {
+            AttendanceStatus.present -> "Present"
+            AttendanceStatus.late -> "Late"
+            AttendanceStatus.absent -> when (absenceInformed) {
+                true -> "Absent (informed)"
+                false -> "Absent (no notice)"
+                null -> "Absent"
+            }
+            null -> "Not Here Yet"
+        }
 }
 
 /** A dismissal event (Phase 3 `dismissals` table). Parents read their own child's

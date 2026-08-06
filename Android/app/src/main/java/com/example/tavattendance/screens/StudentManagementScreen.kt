@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -99,7 +100,7 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
     val snackbarMessage by vm.snackbarMessage.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var editingStudent by remember { mutableStateOf<Student?>(null) }
-    var profileStudent by remember { mutableStateOf<Student?>(null) }
+    var detailStudent by remember { mutableStateOf<Student?>(null) }
     var privacyStudent by remember { mutableStateOf<Student?>(null) }
 
     val snackbarHost = rememberSnackbarError(snackbarMessage) { vm.clearSnackbar() }
@@ -135,7 +136,7 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
                                 if (detail.isNotBlank()) Text(detail)
                             },
                             trailingContent = {
-                                Row {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(onClick = { privacyStudent = student }) {
                                         Icon(
                                             Icons.Default.Lock,
@@ -150,6 +151,11 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
                                     IconButton(onClick = { showConfirm = true }) {
                                         Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
                                     }
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = "Year detail",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                     if (showConfirm) {
                                         AlertDialog(
                                             onDismissRequest = { showConfirm = false },
@@ -167,7 +173,7 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
                                     }
                                 }
                             },
-                            modifier = Modifier.clickable { profileStudent = student }
+                            modifier = Modifier.clickable { detailStudent = student }
                         )
                         HorizontalDivider()
                     }
@@ -193,12 +199,11 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
         )
     }
 
-    profileStudent?.let { s ->
-        StudentProfileSheet(
-            studentId = s.id,
-            fullName = s.fullName,
-            onDismiss = { profileStudent = null },
-            canManageStaffResults = true
+    detailStudent?.let { s ->
+        StudentDetailSheet(
+            student = s,
+            isAdmin = true,
+            onDismiss = { detailStudent = null }
         )
     }
 
@@ -214,3 +219,4 @@ fun StudentManagementScreen(vm: StudentManagementViewModel = viewModel()) {
         )
     }
 }
+

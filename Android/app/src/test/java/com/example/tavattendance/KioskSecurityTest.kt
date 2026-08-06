@@ -30,7 +30,8 @@ class KioskSecurityTest {
         assertTrue(isKioskActionAuthorized(KioskAction.SignIn, isAdminMode = false))
         assertFalse(isKioskActionAuthorized(KioskAction.MarkPresent, isAdminMode = false))
         assertFalse(isKioskActionAuthorized(KioskAction.MarkLate, isAdminMode = false))
-        assertFalse(isKioskActionAuthorized(KioskAction.MarkAbsent, isAdminMode = false))
+        assertFalse(isKioskActionAuthorized(KioskAction.MarkAbsentInformed, isAdminMode = false))
+        assertFalse(isKioskActionAuthorized(KioskAction.MarkAbsentNoNotice, isAdminMode = false))
         assertFalse(isKioskActionAuthorized(KioskAction.Clear, isAdminMode = false))
     }
 

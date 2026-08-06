@@ -13,7 +13,7 @@ object StudentAttendanceHistoryQuery {
      * here unless ClassSummary gains a matching optional field.
      */
     const val SELECT =
-        "id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name))"
+        "id, status, marked_at, absence_informed, session:sessions!inner(session_date, class:classes!inner(name))"
 
     /** PostgREST filter path used to drop study-space classes. */
     const val STUDY_SPACE_FILTER_COLUMN = "session.class.is_study_space"

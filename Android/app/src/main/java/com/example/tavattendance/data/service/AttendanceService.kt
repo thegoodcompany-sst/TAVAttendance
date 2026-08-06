@@ -118,17 +118,26 @@ object AttendanceService {
     suspend fun markRetrospectiveAttendance(
         sessionId: String,
         studentId: String,
-        status: AttendanceStatus?
+        status: AttendanceStatus?,
+        absenceInformed: Boolean? = null
     ) =
-        SessionAttendanceDataSource.markRetrospectiveAttendance(sessionId, studentId, status)
+        SessionAttendanceDataSource.markRetrospectiveAttendance(
+            sessionId, studentId, status, absenceInformed
+        )
 
     suspend fun clearAttendance(sessionId: String, studentId: String) =
         SessionAttendanceDataSource.clearAttendance(sessionId, studentId)
 
     suspend fun markAttendance(
-        sessionId: String, studentId: String, status: AttendanceStatus, notes: String? = null
+        sessionId: String,
+        studentId: String,
+        status: AttendanceStatus,
+        notes: String? = null,
+        absenceInformed: Boolean? = null
     ) =
-        SessionAttendanceDataSource.markAttendance(sessionId, studentId, status, notes)
+        SessionAttendanceDataSource.markAttendance(
+            sessionId, studentId, status, notes, absenceInformed
+        )
 
     suspend fun fetchKioskEntries(): List<KioskEntry> =
         KioskAttendanceDataSource.fetchKioskEntries()
@@ -158,8 +167,12 @@ object AttendanceService {
     suspend fun loadStudySpace(): Pair<Session, List<RosterEntry>> =
         KioskAttendanceDataSource.loadStudySpace()
 
-    suspend fun markKioskAttendance(entry: KioskEntry, status: AttendanceStatus) =
-        KioskAttendanceDataSource.markKioskAttendance(entry, status)
+    suspend fun markKioskAttendance(
+        entry: KioskEntry,
+        status: AttendanceStatus,
+        absenceInformed: Boolean? = null
+    ) =
+        KioskAttendanceDataSource.markKioskAttendance(entry, status, absenceInformed)
 
     suspend fun clearKioskAttendance(entry: KioskEntry) =
         KioskAttendanceDataSource.clearKioskAttendance(entry)
