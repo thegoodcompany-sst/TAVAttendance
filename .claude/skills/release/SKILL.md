@@ -101,4 +101,4 @@ former exposed review account before release.
 
 Audited 2026-07-26 against the 1.1.1 version sources,
 `Android/distribute.sh`, `iOS/ExportOptionsTestFlight.plist`, and the App Store
-Connect notes in `CLAUDE.md`.
+Connect notes in `AGENTS.md`.

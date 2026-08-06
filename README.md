@@ -5,7 +5,9 @@ Android app (Jetpack Compose), and a web admin dashboard (Next.js), all backed b
 the same Supabase project.
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for full local setup of every platform.
-Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/skills/tava-*`.
+Agents: project rules live in [AGENTS.md](AGENTS.md) (`CLAUDE.md` stubs to it);
+next-build plans in [NEXT_BUILD_CHANGES.md](NEXT_BUILD_CHANGES.md); task runbooks
+in `.claude/skills/tava-*`.
 
 ## What it does today
 
@@ -15,7 +17,7 @@ Agents: project rules live in [CLAUDE.md](CLAUDE.md); task runbooks in `.claude/
 | Auto-marks late based on class start time | Kiosk |
 | Long-press to force-late or "not here yet" | PIN-unlocked kiosk admin |
 | PIN-locked kiosk with admin override mode | Admin |
-| Per-class roster with P/A/L/E marking | Teachers |
+| Per-class roster with P / A / L marking (unmarked = Not Here Yet) | Teachers |
 | Arrival time display in roster | Teachers |
 | Student attendance history (tap any roster row) | Teachers |
 | Class management (create / edit / deactivate) | Admin |

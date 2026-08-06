@@ -1,6 +1,6 @@
 ---
 name: tava-docs-and-writing
-description: Use when updating any TAVA doc of record — CLAUDE.md, HUMANS.md, CONTRIBUTING.md, README.md, PORTING_NOTES.md, migrations README, PDPA docs — or when finishing a feature (port-handoff blocks, HUMANS.md items). Which doc owns which fact, the HUMANS.md checklist convention, house style, and honesty rules for claims.
+description: Use when updating any TAVA doc of record — AGENTS.md, HUMANS.md, NEXT_BUILD_CHANGES.md, CONTRIBUTING.md, README.md, PORTING_NOTES.md, migrations README, PDPA docs — or when finishing a feature (port-handoff blocks, HUMANS.md items). Which doc owns which fact, the HUMANS.md checklist convention, house style, and honesty rules for claims.
 ---
 
 # TAVA Docs and Writing
@@ -17,7 +17,10 @@ prod (use `tava-prod-drift-campaign` / `tava-run-and-operate`).
 
 | Doc | Owns | Update when |
 |---|---|---|
-| `CLAUDE.md` (root) | Agent knowledge NOT derivable from code: invariants, operational rules, test procedures, build commands, port-handoff template | You learn something non-obvious the hard way, or an invariant changes |
+| `AGENTS.md` (root) | Agent knowledge NOT derivable from code: invariants, operational rules, test procedures, build commands, port-handoff template | You learn something non-obvious the hard way, or an invariant changes |
+| `CLAUDE.md` (root) | Stub only (`@AGENTS.md`) for tools that still open that filename | Never put agent knowledge here |
+| `NEXT_BUILD_CHANGES.md` | Planned work for the next app build (staff feedback, product choices, not-yet-shipped items) | Feedback is queued, a product choice is made, or a planned item ships (then move a bullet to `RELEASE_NOTES.md` Unreleased and clear/mark here) |
+| `RELEASE_NOTES.md` | Completed changes between releases (`Unreleased` ledger) | Every completed product/behaviour/schema/security/ops/test/release-process change |
 | `HUMANS.md` | Numbered checklist of actions only a human can do (dashboard toggles, legal, devices, prod decisions). Key: ☐ todo · ☑ done · ◐ in progress | Your change creates/completes a human step. Never silently drop an item — mark ☑ with a dated verification note |
 | `README.md` | What the product does, stack, layout, roadmap | Features ship or roadmap changes |
 | `CONTRIBUTING.md` | Local setup for all platforms, storage buckets, ops/monitoring | Setup steps change |
@@ -29,7 +32,8 @@ prod (use `tava-prod-drift-campaign` / `tava-run-and-operate`).
 | `docs/superpowers/{plans,specs}/` | Dated feature plans/design specs (`YYYY-MM-DD-name.md`) | Non-trivial feature design work |
 | `.claude/skills/*` | This library | See maintenance sections in each skill |
 
-Root `AGENTS.md` is just `@CLAUDE.md` — never duplicate content into it.
+Root `CLAUDE.md` is just `@AGENTS.md` — never duplicate content into it. Same
+pattern as `web/CLAUDE.md` → `web/AGENTS.md`.
 
 ## The HUMANS.md convention (load-bearing)
 
@@ -53,12 +57,12 @@ legal judgement, physical device):
 - Unshipped = labelled: "built, behind the `X` flag" / "scaffolded" / "schema only". README's feature-status wording is the pattern.
 - Compliance claims: the ceiling is "technical controls in place; legal formalisation pending" while HUMANS.md §A has open items.
 - Never claim a migration is "applied" without naming the environment and date (prod vs local matters more here than anywhere).
-- A doc that contradicts CLAUDE.md is wrong until proven otherwise — CLAUDE.md is the agent-facing source of truth; fix the discrepancy rather than picking silently.
+- A doc that contradicts AGENTS.md is wrong until proven otherwise — AGENTS.md is the agent-facing source of truth; fix the discrepancy rather than picking silently.
 
 ## The port-handoff ritual (iOS features)
 
 After any iOS feature, before "done": emit **"📋 Android port handoff"** and
-**"📋 Web port handoff"** blocks per the template in CLAUDE.md
+**"📋 Web port handoff"** blocks per the template in AGENTS.md
 (§Cross-platform parity workflow): feature summary, iOS files changed with
 purpose, target files (mapping in PORTING_NOTES.md), new Supabase objects,
 sample test. The user pastes these into fresh sessions — **never auto-spawn
@@ -66,7 +70,9 @@ the porting agent**.
 
 ## Provenance and maintenance
 
-Audited 2026-07-26.
+Audited 2026-08-06 (root agent knowledge flipped to `AGENTS.md`;
+`NEXT_BUILD_CHANGES.md` added).
 - Doc inventory: `ls *.md docs docs/pdpa`
 - Open human items: `rg -c '^### ☐' HUMANS.md`
-- Handoff template: `rg -n 'Paste-ready prompt template' CLAUDE.md`
+- Next-build queue: `NEXT_BUILD_CHANGES.md`
+- Handoff template: `rg -n 'Paste-ready prompt template' AGENTS.md`

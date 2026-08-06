@@ -4,8 +4,9 @@ This is a multi-platform monorepo: an iOS kiosk (`iOS/`), an Android app
 (`Android/`), a Next.js admin dashboard (`web/`), and a shared Supabase backend
 (`supabase/`). This guide consolidates local setup for all of them.
 
-> Agent note: project-specific conventions live in `CLAUDE.md`. Read it before
-> changing code.
+> Agent note: project-specific conventions live in `AGENTS.md` (`CLAUDE.md` is
+> a stub). Planned next-build work lives in `NEXT_BUILD_CHANGES.md`. Read those
+> before changing code.
 
 ---
 
@@ -87,7 +88,7 @@ open iOS/TAVAttendance.xcodeproj
 
 Credentials are read from `Info.plist` (`$(SUPABASE_PROJECT_URL)` /
 `$(SUPABASE_ANON_KEY)`) via `SupabaseManager.swift` — never hardcode them.
-The kiosk (Sign-In tab) must be signed in as an **admin** account (see CLAUDE.md).
+The kiosk (Sign-In tab) must be signed in as an **admin** account (see AGENTS.md).
 
 ## 3. Android (`Android/`)
 
@@ -121,7 +122,7 @@ cd web && bun install && bun run dev
 
 Automated tests cover attendance and security boundaries (iOS `TAVAttendanceTests`,
 Android unit tests, and every `supabase/tests/*.sql` regression); test the rest manually
-(full script in `CLAUDE.md`):
+(full script in `AGENTS.md`):
 
 - **Kiosk sign-in**: admin login → Sign-In tab → tap a student → green (on time) /
   orange (late); long-press for overrides; search filters the grid.
@@ -136,7 +137,7 @@ Android unit tests, and every `supabase/tests/*.sql` regression); test the rest 
 | Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build` | `web/` |
 
 Machine-specific caveats (Xcode-beta `DEVELOPER_DIR`, `CODE_SIGNING_ALLOWED=NO`)
-live in `CLAUDE.md` §Running tests — agents should use that table.
+live in `AGENTS.md` §Running tests — agents should use that table.
 
 ---
 

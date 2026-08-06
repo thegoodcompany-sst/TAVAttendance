@@ -29,12 +29,12 @@ has its own gate queries).
 | Web | `bun audit --audit-level=high && bun run test && bun run lint && bun run build` (from `web/`, after `bun install --frozen-lockfile`) | Dependency, unit, lint and production build gates. |
 | Migrations | `supabase db reset --local && supabase db lint --local --schema public --level error --fail-on error`, then every `supabase/tests/*.sql` | All migrations through 055 replay plus SQL security regressions. |
 
-Note: this table matches CLAUDE.md §Running tests (the agent-facing source of
+Note: this table matches AGENTS.md §Running tests (the agent-facing source of
 truth, machine caveats included); CONTRIBUTING.md §5 defers to it.
 
 ## Manual QA checklists (the project's regression suite)
 
-Run the ones your change touches. Full scripts live in CLAUDE.md §Testing
+Run the ones your change touches. Full scripts live in AGENTS.md §Testing
 procedures; condensed:
 
 **Kiosk sign-in** (admin login → Sign In tab; needs a class with
@@ -102,4 +102,4 @@ use it as test fixtures (PDPA).
 Audited 2026-07-26.
 - Test inventory: `find iOS/TAVAttendanceTests Android/app/src/test web supabase/tests -type f | sort`
 - Android tests: `ls Android/app/src/test/java/com/example/tavattendance/`
-- Checklists drift with UI changes — canonical copy is CLAUDE.md §Testing procedures.
+- Checklists drift with UI changes — canonical copy is AGENTS.md §Testing procedures.

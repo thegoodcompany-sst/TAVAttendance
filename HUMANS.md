@@ -600,38 +600,20 @@ staff screens and confirm `/activity` receives events and `/health` renders with
 
 ## O. Retrospective sessions (2026-07-21, mobile clients shipped dark)
 
-### ◐ 59. Complete physical-device QA, then enable
+### ☑ 59. Complete physical-device QA, then enable — FLAG ON IN PROD (verified 2026-08-06)
 
-Verified 2026-07-21: migration 037 is applied to prod, its self-checks pass,
-the flag remains OFF, and iOS 1.1.1 build 6 plus Android 1.1.1 build 4 were
-released to TestFlight beta review and Firebase App Distribution respectively.
-Android retrospective-session parity is included. Physical-device QA and the
-global flag enable remain human-gated.
-
-Migration `supabase/migrations/037_retrospective_sessions.sql` was applied to
-prod through the Supabase Management API (`supabase db query --linked --file`),
-not `db push`; the historical prod migration ledger remains intentionally
-sparse. Verify the live flag and functions directly:
+Verified 2026-07-21: migration 037 applied to prod, self-checks pass;
+iOS 1.1.1 build 6 + Android 1.1.1 build 4 shipped with the feature dark.
+**2026-08-06 prod check:** `feature_flags.retrospective_sessions.enabled = true`.
+Re-verify anytime with:
 
 ```sql
 SELECT key, enabled FROM feature_flags WHERE key = 'retrospective_sessions';
-SELECT to_regprocedure('create_retrospective_session(uuid,date,text,text,uuid)'),
-       to_regprocedure('update_retrospective_session(uuid,text,text,uuid)'),
-       to_regprocedure('get_retrospective_session_roster(uuid)'),
-       to_regprocedure('mark_retrospective_attendance(uuid,uuid,text)');
 ```
 
-Keep the flag OFF until the Android and web handoffs are implemented and an admin
-and assigned tutor complete physical-device QA: create a past non-Study-Space
-session, hit duplicate handling, edit topic/notes/substitute, correct attendance
-after the session ended, add a visible session-only student, verify enrolment is
-unchanged, verify audit/report updates, and confirm offline writes show an error.
-Then enable and fully relaunch clients so their flag caches reload:
-
-```sql
-UPDATE feature_flags SET enabled = TRUE, updated_at = NOW()
-WHERE key = 'retrospective_sessions';
-```
+Physical-device QA / staff familiarisation for pilot remains useful, but the
+global flag is no longer the blocker. Keep clients relaunched after any future
+flag flip so caches reload.
 
 ---
 

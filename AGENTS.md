@@ -1,1 +1,321 @@
-@CLAUDE.md
+# AGENTS.md — Agent knowledge for TAVA Attendance
+
+Things that cannot be derived by reading the codebase. Read this before writing any code.
+
+`CLAUDE.md` is a stub (`@AGENTS.md`) for tools that still look for that filename.
+Do not duplicate agent knowledge there.
+
+---
+
+## Other notes
+always push to main, not a branch + pr, unless specified.
+
+## Skill library (start here)
+
+`.claude/skills/tava-*` (13 skills, audited 2026-07-26) is the expanded, task-routed version
+of this file — load the matching skill before working: `tava-change-control` (before any change),
+`tava-debugging-playbook` (anything misbehaves), `tava-prod-drift-campaign` (prod migrations —
+the top open problem), `tava-failure-archaeology` (before proposing a fix), plus references for
+architecture, Supabase, PDPA, config/flags, build, operations, QA, docs, and roadmap. The
+`deploy` and `release` skills carry the production delivery runbooks. This file
+stays the compact source of truth; the skills carry the runbooks. The if the runbooks stop specific things from working, let the user know, and the user may give you permission to rewrite or bypass some of the instructions in the runbook.
+
+## Migrations
+
+Prod Supabase (`zgikcbsxzjgbigywxbbj`) had its historical 001–017 drift
+reconciled on **2026-07-09** (HUMANS.md §14/§30). The repo now contains
+migrations through 055. Never embed a newer “prod matches” snapshot here:
+require the protected-main remote drift job and `scripts/prod-security-check.sql`
+for the exact commit. **Never edit an existing migration; every schema fix
+ships as a new numbered one**, and apply it to prod BEFORE deploying app code
+that references it. Verify prod state with queries, never by reading files:
+`.claude/skills/tava-prod-drift-campaign` keeps the drift-prevention protocol.
+
+## Architecture decisions worth knowing
+
+### The kiosk iPad must be signed in as an admin account
+`fetchKioskEntries` calls the shaped `get_my_classes()` RPC. Its explicit
+`can_operate_today_session` capability filters out recent read-only substitute
+history; a tutor login still sees only currently owned/today-covered classes,
+so it cannot power the centre-wide kiosk.
+**Operational rule: the kiosk iPad (Sign In tab) should always be logged into an admin account.**
+
+### `schedule_time` is a Postgres `TIME` column, not TEXT
+The schema stores `schedule_time TIME`. PostgREST returns `TIME` columns as strings in `"HH:mm:ss"` format (e.g., `"20:00:00"`), not `"HH:mm"`.  
+The iOS auto-late logic in `AttendanceService.markKioskSignIn` splits on `":"` and takes indices 0 and 1, so both formats work. ClassFormView accepts free text (e.g. `"20:00"`), which Postgres coerces to the TIME type on insert. Do not change the parsing logic to assume exactly two components.
+
+### `fetchStudentAttendanceHistory` depends on PostgREST FK inference
+The query uses the alias syntax: `session:sessions(session_date, class:classes(name))`.  
+PostgREST resolves this via the FK chain: `attendance_records.session_id → sessions.id` and `sessions.class_id → classes.id`.  
+If either FK is ever renamed or the column renamed, update the select string in `AttendanceService.fetchStudentAttendanceHistory` to match.
+
+### `fetchKioskEntries` creates sessions as a side effect (day-aware as of migration 015)
+Every time the kiosk tab loads, `get_or_create_today_session` is called for every authorized class **scheduled for today**, so today's session rows exist in Postgres from the moment the kiosk is opened, even if no one has attended yet. The RPC derives Singapore today and handles the create race; clients never insert sessions directly. This is intentional (so the roster is ready before class starts) but be aware when querying session counts.
+As of migration 015 the kiosk filters classes to today via `AttendanceService.classMeetsToday` (iOS): a class matches when its `recurrence_rule` BYDAY contains today's 2-letter code, **or** its `schedule_day` equals today's English weekday, **or** it has neither set (ad-hoc → always shown). TAVA tuition is Mon (Math) + Thu (English/Reading), so opening the kiosk on any other day shows "No Classes Today" rather than creating phantom sessions. `fetchMyClasses` also excludes the Study Space class (`is_study_space = TRUE`).
+
+### Offline sync idempotency
+Migration 038 does not trust device clocks: distinct mutations apply in server
+arrival order and receive a server timestamp. The current mutation ID plus the
+RLS-hidden `attendance_mutation_receipts` ledger make delayed retries idempotent
+after a newer correction; cross-row/cross-actor ID reuse raises `23505`. Native
+v2 queues bind the envelope and every row to the authenticated user, purge
+legacy/corrupt/foreign-owner data, clear on sign-out, and recheck ownership just
+before sync. They still rely on OS sandbox/device encryption rather than an
+app-level Keychain/Keystore encryption key.
+
+### Session lifecycle and substitute capabilities
+Migration 038 makes session creation, start/end, and notes RPC-only for
+authenticated clients: `get_or_create_today_session`, `set_session_lifecycle`,
+and `update_session_note`. The database derives Singapore today/server time;
+ended sessions cannot reopen. `get_my_classes` can retain a recent covered
+class for offline/history review, so clients must consume its separate
+`can_manage_sessions` and `can_operate_today_session` fields. Class visibility
+alone never authorizes today's controls, retrospective editing, or class-wide
+analytics. Kiosk preparation must filter `can_operate_today_session` first.
+
+### Feature flags
+The `feature_flags` table (migration 012) gates in-progress features; flags ship OFF. Read it via `FeatureFlagStore` (iOS, `Services/FeatureFlags.swift`), `FeatureFlags` (Android), or `getFeatureFlags()` (web, `lib/feature-flags.ts`). Current keys: `parent_portal` (PROD-01), `push_notifications` (PROD-02), `student_photos` (PROD-04), `study_space_tracking` (migration 015 — see below), `test_mode` (migration 020 — kiosk shows all classes regardless of weekday, web analytics shows all days; seeded ON only for demo day 2026-07-11, normally OFF — see below), `session_notes` (migration 026 — tutor free-text note on today's session: iOS/Android roster + web session detail), `qr_sign_in` (migration 026 — kiosk camera QR scanner reusing the tap-to-sign path; web prints per-student QR codes, payload = student UUID), `awards` (migration 026 — admin web page computing candidates from `attendance_summary` and recording rows in `awards`), `analytics` (migrations 031–033 — Supabase-native staff events, Activity feed, and Health dashboard; all clients capture only while ON; raw events purge after 90 days), `retrospective_sessions` (migration 037 — iOS/Android past-session creation/editing plus guarded historical roster/attendance RPCs; applied to prod 2026-07-21 and OFF until physical-device QA). Flipping a flag is admin-only (RLS); the web toggle UI (`web/app/(admin)/feature-flags/`) is superadmin-only. Migration 038 removes parent base-table access: clients must use the shaped `get_parent_*` / parent-write RPCs, and result files use server-minted upload/download tokens.
+
+### Study Space tracking (`study_space_tracking`, migration 015) — INTERNAL ONLY
+TAVA also runs an open drop-in study space (Mon–Fri 12–6pm) separate from tuition. This feature lets staff record who is in that room. It is modelled as a **single flagged class** (`classes.is_study_space = TRUE`, fixed UUID `57000000-0000-0000-0000-000000000001`) so it reuses the sessions/attendance_records/offline stack. Roster = **all active students** (not enrollment-based, via the `get_study_space_roster` RPC). Status is **Present / Not Here Yet (no row)** only — no late/absent, no auto-late. Marked on the **iPad kiosk** (`StudySpaceView`, reached from the kiosk header when the flag is on); no web marking UI.
+
+**INVARIANT — study-space attendance is internal reference ONLY and must NEVER appear in any report, report card, or parent view.** Enforced by excluding `classes.is_study_space = TRUE` at the source: the `attendance_summary` view and `get_roster_for_date` RPC (migration 015), plus `fetchMyClasses` (hides the class from the kiosk/class list/export picker), iOS `fetchStudentAttendanceHistory`, and the web queries `getTodaySessions` / `getDailyAttendance` / `getStudentRecentRecords`. **Any new report / report-card / parent query MUST filter `classes.is_study_space = FALSE`.**
+
+### `test_mode` (migration 020) — demo/testing on non-tuition days
+When ON: `fetchKioskEntries` (iOS) skips the `classMeetsToday` day filter so every
+active class appears on the kiosk, and the web analytics (`getDailyAttendance`,
+`getMonthlyAttendanceDrops`) include all days. When OFF: web analytics filter to
+tuition days (Mon/Thu, `isTuitionDay` in `web/lib/date.ts`) so test/demo sessions on
+other days stay invisible. `attendance_summary` (the view) is deliberately NOT
+filtered — after any test-mode session, the demo-day rows must be **deleted**
+(HUMANS.md §37) or they permanently skew attendance percentages. iOS loads flags once
+at sign-in — relaunch the app after flipping.
+
+---
+
+## Kiosk admin mode
+
+| State | Behaviour |
+|---|---|
+| No PIN configured | Always in admin mode (suitable for demos and testing) |
+| PIN configured, kiosk locked | Student-facing mode; tab bar hidden; only sign-in grid shown |
+| PIN configured, unlocked | Admin mode; gear icon visible; `isAdminUnlocked = true` |
+
+Admin mode persists until the kiosk is re-locked (gear → Lock Kiosk Now). It does NOT persist across app restarts — `isAdminUnlocked` is a `@State` var, not persisted.
+
+### Kiosk status semantics
+
+| Kiosk shows | DB row | Card colour | Tappable? |
+|---|---|---|---|
+| Not Here Yet | `attendance_records` row absent or `nil` status | Grey (default) | Yes → auto sign-in |
+| On Time | `.present` | Green | No (admin: tap to override) |
+| Late | `.late` | Orange | No (admin: tap to mark On Time) |
+| Late + reason | `.late` + `late_reason IS NOT NULL` | Orange + `info.circle.fill` glyph | Admin: tap glyph to see reason |
+| Absent | `.absent` | Red | No (admin context-menu only) |
+| Dismissed | `.present` or `.late` + row in `dismissals` table | Purple | No (admin: long-press → Undo Dismissal) |
+
+**"Not Here Yet" vs "Absent" vs "Dismissed"**:
+- **Not Here Yet**: no attendance row. Clearing uses the `clear_attendance` RPC with a fresh client mutation ID; the grey card remains tappable.
+- **Absent**: hard admin mark (red, context-menu only). Cannot be undone by the student.
+- **Dismissed**: student was physically present (attendance row unchanged, counts toward attendance %) but has been signed out early by admin. Stored in the `dismissals` table, not `attendance_records`. Purple card with a secondary label showing the original On Time / Late status underneath.
+
+### Status aggregation across multiple sessions
+When a student is enrolled in more than one class today, `KioskEntry.status` is the "worst" stored status across all their sessions: `late > present > absent`; it is `nil` only when every session has no attendance row. The merge logic is in `AttendanceService.worstStatus(_:_:)`.
+
+---
+
+## Phase 2/3 tables
+
+These tables exist in Postgres and have RLS enabled (admin-only until implemented):
+
+| Table | Purpose | Status |
+|---|---|---|
+| `result_slips` | Exam score slips uploaded by parents | Live behind `parent_portal`; shaped RPCs + signed file workflow |
+| `messages` | Centre ↔ parent direct messages | Live behind `parent_portal`; shaped parent RPCs |
+| `awards` | Attendance/punctuality awards | Admin-only behind `awards` |
+| `dismissals` | Student pick-up & "safely home" tracking | Live; parent projection/action also requires `push_notifications` |
+| `food_polls` | Event food ordering by centre | Schema only |
+| `food_poll_responses` | Student/parent responses | Schema only |
+
+The `attendance_summary` **view** is live and queryable — it aggregates attendance % per student per class. Good starting point for an admin analytics screen.
+
+---
+
+## User management
+
+Admins invite users from the web dashboard (`web/app/(admin)/users/` + the
+`invite` server action — email + role; the invitee lands on the set-password page).
+The Supabase Dashboard (**Authentication → Users → Invite User** with metadata
+`{ "full_name": "Wayne Tan", "role": "tutor" }`) remains the manual fallback.
+The `handle_new_user` trigger auto-creates the `profiles` row. The `role` field must be one of `admin`, `tutor`, or `parent` — checked at the DB level.
+
+To link a parent to their child(ren), insert into `parent_student_links` (still no UI —
+a common first ask when the parent role is activated):
+```sql
+INSERT INTO parent_student_links (parent_id, student_id)
+VALUES ('<parent_auth_uuid>', '<student_uuid>');
+```
+
+---
+
+## Testing procedures
+
+Automated coverage exists for the riskiest pure logic only: iOS `TAVAttendanceTests`
+(auto-late `signInStatus` parsing + `worstStatus` merge), Android `DayAwareKioskTest`, and
+`supabase/tests/sync_attendance_test.sql` (offline-sync idempotency — plain SQL asserts,
+runs in one transaction and rolls back, safe against any environment). Everything else is
+manual. Manual testing checklist:
+
+### Kiosk sign-in flow
+1. Log in as admin, open Sign In tab.
+2. Ensure at least one class has a `schedule_time` set in the past (e.g., 08:00 if it's afternoon).
+3. Tap a student → card should go **orange** (Late) if class time has passed, **green** (On Time) if not.
+4. Long-press a green card → context menu should offer "Mark as Late" and "Mark as Not Here Yet".
+5. Tap "Mark as Late" → card turns orange.
+6. Long-press an orange card → context menu should offer "Mark as Not Here Yet".
+7. Tap "Mark as Not Here Yet" → its attendance row is cleared, the card returns to grey, and the card is tappable again.
+8. Tap the grey card → should auto-sign-in again (late or on time based on time).
+
+### Admin mode
+1. Set a PIN via gear → Kiosk Settings → Set PIN → Lock Kiosk Now.
+2. Tap the lock icon, enter PIN → "ADMIN" badge should appear in the header.
+3. Sign in a student (gets marked Late). Tap the orange card → should change to On Time (green).
+4. Long-press any signed-in card → context menu should include "Mark as Absent" (red, destructive).
+5. Lock the kiosk again → ADMIN badge disappears; absent/late overrides are no longer available by tap.
+
+### Teacher roster
+1. Log in as a tutor, go to Classes → pick a class → Start Today's Class.
+2. Mark one student as Present. Confirm "Marked HH:MM AM/PM" appears under their name.
+3. Tap a student row → Student Profile sheet should open with recent attendance history.
+4. Turn off Wi-Fi. Mark a student. Orange dot should appear next to their name.
+5. Turn Wi-Fi back on. Orange dot should clear; verify the server/dashboard
+   record before treating the attendance as saved.
+
+### Student profile history
+- The `fetchStudentAttendanceHistory` query uses a PostgREST join. If the sheet shows a blank list with no error, check the Supabase logs for a PostgREST 400 — the FK join string may be mismatched.
+
+---
+
+## Running tests
+
+| Platform | Command | Working directory |
+|---|---|---|
+| iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` (scheme name from `project.yml`; project is XcodeGen-managed — run `xcodegen generate` first if `.xcodeproj` is stale) | `iOS/` |
+| Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` — requires JDK 17/21 | `Android/` |
+| Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build`; deploy via the `deploy` skill | `web/` |
+| Supabase | `supabase db reset --local`, lint, then every `supabase/tests/*.sql`; production claims additionally require remote drift/security gates | repo root |
+
+On this machine iOS builds **must** set `DEVELOPER_DIR` to Xcode-beta and pass
+`CODE_SIGNING_ALLOWED=NO`. A failure at `CodeSign swift-crypto_Crypto.bundle` is a
+pre-existing local keychain issue, not a code problem — do not try to "fix" it.
+
+## Next-build plans
+
+`NEXT_BUILD_CHANGES.md` is the staging area for **planned** product work aimed
+at the next app build (not yet implemented). Capture staff feedback, product
+decisions, and open design choices there as soon as they are agreed or queued.
+When a planned item ships, move a concise bullet into `RELEASE_NOTES.md`
+`Unreleased` and mark or remove it from `NEXT_BUILD_CHANGES.md` in the same
+change set. Do not treat this file as a substitute for `RELEASE_NOTES.md`.
+
+## Release change ledger
+
+`RELEASE_NOTES.md` is the staging area for changes between releases.
+Every completed product, behaviour, schema, security, operational, test, or
+release-process change must add a concise bullet under `Unreleased` in the same
+change set. Do not rely only on memory or commit subjects. The `release` skill
+audits this ledger against Git changes since the previous release, shows the
+combined summary and current Android/iOS versions, then **must ask the user for
+the next marketing version and stop before changing version files or shipping**.
+After a verified release, archive the bullets under that version and date; keep
+an empty `Unreleased` section ready for the next change.
+
+---
+
+## Cross-platform parity workflow
+
+After implementing any iOS feature, before declaring the task done:
+
+1. Run `git diff --stat HEAD~N..HEAD -- iOS/` to summarise the iOS files touched.
+2. Output a **paste-ready prompt block** (see template below) under a heading **"📋 Android port handoff"** containing:
+   - One-paragraph feature summary (what was built and why).
+   - Bulleted list of iOS files changed with a one-line purpose each.
+   - Equivalent Android file targets (see `Android/PORTING_NOTES.md` for the mapping).
+   - Any new Supabase columns, RPCs, or Storage buckets the Android code must call.
+   - A sample unit test the Android agent should write (mirroring the corresponding iOS XCTest).
+3. Output the same block under **"📋 Web port handoff"** for the `web/` package.
+
+> **The user pastes each block into a fresh agent invocation — do NOT spawn the porting agent automatically.** Each port is a separate review cycle.
+
+### iOS → Android file mapping
+
+The authoritative mapping lives in `Android/PORTING_NOTES.md`.
+
+### Paste-ready prompt template
+
+```
+You are porting iOS feature changes to the Android app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Android/
+
+## Feature summary
+[one paragraph]
+
+## iOS files changed
+- `iOS/TAVAttendance/[path]` — [purpose]
+
+## Android targets
+- `Android/app/src/main/java/com/example/tavattendance/[path]` — [purpose]
+
+## New Supabase schema (must be consumed by Android)
+- [list new columns, RPCs, buckets]
+
+## Sample test to write
+[paste the equivalent iOS XCTest case as pseudo-Kotlin]
+
+Implement all changes. Match existing Kotlin/Compose patterns in the repo.
+Do not change any Supabase migration files — they are shared.
+```
+
+---
+
+## Supabase credentials configuration
+
+Credentials are no longer hardcoded in source. Each platform loads them at build/runtime:
+
+| Platform | Location | Notes |
+|---|---|---|
+| iOS | `Config.xcconfig` (gitignored) → `Info.plist` via `$(SUPABASE_PROJECT_URL)` | Copy `Config.xcconfig.example` to `Config.xcconfig` and fill in values. Read via `Bundle.main.object(forInfoDictionaryKey:)` in `SupabaseManager.swift`. |
+| Android | `Android/secrets.properties` (gitignored) → `buildConfigField` | Copy `secrets.properties.example` to `secrets.properties` and fill in values (or set env vars in CI). `build.gradle.kts` reads it at configure time; accessed via `BuildConfig.SUPABASE_PROJECT_URL` in `SupabaseClient.kt`. |
+| Web | Environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) | Standard Next.js pattern. Set in Vercel dashboard or `.env.local`. |
+
+## App Store Connect (asc CLI)
+
+App ID **6790169580**, bundle `com.tava.TAVAttendance` (locked — a build has been uploaded;
+renaming would mean a whole new app record). Use the `asc` CLI (authenticated) for everything:
+`asc validate --app 6790169580 --version 1.0` is the canonical readiness report.
+
+- **Min OS**: build + binary are iOS 17.0. "iOS 1" sightings are the version string `1.0`.
+- **Icon**: the binary's icon is fine (verify with `asc builds icons list --app … --latest`);
+  the ASC dashboard shows a placeholder until a build is attached to a version / first submission.
+- **Release staging (2026-07-13)**: version 1.0 has metadata, age rating (`--all-none`),
+  free pricing (base `SGP`), build 3 attached, `--release-type MANUAL`, and review details with
+  a dedicated **admin** demo account in production Supabase. Keep its identifier and password
+  only in App Store Connect and the team password manager. A former plaintext password remains
+  in 63 reachable Git revisions, so rotate/disable the account before release,
+  update App Review credentials, and complete reviewed history cleanup.
+- **Remaining blockers** are human steps (HUMANS.md §44/§45): availability + App Privacy labels
+  (need `asc web auth login` interactive 2FA or the ASC dashboard), screenshots (no real student
+  names — PDPA), then the unlisted-distribution request form.
+- **Quirks**: `asc pricing schedule create` start date must not be in the future *in Pacific time*;
+  initial availability can only be created via `asc web …` (web session), not the public API.
+- The public privacy policy URL is `https://dash.thegoodcompanysg.dev/privacy` — served by
+  `web/app/privacy/` (outside the auth gate, exempted in `web/proxy.ts`) reading
+  `policy_documents` via the anon-read policy from migration 028. Don't move it behind auth.
+
+## Error handling improvements
+
+All three platforms now use structured error handling instead of silent catches:
+
+- **iOS**: New `AppError` type (`Core/AppError.swift`) + `View.errorAlert()` modifier. Errors surface as alerts with retry/dismiss options. Updated views: `GlobalKioskView`, `SessionListView`, `SessionDetailView`, `ExportView`.
+- **Web**: Query functions in `lib/queries.ts` now throw `Error` on failure (previously returned `[]`). Callers should use error boundaries or try/catch.
+- **Android**: Failures surface through `core/UiError.kt` — `Throwable.asUserMessage(prefix)` (mapper), `ErrorRetry` (load-error state with retry), and `rememberSnackbarError` (write-failure snackbar). All list/admin screens show a retry state on load failure and notify on write failure. The offline-pending sync flow (orange dot) is intentional, not an error. Mirrors iOS `AppError`/`errorAlert`.

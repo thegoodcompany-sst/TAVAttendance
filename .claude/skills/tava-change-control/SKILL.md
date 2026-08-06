@@ -30,10 +30,10 @@ exists because breaking it already cost real time or caused a real outage.
 | **Never assume a repo migration is applied to prod. Verify against the live DB.** | Migration 007 (`security_invoker` on `attendance_summary`) sat in the repo unapplied for weeks — any authed user could read every student's attendance until 2026-06-10. Migration 005 was never applied at all, which later blocked 013/014. |
 | **`CREATE OR REPLACE VIEW` resets view options — re-state `WITH (security_invoker = true)` every time you touch `attendance_summary`.** | Migration 015 recreated the view without it and silently reintroduced the RLS bypass; migration 016 (SEC-16a) fixed it. |
 | **Feature work ships behind a flag, OFF.** Flag flips are a separate, human-verified step (HUMANS.md §16/§26). | Study-space rows must never exist before every reporting surface excludes them. |
-| **Any new report / report-card / parent-facing query MUST filter `classes.is_study_space = FALSE`.** | Study-space attendance is internal-only by product decision (see CLAUDE.md invariant). SEC-16d fixed a parent policy that missed this. |
+| **Any new report / report-card / parent-facing query MUST filter `classes.is_study_space = FALSE`.** | Study-space attendance is internal-only by product decision (see AGENTS.md invariant). SEC-16d fixed a parent policy that missed this. |
 | **Never commit credentials.** Keys live in gitignored `iOS/Config.xcconfig`, `Android/secrets.properties`, `web/.env.local`. | The anon key leaked into git history once (accepted risk, but the `.githooks/pre-commit` scanner now blocks recurrences — enable with `git config core.hooksPath .githooks`). |
 | **iOS project is XcodeGen-managed — never hand-edit `TAVAttendance.xcodeproj`; edit `iOS/project.yml` and run `xcodegen generate`.** | Hand edits get silently destroyed on the next generate. |
-| **Cross-platform parity: an iOS feature isn't done until you output Android + Web port handoff blocks** (template in CLAUDE.md). Do NOT auto-spawn porting agents. | Each port is a separate review cycle by design. |
+| **Cross-platform parity: an iOS feature isn't done until you output Android + Web port handoff blocks** (template in AGENTS.md). Do NOT auto-spawn porting agents. | Each port is a separate review cycle by design. |
 
 ## Change classification → what gates it
 
@@ -45,7 +45,7 @@ exists because breaking it already cost real time or caused a real outage.
 | iOS change | Builds with the exact command in `tava-validation-and-qa`; manual checklist for touched flows; port handoff blocks emitted. |
 | Feature-flag flip | Human step. All platforms must be ready first (a flag is global across iOS/Android/web). Record in HUMANS.md. |
 | Anything needing dashboard/legal/device access | Stop. Add a numbered checklist item to HUMANS.md and list it at the end of your response. |
-| Docs of record (CLAUDE.md, HUMANS.md, PORTING_NOTES) | See `tava-docs-and-writing`. |
+| Docs of record (AGENTS.md, NEXT_BUILD_CHANGES.md, HUMANS.md, PORTING_NOTES) | See `tava-docs-and-writing`. |
 
 ## Ordering rule for any change touching both schema and app code
 

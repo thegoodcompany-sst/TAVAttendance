@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Flipped root agent knowledge to `AGENTS.md` (with `CLAUDE.md` stubbing
+  `@AGENTS.md`, matching `web/`); added `NEXT_BUILD_CHANGES.md` as the planned
+  next-build queue. Verified 2026-08-06 staff feedback against prod/clients:
+  excused/E already merged (055); pending = Not Here Yet + retrospective
+  (flag ON in prod); queued informed/uninformed absent and native Students
+  detail mirroring web `students/[id]`; fixed stale README “P/A/L/E” wording.
 - Bridged high-priority automated coverage gaps: study-space exclusion contracts
   for staff attendance history (iOS/Android query constants + tests), migration/
   view source contracts and optional SQL for `attendance_summary` / parent
