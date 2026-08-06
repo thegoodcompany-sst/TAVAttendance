@@ -5,6 +5,14 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Split Absent into informed vs did not inform via companion column
+  `attendance_records.absence_informed` (migration 056, applied to prod
+  2026-08-07). Status domain stays present/late/absent; iOS kiosk/roster can
+  set and show the flag; offline sync and retrospective RPCs carry it; parents
+  never see it.
+- iOS Students tab rows open a year-detail sheet (by-class summary + recent
+  register over a rolling 12 months), with a tutor caption when RLS scopes the
+  view to classes they teach.
 - Flipped root agent knowledge to `AGENTS.md` (with `CLAUDE.md` stubbing
   `@AGENTS.md`, matching `web/`); added `NEXT_BUILD_CHANGES.md` as the planned
   next-build queue. Verified 2026-08-06 staff feedback against prod/clients:

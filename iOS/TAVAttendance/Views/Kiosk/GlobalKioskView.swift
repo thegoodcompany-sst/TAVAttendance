@@ -34,6 +34,7 @@ struct GlobalKioskView: View {
     @State private var pinNeedsRecovery = false
     @State private var pendingBulk: PendingBulkAction? = nil
     @State private var showStatusInfo = false
+    @State private var showBulkAbsentOptions = false
 
     // 30s kiosk auto-refresh (UX-01).
     private let autoRefresh = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
@@ -44,6 +45,7 @@ struct GlobalKioskView: View {
 
     enum PendingBulkAction: Equatable {
         case status(AttendanceStatus)
+        case absent(informed: Bool)
         case clear
         case dismiss
 
@@ -53,8 +55,17 @@ struct GlobalKioskView: View {
             case .status(.present): return "On Time"
             case .status(.absent):  return "Absent"
             case .status:           return "Update"
+            case .absent(let informed):
+                return informed ? "Absent (informed)" : "Absent (no notice)"
             case .clear:            return "Not Here Yet"
             case .dismiss:          return "Dismissed"
+            }
+        }
+
+        var isDestructive: Bool {
+            switch self {
+            case .status(.absent), .absent: return true
+            default: return false
             }
         }
     }
@@ -196,7 +207,7 @@ struct GlobalKioskView: View {
             // UX-03: confirm bulk actions, naming the action + count.
             if let bulk = pendingBulk {
                 Button("\(bulk.title) · \(selectedIds.count) student\(selectedIds.count == 1 ? "" : "s")",
-                       role: bulk == .status(.absent) ? .destructive : nil) {
+                       role: bulk.isDestructive ? .destructive : nil) {
                     runBulk(bulk)
                 }
             }
@@ -204,10 +215,25 @@ struct GlobalKioskView: View {
         } message: {
             Text("Apply “\(pendingBulk?.title ?? "")” to \(selectedIds.count) selected student\(selectedIds.count == 1 ? "" : "s")?")
         }
+        .confirmationDialog(
+            "Mark as Absent?",
+            isPresented: $showBulkAbsentOptions,
+            titleVisibility: .visible
+        ) {
+            Button("Absent (informed)", role: .destructive) {
+                pendingBulk = .absent(informed: true)
+            }
+            Button("Absent (no notice)", role: .destructive) {
+                pendingBulk = .absent(informed: false)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("“Informed” only records whether the family told us in advance — it does not change the attendance percentage.")
+        }
         .alert("Not Here Yet vs Absent", isPresented: $showStatusInfo) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("“Not Here Yet” has no attendance record, so the student can tap their card to sign in. “Absent” is a firm admin mark — only an admin can undo it.")
+            Text("“Not Here Yet” has no attendance record, so the student can tap their card to sign in. “Absent” is a firm admin mark — only an admin can undo it. “Informed” only records whether the family told us in advance and does not change the attendance percentage.")
         }
         .onChange(of: isLocked) { _, locked in
             if locked {
@@ -380,7 +406,7 @@ struct GlobalKioskView: View {
                 }
                 if isAdminMode {
                     SelectionActionButton(title: "Absent", icon: "person.slash.fill", color: .red, disabled: selectedIds.isEmpty) {
-                        pendingBulk = .status(.absent)
+                        showBulkAbsentOptions = true
                     }
                     SelectionActionButton(title: "Dismiss", icon: "figure.walk.departure", color: .purple, disabled: selectedIds.isEmpty) {
                         pendingBulk = .dismiss
@@ -403,7 +429,10 @@ struct GlobalKioskView: View {
         pendingBulk = nil
         guard isAdminMode else { return }
         switch bulk {
-        case .status(let status): Task { await applyBulkAction(status) }
+        case .status(let status):
+            Task { await applyBulkAction(status, absenceInformed: nil) }
+        case .absent(let informed):
+            Task { await applyBulkAction(.absent, absenceInformed: informed) }
         case .clear:              Task { await applyBulkClear() }
         case .dismiss:            Task { await applyBulkDismiss() }
         }
@@ -430,15 +459,18 @@ struct GlobalKioskView: View {
         .padding(.top, 12)
     }
 
-    private func applyBulkAction(_ status: AttendanceStatus) async {
+    private func applyBulkAction(_ status: AttendanceStatus, absenceInformed: Bool?) async {
         let targets = entries.filter { selectedIds.contains($0.studentId) }
         await withTaskGroup(of: Void.self) { group in
             for entry in targets {
                 group.addTask {
                     await MainActor.run { pendingIds.insert(entry.studentId) }
                     do {
-                        try await AttendanceService.shared.markKioskAttendance(entry: entry, status: status)
-                        await MainActor.run { updateEntry(entry.studentId, status: status) }
+                        try await AttendanceService.shared.markKioskAttendance(
+                            entry: entry, status: status, absenceInformed: absenceInformed)
+                        await MainActor.run {
+                            updateEntry(entry.studentId, status: status, absenceInformed: absenceInformed)
+                        }
                     } catch {
                         await MainActor.run { self.error = AppError("Failed to update attendance", underlyingError: error) }
                     }
@@ -531,7 +563,8 @@ struct GlobalKioskView: View {
     }
 
     enum KioskAction {
-        case signIn, markLate, markPresent, markAbsent, clearAttendance
+        case signIn, markLate, markPresent, clearAttendance
+        case markAbsent(informed: Bool?)
         case markDismissed, undoDismissal
         case addLateReason(String)
     }
@@ -561,15 +594,16 @@ struct GlobalKioskView: View {
 
             case .markPresent:
                 try await AttendanceService.shared.markKioskAttendance(entry: entry, status: .present)
-                updateEntry(entry.studentId, status: .present)
+                updateEntry(entry.studentId, status: .present, absenceInformed: nil)
 
-            case .markAbsent:
-                try await AttendanceService.shared.markKioskAttendance(entry: entry, status: .absent)
-                updateEntry(entry.studentId, status: .absent)
+            case .markAbsent(let informed):
+                try await AttendanceService.shared.markKioskAttendance(
+                    entry: entry, status: .absent, absenceInformed: informed)
+                updateEntry(entry.studentId, status: .absent, absenceInformed: informed)
 
             case .clearAttendance:
                 try await AttendanceService.shared.clearKioskAttendance(entry: entry)
-                updateEntry(entry.studentId, status: nil)
+                updateEntry(entry.studentId, status: nil, absenceInformed: nil)
 
             case .markDismissed:
                 // Record a dismissal for every session the student is in today,
@@ -637,16 +671,31 @@ struct GlobalKioskView: View {
             }
             return String(localized: "Sign-in failed — please try again")
         case .absent:
-            return "\(entry.fullName) — \(String(localized: "marked Absent, ask a teacher"))"
+            let suffix: String
+            switch entry.absenceInformed {
+            case .some(true):  suffix = " (informed)"
+            case .some(false): suffix = " (no notice)"
+            case .none:        suffix = ""
+            }
+            return "\(entry.fullName) — \(String(localized: "marked Absent, ask a teacher"))\(suffix)"
         default:
             return "\(entry.fullName) — \(String(localized: "already signed in"))"
         }
     }
 
-    private func updateEntry(_ studentId: UUID, status: AttendanceStatus?) {
+    private func updateEntry(
+        _ studentId: UUID,
+        status: AttendanceStatus?,
+        absenceInformed: Bool? = nil
+    ) {
         if let i = entries.firstIndex(where: { $0.studentId == studentId }) {
             entries[i].status = status
             entries[i].markedAt = status == nil ? nil : Date()
+            if status == .absent {
+                entries[i].absenceInformed = absenceInformed
+            } else {
+                entries[i].absenceInformed = nil
+            }
         }
     }
 

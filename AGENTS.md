@@ -111,12 +111,20 @@ Admin mode persists until the kiosk is re-locked (gear → Lock Kiosk Now). It d
 | On Time | `.present` | Green | No (admin: tap to override) |
 | Late | `.late` | Orange | No (admin: tap to mark On Time) |
 | Late + reason | `.late` + `late_reason IS NOT NULL` | Orange + `info.circle.fill` glyph | Admin: tap glyph to see reason |
-| Absent | `.absent` | Red | No (admin context-menu only) |
+| Absent | `.absent` (+ optional `absence_informed`) | Red | No (admin context-menu only) |
+| Absent (informed) | `.absent` + `absence_informed = TRUE` | Red | Admin: Mark as Absent → Informed |
+| Absent (no notice) | `.absent` + `absence_informed = FALSE` | Red | Admin: Mark as Absent → Did not inform |
 | Dismissed | `.present` or `.late` + row in `dismissals` table | Purple | No (admin: long-press → Undo Dismissal) |
+
+**Absent informed split (migration 056):** do **not** add a fourth status value.
+`absence_informed` is a nullable companion boolean on `status = 'absent'`
+(TRUE = informed, FALSE = no notice, NULL = legacy/unspecified). Parents never
+see it. Offline sync and retrospective marking must carry the column — do not
+inherit the `late_reason` hole of dropping it from those RPCs.
 
 **"Not Here Yet" vs "Absent" vs "Dismissed"**:
 - **Not Here Yet**: no attendance row. Clearing uses the `clear_attendance` RPC with a fresh client mutation ID; the grey card remains tappable.
-- **Absent**: hard admin mark (red, context-menu only). Cannot be undone by the student.
+- **Absent**: hard admin mark (red, context-menu only). Cannot be undone by the student. Optional `absence_informed` records whether the family told us in advance; it does not change attendance %.
 - **Dismissed**: student was physically present (attendance row unchanged, counts toward attendance %) but has been signed out early by admin. Stored in the `dismissals` table, not `attendance_records`. Purple card with a secondary label showing the original On Time / Late status underneath.
 
 ### Status aggregation across multiple sessions

@@ -13,6 +13,7 @@ struct StudentManagementView: View {
     @State private var showingImport = false
     @State private var privacyStudent: Student?
     @State private var showingCorrections = false
+    @State private var detailStudent: Student?
 
     var body: some View {
         NavigationStack {
@@ -42,33 +43,38 @@ struct StudentManagementView: View {
                 } else {
                     List {
                         ForEach(students) { student in
-                            StudentRow(student: student)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        studentToDelete = student
-                                        showingDeleteConfirm = true
-                                    } label: {
-                                        Label("Remove", systemImage: "trash")
-                                    }
-                                    Button {
-                                        editingStudent = student
-                                    } label: {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-                                    .tint(.blue)
+                            Button {
+                                detailStudent = student
+                            } label: {
+                                StudentRow(student: student)
+                            }
+                            .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    studentToDelete = student
+                                    showingDeleteConfirm = true
+                                } label: {
+                                    Label("Remove", systemImage: "trash")
                                 }
-                                .contextMenu {
-                                    Button {
-                                        editingStudent = student
-                                    } label: {
-                                        Label("Edit", systemImage: "pencil")
-                                    }
-                                    Button {
-                                        privacyStudent = student
-                                    } label: {
-                                        Label("Privacy & Data (PDPA)", systemImage: "hand.raised")
-                                    }
+                                Button {
+                                    editingStudent = student
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
                                 }
+                                .tint(.blue)
+                            }
+                            .contextMenu {
+                                Button {
+                                    editingStudent = student
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                Button {
+                                    privacyStudent = student
+                                } label: {
+                                    Label("Privacy & Data (PDPA)", systemImage: "hand.raised")
+                                }
+                            }
                         }
                     }
                 }
@@ -110,6 +116,10 @@ struct StudentManagementView: View {
             }
             .sheet(item: $privacyStudent) { student in
                 StudentPrivacyView(student: student) { Task { await load() } }
+            }
+            .sheet(item: $detailStudent) { student in
+                StudentDetailView(student: student)
+                    .environmentObject(authManager)
             }
             .sheet(isPresented: $showingCorrections) {
                 CorrectionRequestsView()
@@ -156,21 +166,27 @@ private struct StudentRow: View {
     let student: Student
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(student.fullName)
-                .font(.headline)
-            HStack(spacing: 8) {
-                if let school = student.school {
-                    Text(school)
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(student.fullName)
+                    .font(.headline)
+                HStack(spacing: 8) {
+                    if let school = student.school {
+                        Text(school)
+                    }
+                    if let year = student.yearOfStudy {
+                        Text("·")
+                        Text(year)
+                    }
                 }
-                if let year = student.yearOfStudy {
-                    Text("·")
-                    Text(year)
-                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
             }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .padding(.vertical, 2)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
-        .padding(.vertical, 2)
     }
 }

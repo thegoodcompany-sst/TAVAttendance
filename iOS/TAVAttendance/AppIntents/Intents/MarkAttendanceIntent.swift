@@ -31,13 +31,15 @@ struct MarkAttendanceIntent: AppIntent {
         }
 
         // Absent is a hard, student-irreversible mark — confirm before applying.
+        // Siri cannot ask "informed?"; leave absence_informed nil intentionally.
         if status == .absent {
             try await requestConfirmation(
                 result: .result(dialog: "Mark \(student.name) absent for today?"))
         }
 
         if let attendanceStatus = status.status {
-            try await AttendanceService.shared.markKioskAttendance(entry: entry, status: attendanceStatus)
+            try await AttendanceService.shared.markKioskAttendance(
+                entry: entry, status: attendanceStatus, absenceInformed: nil)
             return .result(dialog: "Marked \(student.name) as \(attendanceStatus.spokenLabel).")
         }
         try await AttendanceService.shared.clearKioskAttendance(entry: entry)

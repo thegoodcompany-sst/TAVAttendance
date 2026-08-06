@@ -173,6 +173,7 @@ struct AttendanceInsert: Encodable {
     let status: AttendanceStatus
     let notes: String?
     let lateReason: String?
+    let absenceInformed: Bool?
     let clientMutationId: String
 
     enum CodingKeys: String, CodingKey {
@@ -180,6 +181,7 @@ struct AttendanceInsert: Encodable {
         case sessionId        = "session_id"
         case studentId        = "student_id"
         case lateReason       = "late_reason"
+        case absenceInformed  = "absence_informed"
         case clientMutationId = "client_mutation_id"
     }
 }
@@ -189,6 +191,7 @@ struct RosterEntry: Codable, Identifiable {
     let fullName: String
     var status: AttendanceStatus?
     let markedAt: Date?
+    var absenceInformed: Bool?
     let avatarUrl: String?   // PROD-04; nil unless a photo was uploaded
 
     var id: UUID { studentId }
@@ -198,6 +201,7 @@ struct RosterEntry: Codable, Identifiable {
         case studentId = "student_id"
         case fullName  = "full_name"
         case markedAt  = "marked_at"
+        case absenceInformed = "absence_informed"
         case avatarUrl = "avatar_url"
     }
 }
@@ -280,6 +284,7 @@ struct KioskEntry: Identifiable {
     var markedAt: Date?             // device-local time of the most recent marking this session
     var dismissedAt: Date?          // set when admin marks student as dismissed; attendance status unchanged
     var lateReason: String?         // admin-entered reason for late arrival
+    var absenceInformed: Bool?      // companion to .absent; nil = unspecified / legacy
     var avatarUrl: String?          // PROD-04; storage path, shown when student_photos flag is on
     var id: UUID { studentId }
 
@@ -515,6 +520,7 @@ struct AttendanceHistoryRecord: Codable, Identifiable {
     let id: UUID
     let status: AttendanceStatus
     let markedAt: Date?
+    let absenceInformed: Bool?
     let session: SessionSummary
 
     struct SessionSummary: Codable {
@@ -534,6 +540,7 @@ struct AttendanceHistoryRecord: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, status
         case markedAt = "marked_at"
+        case absenceInformed = "absence_informed"
         case session
     }
 }

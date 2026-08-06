@@ -4,8 +4,9 @@ import Foundation
 /// Study Space rows must never appear in this projection (CLAUDE.md invariant).
 enum StudentAttendanceHistoryQuery {
     /// Embed includes `is_study_space` so the filter can target the class row.
+    /// `absence_informed` is the companion flag for absent rows (migration 056).
     static let select =
-        "id, status, marked_at, session:sessions!inner(session_date, class:classes!inner(name, is_study_space))"
+        "id, status, marked_at, absence_informed, session:sessions!inner(session_date, class:classes!inner(name, is_study_space))"
 
     /// PostgREST filter path used to drop study-space classes.
     static let studySpaceFilterColumn = "session.class.is_study_space"

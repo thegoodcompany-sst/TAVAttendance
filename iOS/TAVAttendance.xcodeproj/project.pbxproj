@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		005C16F16B9AC6B5AB250045 /* AttendanceStatusLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61EEEFD5B8C25B46836143E8 /* AttendanceStatusLabel.swift */; };
 		01664D28876316AD8B14BEA1 /* AttendanceLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AC7E67C7091F97B5D7E4FF /* AttendanceLogicTests.swift */; };
 		065119F939DA1316C08031A7 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E65CF322BFF554E531CA30 /* FeatureFlags.swift */; };
 		0D88D6E645BA922FD1A2D5A4 /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F44A35FCED4364A1434BFDC /* RosterView.swift */; };
@@ -45,6 +46,7 @@
 		88A9F854E30944841383A5A5 /* SignInStudentIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5203C5DAD18245C177E027F0 /* SignInStudentIntent.swift */; };
 		8AC4398B1FEDFE3BBD4F5284 /* TutorAssignmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB063231D34769098CFDE05 /* TutorAssignmentView.swift */; };
 		8D21DF4D98F57760A2B61A04 /* KioskSelectionControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC417A8F8EEBDF5283E05E74 /* KioskSelectionControls.swift */; };
+		8DD465E58845202C9386EEA1 /* StudentYearSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E5DB45D40605EC5B51C384 /* StudentYearSummary.swift */; };
 		95498756FEA67B4098994E5B /* MarkAttendanceIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79BF5AC4077D5D181F5C1813 /* MarkAttendanceIntent.swift */; };
 		9705677849596329C19BA395 /* OpenKioskIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 374D50CD7AD19737B0A39486 /* OpenKioskIntent.swift */; };
 		990449AF9CA36A3D7E6C518B /* AttendanceService+ClassesStudents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 062063676FA1667F968035C8 /* AttendanceService+ClassesStudents.swift */; };
@@ -64,6 +66,7 @@
 		C2E9D3AF084BA4D847F9850D /* QRScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 757DCC9F10B26459799B20D3 /* QRScannerView.swift */; };
 		CD4DA5CB0FE9F9A4C9E6FF82 /* AttendanceService+ParentPortal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D94556A6799312619F48B84 /* AttendanceService+ParentPortal.swift */; };
 		CE4963376C4F52CDA79D7517 /* KioskCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF4006BA7BA8A030D68F8E2 /* KioskCard.swift */; };
+		D2930D265930B5F061302215 /* StudentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EEC804E53A0FBC40D29EEF4 /* StudentDetailView.swift */; };
 		D693F8B311CB2B7F6D73D158 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85DEA9F263B167CCEC35BFC /* LoginView.swift */; };
 		D84A9BB30A1CE2302FA69420 /* EnrollmentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */; };
 		DAD80455B74C545EC2E07185 /* AttendanceService+Kiosk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73B46036CF42CB1F83C812FB /* AttendanceService+Kiosk.swift */; };
@@ -96,6 +99,7 @@
 		232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TAVAttendanceApp.swift; sourceTree = "<group>"; };
 		24263A7CE6B4E1FE69D4C901 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
 		27779637419CBFBFEA14E32A /* StudentManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentManagementView.swift; sourceTree = "<group>"; };
+		28E5DB45D40605EC5B51C384 /* StudentYearSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentYearSummary.swift; sourceTree = "<group>"; };
 		2C36143FEF33A6D9C5370479 /* StudentPrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentPrivacyView.swift; sourceTree = "<group>"; };
 		309D5646A5E18F3D281FEABD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		374D50CD7AD19737B0A39486 /* OpenKioskIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenKioskIntent.swift; sourceTree = "<group>"; };
@@ -110,9 +114,11 @@
 		543023F8203B0054936C6A20 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnrollmentView.swift; sourceTree = "<group>"; };
 		5CAA9B963B7BEE4160883812 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		61EEEFD5B8C25B46836143E8 /* AttendanceStatusLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceStatusLabel.swift; sourceTree = "<group>"; };
 		626807EE6AA6433E29B7EEF5 /* TAVAShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TAVAShortcuts.swift; sourceTree = "<group>"; };
 		63E432A0AA36DD32D1759090 /* AttendanceService+PrivacyAdmin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AttendanceService+PrivacyAdmin.swift"; sourceTree = "<group>"; };
 		64ADFF510704F740AA4F9A37 /* AttendanceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceService.swift; sourceTree = "<group>"; };
+		6EEC804E53A0FBC40D29EEF4 /* StudentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentDetailView.swift; sourceTree = "<group>"; };
 		72D67377883C1040266AACDE /* KioskPINViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskPINViews.swift; sourceTree = "<group>"; };
 		73B46036CF42CB1F83C812FB /* AttendanceService+Kiosk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AttendanceService+Kiosk.swift"; sourceTree = "<group>"; };
 		757DCC9F10B26459799B20D3 /* QRScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QRScannerView.swift; sourceTree = "<group>"; };
@@ -154,7 +160,7 @@
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
 		FF5EC050D1FB11BF60A79BDD /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
-		"TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_144E5609-EDEA-495F-BF3B-2FEBA7F701AA" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -274,6 +280,7 @@
 				3AECF3AEC20EF5ACE0F8DB73 /* AttendanceService+SessionsAttendance.swift */,
 				42E65CF322BFF554E531CA30 /* FeatureFlags.swift */,
 				F901E97705AA5E096E17C2A1 /* StudentAttendanceHistoryQuery.swift */,
+				28E5DB45D40605EC5B51C384 /* StudentYearSummary.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -295,6 +302,7 @@
 		B01C0DBACA98886FA038F890 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				61EEEFD5B8C25B46836143E8 /* AttendanceStatusLabel.swift */,
 				CB273005930FAD09CC8AD1F7 /* Models.swift */,
 			);
 			path = Models;
@@ -323,6 +331,7 @@
 				5878F02CFFEB89C2996386A8 /* EnrollmentView.swift */,
 				06D9A61ADE3ECD77F0BD9220 /* ExportView.swift */,
 				76DF1807148A196AA37C1204 /* ParentLinkView.swift */,
+				6EEC804E53A0FBC40D29EEF4 /* StudentDetailView.swift */,
 				4EC7DC93588149D2B2912D0C /* StudentFormView.swift */,
 				D673875F41EE45E065B47053 /* StudentImportView.swift */,
 				27779637419CBFBFEA14E32A /* StudentManagementView.swift */,
@@ -371,10 +380,10 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_2267C834-C829-473B-914E-041E7C705963" /* iOS */ = {
+		"TEMP_4813B505-7A98-4A46-A1CD-6BE0AA107B09" /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */,
+				"TEMP_144E5609-EDEA-495F-BF3B-2FEBA7F701AA" /* Config.xcconfig */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -495,6 +504,7 @@
 				FFC75DF0B34C02A1DA18B382 /* AttendanceService+SessionsAttendance.swift in Sources */,
 				45F780CDEE205B3028DE4827 /* AttendanceService.swift in Sources */,
 				7A8E8AB674B8766A7D6C91C6 /* AttendanceStatusAppEnum.swift in Sources */,
+				005C16F16B9AC6B5AB250045 /* AttendanceStatusLabel.swift in Sources */,
 				6E41513F3BD4A9FB3BBC2722 /* AuthManager.swift in Sources */,
 				BD08F834223826CC5C3FC832 /* Biometrics.swift in Sources */,
 				AD5545A3F3C8DFC0847B191E /* CheckStudentStatusIntent.swift in Sources */,
@@ -533,6 +543,7 @@
 				88A9F854E30944841383A5A5 /* SignInStudentIntent.swift in Sources */,
 				1A01AFDC1CE1FB853B6F3641 /* StudentAttendanceHistoryQuery.swift in Sources */,
 				BAFF49E2F26D7AC1DD4937BB /* StudentAttendanceRateIntent.swift in Sources */,
+				D2930D265930B5F061302215 /* StudentDetailView.swift in Sources */,
 				182629C14ED9DA07F22B0223 /* StudentEntity.swift in Sources */,
 				F7217E3079E64AAB8DDECED7 /* StudentFormView.swift in Sources */,
 				7FAAC67F3797907FBD7559E2 /* StudentImportView.swift in Sources */,
@@ -540,6 +551,7 @@
 				FE79888841DAF0F65F1CEEED /* StudentPrivacyView.swift in Sources */,
 				48407CE22BE54FB050C3242C /* StudentProfileView.swift in Sources */,
 				3403F3045A1C551C3809F033 /* StudentResultsView.swift in Sources */,
+				8DD465E58845202C9386EEA1 /* StudentYearSummary.swift in Sources */,
 				38FE42903F12B183D53D2AA6 /* StudySpaceView.swift in Sources */,
 				7B82E654CF7767F1DDC560CD /* SupabaseManager.swift in Sources */,
 				61A15FE98F1DE3DA980A0221 /* TAVAShortcuts.swift in Sources */,
@@ -681,7 +693,7 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_144E5609-EDEA-495F-BF3B-2FEBA7F701AA" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Distribution";
@@ -703,7 +715,7 @@
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_AC73C7DF-65D9-443D-A43A-AD09CEEA9ED4" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_144E5609-EDEA-495F-BF3B-2FEBA7F701AA" /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";

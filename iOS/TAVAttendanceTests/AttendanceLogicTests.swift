@@ -23,12 +23,12 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertTrue(GlobalKioskView.isActionAuthorized(.signIn, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markLate, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markPresent, isAdminMode: false))
-        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markAbsent, isAdminMode: false))
+        XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markAbsent(informed: false), isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.clearAttendance, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.markDismissed, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.undoDismissal, isAdminMode: false))
         XCTAssertFalse(GlobalKioskView.isActionAuthorized(.addLateReason("traffic"), isAdminMode: false))
-        XCTAssertTrue(GlobalKioskView.isActionAuthorized(.markAbsent, isAdminMode: true))
+        XCTAssertTrue(GlobalKioskView.isActionAuthorized(.markAbsent(informed: true), isAdminMode: true))
     }
 
     func testMalformedStoredPINRequiresAuthenticatedReset() {
@@ -47,7 +47,7 @@ final class AttendanceLogicTests: XCTestCase {
 
     func testAdminAuthorizationPermitsOverridesAndDismissals() {
         let adminActions: [GlobalKioskView.KioskAction] = [
-            .markLate, .markPresent, .markAbsent, .clearAttendance,
+            .markLate, .markPresent, .markAbsent(informed: false), .clearAttendance,
             .markDismissed, .undoDismissal, .addLateReason("traffic"),
         ]
         for action in adminActions {
@@ -346,6 +346,7 @@ final class AttendanceLogicTests: XCTestCase {
             studentId: UUID(),
             status: status,
             notes: nil,
+            absenceInformed: nil,
             clientMutationId: mutationId,
             markedAt: Date(timeIntervalSince1970: 1_700_000_000),
             isSynced: false
@@ -382,7 +383,8 @@ final class AttendanceLogicTests: XCTestCase {
             status: nil,
             notes: "",
             clientMutationId: record.clientMutationId,
-            markedAt: ISO8601DateFormatter().string(from: record.markedAt)
+            markedAt: ISO8601DateFormatter().string(from: record.markedAt),
+            absenceInformed: nil
         )
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
@@ -580,5 +582,77 @@ final class AttendanceLogicTests: XCTestCase {
             "session.class.is_study_space"
         )
         XCTAssertFalse(StudentAttendanceHistoryQuery.studySpaceFilterValue)
+    }
+
+    // MARK: - absence_informed sync payload encoding
+
+    func testSyncAttendancePayloadEncodesAbsenceInformed() throws {
+        let withFlag = SyncAttendancePayload(
+            sessionId: UUID(), studentId: UUID(), status: .absent,
+            notes: "", clientMutationId: "m1",
+            markedAt: "2026-08-06T00:00:00Z", absenceInformed: true)
+        let data = try JSONEncoder().encode(withFlag)
+        let obj = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertEqual(obj["absence_informed"] as? Bool, true)
+
+        let withoutFlag = SyncAttendancePayload(
+            sessionId: UUID(), studentId: UUID(), status: .absent,
+            notes: "", clientMutationId: "m2",
+            markedAt: "2026-08-06T00:00:00Z", absenceInformed: nil)
+        let data2 = try JSONEncoder().encode(withoutFlag)
+        let obj2 = try JSONSerialization.jsonObject(with: data2) as! [String: Any]
+        XCTAssertNil(obj2["absence_informed"])
+    }
+
+    // MARK: - Student year summary
+
+    func testStudentYearSummaryWindowStartIsOneYearEarlier() {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Singapore")!
+        let now = cal.date(from: DateComponents(year: 2026, month: 8, day: 6))!
+        let start = StudentYearSummary.windowStart(from: now, calendar: cal)
+        let expected = cal.date(from: DateComponents(year: 2025, month: 8, day: 6))!
+        XCTAssertEqual(start, expected)
+    }
+
+    func testStudentYearSummaryByClassAggregatesAndSorts() {
+        let records = [
+            historyRecord(className: "Math (Mon)", status: .present),
+            historyRecord(className: "English (Thu)", status: .late),
+            historyRecord(className: "Math (Mon)", status: .absent),
+            historyRecord(className: "Math (Mon)", status: .present),
+            historyRecord(className: "English (Thu)", status: .present),
+        ]
+        let summaries = StudentYearSummary.byClass(records)
+        XCTAssertEqual(summaries.map(\.className), ["English (Thu)", "Math (Mon)"])
+        XCTAssertEqual(summaries[0].totalSessions, 2)
+        XCTAssertEqual(summaries[0].presentCount, 1)
+        XCTAssertEqual(summaries[0].lateCount, 1)
+        XCTAssertEqual(summaries[0].absentCount, 0)
+        XCTAssertEqual(summaries[0].attendancePct, 100.0)
+        XCTAssertEqual(summaries[1].totalSessions, 3)
+        XCTAssertEqual(summaries[1].presentCount, 2)
+        XCTAssertEqual(summaries[1].lateCount, 0)
+        XCTAssertEqual(summaries[1].absentCount, 1)
+        XCTAssertEqual(summaries[1].attendancePct, 66.7)
+    }
+
+    func testStudentYearSummaryEmptyInput() {
+        XCTAssertTrue(StudentYearSummary.byClass([]).isEmpty)
+    }
+
+    private func historyRecord(
+        className: String, status: AttendanceStatus
+    ) -> AttendanceHistoryRecord {
+        AttendanceHistoryRecord(
+            id: UUID(),
+            status: status,
+            markedAt: nil,
+            absenceInformed: nil,
+            session: .init(
+                sessionDate: "2026-07-01",
+                class: .init(name: className)
+            )
+        )
     }
 }

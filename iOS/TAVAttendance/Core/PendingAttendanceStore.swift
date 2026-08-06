@@ -8,6 +8,7 @@ struct PendingAttendanceRecord: Codable {
     let studentId: UUID
     var status: AttendanceStatus?
     var notes: String?
+    var absenceInformed: Bool?
     // var (not let): an in-place correction reassigns a fresh clientMutationId and
     // markedAt so an in-flight sync of the old id can't clobber the newer tap.
     var clientMutationId: String
@@ -76,6 +77,7 @@ enum PendingAttendanceQueueCodec {
                 studentId: $0.studentId,
                 status: AttendanceStatus(rawValue: $0.status),
                 notes: $0.notes,
+                absenceInformed: nil,
                 clientMutationId: $0.clientMutationId,
                 markedAt: $0.markedAt,
                 isSynced: $0.isSynced
@@ -251,13 +253,15 @@ final class PendingAttendanceStore: ObservableObject {
         sessionId: UUID,
         studentId: UUID,
         status: AttendanceStatus?,
-        notes: String?
+        notes: String?,
+        absenceInformed: Bool? = nil
     ) -> Bool {
         guard activeOwnerUserId == ownerUserId else { return false }
         var records = load(ownerUserId: ownerUserId)
         if let index = records.firstIndex(where: { $0.sessionId == sessionId && $0.studentId == studentId }) {
             records[index].status = status
             records[index].notes = notes
+            records[index].absenceInformed = absenceInformed
             // Fresh id + timestamp: this is a NEW mutation. Reusing the old
             // clientMutationId would let an in-flight sync's markSynced() delete this
             // corrected record; a newer markedAt also wins the server's
@@ -272,6 +276,7 @@ final class PendingAttendanceStore: ObservableObject {
                 studentId: studentId,
                 status: status,
                 notes: notes,
+                absenceInformed: absenceInformed,
                 clientMutationId: UUID().uuidString,
                 markedAt: Date(),
                 isSynced: false

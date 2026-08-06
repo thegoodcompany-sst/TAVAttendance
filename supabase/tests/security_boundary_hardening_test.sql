@@ -855,6 +855,7 @@ SELECT pg_temp.assert_true(
         WHERE history.status = 'present'
           AND NOT (to_jsonb(history) ? 'notes')
           AND NOT (to_jsonb(history) ? 'late_reason')
+          AND NOT (to_jsonb(history) ? 'absence_informed')
           AND NOT (to_jsonb(history) ? 'marked_by')
           AND NOT (to_jsonb(history) ? 'client_mutation_id')
           AND NOT (history.session ? 'notes')

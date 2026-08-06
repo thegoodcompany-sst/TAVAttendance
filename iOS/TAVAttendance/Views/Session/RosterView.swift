@@ -21,6 +21,7 @@ struct RosterView: View {
 
     // Track optimistic status updates and mark times locally for instant UI feedback
     @State private var localStatus: [UUID: AttendanceStatus] = [:]
+    @State private var localAbsenceInformed: [UUID: Bool?] = [:]
     @State private var locallyCleared: Set<UUID> = []
     @State private var localMarkedAt: [UUID: Date] = [:]
     @State private var selectedStudent: RosterEntry? = nil
@@ -112,12 +113,12 @@ struct RosterView: View {
             isPresented: $showMarkAbsentConfirm,
             titleVisibility: .visible
         ) {
-            Button("Mark \(unmarkedEntries.count) Absent", role: .destructive) {
+            Button("Mark \(unmarkedEntries.count) Absent (no notice)", role: .destructive) {
                 Task { await markAllUnmarkedAbsent() }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("\(unmarkedEntries.count) student\(unmarkedEntries.count == 1 ? " is" : "s are") Not Here Yet. Mark them all as Absent?")
+            Text("\(unmarkedEntries.count) student\(unmarkedEntries.count == 1 ? " is" : "s are") Not Here Yet. Mark them all as Absent (no notice)? Bulk end-of-class marking means nobody told us in advance.")
         }
         .confirmationDialog("End Class", isPresented: $showEndClassConfirm, titleVisibility: .visible) {
             Button("End Class", role: .destructive) {
@@ -242,7 +243,7 @@ struct RosterView: View {
         }
         .buttonStyle(.plain)
         .disabled(session.endedAt != nil)
-        .accessibilityLabel("Mark as \(fullLabel(for: status))")
+        .accessibilityLabel("Mark as \(fullLabel(for: status, absenceInformed: effectiveAbsenceInformed(for: entry, proposed: status)))")
     }
 
     private func clearButton(entry: RosterEntry) -> some View {
@@ -305,6 +306,25 @@ struct RosterView: View {
         return entry.status
     }
 
+    /// Companion flag for `.absent`. `proposed` is used when labelling an A button
+    /// that is not yet selected (accessibility only).
+    private func effectiveAbsenceInformed(
+        for entry: RosterEntry,
+        proposed: AttendanceStatus? = nil
+    ) -> Bool? {
+        let status = proposed ?? effectiveStatus(for: entry)
+        guard status == .absent else { return nil }
+        if let local = localAbsenceInformed[entry.studentId] {
+            return local
+        }
+        if let record = pendingForCurrentUser.first(where: {
+            $0.studentId == entry.studentId && $0.sessionId == session.id
+        }) {
+            return record.absenceInformed
+        }
+        return entry.absenceInformed
+    }
+
     private func effectiveMarkedAt(for entry: RosterEntry) -> Date? {
         if locallyCleared.contains(entry.studentId) { return nil }
         if let pending = pendingForCurrentUser.first(where: {
@@ -353,6 +373,7 @@ struct RosterView: View {
         if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
             roster = updated
             localStatus.removeAll()
+            localAbsenceInformed.removeAll()
             locallyCleared.removeAll()
             localMarkedAt.removeAll()
         }
@@ -360,11 +381,15 @@ struct RosterView: View {
 
     private func markAllUnmarkedAbsent() async {
         for entry in unmarkedEntries {
-            await markAttendance(entry: entry, status: .absent)
+            // Bulk end-of-class remainder = nobody told us (absence_informed = false).
+            await markAttendance(entry: entry, status: .absent, absenceInformed: false)
         }
     }
 
-    private func markAttendance(entry: RosterEntry, status: AttendanceStatus) async {
+    private func markAttendance(
+        entry: RosterEntry, status: AttendanceStatus,
+        absenceInformed: Bool? = nil
+    ) async {
         guard let ownerUserId = currentOwnerUserId else {
             self.error = AppError("Your session changed. Sign in again before marking attendance.")
             return
@@ -372,6 +397,7 @@ struct RosterView: View {
         // Optimistic update
         locallyCleared.remove(entry.studentId)
         localStatus[entry.studentId] = status
+        localAbsenceInformed[entry.studentId] = status == .absent ? absenceInformed : nil
         localMarkedAt[entry.studentId] = Date()
 
         if network.isConnected {
@@ -380,7 +406,8 @@ struct RosterView: View {
                     sessionId: session.id,
                     studentId: entry.studentId,
                     status: status,
-                    notes: nil
+                    notes: nil,
+                    absenceInformed: status == .absent ? absenceInformed : nil
                 )
                 // PERF-04: trust the optimistic localStatus instead of re-fetching
                 // the whole roster on every tap (a full round-trip + list rebuild for
@@ -393,15 +420,20 @@ struct RosterView: View {
                 // "pending" and re-sends it forever. Surface those as an error and drop
                 // the optimistic override so the row reverts to server truth.
                 if error is URLError {
-                    queuePending(ownerUserId: ownerUserId, entry: entry, status: status)
+                    queuePending(
+                        ownerUserId: ownerUserId, entry: entry, status: status,
+                        absenceInformed: status == .absent ? absenceInformed : nil)
                 } else {
                     localStatus.removeValue(forKey: entry.studentId)
+                    localAbsenceInformed.removeValue(forKey: entry.studentId)
                     localMarkedAt.removeValue(forKey: entry.studentId)
                     self.error = AppError("Could not save attendance", underlyingError: error)
                 }
             }
         } else {
-            queuePending(ownerUserId: ownerUserId, entry: entry, status: status)
+            queuePending(
+                ownerUserId: ownerUserId, entry: entry, status: status,
+                absenceInformed: status == .absent ? absenceInformed : nil)
         }
     }
 
@@ -411,6 +443,7 @@ struct RosterView: View {
             return
         }
         localStatus.removeValue(forKey: entry.studentId)
+        localAbsenceInformed.removeValue(forKey: entry.studentId)
         localMarkedAt.removeValue(forKey: entry.studentId)
         locallyCleared.insert(entry.studentId)
 
@@ -434,17 +467,20 @@ struct RosterView: View {
     private func queuePending(
         ownerUserId: UUID,
         entry: RosterEntry,
-        status: AttendanceStatus?
+        status: AttendanceStatus?,
+        absenceInformed: Bool? = nil
     ) {
         let queued = currentOwnerUserId == ownerUserId && pendingStore.add(
             ownerUserId: ownerUserId,
             sessionId: session.id,
             studentId: entry.studentId,
             status: status,
-            notes: nil
+            notes: nil,
+            absenceInformed: absenceInformed
         )
         guard queued else {
             localStatus.removeValue(forKey: entry.studentId)
+            localAbsenceInformed.removeValue(forKey: entry.studentId)
             locallyCleared.remove(entry.studentId)
             localMarkedAt.removeValue(forKey: entry.studentId)
             self.error = AppError(
@@ -522,12 +558,8 @@ struct RosterView: View {
         }
     }
 
-    private func fullLabel(for status: AttendanceStatus) -> String {
-        switch status {
-        case .present: return "Present"
-        case .absent:  return "Absent"
-        case .late:    return "Late"
-        }
+    private func fullLabel(for status: AttendanceStatus, absenceInformed: Bool? = nil) -> String {
+        AttendanceStatusLabel.rosterText(for: status, absenceInformed: absenceInformed)
     }
 }
 

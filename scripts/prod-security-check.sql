@@ -175,12 +175,13 @@ BEGIN
        AND POSITION('student was not enrolled for this session' IN v_attendance_integrity) > 0,
         'attendance actor/time/enrollment enforcement drifted';
     ASSERT (
-        SELECT COUNT(*) = 3 FROM pg_constraint
+        SELECT COUNT(*) = 4 FROM pg_constraint
         WHERE conrelid = 'public.attendance_records'::REGCLASS
           AND conname IN (
               'attendance_records_notes_length_check',
               'attendance_records_late_reason_check',
-              'attendance_records_mutation_id_check'
+              'attendance_records_mutation_id_check',
+              'attendance_records_absence_informed_check'
           )
     ), 'attendance content constraints are incomplete';
     ASSERT (

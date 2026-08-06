@@ -48,11 +48,15 @@ extension AttendanceService {
                         if let t = r.markedAt, (existing.markedAt == nil || t > existing.markedAt!) {
                             existing.markedAt = t
                         }
+                        if existing.absenceInformed == nil {
+                            existing.absenceInformed = r.absenceInformed
+                        }
                         entryMap[r.studentId] = existing
                     } else {
                         entryMap[r.studentId] = KioskEntry(
                             studentId: r.studentId, fullName: r.fullName,
                             status: r.status, sessions: [slot], markedAt: r.markedAt,
+                            absenceInformed: r.absenceInformed,
                             avatarUrl: r.avatarUrl)
                     }
                 }
@@ -78,9 +82,15 @@ extension AttendanceService {
     }
 
     /// Marks a student across all their today's sessions. Status is applied as-is to every session.
-    func markKioskAttendance(entry: KioskEntry, status: AttendanceStatus, lateReason: String? = nil) async throws {
+    func markKioskAttendance(
+        entry: KioskEntry, status: AttendanceStatus,
+        lateReason: String? = nil, absenceInformed: Bool? = nil
+    ) async throws {
         for session in entry.sessions {
-            try await markAttendance(sessionId: session.id, studentId: entry.studentId, status: status, lateReason: lateReason)
+            try await markAttendance(
+                sessionId: session.id, studentId: entry.studentId,
+                status: status, lateReason: lateReason,
+                absenceInformed: absenceInformed)
         }
     }
 

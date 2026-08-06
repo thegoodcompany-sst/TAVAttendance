@@ -155,7 +155,7 @@ struct SessionDetailView: View {
                 }
             }
             Spacer()
-            statusBadge(for: entry.status)
+            statusBadge(for: entry.status, absenceInformed: entry.absenceInformed)
             if showsDisclosure {
                 Image(systemName: "chevron.right")
                     .font(.caption)
@@ -197,8 +197,8 @@ struct SessionDetailView: View {
     }
 
     @ViewBuilder
-    private func statusBadge(for status: AttendanceStatus?) -> some View {
-        let (label, color) = statusDisplay(status)
+    private func statusBadge(for status: AttendanceStatus?, absenceInformed: Bool? = nil) -> some View {
+        let (label, color) = statusDisplay(status, absenceInformed: absenceInformed)
         Text(label)
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
@@ -208,11 +208,11 @@ struct SessionDetailView: View {
             .clipShape(Capsule())
     }
 
-    private func statusDisplay(_ status: AttendanceStatus?) -> (String, Color) {
+    private func statusDisplay(_ status: AttendanceStatus?, absenceInformed: Bool? = nil) -> (String, Color) {
         switch status {
         case .present: return ("Present", .green)
         case .late:    return ("Late",    .orange)
-        case .absent:  return ("Absent",  .red)
+        case .absent:  return (AttendanceStatusLabel.rosterText(for: .absent, absenceInformed: absenceInformed), .red)
         case nil:      return ("Not Here Yet", .secondary)
         }
     }

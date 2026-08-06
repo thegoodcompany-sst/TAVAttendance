@@ -8,6 +8,7 @@ struct SyncAttendancePayload: Encodable {
     let notes: String
     let clientMutationId: String
     let markedAt: String
+    let absenceInformed: Bool?
 
     enum CodingKeys: String, CodingKey {
         case status, notes
@@ -15,6 +16,7 @@ struct SyncAttendancePayload: Encodable {
         case studentId = "student_id"
         case clientMutationId = "client_mutation_id"
         case markedAt = "marked_at"
+        case absenceInformed = "absence_informed"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -29,6 +31,7 @@ struct SyncAttendancePayload: Encodable {
         try container.encode(notes, forKey: .notes)
         try container.encode(clientMutationId, forKey: .clientMutationId)
         try container.encode(markedAt, forKey: .markedAt)
+        try container.encodeIfPresent(absenceInformed, forKey: .absenceInformed)
     }
 }
 
@@ -162,16 +165,19 @@ extension AttendanceService {
     }
 
     func markRetrospectiveAttendance(
-        sessionId: UUID, studentId: UUID, status: AttendanceStatus?
+        sessionId: UUID, studentId: UUID, status: AttendanceStatus?,
+        absenceInformed: Bool? = nil
     ) async throws {
         struct Params: Encodable {
             let sessionId: UUID
             let studentId: UUID
             let status: String?
+            let absenceInformed: Bool?
             enum CodingKeys: String, CodingKey {
                 case status
                 case sessionId = "session_id"
                 case studentId = "student_id"
+                case absenceInformed = "absence_informed"
             }
 
             func encode(to encoder: Encoder) throws {
@@ -183,18 +189,27 @@ extension AttendanceService {
                 } else {
                     try container.encodeNil(forKey: .status)
                 }
+                try container.encodeIfPresent(absenceInformed, forKey: .absenceInformed)
             }
         }
         try await db.rpc(
             "mark_retrospective_attendance",
-            params: Params(sessionId: sessionId, studentId: studentId, status: status?.rawValue)
+            params: Params(
+                sessionId: sessionId, studentId: studentId,
+                status: status?.rawValue, absenceInformed: absenceInformed)
         ).execute()
     }
 
-    func markAttendance(sessionId: UUID, studentId: UUID, status: AttendanceStatus, notes: String? = nil, lateReason: String? = nil) async throws {
+    func markAttendance(
+        sessionId: UUID, studentId: UUID, status: AttendanceStatus,
+        notes: String? = nil, lateReason: String? = nil,
+        absenceInformed: Bool? = nil
+    ) async throws {
         let record = AttendanceInsert(
             sessionId: sessionId, studentId: studentId, status: status,
-            notes: notes, lateReason: lateReason, clientMutationId: UUID().uuidString)
+            notes: notes, lateReason: lateReason,
+            absenceInformed: absenceInformed,
+            clientMutationId: UUID().uuidString)
         try await db.from("attendance_records")
             .upsert(record, onConflict: "session_id,student_id").execute()
     }
@@ -262,7 +277,8 @@ extension AttendanceService {
                 status: r.status,
                 notes: r.notes ?? "",
                 clientMutationId: r.clientMutationId,
-                markedAt: ISO8601DateFormatter().string(from: r.markedAt)
+                markedAt: ISO8601DateFormatter().string(from: r.markedAt),
+                absenceInformed: r.absenceInformed
             )
         }
         // Decode all three counters (migration 013 + 016). skipped (newer server row

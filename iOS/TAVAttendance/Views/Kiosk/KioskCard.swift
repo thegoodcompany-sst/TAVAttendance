@@ -52,7 +52,7 @@ struct KioskCard: View {
         switch entry.status {
         case .present: return "On Time"
         case .late:    return "Late"
-        case .absent:  return "Absent"
+        case .absent:  return AttendanceStatusLabel.text(for: .absent, absenceInformed: entry.absenceInformed)
         case nil:      return "Not Here Yet"
         }
     }
@@ -284,12 +284,24 @@ struct KioskCard: View {
                         Label("Mark as On Time", systemImage: "checkmark.circle")
                     }
                 }
-                if entry.status != .absent {
-                    Button(role: .destructive) {
-                        onAction(.markAbsent)
-                    } label: {
-                        Label("Mark as Absent", systemImage: "person.slash")
+                // Allow correcting informed/no-notice without clearing first.
+                Menu {
+                    if entry.status != .absent || entry.absenceInformed != true {
+                        Button(role: .destructive) {
+                            onAction(.markAbsent(informed: true))
+                        } label: {
+                            Label("Informed", systemImage: "person.slash")
+                        }
                     }
+                    if entry.status != .absent || entry.absenceInformed != false {
+                        Button(role: .destructive) {
+                            onAction(.markAbsent(informed: false))
+                        } label: {
+                            Label("Did not inform", systemImage: "person.slash")
+                        }
+                    }
+                } label: {
+                    Label("Mark as Absent", systemImage: "person.slash")
                 }
             }
         } else if isAdminMode {

@@ -749,3 +749,15 @@ status check is present/absent/late only; `clear_attendance(uuid,uuid,text)`
 exists; `attendance_summary.excused_count` gone; view keeps
 `security_invoker=true`. Clients that depend on the clear RPC / nullable sync
 contract may now deploy.
+
+### ☑ 72. Apply migration 056 (absence_informed) to production — DONE (2026-08-07)
+
+Applied exact committed `056_absence_informed.sql` to prod
+(`zgikcbsxzjgbigywxbbj`) via `supabase db query --linked --file` (NOTIFY is
+inside the migration). Verified by query: `absence_informed` boolean column;
+validated `attendance_records_absence_informed_check`; 0 violating rows;
+`attendance_summary` exposes `absent_informed_count` /
+`absent_uninformed_count` with `security_invoker=true`; exactly one
+`mark_retrospective_attendance(uuid,uuid,text,boolean)` overload.
+`scripts/prod-security-check.sql` (meta-commands stripped) returned success.
+iOS clients that write/read the flag may now ship; Android/web UI still pending.
