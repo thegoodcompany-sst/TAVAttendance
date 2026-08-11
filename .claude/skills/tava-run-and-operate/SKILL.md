@@ -11,7 +11,7 @@ description: Use when running TAVA clients, deploying the dashboard, operating p
 |---|---|---|
 | iOS | open `iOS/TAVAttendance.xcodeproj` after `xcodegen generate` | Simulator/device config comes from `iOS/Config.xcconfig` |
 | Android | `cd Android && ./gradlew installDebug` | JDK 17/21 and device/emulator |
-| Web | `cd web && npm run dev` | `http://localhost:3000` |
+| Web | `cd web && bun run dev` | `http://localhost:3000` |
 | Backend | `supabase start` | Studio `http://127.0.0.1:54323` |
 
 Use `tava-build-and-env` for prerequisites and `tava-validation-and-qa` before
@@ -105,6 +105,6 @@ HUMANS.md §63 tracks replacement of the full-admin kiosk trust model.
 
 ## Provenance
 
-Audited 2026-07-26 against current clients, migrations 031/038, production
-security workflows, `/users`, mobile release scripts and HUMANS.md §§60–69.
+Audited 2026-08-11 against current clients, production security workflows,
+`/users`, mobile release scripts and HUMANS.md §§60–69.
 Live configuration remains a measured fact, not a runbook claim.

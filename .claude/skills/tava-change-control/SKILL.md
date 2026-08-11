@@ -33,7 +33,7 @@ exists because breaking it already cost real time or caused a real outage.
 | **Any new report / report-card / parent-facing query MUST filter `classes.is_study_space = FALSE`.** | Study-space attendance is internal-only by product decision (see AGENTS.md invariant). SEC-16d fixed a parent policy that missed this. |
 | **Never commit credentials.** Keys live in gitignored `iOS/Config.xcconfig`, `Android/secrets.properties`, `web/.env.local`. | The anon key leaked into git history once (accepted risk, but the `.githooks/pre-commit` scanner now blocks recurrences — enable with `git config core.hooksPath .githooks`). |
 | **iOS project is XcodeGen-managed — never hand-edit `TAVAttendance.xcodeproj`; edit `iOS/project.yml` and run `xcodegen generate`.** | Hand edits get silently destroyed on the next generate. |
-| **Cross-platform parity: an iOS feature isn't done until you output Android + Web port handoff blocks** (template in AGENTS.md). Do NOT auto-spawn porting agents. | Each port is a separate review cycle by design. |
+| **Cross-platform parity: an iOS feature isn't done until you output Android + Web port handoff blocks** (template in `Android/PORTING_NOTES.md`). Do NOT auto-spawn porting agents. | Each port is a separate review cycle by design. |
 
 ## Change classification → what gates it
 
@@ -59,7 +59,8 @@ Never reorder 2 and 4. That exact inversion took prod down.
 
 ## Provenance and maintenance
 
-Audited 2026-08-03 (migrations 001–055; flag state remains environment-specific).
+Audited 2026-08-11. Migration and flag state remain environment-specific; do
+not embed a current highest migration number here.
 - Migration list: `ls supabase/migrations/`
 - Open human gates: `rg '^### ☐' HUMANS.md`
 - Flag keys: `SELECT key, enabled FROM feature_flags ORDER BY key;`

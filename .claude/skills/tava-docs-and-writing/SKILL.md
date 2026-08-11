@@ -17,18 +17,19 @@ prod (use `tava-prod-drift-campaign` / `tava-run-and-operate`).
 
 | Doc | Owns | Update when |
 |---|---|---|
-| `AGENTS.md` (root) | Agent knowledge NOT derivable from code: invariants, operational rules, test procedures, build commands, port-handoff template | You learn something non-obvious the hard way, or an invariant changes |
+| `AGENTS.md` (root) | Portable change workflow, invariants, established seams, canonical verification commands | The workflow, a cross-cutting invariant, or a canonical command changes |
 | `CLAUDE.md` (root) | Stub only (`@AGENTS.md`) for tools that still open that filename | Never put agent knowledge here |
 | `NEXT_BUILD_CHANGES.md` | Planned work for the next app build (staff feedback, product choices, not-yet-shipped items) | Feedback is queued, a product choice is made, or a planned item ships (then move a bullet to `RELEASE_NOTES.md` Unreleased and clear/mark here) |
 | `RELEASE_NOTES.md` | Completed changes between releases (`Unreleased` ledger) | Every completed product/behaviour/schema/security/ops/test/release-process change |
 | `HUMANS.md` | Numbered checklist of actions only a human can do (dashboard toggles, legal, devices, prod decisions). Key: ☐ todo · ☑ done · ◐ in progress | Your change creates/completes a human step. Never silently drop an item — mark ☑ with a dated verification note |
 | `README.md` | What the product does, stack, layout, roadmap | Features ship or roadmap changes |
 | `CONTRIBUTING.md` | Local setup for all platforms, storage buckets, ops/monitoring | Setup steps change |
-| `Android/PORTING_NOTES.md` | Authoritative iOS→Android file mapping + porting conventions | New screens/services appear on either side |
-| `supabase/migrations/README.md` | Migration table + down-migration convention | EVERY new migration adds a row (currently through 055) |
+| `docs/KIOSK_ATTENDANCE.md` | Detailed kiosk/attendance status and interaction semantics | Kiosk or attendance behaviour changes |
+| `Android/PORTING_NOTES.md` | Authoritative iOS→Android file mapping, conventions, and handoff template | New screens/services appear on either side |
+| `supabase/migrations/README.md` | Migration table + down-migration convention | EVERY new migration adds a row |
 | `docs/API.md` | Backend↔iOS integration contract with working Swift snippets | RPCs/queries the apps call change |
 | `docs/pdpa/*` | Governance docs (notice, retention, breach plan, implementation contract) | Legal/DPO input; notice edits also need in-app re-publish (see `tava-pdpa-reference`) |
-| `web/AGENTS.md` | Pinned-Next.js warning | Next.js version changes |
+| `{iOS,Android,supabase,web}/AGENTS.md` | Subsystem editing seams, constraints, and local verification | A subsystem's established workflow changes |
 | `docs/superpowers/{plans,specs}/` | Dated feature plans/design specs (`YYYY-MM-DD-name.md`) | Non-trivial feature design work |
 | `.claude/skills/*` | This library | See maintenance sections in each skill |
 
@@ -46,7 +47,10 @@ legal judgement, physical device):
 
 ## House style
 
-- Terse, factual, tables over prose. Documents state what IS, with the incident/why in one line — not essays.
+- Terse, factual, tables over prose. Documents state what IS, with the incident/why in one line—not essays.
+- Do not copy facts merely because they may be useful. Link to the owning source.
+- Avoid volatile counters such as “migrations through NNN”; derive them from the
+  filesystem or query the environment.
 - Date-stamp volatile facts (`Verified 2026-07-02:`); convert relative dates to absolute.
 - Commands are copy-pasteable and include the working directory.
 - British/Singapore spelling is fine (centre, organisation) — match the file you're editing.
@@ -62,17 +66,17 @@ legal judgement, physical device):
 ## The port-handoff ritual (iOS features)
 
 After any iOS feature, before "done": emit **"📋 Android port handoff"** and
-**"📋 Web port handoff"** blocks per the template in AGENTS.md
-(§Cross-platform parity workflow): feature summary, iOS files changed with
+**"📋 Web port handoff"** blocks per the template in `Android/PORTING_NOTES.md`:
+feature summary, iOS files changed with
 purpose, target files (mapping in PORTING_NOTES.md), new Supabase objects,
 sample test. The user pastes these into fresh sessions — **never auto-spawn
 the porting agent**.
 
 ## Provenance and maintenance
 
-Audited 2026-08-06 (root agent knowledge flipped to `AGENTS.md`;
-`NEXT_BUILD_CHANGES.md` added).
+Audited 2026-08-11 after separating the portable operating contract from
+domain and task-specific runbooks.
 - Doc inventory: `ls *.md docs docs/pdpa`
 - Open human items: `rg -c '^### ☐' HUMANS.md`
 - Next-build queue: `NEXT_BUILD_CHANGES.md`
-- Handoff template: `rg -n 'Paste-ready prompt template' AGENTS.md`
+- Handoff template: `rg -n 'Paste-ready port handoff template' Android/PORTING_NOTES.md`

@@ -17,7 +17,7 @@ against this repo; traps are listed at the point you'd hit them.
 ```bash
 # Requires the Supabase CLI (brew install supabase/tap/supabase)
 supabase start          # local Postgres + Auth + Storage + Studio
-supabase db reset --local # applies migrations 001–055 in order + seed.sql
+supabase db reset --local # applies the current migration set in order + seed.sql
 ```
 
 `db reset` also creates the two private Storage buckets (`result-slips`,

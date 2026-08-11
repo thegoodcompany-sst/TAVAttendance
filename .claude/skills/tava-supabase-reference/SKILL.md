@@ -21,7 +21,7 @@ that user**, and Row-Level Security policies decide row visibility. There is
 no API server to enforce anything — if RLS is wrong, the data is exposed.
 That's why the worst incidents here were RLS-class bugs.
 
-Key schema (migration 001 + successors through 055): `profiles` (role: admin/tutor/parent),
+Key schema (migration 001 and append-only successors): `profiles` (role: admin/tutor/parent),
 `students`, `classes`, `enrollments`, `sessions` (one per class per date),
 `attendance_records` (status: `present|late|absent`; no row = Not Here Yet), `dismissals`,
 `parent_student_links`, `feature_flags`, PDPA tables (see sibling skill),
@@ -109,8 +109,8 @@ Safe to run the function manually — it returns counts.
 
 ## Provenance and maintenance
 
-Audited 2026-08-03 (migrations 001–055; dependency lockfiles are the version
-sources).
+Audited 2026-08-11 against the current repository migrations; dependency
+lockfiles remain the source for client library versions.
 - Function inventory: `rg -n 'CREATE( OR REPLACE)? FUNCTION' supabase/migrations/*.sql`
 - Current security boundary: migration 038 + `scripts/prod-security-check.sql`
 - RPC return shape: `rg -n 'blocked_ended_session' supabase/migrations/038*`

@@ -4,9 +4,9 @@ This is a multi-platform monorepo: an iOS kiosk (`iOS/`), an Android app
 (`Android/`), a Next.js admin dashboard (`web/`), and a shared Supabase backend
 (`supabase/`). This guide consolidates local setup for all of them.
 
-> Agent note: project-specific conventions live in `AGENTS.md` (`CLAUDE.md` is
-> a stub). Planned next-build work lives in `NEXT_BUILD_CHANGES.md`. Read those
-> before changing code.
+> Start with `AGENTS.md` for the change workflow and invariants (`CLAUDE.md` is
+> a stub). Detailed procedures live in `.claude/skills/`; planned next-build
+> work lives in `NEXT_BUILD_CHANGES.md`.
 
 ---
 
@@ -120,9 +120,10 @@ cd web && bun install && bun run dev
 
 ## 5. Local testing checklist
 
-Automated tests cover attendance and security boundaries (iOS `TAVAttendanceTests`,
-Android unit tests, and every `supabase/tests/*.sql` regression); test the rest manually
-(full script in `AGENTS.md`):
+Automated tests cover attendance and security boundaries across all clients and
+the database. The canonical commands and manual scripts live in
+`.claude/skills/tava-validation-and-qa/SKILL.md`; kiosk semantics live in
+`docs/KIOSK_ATTENDANCE.md`.
 
 - **Kiosk sign-in**: admin login → Sign-In tab → tap a student → green (on time) /
   orange (late); long-press for overrides; search filters the grid.
@@ -132,12 +133,12 @@ Android unit tests, and every `supabase/tests/*.sql` regression); test the rest 
 
 | Platform | Command | Dir |
 |---|---|---|
-| iOS | `xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17'` (or build via Xcode; scheme name comes from `project.yml`, XcodeGen-managed) | `iOS/` |
+| iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` | `iOS/` |
 | Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` (JDK 17/21) | `Android/` |
 | Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build` | `web/` |
 
-Machine-specific caveats (Xcode-beta `DEVELOPER_DIR`, `CODE_SIGNING_ALLOWED=NO`)
-live in `AGENTS.md` §Running tests — agents should use that table.
+Machine-specific caveats and the evidence required for completion live in the
+validation runbook.
 
 ---
 

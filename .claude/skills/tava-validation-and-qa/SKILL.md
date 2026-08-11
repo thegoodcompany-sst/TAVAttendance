@@ -27,15 +27,15 @@ has its own gate queries).
 | iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` (from `iOS/`) | Compiles + any XCTests pass. CodeSign bundle failure = local keychain, ignore. Machine-specific flags: see `tava-build-and-env`. |
 | Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` (from `Android/`, JDK 17/21) | Unit tests + Android lint + debug app build. Separately exercise a minified release when release/storage/serialization dependencies change. |
 | Web | `bun audit --audit-level=high && bun run test && bun run lint && bun run build` (from `web/`, after `bun install --frozen-lockfile`) | Dependency, unit, lint and production build gates. |
-| Migrations | `supabase db reset --local && supabase db lint --local --schema public --level error --fail-on error`, then every `supabase/tests/*.sql` | All migrations through 055 replay plus SQL security regressions. |
+| Migrations | `supabase db reset --local && supabase db lint --local --schema public --level error --fail-on error`, then every `supabase/tests/*.sql` | The complete current migration set replays plus SQL security regressions. |
 
-Note: this table matches AGENTS.md §Running tests (the agent-facing source of
-truth, machine caveats included); CONTRIBUTING.md §5 defers to it.
+This runbook owns detailed verification procedure. `AGENTS.md` keeps the short
+canonical command table; `CONTRIBUTING.md` defers here for evidence and caveats.
 
 ## Manual QA checklists (the project's regression suite)
 
-Run the ones your change touches. Full scripts live in AGENTS.md §Testing
-procedures; condensed:
+Run the ones your change touches. This is the canonical copy; update
+`docs/KIOSK_ATTENDANCE.md` as well when product semantics change.
 
 **Kiosk sign-in** (admin login → Sign In tab; needs a class with
 `schedule_time` in the past to exercise Late):
@@ -102,4 +102,4 @@ use it as test fixtures (PDPA).
 Audited 2026-07-26.
 - Test inventory: `find iOS/TAVAttendanceTests Android/app/src/test web supabase/tests -type f | sort`
 - Android tests: `ls Android/app/src/test/java/com/example/tavattendance/`
-- Checklists drift with UI changes — canonical copy is AGENTS.md §Testing procedures.
+- Checklists drift with UI changes—this runbook is their canonical copy.

@@ -760,4 +760,11 @@ validated `attendance_records_absence_informed_check`; 0 violating rows;
 `absent_uninformed_count` with `security_invoker=true`; exactly one
 `mark_retrospective_attendance(uuid,uuid,text,boolean)` overload.
 `scripts/prod-security-check.sql` (meta-commands stripped) returned success.
-iOS clients that write/read the flag may now ship; Android/web UI still pending.
+Clients that write/read the flag may ship after their platform verification.
+
+Reverified 2026-08-11 through the linked production Management API: the Boolean
+column and validated constraint remain present, the old three-argument
+retrospective overload is absent, the four-argument overload plus roster/sync
+shapes carry `absence_informed`, and there are 0 invalid non-absent rows. The
+read-only production security gate and web-schema compatibility check passed;
+the migration was not reapplied.

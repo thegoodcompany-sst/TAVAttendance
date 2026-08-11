@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Refactored agent/contributor documentation around a concise change workflow:
+  root `AGENTS.md` now owns durable invariants and change seams, detailed kiosk
+  semantics have one domain reference, QA and port handoff procedures have one
+  canonical runbook each, and volatile migration counters were removed from
+  documentation. Re-verified migration 056 directly in production on 2026-08-11;
+  no reapplication was required.
 - Android: wire `absence_informed` through mark/sync/retrospective/roster/kiosk
   (Informed / Did not inform; Mark Rest Absent = no notice). Status enum unchanged;
   parents still never see the flag. Decode-safe optional `late_reason` on roster

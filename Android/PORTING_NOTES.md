@@ -25,11 +25,44 @@ here. Do **not** change Supabase migrations — they are shared across platforms
 
 Base package: `app/src/main/java/com/example/tavattendance/`.
 
+## Paste-ready port handoff template
+
+After an iOS feature changes, agents must emit separate Android and Web handoff
+blocks. The user pastes each block into a fresh agent session; do not spawn the
+porting agents automatically.
+
+```markdown
+You are porting iOS feature changes to the Android app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Android/
+
+## Feature summary
+[What was built and why.]
+
+## iOS files changed
+- `iOS/TAVAttendance/[path]` — [purpose]
+
+## Android targets
+- `Android/app/src/main/java/com/example/tavattendance/[path]` — [purpose]
+
+## New Supabase schema (must be consumed by Android)
+- [Columns, RPCs, or Storage buckets; write "None" when unchanged.]
+
+## Sample test to write
+[Equivalent iOS XCTest expressed as pseudo-Kotlin.]
+
+Implement all changes. Match existing Kotlin/Compose patterns in the repo.
+Do not change Supabase migration files; they are shared.
+```
+
+For the Web block, replace the destination and targets with the corresponding
+`web/` query, action, component, and test files. Preserve the same feature,
+schema, and test sections.
+
 ## Conventions
 
 - Models are `@Serializable` with `@SerialName` for snake_case DB columns.
-- Service methods live on the `AttendanceService` object; all Supabase access goes
-  through it.
+- Supabase access stays in `data/service`; use the existing domain data source
+  or an `AttendanceService` method rather than querying from a composable.
 - Feature flags (`feature_flags` table, migration 012) are read via
   `FeatureFlags.load()` / `FeatureFlags.isEnabled(key)`. Flags ship OFF.
 - Release builds are minified — add R8 keep rules to `app/proguard-rules.pro` for any

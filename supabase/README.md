@@ -11,7 +11,7 @@ supabase/
 ├── config.toml       Supabase local dev config
 ├── seed.sql          Dev seed data (local only)
 ├── functions/        Edge functions
-└── migrations/       001–015 (001 schema, 002 RLS, 003 functions/triggers, then incremental)
+└── migrations/       numbered, append-only schema and security changes
 ```
 
 The iOS integration guide (Swift SDK examples) is in `docs/API.md`.

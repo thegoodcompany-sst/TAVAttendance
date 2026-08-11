@@ -22,10 +22,10 @@ custom API server — every client talks PostgREST/RPC directly, so **Row-Level
 Security (RLS) IS the authorization layer**. Roles: `admin`, `tutor`,
 `parent` (DB-checked on `profiles.role`).
 
-Single-service pattern per client: all Supabase access goes through ONE
-service (`iOS/TAVAttendance/Services/AttendanceService.swift`,
-`Android/.../data/service/AttendanceService.kt`, `web/lib/queries.ts` +
-server actions). Don't scatter queries into views/components.
+Data-access seam per client: Supabase access stays in iOS services and
+`AttendanceService` domain extensions, Android `data/service` data sources,
+and web `lib/queries/*` plus server actions. Split by domain when useful; never
+scatter queries into views, composables, or client components.
 
 ## Invariants (MUST hold; violating any is a bug even if nothing crashes)
 
@@ -75,7 +75,8 @@ server actions). Don't scatter queries into views/components.
 
 ## Provenance and maintenance
 
-Audited 2026-07-26.
+Audited 2026-08-11 after aligning the documented data-access seam with the
+domain-split services currently present on all three clients.
 - Invariant 1 enforcement points: `rg -n 'is_study_space' web/lib iOS Android supabase/migrations/038*`
 - Worst-status merge: `rg -n 'worstStatus' iOS/TAVAttendance/Services/AttendanceService.swift`
 - View option: `SELECT reloptions FROM pg_class WHERE relname='attendance_summary';`
