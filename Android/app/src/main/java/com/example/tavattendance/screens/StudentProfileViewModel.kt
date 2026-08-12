@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.tavattendance.core.PdpaText
 import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.core.asUserMessage
 import com.example.tavattendance.core.rememberSnackbarError
@@ -351,6 +352,12 @@ class StudentProfileViewModel(app: Application) : AndroidViewModel(app) {
             if (trimmed.isEmpty()) {
                 if (isCurrent(studentId, parentMode = true, generation)) {
                     _snackbarMessage.value = "Message cannot be empty."
+                }
+                return@launch
+            }
+            if (PdpaText.containsNric(subject) || PdpaText.containsNric(trimmed)) {
+                if (isCurrent(studentId, parentMode = true, generation)) {
+                    _snackbarMessage.value = PdpaText.NRIC_WARNING
                 }
                 return@launch
             }

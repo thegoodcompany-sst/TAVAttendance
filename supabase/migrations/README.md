@@ -116,3 +116,4 @@ application from this table; require the remote drift/security gates.
 | 054 | defense_in_depth_authz | Study-space roster admin/flag gate, sync_attendance staff gate, parent-link role check, no device-token takeover | yes   |
 | 055 | merge_not_here_yet | Merge Not Here Yet with unmarked rows; guarded clear RPC and three-state reporting | yes   |
 | 056 | absence_informed | Companion boolean on absent rows (informed vs no notice); roster + sync + retrospective carry it | yes   |
+| 057 | reject_nric_in_messages | Reject NRIC/FIN in message subject/body (trigger + send_parent_message) | yes   |

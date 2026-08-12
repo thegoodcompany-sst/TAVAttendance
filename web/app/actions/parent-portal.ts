@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { NRIC_RE } from '@/lib/admin'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
@@ -233,6 +234,9 @@ export async function sendParentMessage(
 
   const trimmed = body.trim()
   if (!trimmed) return { error: 'Message cannot be empty.' }
+  if (NRIC_RE.test(subject) || NRIC_RE.test(trimmed)) {
+    return { error: 'Messages must not contain an NRIC/FIN.' }
+  }
 
   const { error } = await supabase.rpc('send_parent_message', {
     p_student_id: studentId,

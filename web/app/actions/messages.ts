@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requireAdmin } from '@/lib/admin'
+import { requireAdmin, NRIC_RE } from '@/lib/admin'
 
 export async function replyToThread(
   studentId: string,
@@ -14,6 +14,9 @@ export async function replyToThread(
 
   const trimmed = body.trim()
   if (!trimmed) return { error: 'Message cannot be empty.' }
+  if (NRIC_RE.test(subject) || NRIC_RE.test(trimmed)) {
+    return { error: 'Messages must not contain an NRIC/FIN.' }
+  }
   if (!recipientId) return { error: 'Parent recipient is required.' }
 
   const { data: link } = await supabase

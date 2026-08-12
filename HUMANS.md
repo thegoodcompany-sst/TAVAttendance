@@ -768,3 +768,29 @@ retrospective overload is absent, the four-argument overload plus roster/sync
 shapes carry `absence_informed`, and there are 0 invalid non-absent rows. The
 read-only production security gate and web-schema compatibility check passed;
 the migration was not reapplied.
+
+### ☐ 73. Apply migration 057 (reject NRIC in messages) to production
+
+Web/native write-path checks can ship first; the database trigger is the real
+control and must be applied before treating this as closed in production.
+
+1. Replay locally: `supabase db reset --local`, then
+   `psql "$TAVA_LOCAL_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/message_nric_guard_test.sql`.
+2. Apply the exact committed file
+   `supabase/migrations/057_reject_nric_in_messages.sql` through the reviewed
+   production path (`supabase db query --linked --file`). The file already
+   issues `NOTIFY pgrst, 'reload schema'`.
+3. Verify:
+
+```sql
+SELECT tgname, tgenabled
+FROM pg_trigger
+WHERE tgrelid = 'public.messages'::REGCLASS
+  AND tgname = 'trg_reject_nric_messages';
+-- expect one row, tgenabled O or A
+
+SELECT POSITION('nric/fin' IN LOWER(pg_get_functiondef(
+    'public.send_parent_message(uuid,text,text)'::REGPROCEDURE
+))) > 0;
+-- expect true
+```

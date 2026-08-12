@@ -105,6 +105,10 @@ extension AttendanceService {
         subject: String?,
         body: String
     ) async throws -> ParentMessage {
+        let nric = try Regex(#"\b[STFGM]\d{7}[A-Z]\b"#).ignoresCase()
+        if subject?.contains(nric) == true || body.contains(nric) {
+            throw AppError("Messages must not contain an NRIC/FIN.")
+        }
         struct Params: Encodable {
             let studentId: UUID
             let subject: String?
