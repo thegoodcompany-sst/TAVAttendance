@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- `production-security` required reviewer is now `EdmundLimBoEn` only (self-review
+  allowed). `waynetay` and `winson-lebron` were listed but not active, which left
+  Remote security checks and Advisor watch waiting.
 - Format `cleanup-student-storage` so the Edge Functions CI `deno fmt` gate passes
   (broken since that function landed on 2026-08-05).
 - Reject NRIC/FIN in parent and staff messages (migration 057): table trigger plus

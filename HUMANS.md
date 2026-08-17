@@ -691,26 +691,30 @@ server; native controls fail closed to that trusted workflow.
 - Use a reviewed history-cleaning procedure and coordinate fresh clones. Never
   print either old value in an issue, PR, terminal transcript, or cleanup log.
 
-### ◐ 67. Protect `main` and production deployments
+### ☑ 67. Protect `main` and production deployments
 
 Configured on 2026-07-27: `main` requires one CODEOWNERS approval, all six CI
 jobs, current-branch review, resolved conversations and linear history, with
 admin enforcement and force-push/deletion disabled. The `production-security`
-environment is limited to protected branches, prevents self-review, and requires
-`waynetay` or `winson-lebron`; its three secrets were moved out of repository
-scope. Remaining: merge `.github/CODEOWNERS` so the configured CODEOWNERS rule
-has its reviewed source of truth.
+environment is limited to protected branches. Updated 2026-08-17: required
+reviewer is `EdmundLimBoEn` only, with `prevent_self_review` off — `waynetay`
+and `winson-lebron` were listed but not active, so waiting runs sat unapproved.
+Its three secrets remain environment-scoped. `.github/CODEOWNERS` is the
+reviewed source of truth for the same active reviewer.
 
 - [x] Protected the environment and `main` with the controls above.
 - [x] Moved `TAVA_DB_URL`, `SUPABASE_ACCESS_TOKEN`, and
   `SUPABASE_DB_PASSWORD` into environment scope and deleted repository copies.
-- [ ] Merge the reviewed `.github/CODEOWNERS` entry. `remote-security` remains
-  a post-merge production check, not a substitute for the pre-merge CI gate.
+- [x] 2026-08-17: `.github/CODEOWNERS` matches the active reviewer
+  (`@EdmundLimBoEn`). `remote-security` remains a post-merge production
+  check, not a substitute for the pre-merge CI gate.
 - [x] Confirmed workflow run `30239848443` remains waiting for environment
   approval and cannot read its secrets.
-- [ ] Have `waynetay` or `winson-lebron` approve that known run; verify
-  remote-security and weekly advisor checks pass. Keep required-reviewer
-  approval in place for scheduled runs.
+- [x] 2026-08-17: removed inactive required reviewers `waynetay` and
+  `winson-lebron`. `EdmundLimBoEn` is the only required reviewer and can
+  self-approve. Approved current-main Remote security checks (`31991761441`)
+  and Advisor watch (`31987290842`); rejected 12 superseded waiting
+  deployments so they would not all hit production at once.
 
 ### ☐ 68. Deploy and verify the hardened web headers
 
