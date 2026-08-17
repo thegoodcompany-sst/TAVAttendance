@@ -11,8 +11,7 @@ This is the source draft for mobile release notes. Keep completed changes under
   `send_parent_message`, with matching web/Android/iOS write-path checks. Notes
   already had this guard; messages did not.
 - Pin web transitive overrides to patched `brace-expansion` 5.0.9, `nanoid`
-  3.3.17, and `js-yaml` 4.3.1 (previous `brace-expansion` 5.0.8 pin was still
-  in the advisory range).
+  3.3.18, and `js-yaml` 4.3.1 (`nanoid` 3.3.17 is in GHSA-2v37-7h3g-55p8).
 - Refactored agent/contributor documentation around a concise change workflow:
   root `AGENTS.md` now owns durable invariants and change seams, detailed kiosk
   semantics have one domain reference, QA and port handoff procedures have one
