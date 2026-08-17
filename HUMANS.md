@@ -812,3 +812,26 @@ SELECT POSITION('nric/fin' IN LOWER(pg_get_functiondef(
 ))) > 0;
 -- expect true
 ```
+
+Reverified 2026-08-17 via linked Management API: `reject_nric_in_messages` and
+`trg_reject_nric_messages` are absent. Remote security on `c2abd6e`
+(https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/32011181939)
+passed the live web-schema and `prod-security-check.sql` steps; the hosted-vs-
+replay diff then failed only on this 057 function/trigger/`send_parent_message`
+body. Client write-path checks shipped in 1.1.3; the database control remains
+open.
+
+### ☐ 74. Install and launch 1.1.3 on a real device
+
+Automated gates and uploads are done. Confirm install → launch → staff sign-in
+on each requested channel without using real student data in screenshots or
+logs.
+
+- Android: Firebase App Distribution `1.1.3` (`versionCode` 6), release
+  `7d28nmqkbke3g` in project `tavattendance-5a80e`.
+- iOS: TestFlight `1.1.3` build 8, App Store Connect build
+  `256fbe33-1f2b-4525-8f5e-ae813adbe2f6`, bundle `com.tava.TAVAttendance`.
+  Internal Testers is `READY_FOR_BETA_TESTING`. External group `TAVA team` is
+  attached but `READY_FOR_BETA_SUBMISSION` only; do not submit for Beta App
+  Review until HUMANS.md §66 is closed.
+- Source commit before the version bump: `c2abd6e`.

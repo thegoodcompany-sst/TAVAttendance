@@ -1,5 +1,6 @@
-TAVA Attendance — v1.1.2 (build 5)
-- Bugfixes, security fixes, and more.
-- Encrypts offline attendance queues and hardens kiosk/admin lockout.
-- Restores PDPA privacy controls in student management.
-- Refreshes dependencies and production security controls.
+TAVA Attendance — v1.1.3 (build 6)
+- Absent can now be marked informed or did not inform. Parents still never see this.
+- Students tab opens a 12-month year view (by class + recent register).
+- Unmarked attendance is one state: Not Here Yet. Reports stay Present / Late / Absent.
+- Staff and parent messages reject NRIC/FIN numbers.
+- iOS kiosk no longer crashes when a student is dismissed from more than one class the same day.

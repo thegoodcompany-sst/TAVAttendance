@@ -5,6 +5,11 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+## 1.1.3 — 2026-08-17
+
+- Shipped Android `1.1.3` (`versionCode` 6) to Firebase App Distribution and
+  iOS `1.1.3` (`CFBundleVersion` 8) to TestFlight. Source commit before the
+  version bump: `c2abd6e`.
 - Documented the approved “Every child accounted for” product direction: a
   two-month, sub-50-child September pilot of the existing core; offline
   correction ordering as a pre-pilot blocker; and the evidence-gated path to an
@@ -19,9 +24,9 @@ This is the source draft for mobile release notes. Keep completed changes under
   Remote security checks and Advisor watch waiting.
 - Format `cleanup-student-storage` so the Edge Functions CI `deno fmt` gate passes
   (broken since that function landed on 2026-08-05).
-- Reject NRIC/FIN in parent and staff messages (migration 057): table trigger plus
-  `send_parent_message`, with matching web/Android/iOS write-path checks. Notes
-  already had this guard; messages did not.
+- Reject NRIC/FIN in parent and staff messages on the web/Android/iOS write
+  paths (notes already had this guard). The production table trigger and
+  `send_parent_message` body from migration 057 are still HUMANS.md §73.
 - Pin web transitive overrides to patched `brace-expansion` 5.0.9, `nanoid`
   3.3.18, and `js-yaml` 4.3.1 (`nanoid` 3.3.17 is in GHSA-2v37-7h3g-55p8).
 - Refactored agent/contributor documentation around a concise change workflow:
