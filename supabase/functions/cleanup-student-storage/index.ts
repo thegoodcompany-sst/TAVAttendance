@@ -216,7 +216,8 @@ async function findEquivalentRootObjects(
     const objects = await listObjects(supabase, bucketName, "", budget, offset);
     for (const object of objects) {
       if (
-        !object.name || !rootNameMatchesStudent(object.name, normalizedStudentId)
+        !object.name ||
+        !rootNameMatchesStudent(object.name, normalizedStudentId)
       ) continue;
       if (object.id) matches.files.add(object.name);
       else matches.prefixes.add(object.name);
