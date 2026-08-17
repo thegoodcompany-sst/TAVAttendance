@@ -47,8 +47,8 @@ capability enabled on the App ID (see HUMANS.md).
 TAVAttendance/
   Core/        SupabaseManager, AuthManager, AppError, PushManager,
                NetworkMonitor, PendingAttendanceStore (offline sync)
-  Models/      Models.swift (TAVClass, Student, Session, …)
-  Services/    AttendanceService (all queries + kiosk logic), FeatureFlags
+  Models/      Database DTOs and domain values
+  Services/    AttendanceService domain extensions and supporting services
   Views/
     Auth/      LoginView
     Classes/   class list (tutor entry point)

@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Removed the completed dashboard mock from the live documentation tree, cleared
+  shipped work from the next-build queue, corrected stale architecture paths,
+  and retired merged or abandoned remote branches.
 - `production-security` required reviewer is now `EdmundLimBoEn` only (self-review
   allowed). `waynetay` and `winson-lebron` were listed but not active, which left
   Remote security checks and Advisor watch waiting.
@@ -74,7 +77,7 @@ This is the source draft for mobile release notes. Keep completed changes under
   and rewrote the staff test-kit guides (guide, 15-minute script, pre-pilot) in
   informal first-person voice: what must work before real kids, what’s simply
   not ready yet if still off, go/no-go without product-brochure tone.
-- Web admin dashboard visual pass aligned to `docs/drafts/web-dashboard-ui.html`:
+- Web admin dashboard visual pass aligned to the approved dashboard mock:
   exact navy/marigold/cream hex palette, cream surface shell, sidebar
   squircle/expand motion, draft status badges (On time / Not Here Yet), Today
   paired present/late bar chart + quick actions, Analytics by-class progress

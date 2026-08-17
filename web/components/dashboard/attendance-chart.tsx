@@ -4,7 +4,7 @@ import type { DailyAttendancePoint } from '@/lib/queries/analytics'
 import { cn } from '@/lib/utils'
 
 /**
- * Paired present/late bars matching docs/drafts/web-dashboard-ui.html.
+ * Paired present/late bars for the dashboard overview.
  * Heights are relative to the max present+late count in the window so empty
  * days still leave room for labels without looking broken.
  */

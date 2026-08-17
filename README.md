@@ -56,8 +56,8 @@ sessions); they ship OFF unless a migration explicitly documents otherwise.
 ```
 iOS/TAVAttendance/
   Core/           AuthManager, NetworkMonitor, PendingAttendanceStore, SupabaseManager
-  Models/         Models.swift — all value types and Codable structs
-  Services/       AttendanceService.swift — single service, all Supabase calls
+  Models/         Database DTOs and domain values
+  Services/       Focused AttendanceService extensions and supporting services
   Views/
     Admin/        Class, student, enrolment, tutor-assignment management
     Auth/         LoginView
@@ -70,7 +70,7 @@ iOS/TAVAttendance/
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
 supabase/
-  migrations/     001…038 (see supabase/migrations/README.md for the down-migration convention)
+  migrations/     Append-only schema history (indexed in supabase/migrations/README.md)
   functions/      notification + durable private-Storage cleanup workers
   seed.sql
 ```

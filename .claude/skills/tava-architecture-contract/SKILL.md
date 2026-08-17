@@ -78,5 +78,5 @@ scatter queries into views, composables, or client components.
 Audited 2026-08-11 after aligning the documented data-access seam with the
 domain-split services currently present on all three clients.
 - Invariant 1 enforcement points: `rg -n 'is_study_space' web/lib iOS Android supabase/migrations/038*`
-- Worst-status merge: `rg -n 'worstStatus' iOS/TAVAttendance/Services/AttendanceService.swift`
+- Worst-status merge: `rg -n 'worstStatus' iOS/TAVAttendance/Services/AttendanceService+Kiosk.swift`
 - View option: `SELECT reloptions FROM pg_class WHERE relname='attendance_summary';`

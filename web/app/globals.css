@@ -50,10 +50,6 @@
 }
 
 :root {
-  /*
-   * Exact palette from docs/drafts/web-dashboard-ui.html
-   * Navy #193775 · Marigold #FAC12F · Bright #116DFF · Cream #FFFBF2
-   */
   --brand: #193775;
   --brand-soft: #e8eef8;
   --brand-ink: #14213d;
