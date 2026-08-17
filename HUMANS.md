@@ -831,7 +831,8 @@ logs.
   `7d28nmqkbke3g` in project `tavattendance-5a80e`.
 - iOS: TestFlight `1.1.3` build 8, App Store Connect build
   `256fbe33-1f2b-4525-8f5e-ae813adbe2f6`, bundle `com.tava.TAVAttendance`.
-  Internal Testers is `READY_FOR_BETA_TESTING`. External group `TAVA team` is
-  attached but `READY_FOR_BETA_SUBMISSION` only; do not submit for Beta App
-  Review until HUMANS.md §66 is closed.
+  Internal Testers is `READY_FOR_BETA_TESTING`. External group `TAVA team` was
+  submitted for Beta App Review on 2026-08-17 (`WAITING_FOR_REVIEW`,
+  submitted 2026-08-17T02:05:17-07:00). This is TestFlight review, not the
+  public App Store 1.0 submission in §44.
 - Source commit before the version bump: `c2abd6e`.
