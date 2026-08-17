@@ -15,6 +15,11 @@ First time opening the app? Do the short walkthrough first:
 
 ## Where we are
 
+The approved pilot starts with the September 2026 test and runs for two months
+at one centre with fewer than 50 children. We are testing the existing
+attendance loop, not the planned Accountability Board, Exception Inbox, parent
+assurance, or handoff model.
+
 | Stage | Honest version |
 |---|---|
 | **Just exploring** | You can find Sign In, Classes, and the website without help |
@@ -70,7 +75,7 @@ Write a real name. “Someone will check” is how things get missed.
 | **Admin / lead** | Student & class data is right; website matches; final go/no-go |
 | **Desk** | iPad, PIN, kids signing in, fixes during the rush |
 | **Tutors on pilot classes** | Roster, marking, history, the orange-dot offline bit |
-| **Me (Edmund)** | Logins, demo data if we need it, what's switched on, app version |
+| **Me (Edmund)** | Product readiness, observe without coaching, keep private notes, and turn evidence into the fix list |
 
 ---
 
@@ -177,7 +182,7 @@ attendance files around.
 - [ ] While something is pending: no uninstall, no clear data, no account-hopping, no reset
 - [ ] Screenshots with names stay in our private staff chat only
 - [ ] Named desk lead each session (PIN + who pings me)
-- [ ] Named person for short notes after class (“what confused people?”)
+- [ ] Edmund observes and takes notes; staff run routine flows without builder coaching
 - [ ] Busy arrival: short queue, unlock only when staff need it, lock again after
 
 ---
@@ -213,13 +218,15 @@ If the 3-day run fails anything important, we move the pilot. No “hope for the
 
 ## If something breaks, write this down
 
-1. Date & time
-2. Which device (kiosk / phone / browser)
-3. Admin or tutor?
-4. Which kid / class (first name is fine in private notes)
-5. What you tapped and what you expected
-6. What actually happened
-7. Did you use paper?
+Keep the register private. Give each entry a stable ID and record:
+
+1. Date, time, child/session, and device
+2. Admin, tutor, or desk role
+3. Event type, what happened, and what staff expected
+4. Named owner and next action
+5. Escalation or paper fallback used
+6. Outcome and closure time
+7. App, process, or training fix needed
 
 Send it to me on our private channel. No kid names in group chats that aren't ours.
 
@@ -233,6 +240,7 @@ We only go live with real kids when all of this is honestly true:
 - [ ] Kiosk happy path + website match
 - [ ] Corrections + PIN work
 - [ ] Tutor path works (including offline clear + website confirm)
+- [ ] Reviewed build prevents an older queued action from overwriting a newer correction
 - [ ] Website path works
 - [ ] Paper / pending / stop rules briefed to everyone on duty
 - [ ] “Not yet” list understood — we won't depend on those
@@ -249,9 +257,10 @@ We only go live with real kids when all of this is honestly true:
 
 ---
 
-## After the pilot (short)
+## During and after the two months
 
-- [ ] What actually blocked attendance vs “would be nice”
+- [ ] Five-minute notes after each session: what broke, confused people, or left the app
+- [ ] End-of-window summary separates actual blockers from “would be nice” ideas
 - [ ] No demo junk left skewing percentages
 - [ ] More kids/classes, or hold and fix first?
 - [ ] Keep paper until busy days feel boring

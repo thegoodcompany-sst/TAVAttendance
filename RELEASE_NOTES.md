@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Documented the approved “Every child accounted for” product direction: a
+  two-month, sub-50-child September pilot of the existing core; offline
+  correction ordering as a pre-pilot blocker; and the evidence-gated path to an
+  authoritative expected roster, Web Accountability Board + Exception Inbox,
+  handoff evidence, parent assurance, and minimal child context. Payments,
+  accounting, payroll, CRM, and broad ERP scope remain excluded.
 - Removed the completed dashboard mock from the live documentation tree, cleared
   shipped work from the next-build queue, corrected stale architecture paths,
   and retired merged or abandoned remote branches.

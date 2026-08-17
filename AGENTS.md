@@ -1,4 +1,4 @@
-# AGENTS.md — How to change TAVA Attendance safely
+# AGENTS.md — How to work in TAVA Attendance
 
 This file is the portable operating contract for coding agents. It explains how
 to make changes, what must remain true, and where detailed procedures live.
@@ -6,6 +6,22 @@ Facts that can be discovered from code or change frequently belong in code,
 tests, or the matching runbook—not here.
 
 `CLAUDE.md` is intentionally only `@AGENTS.md`. Do not duplicate this file there.
+
+## Product mission
+
+TAVA Attendance supports a nonprofit tuition centre run by Talent Beacon
+Fellowship for children around Bukit Batok. The product promise is **every child
+accounted for**. Build it to be:
+
+1. reliable and simple;
+2. complete for the student operations TAVA genuinely needs; and
+3. free and nonprofit.
+
+The centre usually teaches English on Mondays and Mathematics on Thursdays,
+around 19:00–21:00, and often provides dinner. Software must assist staff, not
+replace their judgement or add work that does not help account for students.
+Payments, accounting, payroll, generic CRM, and broad ERP scope are not TAVA's
+problem.
 
 ## Start every task here
 

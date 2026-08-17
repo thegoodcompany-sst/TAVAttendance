@@ -538,6 +538,20 @@ Staff who have finished UI orientation complete `docs/test-kit/PRE_PILOT_CHECKLI
 Do not expand from “playing with the app” to real pilot students until the
 centre lead ticks GO.
 
+The approved evidence window starts with the September 2026 test and runs for
+two months at one centre with fewer than 50 children. Before GO:
+
+- confirm the build contains the reviewed offline correction-ordering fix and
+  its delayed-distinct-mutation regression passes;
+- disposition the privileged-account and kiosk-session gates in §62–§64;
+- name the centre lead, desk lead for each session, tutors, and Edmund as the
+  non-operating product observer;
+- prepare the approved paper roster and private exception register; and
+- record the planned sessions, expected children, participating devices, and
+  observation owner so the result has a denominator.
+
+Verified on __________ by __________. Pilot GO / NO-GO: __________.
+
 ### ☐ 55. (Optional) richer screenshots for the guide
 Only the login screen could be captured safely — the current prod test students
 carry real-looking names (PDPA), and the simulator has no scriptable tap tooling.

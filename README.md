@@ -1,8 +1,11 @@
-# TAVA Attendance
+# TAVA Attendance — Every child accounted for
 
-Attendance system for TAVA tutoring centre. An iPad-native kiosk (SwiftUI), an
-Android app (Jetpack Compose), and a web admin dashboard (Next.js), all backed by
-the same Supabase project.
+Student-operations system for TAVA's nonprofit tuition centre. Its core promise
+is **every child accounted for**. An iPad-native kiosk (SwiftUI), Android app
+(Jetpack Compose), and web admin dashboard (Next.js) share one Supabase backend.
+
+TAVA is not a payments, accounting, payroll, CRM, or business-ERP product. It
+focuses on the student journey and the evidence staff need to act safely.
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for full local setup of every platform.
 Agents: project rules live in [AGENTS.md](AGENTS.md) (`CLAUDE.md` stubs to it);
@@ -113,6 +116,28 @@ Admins link parent accounts to children from **/users**; the UI calls the existi
 ---
 
 ## Roadmap
+
+### Student Assurance direction — PLANNED, NOT SHIPPED
+
+The September 2026 priority is a two-month pilot at one centre with fewer than
+50 children. It validates the existing kiosk, tutor roster, offline recovery,
+paper fallback, and web reconciliation loop. Edmund observes and records fixes;
+the centre lead owns operational go/no-go; each session has a named desk lead.
+
+No roadmap expansion enters the pilot. Before real-child testing, delayed
+offline writes must be unable to overwrite newer authorised corrections, and
+the existing human/device readiness gates must pass.
+
+After the pilot, evidence gates this sequence:
+
+1. authoritative session calendar and expected-today roster;
+2. admin-only Web Live Accountability Board and Exception Inbox;
+3. observed and approved handoff evidence;
+4. one Parent Assurance channel and trigger; and
+5. only the longitudinal child context proven to change a safe action.
+
+The full approved direction and boundaries are in
+[`docs/superpowers/specs/2026-08-17-student-assurance-os-design.md`](docs/superpowers/specs/2026-08-17-student-assurance-os-design.md).
 
 ### Phase 2 — Parent Portal — BUILT, FLAG-GATED 2026-07-17
 The `parent_portal` flag remains OFF until centre verification. Migrations 035–036
