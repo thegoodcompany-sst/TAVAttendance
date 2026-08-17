@@ -787,7 +787,14 @@ shapes carry `absence_informed`, and there are 0 invalid non-absent rows. The
 read-only production security gate and web-schema compatibility check passed;
 the migration was not reapplied.
 
-### ☐ 73. Apply migration 057 (reject NRIC in messages) to production
+### ☑ 73. Apply migration 057 (reject NRIC in messages) to production — DONE (2026-08-17)
+
+Applied the exact committed migration through `supabase db query --linked
+--file` after a clean local replay, database lint, and every SQL regression
+passed. Verified in production that `trg_reject_nric_messages` is enabled, the
+guard remains in the `SECURITY DEFINER` `send_parent_message` body,
+`attendance_summary` remains `security_invoker`, and the read-only web-schema
+and production-security gates pass.
 
 Web/native write-path checks can ship first; the database trigger is the real
 control and must be applied before treating this as closed in production.
@@ -813,13 +820,13 @@ SELECT POSITION('nric/fin' IN LOWER(pg_get_functiondef(
 -- expect true
 ```
 
-Reverified 2026-08-17 via linked Management API: `reject_nric_in_messages` and
-`trg_reject_nric_messages` are absent. Remote security on `c2abd6e`
+Pre-apply verification earlier on 2026-08-17 via the linked Management API
+confirmed that `reject_nric_in_messages` and `trg_reject_nric_messages` were
+absent. Remote security on `c2abd6e`
 (https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/32011181939)
 passed the live web-schema and `prod-security-check.sql` steps; the hosted-vs-
 replay diff then failed only on this 057 function/trigger/`send_parent_message`
-body. Client write-path checks shipped in 1.1.3; the database control remains
-open.
+body. The completed application and post-apply evidence are recorded above.
 
 ### ☐ 74. Install and launch 1.1.3 on a real device
 
@@ -836,3 +843,17 @@ logs.
   submitted 2026-08-17T02:05:17-07:00). This is TestFlight review, not the
   public App Store 1.0 submission in §44.
 - Source commit before the version bump: `c2abd6e`.
+
+The 2026-08-17 kiosk failure came from iOS build 3 (`TAVAttendance/3` in the
+live API log), whose legacy direct `sessions` insert now receives the intended
+403. Install TestFlight 1.1.3 build 8 before completing this device check.
+
+### ☐ 75. Review the refreshed Supabase advisor baseline
+
+The 2026-08-17 post-migration advisor check reported 45 findings under keys not
+present in `scripts/advisor-accepted.json`, while 19 accepted keys were no
+longer reported. Most match documented intentional boundaries (self-guarding
+`SECURITY DEFINER` RPCs and service-only tables with RLS but no policies) or
+information-level index suggestions, but they must not be accepted
+automatically. Review each finding, then run
+`node scripts/advisor-watch.mjs --accept` only after human security review.

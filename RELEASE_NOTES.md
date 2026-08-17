@@ -5,6 +5,19 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Applied migration 057 to production on 2026-08-17, closing the database-level
+  message NRIC/FIN guard after a clean local replay and full SQL regression run;
+  verified the trigger, guarded parent-message RPC, web schema, and production
+  security assertions directly against the live project.
+- Restored the production dashboard by deploying current `main`; the previous
+  14-day-old bundle still requested the retired `attendance_summary.excused_count`
+  column. Post-deploy route, security-header, API-contract, and error-log checks
+  passed.
+- Traced the iOS kiosk failure to App Store build 3 using the retired direct
+  `sessions` insert, which the hardened production policy correctly rejects.
+  TestFlight 1.1.3 build 8 uses the guarded session RPC, and its 54 iOS tests
+  pass.
+
 ## 1.1.3 — 2026-08-17
 
 - Shipped Android `1.1.3` (`versionCode` 6) to Firebase App Distribution and
