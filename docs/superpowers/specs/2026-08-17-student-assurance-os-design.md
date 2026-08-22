@@ -228,5 +228,6 @@ Never collect data merely to create a moat.
   exception catalogue, role/action matrix, and executable acceptance tests.
 - The privacy/DPO reviewer also approves handoff, parent, or longitudinal data
   before those phases begin.
-- Planned work lives in `NEXT_BUILD_CHANGES.md`; completed work moves to
-  `RELEASE_NOTES.md` under `Unreleased`.
+- Direction lives in `ROADMAP.md`. Work approved for a build is queued in
+  `NEXT_BUILD_CHANGES.md`; completed work moves to `RELEASE_NOTES.md` under
+  `Unreleased`.

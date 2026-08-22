@@ -9,8 +9,9 @@ focuses on the student journey and the evidence staff need to act safely.
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for full local setup of every platform.
 Agents: project rules live in [AGENTS.md](AGENTS.md) (`CLAUDE.md` stubs to it);
-next-build plans in [NEXT_BUILD_CHANGES.md](NEXT_BUILD_CHANGES.md); deploy and
-release runbooks in `.claude/skills/`.
+product direction in [ROADMAP.md](ROADMAP.md); the next implementation queue in
+[NEXT_BUILD_CHANGES.md](NEXT_BUILD_CHANGES.md); deploy and release runbooks in
+`.claude/skills/`.
 
 ## What it does today
 
@@ -53,6 +54,11 @@ Each platform reads Supabase credentials from a gitignored config file — see
 in-progress features (parent portal, push notifications, student photos, study space
 tracking, test mode, session notes, QR sign-in, awards, analytics, and retrospective
 sessions); they ship OFF unless a migration explicitly documents otherwise.
+
+Built and gated (not future work — see [ROADMAP.md](ROADMAP.md) for that): parent
+portal, awards, student photos, session notes, QR sign-in, push notifications
+(credentials still human), food polls. Kiosk dismissal and web analytics are
+live. Do not grow QR further; 2027 arrival is NFC.
 
 ## Project layout
 
@@ -117,57 +123,6 @@ Admins link parent accounts to children from **/users**; the UI calls the existi
 
 ## Roadmap
 
-### Student Assurance direction — PLANNED, NOT SHIPPED
-
-The September 2026 priority is a two-month pilot at one centre with fewer than
-50 children. It validates the existing kiosk, tutor roster, offline recovery,
-paper fallback, and web reconciliation loop. Edmund observes and records fixes;
-the centre lead owns operational go/no-go; each session has a named desk lead.
-
-No roadmap expansion enters the pilot. Before real-child testing, delayed
-offline writes must be unable to overwrite newer authorised corrections, and
-the existing human/device readiness gates must pass.
-
-After the pilot, evidence gates this sequence:
-
-1. authoritative session calendar and expected-today roster;
-2. admin-only Web Live Accountability Board and Exception Inbox;
-3. observed and approved handoff evidence;
-4. one Parent Assurance channel and trigger; and
-5. only the longitudinal child context proven to change a safe action.
-
-The full approved direction and boundaries are in
-[`docs/superpowers/specs/2026-08-17-student-assurance-os-design.md`](docs/superpowers/specs/2026-08-17-student-assurance-os-design.md).
-
-### Phase 2 — Parent Portal — BUILT, FLAG-GATED 2026-07-17
-The `parent_portal` flag remains OFF until centre verification. Migrations 035–036
-were applied to prod on 2026-07-17 before the final web deployment.
-
-- **Attendance visibility**: parents see each linked child's attendance summary
-- **Result slip uploads**: parents upload PDF/JPG/PNG slips; admins view and acknowledge them at **/result-slips**
-- **Messaging**: per-child centre↔parent threads; admins reply at **/messages**
-- **Account linking**: admins assign/unassign children from parent accounts at **/users**
-- **Parent apps**: iOS, Android, and web parent areas remain gated by `parent_portal`
-
-### Phase 2 — Analytics Dashboard (admin) — SHIPPED 2026-07-10
-- Web **/analytics**: per-student-per-class attendance % (from `attendance_summary`) + monthly-drop watchlist
-- When the `test_mode` flag is OFF, analytics filters to tuition days (Mon/Thu) so test data stays hidden
-- Awards system — *built, behind the `awards` flag*: web **/awards** computes candidates from `attendance_summary` and records rows in `awards`
-
-### Phase 3 — Dismissal & Safety (partially live)
-- Kiosk dismissal marking is LIVE — admin dismisses a student (purple card), stored in `dismissals`
-- Parent push on late/absent: backend wired end-to-end (migration 021 trigger + APNs sender in
-  `notify-parent`) but inert until credentials are supplied (HUMANS.md §17) and the
-  `push_notifications` flag flips; "safely home" confirmation still open
-
-### Phase 3 — Food/Event Ordering
-- `food_polls` table exists — centre creates a poll (e.g. "Hari Raya lunch order"), students/parents respond
-- Admin sees aggregated order, no manual WhatsApp collection
-
-### Near-term improvements (no new tables needed)
-- **Student photo** on the kiosk card — *built, behind the `student_photos` flag* (`avatar_url` + `student-photos` bucket)
-- **Push notifications** via APNs/FCM — *scaffolded, behind the `push_notifications` flag* (`device_tokens` + `notify-parent` edge function; needs real APNs/FCM keys)
-- **Parent portal** — *built, behind the `parent_portal` flag* (iOS `ParentDashboardView`, Android `ParentDashboardScreen`, web `/parent`)
-- **Bulk absent marking** — *shipped*: "Mark rest absent" in the roster
-- **Teacher notes per session** — *built, behind the `session_notes` flag* (iOS/Android roster + web session detail)
-- **QR sign-in** — *built, behind the `qr_sign_in` flag*: kiosk camera scanner reusing the tap-to-sign path; web prints per-student QR codes (NFC still open)
+Future work: **[ROADMAP.md](ROADMAP.md)**. Next implementation queue:
+[NEXT_BUILD_CHANGES.md](NEXT_BUILD_CHANGES.md). What changed between builds:
+[RELEASE_NOTES.md](RELEASE_NOTES.md).

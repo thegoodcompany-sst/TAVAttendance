@@ -6,7 +6,8 @@ This is a multi-platform monorepo: an iOS kiosk (`iOS/`), an Android app
 
 > Start with `AGENTS.md` for the change workflow and invariants (`CLAUDE.md` is
 > a stub). Deploy/release/production-schema runbooks live in `.claude/skills/`;
-> planned next-build work lives in `NEXT_BUILD_CHANGES.md`.
+> product direction in `ROADMAP.md`; the next implementation queue in
+> `NEXT_BUILD_CHANGES.md`.
 
 ---
 

@@ -1,6 +1,7 @@
 # Next build changes
 
-Approved order from the Student Assurance review. Full product decisions:
+The executable queue for the next approved work. Longer-horizon direction lives
+in [`ROADMAP.md`](ROADMAP.md). Full Student Assurance decisions:
 [`docs/superpowers/specs/2026-08-17-student-assurance-os-design.md`](docs/superpowers/specs/2026-08-17-student-assurance-os-design.md).
 
 ## P1 — before the September 2026 real-child pilot

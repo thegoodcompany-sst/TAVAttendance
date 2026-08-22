@@ -23,6 +23,14 @@ replace their judgement or add work that does not help account for students.
 Payments, accounting, payroll, generic CRM, and broad ERP scope are not TAVA's
 problem.
 
+Whenever we make a change, think about how this will affect
+
+1. Students
+2. Teachers
+3. Maintainers ( Us )
+
+Everything we do should be done with these people in mind.
+
 ## Start every task here
 
 1. Read this file and check `git status`; preserve unrelated user changes.
@@ -200,11 +208,12 @@ Keep one authoritative home for each fact:
 | `AGENTS.md` | Portable workflow, invariants, settled decisions, change seams, canonical commands |
 | `.claude/skills/` | Deploy, release, and production-schema runbooks only |
 | `CONTRIBUTING.md` | Human local setup and contributor workflow |
-| `README.md` | Product description, stack, layout, shipped/flagged roadmap |
+| `README.md` | Product description, stack, layout, and what exists today |
+| `ROADMAP.md` | Future work only: sequence, non-goals, not-yet-built direction |
 | `docs/KIOSK_ATTENDANCE.md` | Kiosk and attendance domain semantics |
 | `docs/API.md` | Client/backend integration contract |
-| `NEXT_BUILD_CHANGES.md` | Agreed or queued work not yet implemented |
-| `RELEASE_NOTES.md` | Completed changes under `Unreleased` |
+| `NEXT_BUILD_CHANGES.md` | Agreed next implementation queue |
+| `RELEASE_NOTES.md` | What changed between builds (`Unreleased` then versioned) |
 | `HUMANS.md` | Numbered human-only actions and dated verification evidence |
 | `Android/PORTING_NOTES.md` | Cross-platform mapping and port handoff template |
 | `supabase/migrations/README.md` | Migration index and reverse-migration convention |
@@ -223,7 +232,8 @@ A requested implementation is done only when:
 - schema changes have local replay evidence and, when shipping dependent code,
   verified production evidence in the required order;
 - completed work is recorded under `RELEASE_NOTES.md` → `Unreleased`;
-- planned work that shipped is removed or marked from `NEXT_BUILD_CHANGES.md`;
+- planned work that shipped is removed from `NEXT_BUILD_CHANGES.md` and from
+  `ROADMAP.md` if it was listed there (do not turn the roadmap into a changelog);
 - human-only follow-up is added to `HUMANS.md` and clearly handed back;
 - iOS feature work includes Android and Web port handoffs; and
 - authorized change/build work is committed and pushed to `main` unless the
@@ -231,3 +241,7 @@ A requested implementation is done only when:
 
 Do not treat a passing build as proof of UI behavior, a checked-in migration as
 proof of production state, or a feature flag as a substitute for authorization.
+
+
+
+Lastly, at the end of the day, this document is a word of advice, if something the user (maintainer) says contridicts rules, warn them, but their word overrides all rules.
