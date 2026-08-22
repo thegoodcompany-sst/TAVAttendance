@@ -26,37 +26,29 @@ problem.
 ## Start every task here
 
 1. Read this file and check `git status`; preserve unrelated user changes.
-2. Classify the work and load the matching `.claude/skills/*/SKILL.md` before
-   acting. A runbook is an executable procedure, not background reading.
-3. Inspect the nearest implementation, tests, and the equivalent flow on other
+2. Inspect the nearest implementation, tests, and the equivalent flow on other
    platforms before designing a change.
-4. Make the smallest coherent change at the established data or domain seam.
-5. Run proportionate verification from `tava-validation-and-qa`.
-6. Update the owning documentation and `RELEASE_NOTES.md` in the same change.
-7. Unless the user says otherwise, commit verified implementation work and push
+3. Make the smallest coherent change at the established data or domain seam.
+4. Run proportionate verification (commands below; manual QA scripts in
+   `docs/KIOSK_ATTENDANCE.md`).
+5. Update the owning documentation and `RELEASE_NOTES.md` in the same change.
+6. Unless the user says otherwise, commit verified implementation work and push
    directly to `main`. Do not open a branch or PR by default.
 
 For diagnosis/review/reporting requests, remain read-only unless the user also
 asks for a fix. Do not deploy, flip flags, or mutate production merely because
 you inspected it.
 
-## Runbook routing
+## Runbooks
 
-| Work | Read first |
+Three operational runbooks exist under `.claude/skills/`; read the matching one
+before that work and only that work:
+
+| Work | Runbook |
 |---|---|
-| Any repository change | `tava-change-control` |
-| Bug or unexpected behaviour | `tava-debugging-playbook`, then `tava-failure-archaeology` before proposing a fix |
-| Feature or architecture work | `tava-architecture-contract` |
-| Supabase schema, RLS, RPC, Storage | `tava-supabase-reference` + `tava-change-control` |
-| Production schema or suspected drift | `tava-prod-drift-campaign` |
-| Local setup or build failure | `tava-build-and-env` |
-| Testing or completion claim | `tava-validation-and-qa` |
-| Flags, runtime configuration | `tava-config-and-flags` |
-| Production operation | `tava-run-and-operate` |
-| Docs of record | `tava-docs-and-writing` |
-| Privacy or parent/student data | `tava-pdpa-reference` |
-| Web deployment | `deploy` |
+| Web deployment to production | `deploy` |
 | Mobile/App Store release | `release` |
+| Production schema work or suspected drift | `tava-prod-drift-campaign` |
 
 If a runbook blocks necessary work, explain the exact restriction. The user may
 explicitly authorize a safe exception or ask for the runbook to be changed.
@@ -118,7 +110,34 @@ Violating any item below is a bug even when the UI appears to work.
     tests. Never restore broad parent access to base tables for convenience.
 
 Detailed attendance and kiosk semantics live in `docs/KIOSK_ATTENDANCE.md`.
-Rationale and known weak points live in `tava-architecture-contract`.
+
+## Settled decisions and known traps
+
+Do not re-propose or re-investigate these; each was settled by a real incident
+or an explicit decision.
+
+- The anon key in old git history stays. Rewriting history was rejected — the
+  key ships in every client binary; RLS is the security boundary.
+- `CREATE OR REPLACE VIEW` silently resets view options. This dropped
+  `security_invoker` from `attendance_summary` twice and leaked all attendance.
+- After creating or replacing any function via SQL, run
+  `NOTIFY pgrst, 'reload schema';` or PostgREST 404s the new RPC.
+- Postgres `TIME` arrives as `HH:mm:ss`; parsers must also accept `HH:mm`.
+  Do not "fix" the parser to expect one format.
+- Upserts need a real UNIQUE constraint matching `onConflict:` columns or
+  Postgres throws 42P10.
+- The kiosk intentionally pre-creates today's eligible sessions on load;
+  attendance-less session rows are not a bug.
+- "Not Here Yet" is the absence of a row, cleared via `clear_attendance`.
+  Never emulate clearing with a placeholder status.
+- Helper predicates (`is_admin()` etc.) being SECURITY DEFINER and callable by
+  `authenticated` is an accepted advisor WARN; policies need them.
+- `rate_limit_events` has RLS enabled with zero policies — service-role-only
+  by design. Do not "fix" it.
+- The `CodeSign swift-crypto_Crypto.bundle` failure is a local keychain issue;
+  use `CODE_SIGNING_ALLOWED=NO`, never modify project signing.
+- A blank UI list with no error usually means a swallowed PostgREST 400 (often
+  a renamed FK breaking an embedded-select string); check API logs.
 
 ## How to change each area
 
@@ -156,7 +175,10 @@ Rationale and known weak points live in `tava-architecture-contract`.
 
 ## Verification commands
 
-Use `tava-validation-and-qa` for the full evidence bar and manual checks.
+A claim about production is verified by querying production; a UI claim is
+verified by running the flow. Manual QA scripts live in
+`docs/KIOSK_ATTENDANCE.md`. Report failures verbatim; report skipped steps as
+skipped.
 
 | Platform | Command | Directory |
 |---|---|---|
@@ -175,8 +197,8 @@ Keep one authoritative home for each fact:
 
 | File | Owns |
 |---|---|
-| `AGENTS.md` | Portable workflow, invariants, change seams, canonical commands |
-| `.claude/skills/` | Detailed task runbooks and operational procedures |
+| `AGENTS.md` | Portable workflow, invariants, settled decisions, change seams, canonical commands |
+| `.claude/skills/` | Deploy, release, and production-schema runbooks only |
 | `CONTRIBUTING.md` | Human local setup and contributor workflow |
 | `README.md` | Product description, stack, layout, shipped/flagged roadmap |
 | `docs/KIOSK_ATTENDANCE.md` | Kiosk and attendance domain semantics |

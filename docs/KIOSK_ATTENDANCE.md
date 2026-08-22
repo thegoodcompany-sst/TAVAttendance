@@ -72,7 +72,42 @@ privileged and physically supervise it.
 
 ## Verification
 
-The canonical manual regression scripts live in
-`.claude/skills/tava-validation-and-qa/SKILL.md`. Database-level invariants live
-in `supabase/tests/`, including Study Space exclusion, retrospective attendance,
-offline idempotency, and informed-absence coverage.
+Database-level invariants live in `supabase/tests/`, including Study Space
+exclusion, retrospective attendance, offline idempotency, and informed-absence
+coverage. Run the manual scripts below for whichever flows a change touches;
+this document is their canonical copy.
+
+**Kiosk sign-in** (admin login → Sign In tab; needs a class with
+`schedule_time` in the past to exercise Late): tap student → green (on time) /
+orange (late) → long-press green offers "Mark as Late"/"Mark as Not Here Yet" →
+mark late: turns orange → clear to Not Here Yet: attendance row removed, card
+grey and tappable again → tap again: re-signs-in.
+
+**Admin mode**: set PIN → lock → unlock with PIN shows ADMIN badge → tap orange
+card flips to green → long-press offers "Mark as Absent" (red) → re-lock hides
+overrides.
+
+**Teacher roster** (tutor login): Start Today's Class → mark present → "Marked
+HH:MM" shows → tap row: Student Profile sheet with history → Wi-Fi off, mark:
+orange pending dot → Wi-Fi on: dot clears → verify the server row. Test
+sign-out/account transitions with pending data; foreign/mixed queues must fail
+closed, not cross-sync.
+
+**Profile history**: a blank list with no error means a swallowed PostgREST
+400 — check Supabase logs and suspect the FK join string.
+
+**Study space** (flag on, iPad): header button → `StudySpaceView` → roster is
+all active students → Present/Not Here Yet only → verify nothing appears in any
+report or parent view.
+
+**Web smoke**: login → dashboard/mobile staff surfaces → student detail → safe
+export. Superadmin: `/feature-flags` lists live rows and toggles persist;
+ordinary admin gets 404.
+
+```sql
+-- security posture of the money view: {security_invoker=on}
+SELECT reloptions FROM pg_class WHERE relname='attendance_summary';
+-- study-space exclusion holds (0 rows expected)
+SELECT COUNT(*) FROM attendance_summary a
+JOIN classes c ON c.id = a.class_id WHERE c.is_study_space;
+```

@@ -1,8 +1,7 @@
 # Supabase change guide
 
-The root `AGENTS.md` applies here. Before any schema or production work, read
-`tava-change-control`, `tava-supabase-reference`, and—when production is
-involved—`tava-prod-drift-campaign`.
+The root `AGENTS.md` applies here. When production is involved, read
+`.claude/skills/tava-prod-drift-campaign/SKILL.md` first.
 
 ## Migration discipline
 

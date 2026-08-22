@@ -9,8 +9,8 @@ focuses on the student journey and the evidence staff need to act safely.
 
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for full local setup of every platform.
 Agents: project rules live in [AGENTS.md](AGENTS.md) (`CLAUDE.md` stubs to it);
-next-build plans in [NEXT_BUILD_CHANGES.md](NEXT_BUILD_CHANGES.md); task runbooks
-in `.claude/skills/tava-*`.
+next-build plans in [NEXT_BUILD_CHANGES.md](NEXT_BUILD_CHANGES.md); deploy and
+release runbooks in `.claude/skills/`.
 
 ## What it does today
 

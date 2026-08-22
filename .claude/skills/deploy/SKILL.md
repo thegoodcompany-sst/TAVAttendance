@@ -99,7 +99,7 @@ Supabase Auth must separately allowlist:
 Use the Vercel dashboard or CLI to promote the last known-good immutable
 deployment. A web rollback does not roll back database state. Never run a down
 migration merely to match a rolled-back web build; first determine whether the
-schema change is backward-compatible and follow `tava-change-control`.
+schema change is backward-compatible and follow `tava-prod-drift-campaign`.
 
 ## Failure rules
 
@@ -109,10 +109,3 @@ schema change is backward-compatible and follow `tava-change-control`.
   healthy; it does not exercise protected data paths.
 - Never paste environment values, database URLs, auth tokens, or response
   cookies into an issue, chat, build log, or runbook.
-
-## Provenance
-
-Audited 2026-07-26 against `web/`, `.github/workflows/ci.yml`,
-`.github/workflows/remote-security.yml`, `scripts/drift-check.sh`, and
-`scripts/prod-security-check.sql`. Live production state must still be measured
-at deploy time.

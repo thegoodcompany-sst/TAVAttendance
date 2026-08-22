@@ -32,7 +32,7 @@ Android `versionCode` and iOS `CFBundleVersion` independently by one. Update
 ## 1. Security and build gates
 
 - Release only a reviewed commit; record its hash.
-- Run the CI-equivalent checks in `tava-validation-and-qa`.
+- Run the CI-equivalent checks from the verification table in `AGENTS.md`.
 - Confirm migrations required by the clients are live with the production
   drift/security gates before distributing them.
 - Run current-tree secret scanning and dependency audits.
@@ -96,9 +96,3 @@ former exposed review account before release.
   leave an empty Unreleased section.
 - Commit version files, regenerated Xcode project and release notes.
 - Record immutable external build/release identifiers in the handoff.
-
-## Provenance
-
-Audited 2026-07-26 against the 1.1.1 version sources,
-`Android/distribute.sh`, `iOS/ExportOptionsTestFlight.plist`, and the App Store
-Connect notes in `AGENTS.md`.

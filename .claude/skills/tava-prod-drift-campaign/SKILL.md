@@ -97,10 +97,3 @@ Prerequisite queries caught missing columns/functions before dependent
 migrations ran. Return-type changes required drop/recreate, and later
 migrations had to be re-applied after older function bodies were backfilled.
 The detailed human record remains in `HUMANS.md` §§14 and 30.
-
-## Provenance
-
-Protocol audited 2026-08-11 against the repository migration set, the two
-production workflows, `scripts/drift-check.sh`, and
-`scripts/prod-security-check.sql`.
-No live production claim is embedded in this document.

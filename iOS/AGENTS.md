@@ -38,6 +38,6 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-Use `.claude/skills/tava-validation-and-qa/SKILL.md` for manual flow checks.
+Use the manual QA scripts in `docs/KIOSK_ATTENDANCE.md` for flow checks.
 After an iOS feature, emit Android and Web port handoff blocks using
 `Android/PORTING_NOTES.md`; do not spawn the porting agents automatically.

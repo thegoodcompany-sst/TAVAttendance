@@ -5,6 +5,11 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Trimmed the agent skill library from fifteen runbooks to three (`deploy`,
+  `release`, `tava-prod-drift-campaign`). Folded the manual QA scripts into
+  `docs/KIOSK_ATTENDANCE.md`, setup traps into `CONTRIBUTING.md`, and a settled
+  decisions list into `AGENTS.md`; deleted the rest and updated every
+  cross-reference.
 - Applied migration 057 to production on 2026-08-17, closing the database-level
   message NRIC/FIN guard after a clean local replay and full SQL regression run;
   verified the trigger, guarded parent-message RPC, web schema, and production

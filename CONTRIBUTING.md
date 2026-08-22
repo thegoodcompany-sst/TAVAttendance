@@ -5,8 +5,8 @@ This is a multi-platform monorepo: an iOS kiosk (`iOS/`), an Android app
 (`supabase/`). This guide consolidates local setup for all of them.
 
 > Start with `AGENTS.md` for the change workflow and invariants (`CLAUDE.md` is
-> a stub). Detailed procedures live in `.claude/skills/`; planned next-build
-> work lives in `NEXT_BUILD_CHANGES.md`.
+> a stub). Deploy/release/production-schema runbooks live in `.claude/skills/`;
+> planned next-build work lives in `NEXT_BUILD_CHANGES.md`.
 
 ---
 
@@ -86,6 +86,12 @@ chmod 600 iOS/Config.xcconfig
 open iOS/TAVAttendance.xcodeproj
 ```
 
+xcconfig treats `//` as a comment start — escape the Supabase URL as
+`https:/$()/...` or the value truncates to `https:` and the app cannot connect.
+The project is XcodeGen-managed: `iOS/project.yml` is the source of truth;
+never hand-edit the `.xcodeproj`. If it is stale or missing, run
+`cd iOS && xcodegen generate` (`brew install xcodegen`).
+
 Credentials are read from `Info.plist` (`$(SUPABASE_PROJECT_URL)` /
 `$(SUPABASE_ANON_KEY)`) via `SupabaseManager.swift` — never hardcode them.
 The kiosk (Sign-In tab) must be signed in as an **admin** account (see AGENTS.md).
@@ -121,8 +127,7 @@ cd web && bun install && bun run dev
 ## 5. Local testing checklist
 
 Automated tests cover attendance and security boundaries across all clients and
-the database. The canonical commands and manual scripts live in
-`.claude/skills/tava-validation-and-qa/SKILL.md`; kiosk semantics live in
+the database. Kiosk semantics and the canonical manual QA scripts live in
 `docs/KIOSK_ATTENDANCE.md`.
 
 - **Kiosk sign-in**: admin login → Sign-In tab → tap a student → green (on time) /
@@ -137,8 +142,9 @@ the database. The canonical commands and manual scripts live in
 | Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` (JDK 17/21) | `Android/` |
 | Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build` | `web/` |
 
-Machine-specific caveats and the evidence required for completion live in the
-validation runbook.
+On this dev Mac, iOS builds require Xcode-beta (`DEVELOPER_DIR` as above) and
+`CODE_SIGNING_ALLOWED=NO`; a `CodeSign swift-crypto_Crypto.bundle` failure is a
+local keychain issue, not a code problem.
 
 ---
 
