@@ -156,3 +156,105 @@ func kioskPINMatches(entered: String, storedPIN: String) -> Bool {
         return false
     }
 }
+
+// MARK: - Kiosk load / refresh / empty-state policy
+/// Full-screen “Loading students…” unmounts the grid. Only the first fetch, before
+/// any success and while the list is still empty, may do that.
+func shouldShowFullScreenLoader(
+    isLoadInFlight: Bool,
+    hasEntries: Bool,
+    hasLoadedSuccessfully: Bool
+) -> Bool {
+    isLoadInFlight && !hasEntries && !hasLoadedSuccessfully
+}
+
+/// Auto-refresh must not run while a mutation, staff interaction, or load is in flight.
+func shouldSkipKioskAutoRefresh(
+    hasPendingMutations: Bool,
+    isSelectionMode: Bool,
+    isShowingPIN: Bool,
+    isLoadInFlight: Bool
+) -> Bool {
+    hasPendingMutations || isSelectionMode || isShowingPIN || isLoadInFlight
+}
+
+/// In-flight local cards must not be replaced by a stale server snapshot.
+func shouldKeepLocalPendingEntry(studentId: UUID, pendingIds: Set<UUID>) -> Bool {
+    pendingIds.contains(studentId)
+}
+
+enum KioskRosterPresentation: Equatable {
+    case fullScreenLoading
+    case loadFailed
+    case noClasses
+    case roster
+}
+
+func kioskRosterPresentation(
+    isLoadInFlight: Bool,
+    hasEntries: Bool,
+    hasLoadedSuccessfully: Bool,
+    loadFailed: Bool
+) -> KioskRosterPresentation {
+    if shouldShowFullScreenLoader(
+        isLoadInFlight: isLoadInFlight,
+        hasEntries: hasEntries,
+        hasLoadedSuccessfully: hasLoadedSuccessfully
+    ) {
+        return .fullScreenLoading
+    }
+    if !hasEntries && loadFailed {
+        return .loadFailed
+    }
+    if !hasEntries {
+        return .noClasses
+    }
+    return .roster
+}
+
+func mergeKioskEntriesPreservingPending(
+    local: [KioskEntry],
+    remote: [KioskEntry],
+    pendingIds: Set<UUID>
+) -> [KioskEntry] {
+    guard !pendingIds.isEmpty else { return remote }
+
+    var localById: [UUID: KioskEntry] = [:]
+    localById.reserveCapacity(local.count)
+    for entry in local {
+        localById[entry.studentId] = entry
+    }
+
+    var seen: Set<UUID> = []
+    seen.reserveCapacity(remote.count)
+    var merged: [KioskEntry] = []
+    merged.reserveCapacity(remote.count + pendingIds.count)
+
+    for entry in remote {
+        seen.insert(entry.studentId)
+        if shouldKeepLocalPendingEntry(studentId: entry.studentId, pendingIds: pendingIds),
+           let kept = localById[entry.studentId] {
+            merged.append(kept)
+        } else {
+            merged.append(entry)
+        }
+    }
+
+    for entry in local where shouldKeepLocalPendingEntry(studentId: entry.studentId, pendingIds: pendingIds)
+        && !seen.contains(entry.studentId) {
+        merged.append(entry)
+    }
+    return merged
+}
+
+func shouldPresentKioskErrorAlert(isAdminMode: Bool) -> Bool {
+    isAdminMode
+}
+
+func shouldShowKioskSearchBar(isAdminMode: Bool, isSelectionMode: Bool) -> Bool {
+    isAdminMode && !isSelectionMode
+}
+
+let kioskOfflineBannerText = "No internet — use the paper sheet. Taps will not save."
+let kioskStudentFacingActionFailureNotice = "Sign-in didn't save — use the paper sheet."
+let kioskStudentFacingRefreshFailureNotice = "Couldn't refresh — use the paper sheet if needed."

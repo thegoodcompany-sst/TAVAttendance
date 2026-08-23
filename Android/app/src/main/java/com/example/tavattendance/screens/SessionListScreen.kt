@@ -30,6 +30,7 @@ import com.example.tavattendance.data.models.RetrospectiveSessionRules
 import com.example.tavattendance.data.models.TAVClass
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
+import com.example.tavattendance.data.service.KioskAttendanceDataSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -84,22 +85,28 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadSessions() {
         viewModelScope.launch {
-            _isLoading.value = true
+            val hadData = _sessions.value.isNotEmpty()
+            if (!hadData) _isLoading.value = true
             _loadError.value = null
             runCatching { AttendanceService.fetchSessions(classId) }
-                .onSuccess { _sessions.value = it }
+                .onSuccess {
+                    _sessions.value = it
+                    autoEndIfExpired()
+                }
                 .onFailure { e ->
                     SafeLog.error("SessionList", "fetchSessions failed", e)
                     _loadError.value = "Failed to load sessions: ${e.localizedMessage ?: e.javaClass.simpleName}"
+                    if (_sessions.value.isNotEmpty()) {
+                        _snackbarMessage.value = _loadError.value
+                    }
                 }
-            autoEndIfExpired()
             _isLoading.value = false
         }
     }
 
     private fun autoEndIfExpired() {
         if (!_canOperateToday.value) return
-        val today = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val today = KioskAttendanceDataSource.singaporeDateIso()
         val session = _sessions.value.firstOrNull { it.sessionDate == today } ?: return
         if (session.startedAt == null || session.endedAt != null) return
         val endTime = computeScheduledEndTime() ?: return
@@ -122,16 +129,7 @@ class SessionListViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun computeScheduledEndTime(): Date? {
         val cls = tavClass ?: return null
-        val timeStr = cls.scheduleTime ?: return null
-        val parts = timeStr.split(":").mapNotNull { it.toIntOrNull() }
-        if (parts.size < 2) return null
-        val cal = Calendar.getInstance()
-        cal.set(Calendar.HOUR_OF_DAY, parts[0])
-        cal.set(Calendar.MINUTE, parts[1])
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        cal.add(Calendar.MINUTE, cls.durationMinutes)
-        return cal.time
+        return KioskAttendanceDataSource.scheduledEndTime(cls.scheduleTime, cls.durationMinutes)
     }
 
     fun startTodayClass(onSessionReady: (Session) -> Unit) {
@@ -242,7 +240,7 @@ fun SessionListScreen(
         }
     }
 
-    val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+    val todayStr = KioskAttendanceDataSource.singaporeDateIso()
     val todaySession = sessions.firstOrNull { it.sessionDate == todayStr }
 
     val displayFmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
@@ -281,7 +279,7 @@ fun SessionListScreen(
             )
         }
     ) { padding ->
-        if (isLoading) {
+        if (isLoading && sessions.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }

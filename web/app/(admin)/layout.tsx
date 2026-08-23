@@ -13,11 +13,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role, full_name')
     .eq('id', user.id)
     .single()
+
+  // `.single()` reports a missing row as PGRST116; other failures must not look like Access denied.
+  if (profileError && profileError.code !== 'PGRST116') {
+    throw new Error(`Could not load profile: ${profileError.message}`)
+  }
 
   // PROD-01: send parents to their own area instead of a dead-end "Access denied".
   if (profile?.role === 'parent') redirect('/parent')

@@ -16,6 +16,8 @@ struct RosterView: View {
     @State private var showMarkAbsentConfirm = false
     @State private var endClassError: String? = nil
     @State private var error: AppError? = nil
+    @State private var loadError: AppError? = nil
+    @State private var rosterLoadFailed = false
     @StateObject private var network = NetworkMonitor()
     @ObservedObject private var pendingStore = PendingAttendanceStore.shared
 
@@ -53,11 +55,21 @@ struct RosterView: View {
                 ProgressView("Loading roster…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if roster.isEmpty {
-                ContentUnavailableView(
-                    "No Students",
-                    systemImage: "person.3",
-                    description: Text("No students are enrolled in this class.")
-                )
+                if rosterLoadFailed {
+                    ContentUnavailableView {
+                        Label("Could Not Load Roster", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text("Check your connection and try again.")
+                    } actions: {
+                        Button("Retry") { Task { await loadRoster() } }
+                    }
+                } else {
+                    ContentUnavailableView(
+                        "No Students",
+                        systemImage: "person.3",
+                        description: Text("No students are enrolled in this class.")
+                    )
+                }
             } else {
                 rosterList
             }
@@ -137,6 +149,9 @@ struct RosterView: View {
             Text(endClassError ?? "")
         }
         .errorAlert(error: $error)
+        .errorAlertWithRetry(error: $loadError) {
+            Task { await loadRoster() }
+        }
         .sheet(isPresented: $showSessionNotes) {
             SessionNotesSheet(initial: sessionNotes ?? session.notes ?? "") { text in
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -354,14 +369,18 @@ struct RosterView: View {
     }
 
     private func loadRoster() async {
-        isLoading = true
-        defer { isLoading = false }
+        let showFullScreenLoading = roster.isEmpty
+        if showFullScreenLoading { isLoading = true }
+        defer { if showFullScreenLoading { isLoading = false } }
         do {
             roster = try await Analytics.shared.time("roster_load", extra: ["screen": .string("roster")]) {
                 try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             }
+            rosterLoadFailed = false
+            loadError = nil
         } catch {
-            // Leave roster empty; user sees ContentUnavailableView
+            rosterLoadFailed = true
+            loadError = AppError("Could not load roster", underlyingError: error)
         }
     }
 
@@ -370,12 +389,18 @@ struct RosterView: View {
     // effectiveStatus's pendingStore fallback. Does not toggle isLoading so the
     // refresh spinner (not the full-screen ProgressView) is shown.
     private func refreshRoster() async {
-        if let updated = try? await AttendanceService.shared.fetchRoster(sessionId: session.id) {
+        do {
+            let updated = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
             roster = updated
             localStatus.removeAll()
             localAbsenceInformed.removeAll()
             locallyCleared.removeAll()
             localMarkedAt.removeAll()
+            rosterLoadFailed = false
+            loadError = nil
+        } catch {
+            // Keep stale rows; surface the failure instead of looking empty.
+            loadError = AppError("Could not refresh roster", underlyingError: error)
         }
     }
 
@@ -476,7 +501,8 @@ struct RosterView: View {
             studentId: entry.studentId,
             status: status,
             notes: nil,
-            absenceInformed: absenceInformed
+            absenceInformed: absenceInformed,
+            observedMarkedAt: entry.status != nil ? entry.markedAt : nil
         )
         guard queued else {
             localStatus.removeValue(forKey: entry.studentId)
@@ -511,18 +537,31 @@ struct RosterView: View {
                 "synced": .integer(result.synced),
                 "skipped": .integer(result.skipped),
                 "blocked_ended_session": .integer(result.blockedEndedSession),
+                "skipped_conflict": .integer(result.skippedConflict),
                 "pending_before": .integer(pendingBefore),
                 "duration_ms": Analytics.ms(since: started),
             ])
+            // Terminal outcomes (synced, skipped, blocked, conflict) must leave
+            // the queue so they are not retried forever — but the tutor has to
+            // see that dropped marks were not saved.
             pendingStore.markSynced(
                 ownerUserId: ownerUserId,
                 clientMutationIds: Set(unsynced.map(\.clientMutationId))
             )
-            roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
-            for record in unsynced {
-                localStatus.removeValue(forKey: record.studentId)
-                locallyCleared.remove(record.studentId)
-                localMarkedAt.removeValue(forKey: record.studentId)
+            if result.blockedEndedSession > 0 || result.skippedConflict > 0 {
+                self.error = AppError(
+                    "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
+                )
+            }
+            do {
+                roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+                for record in unsynced {
+                    localStatus.removeValue(forKey: record.studentId)
+                    locallyCleared.remove(record.studentId)
+                    localMarkedAt.removeValue(forKey: record.studentId)
+                }
+            } catch {
+                loadError = AppError("Could not refresh roster", underlyingError: error)
             }
         } catch {
             // Only reached on a transport failure (the RPC never returned). Keep the

@@ -17,11 +17,15 @@ Know the UI already and getting ready for real kids?
 
 <p align="center"><img src="img/01-login.png" width="480" alt="Sign-in screen"></p>
 
-1. Open the app on the iPad.
+1. Open **TestFlight 1.1.3 build 8** on the iPad (not App Store build 3).
 2. Admin email + password → you should land on **Sign In**.
    - Expect: grey cards (nobody in yet)
-   - “No Classes Today”? Tell me — demo class might not be loaded
-   - Use demo kids only; iPad should have a passcode; don't hand out the real password
+   - “No Classes Today” **after a successful load**? Tell me — demo class might
+     not be loaded. A failed load should error and retry, not look like a day off.
+   - Use demo kids only; Guided Access; Singapore timezone; Automatic Date &
+     Time; auto-lock off; do **not** enable in-app Face ID on this iPad
+   - Don't Start Class early if you want to see On Time vs Late (`startedAt`
+     forces Late)
 
 ---
 
@@ -35,28 +39,34 @@ Know the UI already and getting ready for real kids?
 8. Tap the grey card → signs back in
    (proves a mistap is fixable)
 
+Wifi off on the kiosk: the tap should **fail**. Nothing sits pending. Paper if
+this were a real class. Dual-enrolled kids: one card, marks every session.
+
 ---
 
 ## B — PIN & overrides (~4 min)
 
 9. Gear → Kiosk Settings → Set PIN (temporary is fine; not `1234` on the live kiosk) → **Lock Kiosk Now**
-   → only the grid left (what kids see)
-10. Lock icon + PIN → **ADMIN** badge
+   → only the grid left (what kids see). Search should be gone.
+10. **Long-press** the lock icon + PIN → **ADMIN** badge
 11. Tap an **orange** card once → should flip to **green**
-12. Hold a signed-in card → menu includes **Mark as Absent** (red)
-13. Gear → **Lock Kiosk Now** again → badge gone, taps don't override
+12. Hold a signed-in card → menu includes **Mark as Absent** (red). Informed vs
+    no notice both store Absent; parents never see the flag.
+13. Gear → **Lock Kiosk Now** again → badge gone, taps don't override, search hidden
 
 ---
 
 ## C — Tutor roster (~3 min)
 
-Same iPad, or a phone as a tutor.
+Same iPad, or a phone as a tutor. Don't End Class / sign out / hop accounts
+while a mark is pending. Don't offline-mark a kid who already tapped the kiosk.
 
 14. **Classes** → demo class → **Start Today's Class**
 15. Mark someone Present → **Marked HH:MM** under the name
 16. Tap the row (not just the mark) → profile + recent attendance
 17. **Wi‑Fi off**, mark another → still marks, small **orange** pending dot
-18. **Wi‑Fi on**, wait a few seconds → dot should go; check the website too
+    (this is the roster, not the kiosk)
+18. **Wi‑Fi on**, wait a few seconds → dot should go; check the **website** too
     If the dot sticks: don't sign out / clear / uninstall. Note the time, use paper.
 
 ---
@@ -65,7 +75,9 @@ Same iPad, or a phone as a tutor.
 
 19. **dash.thegoodcompanysg.dev** — admin login
 20. Analytics / today's attendance → same demo kids, right statuses
-21. Export the demo data → only those demo rows; delete the file after; don't email it around
+21. **Skip Export** unless Edmund is present and will delete the file. The
+    Export button is superadmin-only and downloads a **full operational ZIP**
+    (every table we snapshot), not a demo-only CSV.
 
 If D matches the iPad, the loop works: **iPad → server → website.**
 
@@ -73,7 +85,8 @@ If D matches the iPad, the loop works: **iPad → server → website.**
 
 ## Something went wrong?
 
-1. Paper if pending won't clear — don't call it saved until the site agrees
+1. Kiosk wifi drop → paper. Tutor pending that won't clear → paper. Don't call
+   it saved until the site agrees.
 2. Time, step, device, role, what you tapped
 3. Screenshots with names → private chat to me, crop extras
 4. Wrong kid / other account / feels compromised → stop, secure device, tell me

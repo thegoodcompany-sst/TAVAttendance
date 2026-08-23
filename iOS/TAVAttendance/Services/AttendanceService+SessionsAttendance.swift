@@ -9,6 +9,11 @@ struct SyncAttendancePayload: Encodable {
     let clientMutationId: String
     let markedAt: String
     let absenceInformed: Bool?
+    /// ISO-8601 timestamptz of the last **server** `marked_at` the client had,
+    /// or nil when the client observed no attendance row. Ignored when
+    /// `didObserveRow` is false (migrated v3 queue entries).
+    let observedMarkedAt: String?
+    let didObserveRow: Bool
 
     enum CodingKeys: String, CodingKey {
         case status, notes
@@ -17,6 +22,29 @@ struct SyncAttendancePayload: Encodable {
         case clientMutationId = "client_mutation_id"
         case markedAt = "marked_at"
         case absenceInformed = "absence_informed"
+        case observedMarkedAt = "observed_marked_at"
+    }
+
+    init(
+        sessionId: UUID,
+        studentId: UUID,
+        status: AttendanceStatus?,
+        notes: String,
+        clientMutationId: String,
+        markedAt: String,
+        absenceInformed: Bool?,
+        observedMarkedAt: String? = nil,
+        didObserveRow: Bool = false
+    ) {
+        self.sessionId = sessionId
+        self.studentId = studentId
+        self.status = status
+        self.notes = notes
+        self.clientMutationId = clientMutationId
+        self.markedAt = markedAt
+        self.absenceInformed = absenceInformed
+        self.observedMarkedAt = observedMarkedAt
+        self.didObserveRow = didObserveRow
     }
 
     func encode(to encoder: Encoder) throws {
@@ -32,6 +60,13 @@ struct SyncAttendancePayload: Encodable {
         try container.encode(clientMutationId, forKey: .clientMutationId)
         try container.encode(markedAt, forKey: .markedAt)
         try container.encodeIfPresent(absenceInformed, forKey: .absenceInformed)
+        if didObserveRow {
+            if let observedMarkedAt {
+                try container.encode(observedMarkedAt, forKey: .observedMarkedAt)
+            } else {
+                try container.encodeNil(forKey: .observedMarkedAt)
+            }
+        }
     }
 }
 
@@ -260,7 +295,9 @@ extension AttendanceService {
     /// Parent-safe attendance projection. The RPC returns the same nested
     /// `session` JSON shape as the staff PostgREST query without notes, actor
     /// identifiers, or offline mutation IDs.
-    func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (synced: Int, skipped: Int, blockedEndedSession: Int) {
+    func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (
+        synced: Int, skipped: Int, blockedEndedSession: Int, skippedConflict: Int
+    ) {
         guard let currentUserId = db.auth.currentSession?.user.id else {
             throw AppError("Cannot sync attendance without an authenticated account.")
         }
@@ -270,6 +307,8 @@ extension AttendanceService {
         ) else {
             throw AppError("Pending attendance belongs to a different account.")
         }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let payload = records.map { r in
             SyncAttendancePayload(
                 sessionId: r.sessionId,
@@ -277,17 +316,24 @@ extension AttendanceService {
                 status: r.status,
                 notes: r.notes ?? "",
                 clientMutationId: r.clientMutationId,
-                markedAt: ISO8601DateFormatter().string(from: r.markedAt),
-                absenceInformed: r.absenceInformed
+                markedAt: iso.string(from: r.markedAt),
+                absenceInformed: r.absenceInformed,
+                observedMarkedAt: r.observedMarkedAt.map { iso.string(from: $0) },
+                didObserveRow: r.didObserveRow
             )
         }
-        // Decode all three counters (migration 013 + 016). skipped (newer server row
-        // won) and blocked_ended_session (session already ended) are both TERMINAL —
-        // the record will never sync — so the caller clears them from the store on any
-        // successful RPC, not just when synced > 0.
+        // Decode counters (migration 013 + 016 + optional 058). skipped, skipped_conflict,
+        // and blocked_ended_session are TERMINAL — the record will never sync — so the
+        // caller clears them from the store on any successful RPC, not just when
+        // synced > 0. skipped_conflict defaults to 0 on servers that omit the key.
         let result: [String: Int] = try await db
             .rpc("sync_attendance", params: ["records": payload]).execute().value
-        return (result["synced"] ?? 0, result["skipped"] ?? 0, result["blocked_ended_session"] ?? 0)
+        return (
+            result["synced"] ?? 0,
+            result["skipped"] ?? 0,
+            result["blocked_ended_session"] ?? 0,
+            result["skipped_conflict"] ?? 0
+        )
     }
 
     // MARK: - Punctuality (#8)

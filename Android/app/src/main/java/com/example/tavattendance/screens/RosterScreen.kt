@@ -34,8 +34,10 @@ import com.example.tavattendance.data.models.AttendanceStatusLabel
 import com.example.tavattendance.data.models.RosterEntry
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
+import com.example.tavattendance.data.service.KioskAttendanceDataSource
 import com.example.tavattendance.data.store.PendingAttendanceRecord
 import com.example.tavattendance.data.store.PendingAttendanceStore
+import com.example.tavattendance.data.store.observedServerMarkedAt
 import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
@@ -176,7 +178,8 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadRoster() {
         viewModelScope.launch {
-            _isLoading.value = true
+            val hadData = _roster.value.isNotEmpty()
+            if (!hadData) _isLoading.value = true
             _loadError.value = null
             runCatching { AttendanceService.fetchRoster(sessionId) }
                 .onSuccess {
@@ -188,6 +191,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                 .onFailure { e ->
                     SafeLog.error("Roster", "loadRoster failed", e)
                     _loadError.value = e.localizedMessage ?: "Failed to load roster"
+                    if (_roster.value.isNotEmpty()) {
+                        _snackbarMessage.value = _loadError.value
+                    }
                 }
             _isLoading.value = false
         }
@@ -259,7 +265,8 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             studentId = entry.studentId,
             status = status,
             notes = null,
-            absenceInformed = absenceInformed
+            absenceInformed = absenceInformed,
+            observedMarkedAt = observedServerMarkedAt(entry.status, entry.markedAt),
         )
         if (!queued) {
             _localStatus.value = _localStatus.value - entry.studentId
@@ -314,23 +321,30 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                     put("synced", result.synced)
                     put("skipped", result.skipped)
                     put("blocked_ended_session", result.blockedEndedSession)
+                    put("skipped_conflict", result.skippedConflict)
                     put("pending_before", unsynced.size)
                     put("duration_ms", System.currentTimeMillis() - startMs)
                 })
-                // All three outcomes are terminal. Blocked ended-session marks cannot
-                // ever succeed on retry, so remove the batch once every row is accounted for.
-                if (result.synced + result.skipped + result.blockedEndedSession == unsynced.size) {
-                    pendingStore.markSynced(ownerUserId, unsynced.map { it.clientMutationId }.toSet())
-                    for (r in unsynced.filter { it.sessionId == sessionId }) {
-                        _localStatus.value = _localStatus.value - r.studentId
-                        _localAbsenceInformed.value = _localAbsenceInformed.value - r.studentId
-                        _localMarkedAt.value = _localMarkedAt.value - r.studentId
-                    }
-                    _roster.value = AttendanceService.fetchRoster(sessionId)
+                // RPC success is terminal for the batch (synced, skipped, blocked, or
+                // skipped_conflict). Leaving those rows queued re-sends them forever.
+                pendingStore.markSynced(ownerUserId, unsynced.map { it.clientMutationId }.toSet())
+                for (r in unsynced.filter { it.sessionId == sessionId }) {
+                    _localStatus.value = _localStatus.value - r.studentId
+                    _localAbsenceInformed.value = _localAbsenceInformed.value - r.studentId
+                    _localMarkedAt.value = _localMarkedAt.value - r.studentId
                 }
-                if (result.blockedEndedSession > 0) {
+                runCatching { _roster.value = AttendanceService.fetchRoster(sessionId) }
+                    .onFailure { e ->
+                        SafeLog.error("Roster", "fetchRoster after sync failed", e)
+                        _loadError.value = e.localizedMessage ?: "Failed to load roster"
+                        if (_roster.value.isNotEmpty()) {
+                            _snackbarMessage.value = _loadError.value
+                        }
+                    }
+                val dropped = result.blockedEndedSession + result.skippedConflict
+                if (dropped > 0) {
                     _snackbarMessage.value =
-                        "${result.blockedEndedSession} mark${if (result.blockedEndedSession == 1) "" else "s"} rejected — session already ended."
+                        "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
                 }
             }.onFailure { e ->
                 SafeLog.error("Roster", "syncPending failed", e)
@@ -386,7 +400,7 @@ fun RosterScreen(
 ) {
     // Live marking of today's class is `roster`; a past session opened read-only is
     // `session_detail` (mirrors iOS RosterView vs SessionDetailView).
-    val todayStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
+    val todayStr = KioskAttendanceDataSource.singaporeDateIso()
     TrackScreen(if (sessionDate == todayStr) "roster" else "session_detail")
     LaunchedEffect(sessionId, classId) { vm.init(sessionId, classId) }
 
@@ -525,10 +539,10 @@ fun RosterScreen(
         }
     ) { padding ->
         when {
-            isLoading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            isLoading && roster.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
-            loadError != null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            loadError != null && roster.isEmpty() -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
                     Text(loadError!!, color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(8.dp))

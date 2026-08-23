@@ -16,8 +16,11 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
@@ -30,6 +33,9 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Offline sync envelope. [absenceInformed] is omitted from JSON when null
  * (`encodeDefaults = false`) so legacy/unspecified absences stay unspecified.
+ * [observedMarkedAt] is sent only when [didObserveRow] is true: JSON null means
+ * observed no row; ISO-8601 is the last **server** marked_at. Migrated v3 rows
+ * omit the key so the server applies the legacy path.
  */
 @Serializable
 data class SyncAttendancePayload(
@@ -39,8 +45,39 @@ data class SyncAttendancePayload(
     val notes: String,
     @SerialName("client_mutation_id") val clientMutationId: String,
     @SerialName("marked_at") val markedAt: String,
-    @SerialName("absence_informed") val absenceInformed: Boolean? = null
+    @SerialName("absence_informed") val absenceInformed: Boolean? = null,
+    @SerialName("observed_marked_at") val observedMarkedAt: String? = null,
+    @Transient val didObserveRow: Boolean = false,
 )
+
+private val syncAttendanceJson = Json { encodeDefaults = false }
+
+internal fun encodeSyncAttendanceRecord(payload: SyncAttendancePayload): JsonObject {
+    val obj = syncAttendanceJson
+        .encodeToJsonElement(SyncAttendancePayload.serializer(), payload)
+        .jsonObject
+        .toMutableMap()
+    obj.remove("observed_marked_at")
+    if (payload.didObserveRow) {
+        obj["observed_marked_at"] = payload.observedMarkedAt?.let(::JsonPrimitive) ?: JsonNull
+    }
+    return JsonObject(obj)
+}
+
+data class SyncAttendanceCounts(
+    val synced: Int,
+    val skipped: Int,
+    val blockedEndedSession: Int,
+    val skippedConflict: Int,
+)
+
+internal fun parseSyncAttendanceCounts(result: Map<String, Int>): SyncAttendanceCounts =
+    SyncAttendanceCounts(
+        synced = result["synced"] ?: 0,
+        skipped = result["skipped"] ?: 0,
+        blockedEndedSession = result["blocked_ended_session"] ?: 0,
+        skippedConflict = result["skipped_conflict"] ?: 0,
+    )
 
 internal object SessionAttendanceDataSource {
     private val db get() = SupabaseClient.client
@@ -188,13 +225,9 @@ internal object SessionAttendanceDataSource {
                 limit(limit.toLong())
             }.decodeList<AttendanceHistoryRecord>()
 
-    @Serializable
-    private data class SyncParams(val records: List<SyncAttendancePayload>)
+    /** synced, skipped (newer server record won), blocked_ended_session, skipped_conflict. */
 
-    /** synced, skipped (newer server record won), blocked_ended_session (session already ended — migration 016). */
-    // Result type exposed via AttendanceService.SyncResult
-
-    suspend fun syncPending(records: List<PendingAttendanceRecord>): Triple<Int, Int, Int> {
+    suspend fun syncPending(records: List<PendingAttendanceRecord>): SyncAttendanceCounts {
         val currentUserId = db.auth.currentUserOrNull()?.id
             ?: throw SecurityException("Cannot sync attendance without an authenticated user")
         if (!pendingRecordsBelongToOwner(records, currentUserId)) {
@@ -208,15 +241,15 @@ internal object SessionAttendanceDataSource {
                 notes = r.notes ?: "",
                 clientMutationId = r.clientMutationId,
                 markedAt = r.markedAt,
-                absenceInformed = r.absenceInformed
+                absenceInformed = r.absenceInformed,
+                observedMarkedAt = r.observedMarkedAt,
+                didObserveRow = r.didObserveRow,
             )
         }
-        val paramsJson = Json.encodeToJsonElement(SyncParams(payload)).jsonObject
+        val paramsJson = buildJsonObject {
+            put("records", JsonArray(payload.map(::encodeSyncAttendanceRecord)))
+        }
         val result = db.postgrest.rpc("sync_attendance", paramsJson).decodeAs<Map<String, Int>>()
-        return Triple(
-            result["synced"] ?: 0,
-            result["skipped"] ?: 0,
-            result["blocked_ended_session"] ?: 0,
-        )
+        return parseSyncAttendanceCounts(result)
     }
 }

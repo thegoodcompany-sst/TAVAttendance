@@ -16,7 +16,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-private const val PENDING_QUEUE_VERSION = 3
+private const val PENDING_QUEUE_VERSION = 4
+private const val PENDING_QUEUE_PREVIOUS_VERSION = 3
 private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 private const val PENDING_QUEUE_KEY_ALIAS = "tava.pending.attendance.aes.v1"
 private const val ENCRYPTED_PREFIX = "enc-v1:"
@@ -36,7 +37,11 @@ data class PendingAttendanceRecord(
     var absenceInformed: Boolean? = null,
     val clientMutationId: String,
     val markedAt: String,
-    var isSynced: Boolean = false
+    var isSynced: Boolean = false,
+    // Server marked_at observed when first queued; JSON null means observed no row.
+    var observedMarkedAt: String? = null,
+    // False for migrated v3 envelopes that omitted the observation. New writes set true.
+    var didObserveRow: Boolean = false,
 )
 
 @Serializable
@@ -78,7 +83,7 @@ internal fun pendingRecordsBelongToOwner(
 
 private fun PendingAttendanceEnvelope.belongsTo(ownerUserId: String): Boolean {
     val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return false
-    return version == PENDING_QUEUE_VERSION &&
+    return (version == PENDING_QUEUE_VERSION || version == PENDING_QUEUE_PREVIOUS_VERSION) &&
         canonicalOwnerUserId(this.ownerUserId) == canonicalOwner &&
         pendingRecordsBelongToOwner(records, canonicalOwner)
 }
@@ -99,7 +104,9 @@ internal fun decodePendingQueue(raw: String, expectedOwnerUserId: String): List<
     val envelope = runCatching {
         pendingQueueJson.decodeFromString<PendingAttendanceEnvelope>(raw)
     }.getOrNull()
-    if (envelope?.version == PENDING_QUEUE_VERSION) {
+    if (envelope != null &&
+        (envelope.version == PENDING_QUEUE_VERSION || envelope.version == PENDING_QUEUE_PREVIOUS_VERSION)
+    ) {
         return envelope.records.takeIf { envelope.belongsTo(expectedOwnerUserId) }
     }
 
@@ -118,6 +125,8 @@ internal fun decodePendingQueue(raw: String, expectedOwnerUserId: String): List<
             clientMutationId = record.clientMutationId,
             markedAt = record.markedAt,
             isSynced = record.isSynced,
+            observedMarkedAt = null,
+            didObserveRow = false,
         )
     }.takeIf { pendingRecordsBelongToOwner(it, canonicalOwner) }
 }
@@ -251,7 +260,8 @@ class PendingAttendanceStore(context: Context) {
         studentId: String,
         status: AttendanceStatus?,
         notes: String?,
-        absenceInformed: Boolean? = null
+        absenceInformed: Boolean? = null,
+        observedMarkedAt: String? = null,
     ): Boolean = synchronized(queueLock) {
         val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return@synchronized false
         if (activeOwnerUserId != canonicalOwner) return@synchronized false
@@ -260,14 +270,14 @@ class PendingAttendanceStore(context: Context) {
         if (idx >= 0) {
             // A correction after a prior sync must get a fresh markedAt/clientMutationId and
             // be un-synced, otherwise it silently never uploads (stale isSynced=true) or loses
-            // the server's conflict race.
-            records[idx] = records[idx].copy(
+            // the server's conflict race. The original observed snapshot is kept for CAS.
+            records[idx] = correctedPendingRecord(
+                existing = records[idx],
                 status = status,
                 notes = notes,
                 absenceInformed = absenceInformed,
-                markedAt = java.time.Instant.now().toString(),
                 clientMutationId = UUID.randomUUID().toString(),
-                isSynced = false
+                markedAt = java.time.Instant.now().toString(),
             )
         } else {
             records.add(
@@ -280,7 +290,9 @@ class PendingAttendanceStore(context: Context) {
                     absenceInformed = absenceInformed,
                     clientMutationId = UUID.randomUUID().toString(),
                     markedAt = java.time.Instant.now().toString(),
-                    isSynced = false
+                    isSynced = false,
+                    observedMarkedAt = observedMarkedAt,
+                    didObserveRow = true,
                 )
             )
         }
@@ -298,6 +310,29 @@ class PendingAttendanceStore(context: Context) {
             saveLocked(canonicalOwner, recordsAfterSync(loadLocked(canonicalOwner), clientMutationIds))
         }
 }
+
+/** Server marked_at from the roster row this mutation first observed; null if no row. */
+internal fun observedServerMarkedAt(
+    rosterStatus: AttendanceStatus?,
+    rosterMarkedAt: String?,
+): String? = if (rosterStatus != null) rosterMarkedAt else null
+
+/** In-place correction: rotate mutation id/time, keep the original observed snapshot. */
+internal fun correctedPendingRecord(
+    existing: PendingAttendanceRecord,
+    status: AttendanceStatus?,
+    notes: String?,
+    absenceInformed: Boolean?,
+    clientMutationId: String,
+    markedAt: String,
+): PendingAttendanceRecord = existing.copy(
+    status = status,
+    notes = notes,
+    absenceInformed = absenceInformed,
+    clientMutationId = clientMutationId,
+    markedAt = markedAt,
+    isSynced = false,
+)
 
 /** Synced attendance contains student identifiers and has no offline purpose.
  * Remove it immediately, including legacy rows previously retained as synced. */

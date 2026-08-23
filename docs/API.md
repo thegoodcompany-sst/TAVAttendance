@@ -624,13 +624,19 @@ if network.isConnected {
 
 ### 6.6 Conflict Resolution
 
-Device clocks are not trusted. Distinct accepted mutations apply in server
-arrival order and receive a server timestamp. The current mutation ID plus an
-RLS-hidden, append-only receipt ledger make both immediate and delayed retries
-idempotent even after a newer correction replaced the row. Reusing an ID for a
-different student/session/actor is a hard `23505` collision rather than a silent
-skip; ended-session writes are counted separately in
-`blocked_ended_session`.
+Device clocks are not trusted. Accepted mutations receive a server timestamp
+(`clock_timestamp()`). The current mutation ID plus an RLS-hidden, append-only
+receipt ledger make both immediate and delayed retries idempotent even after a
+newer correction replaced the row. Reusing an ID for a different
+student/session/actor is a hard `23505` collision rather than a silent skip;
+ended-session writes are counted separately in `blocked_ended_session`.
+
+Stale delayed overwrite: new clients send `observed_marked_at` — the live
+row's server `marked_at` last seen, or null if they saw no row. Migration 058
+compare-and-skips when a newer server row already exists; the skip is counted
+in `skipped`. Old clients that omit the field do not get this protection.
+It is not live in production until 058 is applied **and** those clients are
+installed. The centre kiosk does not use this queue (online-only).
 
 ---
 

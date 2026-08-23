@@ -100,7 +100,8 @@ Violating any item below is a bug even when the UI appears to work.
    `WITH (security_invoker = true)` and continue excluding Study Space.
 6. **Offline attendance remains safe.** Mutations are actor-bound,
    server-timed, idempotent, and replay-safe. Native queues clear on sign-out
-   and must never sync another account's records.
+   and must never sync another account's records. A delayed distinct mutation
+   that includes `observed_marked_at` must not overwrite a newer server row.
 7. **Attendance status stays three-valued.** Stored status is `present`, `late`,
    or `absent`. “Not Here Yet” means no row; `absence_informed` is a nullable
    companion field on absent rows; dismissal is a separate safety event.

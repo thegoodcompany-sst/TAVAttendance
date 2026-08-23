@@ -28,6 +28,8 @@ struct SessionListView: View {
     @State private var showingPastSessionForm = false
     @StateObject private var network = NetworkMonitor()
     @State private var error: AppError? = nil
+    @State private var loadError: AppError? = nil
+    @State private var sessionsLoadFailed = false
 
     // Punctuality stats
     @State private var punctuality: PunctualitySummary? = nil
@@ -69,6 +71,14 @@ struct SessionListView: View {
             if isLoading {
                 ProgressView("Loading sessions…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if sessions.isEmpty && sessionsLoadFailed {
+                ContentUnavailableView {
+                    Label("Could Not Load Sessions", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text("Check your connection and try again.")
+                } actions: {
+                    Button("Retry") { Task { await loadSessions() } }
+                }
             } else {
                 List {
                     // Class-wide analytics remain owner/admin-only. Substitutes
@@ -212,6 +222,9 @@ struct SessionListView: View {
             }
         }
         .errorAlert(error: $error)
+        .errorAlertWithRetry(error: $loadError) {
+            Task { await loadSessions() }
+        }
     }
 
     // MARK: - Today class controls
@@ -385,14 +398,18 @@ struct SessionListView: View {
     // MARK: - Actions
 
     private func loadSessions() async {
-        isLoading = true
-        defer { isLoading = false }
+        let showFullScreenLoading = sessions.isEmpty
+        if showFullScreenLoading { isLoading = true }
+        defer { if showFullScreenLoading { isLoading = false } }
         do {
             sessions = try await AttendanceService.shared.fetchSessions(for: tavClass.id)
+            sessionsLoadFailed = false
+            loadError = nil
+            await autoEndIfExpired()
         } catch {
-            self.error = AppError("Failed to load sessions", underlyingError: error)
+            sessionsLoadFailed = true
+            loadError = AppError("Failed to load sessions", underlyingError: error)
         }
-        await autoEndIfExpired()
     }
 
     /// Auto-end the session when scheduled end time has passed, but only if the session
@@ -420,11 +437,12 @@ struct SessionListView: View {
         guard parts.count >= 2,
               let hour = Int(parts[0]),
               let minute = Int(parts[1]) else { return nil }
-        var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        let calendar = AttendanceService.singaporeCalendar
+        var comps = calendar.dateComponents([.year, .month, .day], from: Date())
         comps.hour = hour
         comps.minute = minute
         comps.second = 0
-        guard let start = Calendar.current.date(from: comps) else { return nil }
+        guard let start = calendar.date(from: comps) else { return nil }
         return start.addingTimeInterval(TimeInterval(tavClass.durationMinutes * 60))
     }
 
@@ -491,7 +509,9 @@ struct SessionListView: View {
         }
     }
 
-    private func todayDateString() -> String { dateFormatter.string(from: Date()) }
+    private func todayDateString() -> String {
+        AttendanceService.ymdFormatter.string(from: Date())
+    }
 
     private func formattedDate(_ isoDate: String) -> String {
         guard let date = dateFormatter.date(from: isoDate) else { return isoDate }

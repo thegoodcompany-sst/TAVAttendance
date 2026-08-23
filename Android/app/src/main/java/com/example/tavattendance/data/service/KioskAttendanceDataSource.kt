@@ -14,6 +14,7 @@ import java.util.*
 
 internal object KioskAttendanceDataSource {
     private val db get() = SupabaseClient.client
+    internal val SINGAPORE_TIME_ZONE: TimeZone = TimeZone.getTimeZone("Asia/Singapore")
 
     suspend fun fetchKioskEntries(): List<KioskEntry> {
         // Day-aware: only create/show sessions for classes scheduled today, so opening the
@@ -117,9 +118,32 @@ internal object KioskAttendanceDataSource {
 
     // ---- Day-of-week scheduling ----
 
-    /** English full weekday name ("Monday".."Sunday") for the given date. */
-    fun weekdayName(date: Date): String =
-        SimpleDateFormat("EEEE", Locale.ENGLISH).format(date)
+    /** English full weekday name ("Monday".."Sunday") for the given date in Asia/Singapore. */
+    fun weekdayName(date: Date): String {
+        val fmt = SimpleDateFormat("EEEE", Locale.ENGLISH)
+        fmt.timeZone = SINGAPORE_TIME_ZONE
+        return fmt.format(date)
+    }
+
+    /** `yyyy-MM-dd` calendar date in Asia/Singapore. */
+    fun singaporeDateIso(date: Date = Date()): String {
+        val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        fmt.timeZone = SINGAPORE_TIME_ZONE
+        return fmt.format(date)
+    }
+
+    /** Scheduled class end as an instant, using Asia/Singapore wall clock. */
+    fun scheduledEndTime(scheduleTime: String?, durationMinutes: Int, now: Date = Date()): Date? {
+        val parts = scheduleTime?.split(":")?.mapNotNull { it.toIntOrNull() } ?: return null
+        if (parts.size < 2) return null
+        val cal = Calendar.getInstance(SINGAPORE_TIME_ZONE).apply { time = now }
+        cal.set(Calendar.HOUR_OF_DAY, parts[0])
+        cal.set(Calendar.MINUTE, parts[1])
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        cal.add(Calendar.MINUTE, durationMinutes)
+        return cal.time
+    }
 
     /**
      * Whether a class meets on [weekday] (an English full weekday name). The class's
@@ -220,7 +244,7 @@ internal object KioskAttendanceDataSource {
             // Split on ":" taking first two parts — handles both "HH:mm" and "HH:mm:ss"
             val parts = session.scheduleTime.split(":").mapNotNull { it.toIntOrNull() }
             if (parts.size >= 2) {
-                val classCal = Calendar.getInstance().apply { time = now }
+                val classCal = Calendar.getInstance(SINGAPORE_TIME_ZONE).apply { time = now }
                 classCal.set(Calendar.HOUR_OF_DAY, parts[0])
                 classCal.set(Calendar.MINUTE, parts[1])
                 classCal.set(Calendar.SECOND, 0)

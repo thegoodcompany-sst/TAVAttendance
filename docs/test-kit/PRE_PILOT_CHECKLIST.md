@@ -39,12 +39,12 @@ exploring.
 
 On a normal class day (usually Mon / Thu):
 
-1. Kids sign themselves in on the front-desk **iPad**
+1. Kids sign themselves in on the front-desk **iPad** (online-only; wifi drop → paper)
 2. App marks them **green (on time)** or **orange (late)** from the class start time
 3. Desk staff can fix mistakes when the PIN is unlocked (Not Here, late override, Absent)
 4. Tutors open their roster, start today's class, mark anyone the kiosk missed
-5. Someone checks the **website** and can export if needed
-6. Everyone knows to fall back to **paper** if the net or app dies mid-session
+5. Someone checks the **website**. Website wins if the devices disagree.
+6. Everyone knows to fall back to **paper** if the net or app dies mid-session. The kiosk does not queue.
 
 ### Not yet — don't wait on these
 
@@ -74,7 +74,7 @@ Write a real name. “Someone will check” is how things get missed.
 |---|---|
 | **Admin / lead** | Student & class data is right; website matches; final go/no-go |
 | **Desk** | iPad, PIN, kids signing in, fixes during the rush |
-| **Tutors on pilot classes** | Roster, marking, history, the orange-dot offline bit |
+| **Tutors on pilot classes** | Roster, marking, history. Orange pending ≠ saved. Don't End Class / sign out / hop accounts with pending. Don't offline-mark kids who already tapped the kiosk. |
 | **Me (Edmund)** | Product readiness, observe without coaching, keep private notes, and turn evidence into the fix list |
 
 ---
@@ -96,23 +96,28 @@ Wrong names / missing enrolments is the boring way pilots fail.
 
 ### Logins & devices
 
-- [ ] Kiosk iPad is on an **admin** account, not a tutor (tutor login only sees their own classes — kiosk will look wrong)
+- [ ] Kiosk iPad is **TestFlight 1.1.3 build 8**, not App Store build 3
+- [ ] Signed in as an **admin** account, not a tutor (tutor login only sees their own classes)
 - [ ] Each pilot tutor can log in
 - [ ] Someone can open **dash.thegoodcompanysg.dev** as admin
-- [ ] App version on the iPad is the one we said (write it: ________)
-- [ ] iPad has a passcode, is updated, and kids can't wander out of the app or read staff notifications
-- [ ] Kiosk **PIN** is set and only staff know it (not `1234`)
+- [ ] App version written here: ________
+- [ ] Guided Access on; Singapore timezone; Automatic Date & Time on; auto-lock off
+- [ ] In-app Face ID unlock **off** on the kiosk iPad
+- [ ] Kiosk **PIN** is set, locked, only staff know it (not `1234`). Long-press the lock to unlock. Search is admin-only.
 
 ### Quick “does today look right?”
 
 On a real class day (or a dry run we pick):
 
 - [ ] Expected classes show up (not “No Classes Today” when there *is* class)
-- [ ] Expected kids show up
+- [ ] Expected kids show up (dual-enrolled kids: one card, marks every session)
 - [ ] No weird test classes confusing the desk
 
-Empty kiosk on a class day = **stop**. Fix schedule / enrolment / admin login.
-Don't put a tutor account on the kiosk as a hack.
+“No Classes Today” is valid only after a **successful** load with nothing
+scheduled. A failed load should retry, not look like a day off.
+
+Empty kiosk on a class day after a successful load = **stop**. Fix schedule /
+enrolment / admin login. Don't put a tutor account on the kiosk as a hack.
 
 ---
 
@@ -136,29 +141,29 @@ Only tick when the device **and** the website agree (where it says so).
 
 | # | Do this | You should see | ✓ |
 |---|---|---|---|
-| C1 | Lock with PIN | Only the sign-in grid | [ ] |
-| C2 | Unlock with PIN | **ADMIN** badge | [ ] |
+| C1 | Lock with PIN | Only the sign-in grid; search hidden | [ ] |
+| C2 | Long-press lock + PIN | **ADMIN** badge; search visible | [ ] |
 | C3 | Hold green → Mark as Late | Orange | [ ] |
 | C4 | Hold orange → Not Here | Grey again; tappable | [ ] |
 | C5 | Tap that grey card | Signs in again | [ ] |
 | C6 | Tap an orange card once (admin) | Flips to green | [ ] |
-| C7 | Hold signed-in → Absent | Red; kid can't undo by tapping | [ ] |
-| C8 | Lock again | Badge gone; kids can't override | [ ] |
+| C7 | Hold signed-in → Absent (informed or no notice) | Red; kid can't undo by tapping. Both are Absent; parents never see the flag. | [ ] |
+| C8 | Lock again | Badge gone; search hidden; kids can't override | [ ] |
 | C9 | Website after all that | Final statuses match | [ ] |
 
 ### Tutor roster
 
 | # | Do this | You should see | ✓ |
 |---|---|---|---|
-| T1 | Classes → class → Start Today's Class | Roster loads | [ ] |
+| T1 | Classes → class → Start Today's Class | Roster loads. Don't start early if you care about On Time vs Late (`startedAt` forces Late). | [ ] |
 | T2 | Mark Present | Marked time under the name | [ ] |
 | T3 | Open a student row | History loads (not a blank nothing) | [ ] |
-| T4 | Mark someone the kiosk missed | Shows on website after a bit | [ ] |
-| T5 | Wi‑Fi off, mark one | Still marks; **orange pending** dot | [ ] |
+| T4 | Mark someone the kiosk missed (online) | Shows on website after a bit | [ ] |
+| T5 | Wi‑Fi off, mark one who did **not** tap the kiosk | Still marks; **orange pending** dot | [ ] |
 | T6 | Wi‑Fi back on | Dot clears **and** website has it | [ ] |
 
 If T5/T6 leave the orange dot forever, don't pass it. That's a real problem on
-bad Wi‑Fi days.
+bad Wi‑Fi days. Don't End Class / sign out / hop accounts while pending.
 
 ### Website
 
@@ -166,7 +171,7 @@ bad Wi‑Fi days.
 |---|---|---|---|
 | W1 | Log in at dash.thegoodcompanysg.dev | Dashboard loads | [ ] |
 | W2 | Today / analytics after kiosk work | Matches the iPad | [ ] |
-| W3 | Export for the pilot window | CSV has the people you expect | [ ] |
+| W3 | Export (skip unless Edmund will delete the file) | Superadmin full operational ZIP, not a demo CSV | [ ] |
 | W4 | Peek one student | History matches today | [ ] |
 
 Delete test downloads with kids' names when you're done. Don't WhatsApp
@@ -177,9 +182,11 @@ attendance files around.
 ## 3. How we run the day
 
 - [ ] Paper sheet printed for each pilot class, on the desk
-- [ ] Everyone knows: **orange pending ≠ saved**. Saved when the website agrees (or paper if we had to fall back)
+- [ ] Everyone knows: kiosk taps do **not** queue. Wifi drop at the desk → paper.
+- [ ] Everyone knows: **orange pending ≠ saved** (tutor roster only). Saved when the website agrees (or paper if we had to fall back)
+- [ ] Don't offline-mark kids who already tapped the kiosk
 - [ ] Wrong kid's data / weird account mix-up → **stop**, secure the device, tell me. Don't keep tapping
-- [ ] While something is pending: no uninstall, no clear data, no account-hopping, no reset
+- [ ] While something is pending: no uninstall, no clear data, no account-hopping, no End Class, no reset
 - [ ] Screenshots with names stay in our private staff chat only
 - [ ] Named desk lead each session (PIN + who pings me)
 - [ ] Edmund observes and takes notes; staff run routine flows without builder coaching
@@ -195,7 +202,7 @@ attendance files around.
 | Green | On time | No (staff only) |
 | Orange | Late | No (staff can flip to on time) |
 | Grey after Not Here | Soft undo | Yes — try again |
-| Red | Absent (staff decided) | No |
+| Red | Absent (informed or no notice; parents never see the flag) | No |
 | Purple | Dismissed early (was present) | No |
 
 **Not Here** = “oops, try again.” **Absent** = we meant it.
@@ -240,7 +247,7 @@ We only go live with real kids when all of this is honestly true:
 - [ ] Kiosk happy path + website match
 - [ ] Corrections + PIN work
 - [ ] Tutor path works (including offline clear + website confirm)
-- [ ] Reviewed build prevents an older queued action from overwriting a newer correction
+- [ ] Migration 058 applied in production **and** the new client is installed (older queued marks must not overwrite a newer correction). Do not tick from a repo file alone.
 - [ ] Website path works
 - [ ] Paper / pending / stop rules briefed to everyone on duty
 - [ ] “Not yet” list understood — we won't depend on those

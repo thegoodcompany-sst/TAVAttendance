@@ -2,6 +2,9 @@ package com.example.tavattendance.screens.kiosk
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -13,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -24,6 +28,8 @@ import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.service.FeatureFlags
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +45,8 @@ fun GlobalKioskScreen(
     val showSettings by vm.showSettings.collectAsState()
     val snackbarMessage by vm.snackbarMessage.collectAsState()
     val loadError by vm.loadError.collectAsState()
+    val isOnline by vm.isOnline.collectAsState()
+    val hasLoadedSuccessfully by vm.hasLoadedSuccessfully.collectAsState()
 
     // Collect the derived authorization state so lock/unlock changes recompose the UI.
     val isAdminMode by vm.isAdminMode.collectAsState()
@@ -82,6 +90,13 @@ fun GlobalKioskScreen(
         snackbarMessage?.let { msg ->
             snackbarHostState.showSnackbar(message = msg, duration = SnackbarDuration.Short)
             vm.clearSnackbar()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(KIOSK_SILENT_REFRESH_MS)
+            vm.refreshSilent()
         }
     }
 
@@ -148,33 +163,72 @@ fun GlobalKioskScreen(
                             }) {
                                 Text("Exit Kiosk")
                             }
-                        }
-                        IconButton(
-                            onClick = {
-                                if (isAdminMode) vm.showSettingsDialog()
-                                else vm.showPinUnlockDialog()
+                            IconButton(onClick = { vm.showSettingsDialog() }) {
+                                Icon(Icons.Default.Settings, contentDescription = "Kiosk settings")
                             }
-                        ) {
-                            Icon(
-                                if (isAdminMode) Icons.Default.Settings else Icons.Default.Lock,
-                                contentDescription = if (isAdminMode) "Kiosk settings" else "Unlock kiosk"
-                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .pointerInput(Unit) {
+                                        awaitEachGesture {
+                                            awaitFirstDown()
+                                            val releasedEarly = withTimeoutOrNull(KIOSK_UNLOCK_LONG_PRESS_MS) {
+                                                waitForUpOrCancellation()
+                                            }
+                                            if (releasedEarly == null) {
+                                                vm.showPinUnlockDialog()
+                                                waitForUpOrCancellation()
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Lock,
+                                    contentDescription = KIOSK_UNLOCK_CONTENT_DESCRIPTION
+                                )
+                            }
                         }
                     }
                 }
 
-                when {
-                    isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (!isOnline) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            KIOSK_OFFLINE_BANNER,
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp).fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                when (kioskRosterPresentation(
+                    isLoadInFlight = isLoading,
+                    hasEntries = entries.isNotEmpty(),
+                    hasLoadedSuccessfully = hasLoadedSuccessfully,
+                    loadFailed = loadError != null,
+                )) {
+                    KioskRosterPresentation.FullScreenLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
-                    loadError != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    KioskRosterPresentation.LoadFailed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                            Text(loadError!!, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                            Text(
+                                loadError ?: "Could not load the sign-in list. Please ask a staff member to retry.",
+                                color = MaterialTheme.colorScheme.error,
+                                textAlign = TextAlign.Center
+                            )
                             Spacer(Modifier.height(12.dp))
                             Button(onClick = { vm.loadEntries() }) { Text("Retry") }
                         }
                     }
-                    entries.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    KioskRosterPresentation.NoClasses -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             "No classes scheduled today.",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -182,7 +236,7 @@ fun GlobalKioskScreen(
                             modifier = Modifier.padding(32.dp)
                         )
                     }
-                    else -> LazyVerticalGrid(
+                    KioskRosterPresentation.Roster -> LazyVerticalGrid(
                         columns = GridCells.Adaptive(minSize = 160.dp),
                         contentPadding = PaddingValues(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),

@@ -6,10 +6,6 @@ in [`ROADMAP.md`](ROADMAP.md). Full Student Assurance decisions:
 
 ## P1 — before the September 2026 real-child pilot
 
-- Prevent an older, previously unprocessed offline attendance mutation from
-  overwriting a newer authorised correction. Server ordering must not trust the
-  client wall clock. Add the delayed/distinct-mutation regression to the SQL and
-  native queue suites.
 - Update and run the pre-pilot evidence kit for one centre, fewer than 50
   children, over two months. The existing kiosk, tutor roster, offline recovery,
   paper fallback, and web reconciliation loop are the test scope.

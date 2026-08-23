@@ -211,6 +211,30 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertEqual(AttendanceService.signInStatus(scheduleTime: "20", startedAt: nil, now: now, calendar: calendar), .present)
     }
 
+    func testSingaporeMondayMorningIsMondayAndNotLateAgainstEveningSchedule() {
+        var singapore = Calendar(identifier: .gregorian)
+        singapore.timeZone = TimeZone(identifier: "Asia/Singapore")!
+        // Monday 07:00 SGT = Sunday 23:00 UTC. Device TZ must not win.
+        let mondayMorning = singapore.date(from: DateComponents(
+            year: 2026, month: 8, day: 24, hour: 7, minute: 0, second: 0))!
+        let mondayEvening = singapore.date(from: DateComponents(
+            year: 2026, month: 8, day: 24, hour: 19, minute: 30, second: 0))!
+
+        XCTAssertEqual(AttendanceService.weekdayName(for: mondayMorning), "Monday")
+        XCTAssertEqual(
+            AttendanceService.signInStatus(scheduleTime: "19:00:00", startedAt: nil, now: mondayMorning),
+            .present
+        )
+        XCTAssertEqual(
+            AttendanceService.signInStatus(scheduleTime: "19:00", startedAt: nil, now: mondayEvening),
+            .late
+        )
+        XCTAssertEqual(
+            AttendanceService.ymdFormatter.string(from: mondayMorning),
+            "2026-08-24"
+        )
+    }
+
     // MARK: worstStatus
 
     func testWorstStatusRanking() {
@@ -338,7 +362,9 @@ final class AttendanceLogicTests: XCTestCase {
     private func pendingRecord(
         ownerUserId: UUID,
         mutationId: String = "pending",
-        status: AttendanceStatus? = .present
+        status: AttendanceStatus? = .present,
+        observedMarkedAt: Date? = nil,
+        didObserveRow: Bool = false
     ) -> PendingAttendanceRecord {
         PendingAttendanceRecord(
             ownerUserId: ownerUserId,
@@ -349,7 +375,9 @@ final class AttendanceLogicTests: XCTestCase {
             absenceInformed: nil,
             clientMutationId: mutationId,
             markedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            isSynced: false
+            isSynced: false,
+            observedMarkedAt: observedMarkedAt,
+            didObserveRow: didObserveRow
         )
     }
 
@@ -425,11 +453,17 @@ final class AttendanceLogicTests: XCTestCase {
         let decoded = try XCTUnwrap(PendingAttendanceQueueCodec.decode(
             data, expectedOwnerUserId: owner))
         XCTAssertEqual(decoded.map(\.status), [.present, nil])
+        XCTAssertTrue(decoded.allSatisfy { !$0.didObserveRow && $0.observedMarkedAt == nil })
     }
 
     func testPendingQueueRejectsLegacyAndMixedOwnerData() {
         let owner = UUID()
-        let foreign = pendingRecord(ownerUserId: UUID(), mutationId: "foreign")
+        let foreign = pendingRecord(
+            ownerUserId: UUID(),
+            mutationId: "foreign",
+            observedMarkedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            didObserveRow: true
+        )
         XCTAssertNil(PendingAttendanceQueueCodec.decode(Data("[]".utf8), expectedOwnerUserId: owner))
         XCTAssertNil(PendingAttendanceQueueCodec.encode(
             ownerUserId: owner,
@@ -439,6 +473,97 @@ final class AttendanceLogicTests: XCTestCase {
             [foreign],
             ownerUserId: owner
         ))
+        let mixed = [
+            pendingRecord(ownerUserId: owner, mutationId: "ours", didObserveRow: true),
+            foreign
+        ]
+        XCTAssertNil(PendingAttendanceQueueCodec.encode(ownerUserId: owner, records: mixed))
+        XCTAssertFalse(PendingAttendanceQueueCodec.recordsBelongToOwner(mixed, ownerUserId: owner))
+    }
+
+    func testPendingQueueEncodesObservedMarkedAtNullAndDate() throws {
+        let owner = UUID()
+        let observed = Date(timeIntervalSince1970: 1_700_000_000)
+        let unmarked = pendingRecord(
+            ownerUserId: owner, mutationId: "unmarked",
+            observedMarkedAt: nil, didObserveRow: true)
+        let marked = pendingRecord(
+            ownerUserId: owner, mutationId: "marked",
+            observedMarkedAt: observed, didObserveRow: true)
+
+        let data = try XCTUnwrap(PendingAttendanceQueueCodec.encode(
+            ownerUserId: owner, records: [unmarked, marked]))
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(object["version"] as? Int, 4)
+        let rows = try XCTUnwrap(object["records"] as? [[String: Any]])
+        XCTAssertTrue(rows[0]["observed_marked_at"] is NSNull)
+        XCTAssertFalse(rows[1]["observed_marked_at"] is NSNull)
+        XCTAssertNotNil(rows[1]["observed_marked_at"])
+
+        let decoded = try XCTUnwrap(
+            PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: owner))
+        XCTAssertEqual(decoded.map(\.clientMutationId), ["unmarked", "marked"])
+        XCTAssertEqual(decoded.map(\.didObserveRow), [true, true])
+        XCTAssertNil(decoded[0].observedMarkedAt)
+        XCTAssertEqual(decoded[1].observedMarkedAt, observed)
+    }
+
+    func testPendingQueueVersionThreeOmitsObservedAsUnknown() throws {
+        struct V3Record: Codable {
+            let ownerUserId: UUID
+            let sessionId: UUID
+            let studentId: UUID
+            let status: AttendanceStatus?
+            let notes: String?
+            let absenceInformed: Bool?
+            let clientMutationId: String
+            let markedAt: Date
+            let isSynced: Bool
+        }
+        struct V3Envelope: Codable {
+            let version: Int
+            let ownerUserId: UUID
+            let records: [V3Record]
+        }
+
+        let owner = UUID()
+        let base = pendingRecord(ownerUserId: owner)
+        let data = try JSONEncoder().encode(V3Envelope(
+            version: 3,
+            ownerUserId: owner,
+            records: [
+                V3Record(
+                    ownerUserId: owner, sessionId: base.sessionId, studentId: base.studentId,
+                    status: .present, notes: nil, absenceInformed: nil,
+                    clientMutationId: "v3", markedAt: base.markedAt, isSynced: false)
+            ]
+        ))
+        let decoded = try XCTUnwrap(
+            PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: owner))
+        XCTAssertEqual(decoded.first?.clientMutationId, "v3")
+        XCTAssertEqual(decoded.first?.status, .present)
+        XCTAssertFalse(try XCTUnwrap(decoded.first).didObserveRow)
+        XCTAssertNil(decoded.first?.observedMarkedAt)
+    }
+
+    func testInPlaceCorrectionKeepsObservedMarkedAtAndRotatesMutationId() {
+        let originalObserved = Date(timeIntervalSince1970: 1_700_000_000)
+        var record = pendingRecord(
+            ownerUserId: UUID(),
+            mutationId: "old",
+            status: .present,
+            observedMarkedAt: originalObserved,
+            didObserveRow: true
+        )
+        record.applyCorrection(status: .late, notes: "corrected", absenceInformed: nil)
+        XCTAssertEqual(record.observedMarkedAt, originalObserved)
+        XCTAssertTrue(record.didObserveRow)
+        XCTAssertNotEqual(record.clientMutationId, "old")
+        XCTAssertFalse(record.clientMutationId.isEmpty)
+        XCTAssertEqual(record.status, .late)
+        XCTAssertEqual(record.notes, "corrected")
+        XCTAssertFalse(record.isSynced)
     }
 
     func testPendingQueueEncryptionRejectsTampering() throws {
@@ -549,7 +674,9 @@ final class AttendanceLogicTests: XCTestCase {
     }
 
     func testRetrospectiveExistingSessionDetectionUsesClassDateList() {
-        let target = at(0, 0)
+        var singapore = Calendar(identifier: .gregorian)
+        singapore.timeZone = TimeZone(identifier: "Asia/Singapore")!
+        let target = singapore.date(from: DateComponents(year: 2026, month: 7, day: 10))!
         let expected = retrospectiveSession(date: "2026-07-10")
         let sessions = [retrospectiveSession(date: "2026-07-09"), expected]
         XCTAssertEqual(RetrospectiveSessionRules.existingSession(on: target, in: sessions)?.id,
@@ -557,7 +684,10 @@ final class AttendanceLogicTests: XCTestCase {
     }
 
     func testHistoricalEditorRequiresFlagAndPastDate() {
-        let today = at(12, 0)
+        var singapore = Calendar(identifier: .gregorian)
+        singapore.timeZone = TimeZone(identifier: "Asia/Singapore")!
+        let today = singapore.date(from: DateComponents(
+            year: 2026, month: 7, day: 10, hour: 12))!
         XCTAssertTrue(RetrospectiveSessionRules.editorEnabled(
             for: retrospectiveSession(date: "2026-07-09"), flagEnabled: true, today: today))
         XCTAssertFalse(RetrospectiveSessionRules.editorEnabled(
@@ -602,6 +732,35 @@ final class AttendanceLogicTests: XCTestCase {
         let data2 = try JSONEncoder().encode(withoutFlag)
         let obj2 = try JSONSerialization.jsonObject(with: data2) as! [String: Any]
         XCTAssertNil(obj2["absence_informed"])
+    }
+
+    func testSyncAttendancePayloadEncodesObservedMarkedAt() throws {
+        let withDate = SyncAttendancePayload(
+            sessionId: UUID(), studentId: UUID(), status: .present,
+            notes: "", clientMutationId: "m1",
+            markedAt: "2026-08-24T11:00:00Z", absenceInformed: nil,
+            observedMarkedAt: "2026-08-24T10:55:00Z", didObserveRow: true)
+        let withDateObj = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(withDate)) as! [String: Any]
+        XCTAssertEqual(withDateObj["observed_marked_at"] as? String, "2026-08-24T10:55:00Z")
+
+        let unmarked = SyncAttendancePayload(
+            sessionId: UUID(), studentId: UUID(), status: .present,
+            notes: "", clientMutationId: "m2",
+            markedAt: "2026-08-24T11:00:00Z", absenceInformed: nil,
+            observedMarkedAt: nil, didObserveRow: true)
+        let unmarkedObj = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(unmarked)) as! [String: Any]
+        XCTAssertTrue(unmarkedObj["observed_marked_at"] is NSNull)
+
+        let unknown = SyncAttendancePayload(
+            sessionId: UUID(), studentId: UUID(), status: .present,
+            notes: "", clientMutationId: "m3",
+            markedAt: "2026-08-24T11:00:00Z", absenceInformed: nil,
+            observedMarkedAt: nil, didObserveRow: false)
+        let unknownObj = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode(unknown)) as! [String: Any]
+        XCTAssertNil(unknownObj["observed_marked_at"])
     }
 
     // MARK: - Student year summary
@@ -653,6 +812,202 @@ final class AttendanceLogicTests: XCTestCase {
                 sessionDate: "2026-07-01",
                 class: .init(name: className)
             )
+        )
+    }
+
+    // MARK: - Kiosk load policy
+    private let a = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    private let b = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    private let c = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+
+    // MARK: - Full-screen loader
+
+    func testFirstLoadShowsFullScreenLoader() {
+        XCTAssertTrue(shouldShowFullScreenLoader(
+            isLoadInFlight: true, hasEntries: false, hasLoadedSuccessfully: false))
+    }
+
+    func testSubsequentRefreshDoesNotShowFullScreenLoader() {
+        XCTAssertFalse(shouldShowFullScreenLoader(
+            isLoadInFlight: true, hasEntries: true, hasLoadedSuccessfully: true))
+        XCTAssertFalse(shouldShowFullScreenLoader(
+            isLoadInFlight: true, hasEntries: false, hasLoadedSuccessfully: true))
+        XCTAssertFalse(shouldShowFullScreenLoader(
+            isLoadInFlight: false, hasEntries: false, hasLoadedSuccessfully: false))
+    }
+
+    // MARK: - Auto-refresh skip
+
+    func testAutoRefreshRunsWhenIdle() {
+        XCTAssertFalse(shouldSkipKioskAutoRefresh(
+            hasPendingMutations: false,
+            isSelectionMode: false,
+            isShowingPIN: false,
+            isLoadInFlight: false
+        ))
+    }
+
+    func testAutoRefreshSkipsPendingSelectionPINAndLoading() {
+        XCTAssertTrue(shouldSkipKioskAutoRefresh(
+            hasPendingMutations: true,
+            isSelectionMode: false,
+            isShowingPIN: false,
+            isLoadInFlight: false
+        ))
+        XCTAssertTrue(shouldSkipKioskAutoRefresh(
+            hasPendingMutations: false,
+            isSelectionMode: true,
+            isShowingPIN: false,
+            isLoadInFlight: false
+        ))
+        XCTAssertTrue(shouldSkipKioskAutoRefresh(
+            hasPendingMutations: false,
+            isSelectionMode: false,
+            isShowingPIN: true,
+            isLoadInFlight: false
+        ))
+        XCTAssertTrue(shouldSkipKioskAutoRefresh(
+            hasPendingMutations: false,
+            isSelectionMode: false,
+            isShowingPIN: false,
+            isLoadInFlight: true
+        ))
+    }
+
+    // MARK: - Empty-state presentation
+
+    func testFailedEmptyLoadIsNotNoClasses() {
+        XCTAssertEqual(
+            kioskRosterPresentation(
+                isLoadInFlight: false,
+                hasEntries: false,
+                hasLoadedSuccessfully: false,
+                loadFailed: true
+            ),
+            .loadFailed
+        )
+    }
+
+    func testSuccessfulEmptyLoadIsNoClasses() {
+        XCTAssertEqual(
+            kioskRosterPresentation(
+                isLoadInFlight: false,
+                hasEntries: false,
+                hasLoadedSuccessfully: true,
+                loadFailed: false
+            ),
+            .noClasses
+        )
+    }
+
+    func testFailedRefreshKeepsRosterWhenEntriesExist() {
+        XCTAssertEqual(
+            kioskRosterPresentation(
+                isLoadInFlight: false,
+                hasEntries: true,
+                hasLoadedSuccessfully: true,
+                loadFailed: true
+            ),
+            .roster
+        )
+    }
+
+    func testInFlightFirstLoadPresentsSpinner() {
+        XCTAssertEqual(
+            kioskRosterPresentation(
+                isLoadInFlight: true,
+                hasEntries: false,
+                hasLoadedSuccessfully: false,
+                loadFailed: false
+            ),
+            .fullScreenLoading
+        )
+    }
+
+    // MARK: - Pending merge
+
+    func testKeepLocalPendingEntryOnlyWhenIdIsPending() {
+        XCTAssertTrue(shouldKeepLocalPendingEntry(studentId: a, pendingIds: [a]))
+        XCTAssertFalse(shouldKeepLocalPendingEntry(studentId: a, pendingIds: [b]))
+        XCTAssertFalse(shouldKeepLocalPendingEntry(studentId: a, pendingIds: []))
+    }
+
+    func testMergeKeepsPendingLocalRowAndUpdatesOthers() {
+        let local = [
+            entry(a, name: "Amy", status: .present),
+            entry(b, name: "Ben", status: .late),
+        ]
+        let remote = [
+            entry(a, name: "Amy", status: .absent),
+            entry(b, name: "Ben", status: .present),
+        ]
+
+        let merged = mergeKioskEntriesPreservingPending(
+            local: local, remote: remote, pendingIds: [a])
+
+        XCTAssertEqual(merged.map(\.studentId), [a, b])
+        XCTAssertEqual(merged[0].status, .present)
+        XCTAssertEqual(merged[1].status, .present)
+    }
+
+    func testMergeWithoutPendingUsesRemoteSnapshot() {
+        let local = [entry(a, name: "Amy", status: .present)]
+        let remote = [entry(a, name: "Amy", status: .late), entry(b, name: "Ben", status: nil)]
+
+        let merged = mergeKioskEntriesPreservingPending(
+            local: local, remote: remote, pendingIds: [])
+
+        XCTAssertEqual(merged.map(\.studentId), [a, b])
+        XCTAssertEqual(merged[0].status, .late)
+    }
+
+    func testMergePreservesPendingLocalRowMissingFromRemote() {
+        let local = [entry(a, name: "Amy", status: .present), entry(c, name: "Cam", status: .late)]
+        let remote = [entry(a, name: "Amy", status: .absent)]
+
+        let merged = mergeKioskEntriesPreservingPending(
+            local: local, remote: remote, pendingIds: [c])
+
+        XCTAssertEqual(merged.map(\.studentId), [a, c])
+        XCTAssertEqual(merged[0].status, .absent)
+        XCTAssertEqual(merged[1].status, .late)
+    }
+
+    // MARK: - Student-facing chrome
+
+    func testErrorAlertIsAdminOnly() {
+        XCTAssertTrue(shouldPresentKioskErrorAlert(isAdminMode: true))
+        XCTAssertFalse(shouldPresentKioskErrorAlert(isAdminMode: false))
+    }
+
+    func testSearchBarIsAdminOnlyAndHiddenInSelection() {
+        XCTAssertTrue(shouldShowKioskSearchBar(isAdminMode: true, isSelectionMode: false))
+        XCTAssertFalse(shouldShowKioskSearchBar(isAdminMode: true, isSelectionMode: true))
+        XCTAssertFalse(shouldShowKioskSearchBar(isAdminMode: false, isSelectionMode: false))
+        XCTAssertFalse(shouldShowKioskSearchBar(isAdminMode: false, isSelectionMode: true))
+    }
+
+    func testKidSafeCopyDoesNotIncludeServerErrorText() {
+        XCTAssertEqual(
+            kioskOfflineBannerText,
+            "No internet — use the paper sheet. Taps will not save."
+        )
+        XCTAssertFalse(kioskStudentFacingActionFailureNotice.localizedCaseInsensitiveContains("postgrest"))
+        XCTAssertFalse(kioskStudentFacingActionFailureNotice.localizedCaseInsensitiveContains("error"))
+        XCTAssertFalse(kioskStudentFacingRefreshFailureNotice.localizedCaseInsensitiveContains("postgrest"))
+    }
+
+    private func entry(_ id: UUID, name: String, status: AttendanceStatus?) -> KioskEntry {
+        KioskEntry(
+            studentId: id,
+            fullName: name,
+            status: status,
+            sessions: [],
+            markedAt: nil,
+            dismissedAt: nil,
+            lateReason: nil,
+            absenceInformed: nil,
+            avatarUrl: nil
         )
     }
 }

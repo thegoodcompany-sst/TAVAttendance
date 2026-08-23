@@ -2,6 +2,10 @@ package com.example.tavattendance.screens.kiosk
 
 import android.app.Application
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.provider.Settings.Secure
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,9 +17,11 @@ import com.example.tavattendance.data.models.KioskEntry
 import com.example.tavattendance.data.service.AttendanceService
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -65,11 +71,34 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     private val _loadError = MutableStateFlow<String?>(null)
     val loadError = _loadError.asStateFlow()
 
+    private val _hasLoadedSuccessfully = MutableStateFlow(false)
+    val hasLoadedSuccessfully = _hasLoadedSuccessfully.asStateFlow()
+
     // MAINT-10: derived StateFlow for isAdminMode — Compose will recompose
     // whenever isLocked or isAdminUnlocked changes.
     val isAdminMode = combine(_isAdminUnlocked, _isLocked) { adminUnlocked, locked ->
         !locked && (storedPin.isEmpty() || adminUnlocked)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, !_isLocked.value && (storedPin.isEmpty() || _isAdminUnlocked.value))
+
+    val isOnline = callbackFlow {
+        val cm = app.getSystemService(ConnectivityManager::class.java)
+        if (cm == null) {
+            trySend(true)
+            awaitClose { }
+            return@callbackFlow
+        }
+        val cb = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(n: Network) { trySend(true) }
+            override fun onLost(n: Network) { trySend(currentInternetAvailable()) }
+        }
+        val req = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build()
+        cm.registerNetworkCallback(req, cb)
+        trySend(currentInternetAvailable())
+        awaitClose { cm.unregisterNetworkCallback(cb) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), currentInternetAvailable())
+
+    @Volatile private var loadInFlight = false
 
     init {
         prefs.edit().putBoolean("locked", _isLocked.value).apply()
@@ -77,28 +106,70 @@ class GlobalKioskViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadEntries() {
+        startLoad(silent = false)
+    }
+
+    fun refreshSilent() {
+        if (shouldSkipKioskSilentRefresh(
+                pendingIds = _pendingIds.value,
+                isShowingPin = _showPinUnlock.value,
+                isLoadInFlight = loadInFlight,
+            )
+        ) return
+        startLoad(silent = true)
+    }
+
+    private fun startLoad(silent: Boolean) {
+        if (silent && loadInFlight) return
+        loadInFlight = true
         viewModelScope.launch {
-            _isLoading.value = true
-            _loadError.value = null
-            val startMs = System.currentTimeMillis()
-            runCatching { AttendanceService.fetchKioskEntries() }
-                .onSuccess {
-                    _entries.value = it
-                    Analytics.track(AnalyticsEventType.OPS, "kiosk_load", buildJsonObject {
-                        put("entry_count", it.size)
-                        put("duration_ms", System.currentTimeMillis() - startMs)
-                    })
+            try {
+                val hasEntries = _entries.value.isNotEmpty()
+                if (shouldSetKioskLoadingIndicator(hasEntries, _hasLoadedSuccessfully.value)) {
+                    _isLoading.value = true
                 }
-                .onFailure { e ->
-                    SafeLog.error("GlobalKioskVM", "load kiosk entries failed", e)
-                    // This screen is student-facing. Backend exception text can expose table,
-                    // policy, or identifier details and therefore stays in debug-only logging.
-                    val msg = "Could not load the sign-in list. Please ask a staff member to retry."
-                    _snackbarMessage.value = msg
-                    _loadError.value = msg
-                }
-            _isLoading.value = false
+                if (!silent) _loadError.value = null
+                val pendingAtStart = _pendingIds.value
+                val startMs = System.currentTimeMillis()
+                runCatching { AttendanceService.fetchKioskEntries() }
+                    .onSuccess { fetched ->
+                        _entries.value = mergeKioskEntriesPreservingPending(
+                            local = _entries.value,
+                            remote = fetched,
+                            pendingIds = pendingAtStart + _pendingIds.value,
+                        )
+                        _hasLoadedSuccessfully.value = true
+                        _loadError.value = null
+                        Analytics.track(AnalyticsEventType.OPS, "kiosk_load", buildJsonObject {
+                            put("entry_count", fetched.size)
+                            put("duration_ms", System.currentTimeMillis() - startMs)
+                        })
+                    }
+                    .onFailure { e ->
+                        SafeLog.error("GlobalKioskVM", "load kiosk entries failed", e)
+                        // This screen is student-facing. Backend exception text can expose table,
+                        // policy, or identifier details and therefore stays in debug-only logging.
+                        val msg = "Could not load the sign-in list. Please ask a staff member to retry."
+                        if (!silent) {
+                            _snackbarMessage.value = msg
+                            if (shouldSurfaceKioskLoadError(_entries.value.isNotEmpty())) {
+                                _loadError.value = msg
+                            }
+                        }
+                    }
+            } finally {
+                _isLoading.value = false
+                loadInFlight = false
+            }
         }
+    }
+
+    private fun currentInternetAvailable(): Boolean {
+        val cm = getApplication<Application>().getSystemService(ConnectivityManager::class.java)
+            ?: return true
+        return cm.activeNetwork?.let {
+            cm.getNetworkCapabilities(it)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } == true
     }
 
     fun clearSnackbar() { _snackbarMessage.value = null }

@@ -39,6 +39,10 @@ INSERT INTO students (id, full_name) VALUES
     (
         '99999999-0000-0000-0000-000000000004',
         'sync_attendance collision student'
+    ),
+    (
+        '99999999-0000-0000-0000-000000000013',
+        'sync_attendance cas student'
     );
 INSERT INTO enrollments (student_id, class_id, enrolled_at, is_active) VALUES
     (
@@ -49,6 +53,35 @@ INSERT INTO enrollments (student_id, class_id, enrolled_at, is_active) VALUES
     (
         '99999999-0000-0000-0000-000000000004',
         '99999999-0000-0000-0000-000000000001',
+        NOW() - INTERVAL '1 day', TRUE
+    );
+-- Sibling class/session: the original session is ended in assertion 8 and
+-- cannot be reopened (UNIQUE class_id, session_date).
+INSERT INTO classes (id, name)
+VALUES (
+    '99999999-0000-0000-0000-000000000011',
+    'sync_attendance cas class'
+);
+INSERT INTO sessions (id, class_id, session_date)
+VALUES (
+    '99999999-0000-0000-0000-000000000012',
+    '99999999-0000-0000-0000-000000000011',
+    (NOW() AT TIME ZONE 'Asia/Singapore')::DATE
+);
+INSERT INTO enrollments (student_id, class_id, enrolled_at, is_active) VALUES
+    (
+        '99999999-0000-0000-0000-000000000003',
+        '99999999-0000-0000-0000-000000000011',
+        NOW() - INTERVAL '1 day', TRUE
+    ),
+    (
+        '99999999-0000-0000-0000-000000000004',
+        '99999999-0000-0000-0000-000000000011',
+        NOW() - INTERVAL '1 day', TRUE
+    ),
+    (
+        '99999999-0000-0000-0000-000000000013',
+        '99999999-0000-0000-0000-000000000011',
         NOW() - INTERVAL '1 day', TRUE
     );
 
@@ -72,6 +105,46 @@ AS $$
     ));
 $$;
 
+CREATE FUNCTION pg_temp.payload(
+    p_student UUID,
+    p_status TEXT,
+    p_marked_at TIMESTAMPTZ,
+    p_mutation TEXT,
+    p_session UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+AS $$
+    SELECT jsonb_build_array(jsonb_build_object(
+        'session_id', p_session,
+        'student_id', p_student,
+        'status', p_status,
+        'marked_at', p_marked_at,
+        'client_mutation_id', p_mutation
+    ));
+$$;
+
+CREATE FUNCTION pg_temp.payload(
+    p_student UUID,
+    p_status TEXT,
+    p_marked_at TIMESTAMPTZ,
+    p_mutation TEXT,
+    p_observed_marked_at TIMESTAMPTZ,
+    p_session UUID
+)
+RETURNS JSONB
+LANGUAGE SQL
+AS $$
+    SELECT jsonb_build_array(jsonb_build_object(
+        'session_id', p_session,
+        'student_id', p_student,
+        'status', p_status,
+        'marked_at', p_marked_at,
+        'client_mutation_id', p_mutation,
+        'observed_marked_at', p_observed_marked_at
+    ));
+$$;
+
 DO $$
 DECLARE
     v_session UUID := '99999999-0000-0000-0000-000000000002';
@@ -82,6 +155,9 @@ DECLARE
     v_first_marked_at TIMESTAMPTZ;
     v_before TIMESTAMPTZ;
     v_after TIMESTAMPTZ;
+    v_cas_session UUID := '99999999-0000-0000-0000-000000000012';
+    v_cas_student UUID := '99999999-0000-0000-0000-000000000013';
+    v_cas_marked_at TIMESTAMPTZ;
     r JSONB;
 BEGIN
     PERFORM pg_temp.as_user(v_actor);
@@ -265,6 +341,111 @@ BEGIN
                 RAISE;
             END IF;
     END;
+
+    -- 10–14. Offline observed_marked_at CAS (migration 058).
+    -- Original session was ended above and cannot be reopened.
+    PERFORM pg_temp.as_user(v_actor);
+
+    -- 10. Delayed distinct mutation without the observed key still overwrites.
+    r := sync_attendance(pg_temp.payload(
+        v_student, 'present', '2099-01-01T00:00:00Z', 'cas-legacy-1',
+        v_cas_session
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1
+       AND COALESCE((r->>'skipped_conflict')::INTEGER, 0) = 0,
+       'cas legacy seed should sync, got ' || r::TEXT;
+    r := sync_attendance(pg_temp.payload(
+        v_student, 'late', '2000-01-01T00:00:00Z', 'cas-legacy-2',
+        v_cas_session
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1
+       AND COALESCE((r->>'skipped_conflict')::INTEGER, 0) = 0,
+       'legacy delayed mutation without observed key should overwrite, got '
+       || r::TEXT;
+    ASSERT (
+        SELECT status = 'late' AND client_mutation_id = 'cas-legacy-2'
+        FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_student
+    ), 'legacy path lost arrival-order overwrite';
+
+    -- 11. Observed unmarked (JSON null) after a live kiosk-style insert is a
+    -- conflict; the kiosk value must stay.
+    r := sync_attendance(pg_temp.payload(
+        v_other_student, 'present', NOW(), 'cas-kiosk-1', v_cas_session
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1,
+       'cas kiosk insert should sync, got ' || r::TEXT;
+    r := sync_attendance(pg_temp.payload(
+        v_other_student, 'late', '2000-01-01T00:00:00Z', 'cas-stale-1',
+        NULL::TIMESTAMPTZ, v_cas_session
+    ));
+    ASSERT (r->>'skipped_conflict')::INTEGER = 1
+       AND (r->>'synced')::INTEGER = 0
+       AND (r->>'skipped')::INTEGER = 0,
+       'stale unmarked observation should skip as conflict, got ' || r::TEXT;
+    ASSERT (
+        SELECT status = 'present' AND client_mutation_id = 'cas-kiosk-1'
+        FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_other_student
+    ), 'conflict skip overwrote the kiosk row';
+
+    -- 12. Matching observed_marked_at allows a later authorised correction.
+    SELECT marked_at INTO v_cas_marked_at
+    FROM attendance_records
+    WHERE session_id = v_cas_session AND student_id = v_other_student;
+    r := sync_attendance(pg_temp.payload(
+        v_other_student, 'absent', NOW(), 'cas-correct-1',
+        v_cas_marked_at, v_cas_session
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1
+       AND COALESCE((r->>'skipped_conflict')::INTEGER, 0) = 0,
+       'matching observed_marked_at should apply, got ' || r::TEXT;
+    ASSERT (
+        SELECT status = 'absent' AND client_mutation_id = 'cas-correct-1'
+        FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_other_student
+    ), 'matching CAS did not apply the authorised correction';
+
+    -- 13. Replay of the same mutation id still increments skipped, not conflict.
+    r := sync_attendance(pg_temp.payload(
+        v_other_student, 'present', NOW(), 'cas-correct-1',
+        v_cas_marked_at, v_cas_session
+    ));
+    ASSERT (r->>'skipped')::INTEGER = 1
+       AND (r->>'synced')::INTEGER = 0
+       AND COALESCE((r->>'skipped_conflict')::INTEGER, 0) = 0,
+       'replay should increment skipped not skipped_conflict, got ' || r::TEXT;
+    ASSERT (
+        SELECT status = 'absent' AND client_mutation_id = 'cas-correct-1'
+        FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_other_student
+    ), 'replay after CAS hit mutated the accepted row';
+
+    -- 14. A conflict in the same batch must not abort later rows.
+    r := sync_attendance(
+        pg_temp.payload(
+            v_other_student, 'present', NOW(), 'cas-batch-conflict',
+            NULL::TIMESTAMPTZ, v_cas_session
+        )
+        || pg_temp.payload(
+            v_cas_student, 'present', NOW(), 'cas-batch-ok',
+            NULL::TIMESTAMPTZ, v_cas_session
+        )
+    );
+    ASSERT (r->>'skipped_conflict')::INTEGER = 1
+       AND (r->>'synced')::INTEGER = 1
+       AND (r->>'skipped')::INTEGER = 0,
+       'batch must count conflict and continue, got ' || r::TEXT;
+    ASSERT (
+        SELECT status = 'absent' AND client_mutation_id = 'cas-correct-1'
+        FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_other_student
+    ), 'batch conflict overwrote the live row';
+    ASSERT (
+        SELECT status = 'present' AND client_mutation_id = 'cas-batch-ok'
+        FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_cas_student
+    ), 'batch did not insert the later valid row';
 
     RAISE NOTICE 'sync_attendance_test: all assertions passed';
 END;

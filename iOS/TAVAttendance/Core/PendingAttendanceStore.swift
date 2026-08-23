@@ -14,6 +14,105 @@ struct PendingAttendanceRecord: Codable {
     var clientMutationId: String
     var markedAt: Date
     var isSynced: Bool
+    /// Last **server** `marked_at` the roster showed when this row was first
+    /// queued. Nil means the client observed no attendance row. Never the
+    /// device queue timestamp (`markedAt` above).
+    var observedMarkedAt: Date?
+    /// False for migrated v3 envelopes that omitted the observation. New
+    /// queue writes always observe the roster and set this true.
+    var didObserveRow: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case ownerUserId, sessionId, studentId, status, notes
+        case absenceInformed, clientMutationId, markedAt, isSynced
+        case observedMarkedAt = "observed_marked_at"
+        case didObserveRow
+    }
+
+    init(
+        ownerUserId: UUID,
+        sessionId: UUID,
+        studentId: UUID,
+        status: AttendanceStatus?,
+        notes: String?,
+        absenceInformed: Bool?,
+        clientMutationId: String,
+        markedAt: Date,
+        isSynced: Bool,
+        observedMarkedAt: Date? = nil,
+        didObserveRow: Bool = false
+    ) {
+        self.ownerUserId = ownerUserId
+        self.sessionId = sessionId
+        self.studentId = studentId
+        self.status = status
+        self.notes = notes
+        self.absenceInformed = absenceInformed
+        self.clientMutationId = clientMutationId
+        self.markedAt = markedAt
+        self.isSynced = isSynced
+        self.observedMarkedAt = observedMarkedAt
+        self.didObserveRow = didObserveRow
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ownerUserId = try container.decode(UUID.self, forKey: .ownerUserId)
+        sessionId = try container.decode(UUID.self, forKey: .sessionId)
+        studentId = try container.decode(UUID.self, forKey: .studentId)
+        status = try container.decodeIfPresent(AttendanceStatus.self, forKey: .status)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        absenceInformed = try container.decodeIfPresent(Bool.self, forKey: .absenceInformed)
+        clientMutationId = try container.decode(String.self, forKey: .clientMutationId)
+        markedAt = try container.decode(Date.self, forKey: .markedAt)
+        isSynced = try container.decode(Bool.self, forKey: .isSynced)
+        observedMarkedAt = try container.decodeIfPresent(Date.self, forKey: .observedMarkedAt)
+        if let flag = try container.decodeIfPresent(Bool.self, forKey: .didObserveRow) {
+            didObserveRow = flag
+        } else {
+            // v3 envelopes omit the key. Presence of observed_marked_at
+            // (including JSON null) means this client observed the roster.
+            didObserveRow = container.contains(.observedMarkedAt)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(ownerUserId, forKey: .ownerUserId)
+        try container.encode(sessionId, forKey: .sessionId)
+        try container.encode(studentId, forKey: .studentId)
+        try container.encodeIfPresent(status, forKey: .status)
+        try container.encodeIfPresent(notes, forKey: .notes)
+        try container.encodeIfPresent(absenceInformed, forKey: .absenceInformed)
+        try container.encode(clientMutationId, forKey: .clientMutationId)
+        try container.encode(markedAt, forKey: .markedAt)
+        try container.encode(isSynced, forKey: .isSynced)
+        try container.encode(didObserveRow, forKey: .didObserveRow)
+        if didObserveRow {
+            if let observedMarkedAt {
+                try container.encode(observedMarkedAt, forKey: .observedMarkedAt)
+            } else {
+                try container.encodeNil(forKey: .observedMarkedAt)
+            }
+        }
+    }
+
+    /// Rotates mutation identity for a new local correction. The original
+    /// observed server `marked_at` snapshot is preserved for CAS.
+    mutating func applyCorrection(
+        status: AttendanceStatus?,
+        notes: String?,
+        absenceInformed: Bool?,
+        markedAt: Date = Date(),
+        clientMutationId: String = UUID().uuidString
+    ) {
+        self.status = status
+        self.notes = notes
+        self.absenceInformed = absenceInformed
+        self.clientMutationId = clientMutationId
+        self.markedAt = markedAt
+        self.isSynced = false
+    }
 }
 
 struct PendingAttendanceEnvelope: Codable {
@@ -40,7 +139,9 @@ private struct LegacyPendingAttendanceEnvelope: Codable {
 }
 
 enum PendingAttendanceQueueCodec {
-    static let version = 3
+    static let version = 4
+    /// v3 envelopes lack `observed_marked_at`; decode them as unknown observation.
+    private static let previousVersion = 3
 
     static func recordsBelongToOwner(
         _ records: [PendingAttendanceRecord],
@@ -62,7 +163,7 @@ enum PendingAttendanceQueueCodec {
     static func decode(_ data: Data, expectedOwnerUserId: UUID) -> [PendingAttendanceRecord]? {
         let decoder = JSONDecoder()
         if let envelope = try? decoder.decode(PendingAttendanceEnvelope.self, from: data),
-           envelope.version == version,
+           (envelope.version == version || envelope.version == previousVersion),
            envelope.ownerUserId == expectedOwnerUserId,
            recordsBelongToOwner(envelope.records, ownerUserId: expectedOwnerUserId) {
             return envelope.records
@@ -80,7 +181,9 @@ enum PendingAttendanceQueueCodec {
                 absenceInformed: nil,
                 clientMutationId: $0.clientMutationId,
                 markedAt: $0.markedAt,
-                isSynced: $0.isSynced
+                isSynced: $0.isSynced,
+                observedMarkedAt: nil,
+                didObserveRow: false
             )
         }
         return recordsBelongToOwner(records, ownerUserId: expectedOwnerUserId) ? records : nil
@@ -254,21 +357,19 @@ final class PendingAttendanceStore: ObservableObject {
         studentId: UUID,
         status: AttendanceStatus?,
         notes: String?,
-        absenceInformed: Bool? = nil
+        absenceInformed: Bool? = nil,
+        observedMarkedAt: Date?
     ) -> Bool {
         guard activeOwnerUserId == ownerUserId else { return false }
         var records = load(ownerUserId: ownerUserId)
         if let index = records.firstIndex(where: { $0.sessionId == sessionId && $0.studentId == studentId }) {
-            records[index].status = status
-            records[index].notes = notes
-            records[index].absenceInformed = absenceInformed
-            // Fresh id + timestamp: this is a NEW mutation. Reusing the old
-            // clientMutationId would let an in-flight sync's markSynced() delete this
-            // corrected record; a newer markedAt also wins the server's
-            // `marked_at <= EXCLUDED.marked_at` conflict guard.
-            records[index].clientMutationId = UUID().uuidString
-            records[index].markedAt = Date()
-            records[index].isSynced = false
+            // Keep the original observed server snapshot from first queue; do
+            // not replace it with this tap's local optimistic time.
+            records[index].applyCorrection(
+                status: status,
+                notes: notes,
+                absenceInformed: absenceInformed
+            )
         } else {
             let record = PendingAttendanceRecord(
                 ownerUserId: ownerUserId,
@@ -279,7 +380,9 @@ final class PendingAttendanceStore: ObservableObject {
                 absenceInformed: absenceInformed,
                 clientMutationId: UUID().uuidString,
                 markedAt: Date(),
-                isSynced: false
+                isSynced: false,
+                observedMarkedAt: observedMarkedAt,
+                didObserveRow: true
             )
             records.append(record)
         }

@@ -120,7 +120,12 @@ extension AttendanceService {
     /// rendered as "HH:mm:ss" by PostgREST or "HH:mm" from free-text entry — is parsed by
     /// splitting on ":" and taking the first two components (never assume exactly two).
     /// Malformed or short strings fall through to `.present`.
-    static func signInStatus(scheduleTime: String?, startedAt: Date?, now: Date, calendar: Calendar = .current) -> AttendanceStatus {
+    static func signInStatus(
+        scheduleTime: String?,
+        startedAt: Date?,
+        now: Date,
+        calendar: Calendar = singaporeCalendar
+    ) -> AttendanceStatus {
         if let startedAt, now > startedAt {
             return .late
         }
@@ -141,11 +146,14 @@ extension AttendanceService {
 
     // MARK: - Day-of-week scheduling
 
-    /// English full weekday name ("Monday"…"Sunday") for the given date.
-    static func weekdayName(for date: Date) -> String {
+    /// English full weekday name ("Monday"…"Sunday") for the given date in
+    /// the centre's civil calendar (Asia/Singapore by default).
+    static func weekdayName(for date: Date, calendar: Calendar = singaporeCalendar) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "EEEE"
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
         return f.string(from: date)
     }
 

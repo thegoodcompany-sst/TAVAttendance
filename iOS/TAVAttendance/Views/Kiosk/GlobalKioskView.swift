@@ -13,11 +13,15 @@ struct GlobalKioskView: View {
 
     @State private var entries: [KioskEntry] = []
     @State private var isLoading = true
+    @State private var hasLoadedSuccessfully = false
+    @State private var loadFailed = false
     @State private var pendingIds: Set<UUID> = []
     @State private var showSettings = false
     @State private var showPINEntry = false
     @State private var showStudySpace = false
     @State private var showQRScanner = false
+    @StateObject private var network = NetworkMonitor()
+    @State private var staffNotice: String? = nil
 
     // True when the admin unlocked the kiosk by entering a PIN this session.
     // Grants extra controls: absent marking, late→present override, present→late override.
@@ -70,11 +74,21 @@ struct GlobalKioskView: View {
         }
     }
 
-    // UX-02: filter the grid by name.
+    // UX-02: filter the grid by name. Search is admin-only; student-facing
+    // always sees the full roster because searchText is cleared on lock.
     private var filteredEntries: [KioskEntry] {
         let q = searchText.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return entries }
         return entries.filter { $0.fullName.localizedCaseInsensitiveContains(q) }
+    }
+
+    private var rosterPresentation: KioskRosterPresentation {
+        kioskRosterPresentation(
+            isLoadInFlight: isLoading,
+            hasEntries: !entries.isEmpty,
+            hasLoadedSuccessfully: hasLoadedSuccessfully,
+            loadFailed: loadFailed
+        )
     }
 
     var body: some View {
@@ -84,11 +98,28 @@ struct GlobalKioskView: View {
             VStack(spacing: 0) {
                 kioskHeader
 
-                if isLoading {
+                if !network.isConnected {
+                    offlineBanner
+                }
+
+                switch rosterPresentation {
+                case .fullScreenLoading:
                     Spacer()
                     ProgressView("Loading students…").controlSize(.large)
                     Spacer()
-                } else if entries.isEmpty {
+                case .loadFailed:
+                    Spacer()
+                    ContentUnavailableView {
+                        Label("Couldn't Load Students", systemImage: "exclamationmark.triangle")
+                    } description: {
+                        Text("The student list failed to load. Retry, or use the paper sheet.")
+                    } actions: {
+                        Button("Retry") {
+                            Task { await load() }
+                        }
+                    }
+                    Spacer()
+                case .noClasses:
                     Spacer()
                     ContentUnavailableView(
                         "No Classes Today",
@@ -96,8 +127,10 @@ struct GlobalKioskView: View {
                         description: Text("No tuition classes are scheduled for today.")
                     )
                     Spacer()
-                } else {
-                    if !isSelectionMode { kioskSearchBar }
+                case .roster:
+                    if shouldShowKioskSearchBar(isAdminMode: isAdminMode, isSelectionMode: isSelectionMode) {
+                        kioskSearchBar
+                    }
                     ScrollView {
                         if filteredEntries.isEmpty {
                             ContentUnavailableView.search(text: searchText)
@@ -190,8 +223,13 @@ struct GlobalKioskView: View {
         }
         .onReceive(autoRefresh) { _ in
             // UX-01: keep the kiosk fresh when other devices mark students. Skip
-            // while the admin is mid-interaction (selection / PIN entry / loading).
-            guard !isSelectionMode, !showPINEntry, !isLoading else { return }
+            // while a tap is in-flight or the admin is mid-interaction.
+            guard !shouldSkipKioskAutoRefresh(
+                hasPendingMutations: !pendingIds.isEmpty,
+                isSelectionMode: isSelectionMode,
+                isShowingPIN: showPINEntry,
+                isLoadInFlight: isLoading
+            ) else { return }
             Task { await load() }
         }
         .alert("Kiosk PIN Reset", isPresented: $showPINResetAlert) {
@@ -240,6 +278,7 @@ struct GlobalKioskView: View {
                 kioskSecurity.isAdminUnlocked = false
                 isSelectionMode = false
                 selectedIds = []
+                searchText = ""
                 Analytics.shared.track(.ops, name: "admin_lock")
             }
         }
@@ -263,7 +302,10 @@ struct GlobalKioskView: View {
         .sheet(isPresented: $showQRScanner) {
             QRScannerSheet { payload in await handleScannedPayload(payload) }
         }
-        .errorAlert(error: $error)
+        .errorAlert(error: Binding(
+            get: { shouldPresentKioskErrorAlert(isAdminMode: isAdminMode) ? error : nil },
+            set: { error = $0 }
+        ))
         .analyticsScreen("kiosk")
     }
 
@@ -287,6 +329,11 @@ struct GlobalKioskView: View {
                 Text(todayString())
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                if let staffNotice {
+                    Text(staffNotice)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.orange)
+                }
             }
 
             Spacer()
@@ -350,13 +397,23 @@ struct GlobalKioskView: View {
             if !isAdminMode {
                 // Not admin (a PIN is set and hasn't been entered this session):
                 // show the unlock affordance, never the settings gear.
-                Button { showPINEntry = true } label: {
-                    Image(systemName: "lock.fill")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                        .padding(10)
-                        .background(Color(.systemGray5), in: Circle())
-                }
+                // Long-press only — a short tap is easy for a child to hit and
+                // 5 failed PIN attempts lock staff out for 30s…1h.
+                Image(systemName: "lock.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .padding(10)
+                    .background(Color(.systemGray5), in: Circle())
+                    .contentShape(Circle())
+                    .onLongPressGesture(minimumDuration: 1.5) {
+                        showPINEntry = true
+                    }
+                    .accessibilityLabel("Unlock")
+                    .accessibilityHint("Hold to unlock")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction {
+                        showPINEntry = true
+                    }
             } else if !isSelectionMode {
                 // SECURITY: the gear is admin-only. Gating it on isAdminMode (not just
                 // !isLocked) closes the escalation where a persisted kioskLocked=false
@@ -373,6 +430,21 @@ struct GlobalKioskView: View {
         .padding(.horizontal, 28)
         .padding(.vertical, 16)
         .background(.bar)
+    }
+
+    private var offlineBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "wifi.slash")
+            Text(kioskOfflineBannerText)
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.white)
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.orange)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Selection action bar
@@ -540,17 +612,23 @@ struct GlobalKioskView: View {
         defer { isLoading = false }
         let started = Date()
         do {
-            entries = try await AttendanceService.shared.fetchKioskEntries()
-            let classCount = Set(entries.flatMap { $0.sessions.map(\.id) }).count
+            let remote = try await AttendanceService.shared.fetchKioskEntries()
+            let classCount = Set(remote.flatMap { $0.sessions.map(\.id) }).count
             Analytics.shared.track(.ops, name: "kiosk_load", properties: [
                 "class_count": .integer(classCount),
-                "entry_count": .integer(entries.count),
+                "entry_count": .integer(remote.count),
                 "duration_ms": Analytics.ms(since: started),
             ])
+            entries = mergeKioskEntriesPreservingPending(
+                local: entries, remote: remote, pendingIds: pendingIds)
+            hasLoadedSuccessfully = true
+            loadFailed = false
+            staffNotice = nil
             let sessionIds = entries.flatMap { $0.sessions.map { $0.id } }
             if !sessionIds.isEmpty {
                 let dismissals = try await AttendanceService.shared.fetchTodaysDismissals(sessionIds: sessionIds)
                 for studentId in dismissals.keys {
+                    guard !shouldKeepLocalPendingEntry(studentId: studentId, pendingIds: pendingIds) else { continue }
                     if let dismissal = dismissals[studentId],
                        let i = entries.firstIndex(where: { $0.studentId == studentId }) {
                         entries[i].dismissedAt = dismissal.dismissedAt
@@ -558,7 +636,13 @@ struct GlobalKioskView: View {
                 }
             }
         } catch {
+            if entries.isEmpty {
+                loadFailed = true
+            }
             self.error = AppError("Failed to load kiosk data", underlyingError: error)
+            if !shouldPresentKioskErrorAlert(isAdminMode: isAdminMode), !entries.isEmpty {
+                staffNotice = kioskStudentFacingRefreshFailureNotice
+            }
         }
     }
 
@@ -625,8 +709,13 @@ struct GlobalKioskView: View {
                 try await AttendanceService.shared.markKioskAttendance(entry: entry, status: .late, lateReason: reason)
                 updateEntry(entry.studentId, lateReason: reason)
             }
+            staffNotice = nil
         } catch {
-            self.error = AppError("Action failed", underlyingError: error)
+            if shouldPresentKioskErrorAlert(isAdminMode: isAdminMode) {
+                self.error = AppError("Action failed", underlyingError: error)
+            } else {
+                staffNotice = kioskStudentFacingActionFailureNotice
+            }
         }
     }
 

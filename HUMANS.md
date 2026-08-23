@@ -857,3 +857,22 @@ longer reported. Most match documented intentional boundaries (self-guarding
 information-level index suggestions, but they must not be accepted
 automatically. Review each finding, then run
 `node scripts/advisor-watch.mjs --accept` only after human security review.
+
+### ☐ 76. Apply migration 058 (stale offline overwrite CAS) to production
+
+The `observed_marked_at` compare-and-skip is **not live** until this migration
+is applied in production **and** the new clients are installed. Do not treat
+kiosk/tutor overwrite protection as real from a checked-in SQL file.
+
+1. Replay locally: `supabase db reset --local`, then
+   `supabase db lint --local --schema public --level error --fail-on error`
+   and every `supabase/tests/*.sql` (especially `sync_attendance_test.sql`).
+2. Apply the exact committed file
+   `supabase/migrations/058_offline_observed_cas.sql` through the reviewed
+   production path (`supabase db query --linked --file`). Never
+   `supabase db reset` or `supabase db push` against production. The file
+   already issues `NOTIFY pgrst, 'reload schema'`.
+3. Verify in production that `sync_attendance` reads `observed_marked_at` and
+   skips when a newer server row exists, and that `attendance_summary` still
+   has `security_invoker`. Then install the matching client builds before
+   calling the protection live.

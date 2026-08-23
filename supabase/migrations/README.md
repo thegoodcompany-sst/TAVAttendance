@@ -117,3 +117,4 @@ application from this table; require the remote drift/security gates.
 | 055 | merge_not_here_yet | Merge Not Here Yet with unmarked rows; guarded clear RPC and three-state reporting | yes   |
 | 056 | absence_informed | Companion boolean on absent rows (informed vs no notice); roster + sync + retrospective carry it | yes   |
 | 057 | reject_nric_in_messages | Reject NRIC/FIN in message subject/body (trigger + send_parent_message) | yes   |
+| 058 | offline_observed_cas   | Offline sync CAS on observed_marked_at; skip stale-queue overwrites | yes   |

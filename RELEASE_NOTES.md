@@ -5,6 +5,23 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Centre kiosk is online-only: taps and overrides do not enter the pending
+  queue. Wifi drop at the desk means paper, then reconcile against the website.
+  Tutor roster can still queue; orange pending is device-local until the
+  website agrees. Do not End Class, sign out, or hop accounts with pending, and
+  do not offline-mark kids who already tapped the kiosk.
+- New clients send `observed_marked_at` on offline sync. Migration 058
+  compare-and-skips a delayed mutation when a newer server row already exists.
+  Not live in production until 058 is applied and those clients are installed
+  (`HUMANS.md` §76). Device clocks remain untrusted.
+- Empty kiosk shows “No Classes Today” only after a successful load. A failed
+  load retries instead of looking like a day off. Search is admin-only; unlock
+  is a long-press on the lock. Leave in-app Face ID off on the kiosk iPad.
+- Staff test kit: TestFlight 1.1.3 build 8 (not App Store build 3); Guided
+  Access, Singapore time, auto-lock off; don't Start Class early if On Time vs
+  Late matters; dual-enrolled kids are one card that marks every session;
+  informed vs no-notice Absent both count as Absent (parents never see the
+  flag); website Export is a superadmin full ZIP, skip unless Edmund deletes it.
 - Trimmed the agent skill library from fifteen runbooks to three (`deploy`,
   `release`, `tava-prod-drift-campaign`). Folded the manual QA scripts into
   `docs/KIOSK_ATTENDANCE.md`, setup traps into `CONTRIBUTING.md`, and a settled

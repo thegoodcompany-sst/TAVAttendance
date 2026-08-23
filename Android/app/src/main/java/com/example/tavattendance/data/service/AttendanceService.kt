@@ -9,7 +9,12 @@ import java.util.Date
  * domain data sources; signatures stay stable for all call sites and tests.
  */
 object AttendanceService {
-    data class SyncResult(val synced: Int, val skipped: Int, val blockedEndedSession: Int)
+    data class SyncResult(
+        val synced: Int,
+        val skipped: Int,
+        val blockedEndedSession: Int,
+        val skippedConflict: Int = 0,
+    )
 
     suspend fun fetchMyClasses(): List<TAVClass> =
         ClassStudentDataSource.fetchMyClasses()
@@ -287,8 +292,13 @@ object AttendanceService {
         KioskAttendanceDataSource.markSafelyHome(dismissalId)
 
     suspend fun syncPending(records: List<PendingAttendanceRecord>): SyncResult {
-        val (synced, skipped, blocked) = SessionAttendanceDataSource.syncPending(records)
-        return SyncResult(synced, skipped, blocked)
+        val counts = SessionAttendanceDataSource.syncPending(records)
+        return SyncResult(
+            synced = counts.synced,
+            skipped = counts.skipped,
+            blockedEndedSession = counts.blockedEndedSession,
+            skippedConflict = counts.skippedConflict,
+        )
     }
 
 }

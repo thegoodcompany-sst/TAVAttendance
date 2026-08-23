@@ -31,7 +31,7 @@ product direction in [ROADMAP.md](ROADMAP.md); the next implementation queue in
 | Parent attendance, result-slip upload, and centre messaging (flag-gated) | Parents |
 | Result-slip acknowledgement and parent-message replies | Admin |
 | Human-readable audit activity (actor + action + entity) | Admin |
-| Offline marking with automatic sync on reconnect | Staff |
+| Offline marking with automatic sync on reconnect (tutor roster only; kiosk is online-only) | Teachers |
 
 ## Stack
 
@@ -39,7 +39,7 @@ product direction in [ROADMAP.md](ROADMAP.md); the next implementation queue in
 - **Android**: Kotlin + Jetpack Compose — `Android/`
 - **Web**: Next.js admin dashboard — `web/`
 - **Backend**: Supabase (Postgres + PostgREST + Auth + Storage) — `supabase/`
-- **Offline (iOS/Android)**: pending store → `sync_attendance` RPC on reconnect
+- **Offline (iOS/Android)**: tutor roster pending store → `sync_attendance` RPC on reconnect. The centre kiosk is online-only.
 
 ### Platforms
 
