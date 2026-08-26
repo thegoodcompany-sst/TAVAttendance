@@ -5,8 +5,13 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import com.example.tavattendance.data.models.AttendanceStatus
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonObject
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.util.Base64
@@ -94,9 +99,23 @@ internal fun encodePendingQueue(
 ): String? {
     val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return null
     if (!pendingRecordsBelongToOwner(records, canonicalOwner)) return null
-    return pendingQueueJson.encodeToString(
-        PendingAttendanceEnvelope(PENDING_QUEUE_VERSION, canonicalOwner, records)
+    val envelope = PendingAttendanceEnvelope(PENDING_QUEUE_VERSION, canonicalOwner, records)
+    val root = pendingQueueJson.encodeToJsonElement(envelope).jsonObject.toMutableMap()
+    // Default kotlinx encoding drops observedMarkedAt when it is null. Keep the
+    // same CAS shape as sync: JSON null means observed no row; omit when unknown.
+    root["records"] = JsonArray(
+        envelope.records.map { record ->
+            val obj = pendingQueueJson.encodeToJsonElement(record).jsonObject.toMutableMap()
+            if (record.didObserveRow) {
+                obj["observedMarkedAt"] =
+                    record.observedMarkedAt?.let(::JsonPrimitive) ?: JsonNull
+            } else {
+                obj.remove("observedMarkedAt")
+            }
+            JsonObject(obj)
+        }
     )
+    return JsonObject(root).toString()
 }
 
 /** Returns null for malformed, legacy-unowned, wrong-owner, or mixed-owner data. */

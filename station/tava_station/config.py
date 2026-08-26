@@ -29,15 +29,19 @@ def load_config(path: str | os.PathLike[str] | None = None) -> StationConfig:
     with config_path.open("rb") as handle:
         data = tomllib.load(handle)
 
-    password = str(data.get("station_password") or os.environ.get("TAVA_STATION_PASSWORD") or "")
-    if not password:
-        raise ValueError("station_password is empty. Set it in config.toml or TAVA_STATION_PASSWORD.")
+    station_password = str(
+        data.get("station_password") or os.environ.get("TAVA_STATION_PASSWORD") or ""
+    )
+    if not station_password:
+        raise ValueError(
+            "station_password is empty. Set it in config.toml or TAVA_STATION_PASSWORD."
+        )
 
     return StationConfig(
         supabase_url=str(data["supabase_url"]).rstrip("/"),
         supabase_anon_key=str(data["supabase_anon_key"]),
         station_email=str(data["station_email"]),
-        station_password=password,
+        station_password=station_password,
         http_host=str(data.get("http_host") or "127.0.0.1"),
         http_port=int(data.get("http_port") or 8765),
         debounce_seconds=float(data.get("debounce_seconds") or 2.0),

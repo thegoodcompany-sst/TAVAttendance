@@ -19,8 +19,10 @@ This is the source draft for mobile release notes. Keep completed changes under
   do not offline-mark kids who already tapped the kiosk.
 - New clients send `observed_marked_at` on offline sync. Migration 058
   compare-and-skips a delayed mutation when a newer server row already exists.
-  Not live in production until 058 is applied and those clients are installed
-  (`HUMANS.md` §76). Device clocks remain untrusted.
+  Android now keeps JSON null in the pending queue when the device observed no
+  row, matching the sync envelope. Not live in production until 058 is applied
+  and those clients are installed (`HUMANS.md` §76). Device clocks remain
+  untrusted.
 - Empty kiosk shows “No Classes Today” only after a successful load. A failed
   load retries instead of looking like a day off. Search is admin-only; unlock
   is a long-press on the lock. Leave in-app Face ID off on the kiosk iPad.
