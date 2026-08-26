@@ -67,6 +67,18 @@ jobs:
       - run: bun run lint
       - run: bun run build
 
+  station:
+    name: Arrival station (unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: station
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tests -v
+
   edge-functions:
     name: Edge Functions (format + lint + type-check)
     runs-on: ubuntu-latest

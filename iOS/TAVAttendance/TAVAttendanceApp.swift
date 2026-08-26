@@ -4,6 +4,26 @@ func shouldShowPrivacyShield(for scenePhase: ScenePhase) -> Bool {
     scenePhase != .active
 }
 
+enum SignedInDestination: Equatable {
+    case admin
+    case tutor
+    case parent
+    case arrivalStation
+}
+
+func signedInDestination(forRole role: String?) -> SignedInDestination {
+    switch role {
+    case "admin":
+        return .admin
+    case "parent":
+        return .parent
+    case "arrival_station":
+        return .arrivalStation
+    default:
+        return .tutor
+    }
+}
+
 @main
 struct TAVAttendanceApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -23,12 +43,14 @@ struct TAVAttendanceApp: App {
                     } else if authManager.isAuthenticated {
                         ZStack {
                             Group {
-                                switch authManager.currentProfile?.role {
-                                case "admin":
+                                switch signedInDestination(forRole: authManager.currentProfile?.role) {
+                                case .admin:
                                     AdminTabView()
-                                case "parent":
+                                case .parent:
                                     ParentDashboardView()
-                                default:
+                                case .arrivalStation:
+                                    ArrivalStationLockedView()
+                                case .tutor:
                                     TutorTabView()
                                 }
                             }
@@ -117,6 +139,33 @@ private struct BiometricLockView: View {
 
     private func attempt() async {
         isUnlocked = await Biometrics.authenticate(reason: "Unlock TAVA Attendance")
+    }
+}
+
+private struct ArrivalStationLockedView: View {
+    @EnvironmentObject private var authManager: AuthManager
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "wave.3.right.circle")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("Arrival station account")
+                .font(.title2.bold())
+            Text("This login belongs on the Linux arrival box, not the iPhone or iPad. Sign out and use a staff account.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            Spacer()
+            Button("Sign Out", role: .destructive) {
+                Task { try? await authManager.signOut() }
+            }
+            .padding(.bottom, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.background)
     }
 }
 

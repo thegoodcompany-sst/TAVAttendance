@@ -100,7 +100,12 @@ for await state in SupabaseManager.shared.client.auth.authStateChanges {
 
 ### 2.3 Get Current User & Role
 
-The user's role (`admin`, `tutor`, `parent`) is stored in the `profiles` table.
+The user's role (`admin`, `tutor`, `parent`, `arrival_station`) is stored in the `profiles` table.
+Invite UI may only mint `admin`, `tutor`, or `parent`. The arrival-station
+account is provisioned in the Dashboard and promoted with superadmin SQL
+(`HUMANS.md` §78). iOS and Android must fail closed on `arrival_station` —
+never fall through to the tutor shell. Do not add Core NFC entitlements to
+`com.tava.TAVAttendance`; NFC lives on the Linux appliance in `station/`.
 
 ```swift
 struct Profile: Decodable {
@@ -770,8 +775,9 @@ do {
 ## Appendix: Database Schema Quick Reference
 
 ```
-profiles           id, full_name, role (admin|tutor|parent), phone
+profiles           id, full_name, role (admin|tutor|parent|arrival_station), phone
 students           id, full_name, school, year_of_study, is_active
+nfc_tag_bindings   chip_uid → student_id (active UID and student unique); writes via admin RPCs
 parent_student_links  parent_id → profiles, student_id → students
 classes            id, name, subject, level, schedule_day, schedule_time
 class_tutor_assignments  class_id, tutor_id, assigned_from, assigned_until
@@ -815,3 +821,15 @@ historical class date; the RPC never inserts or updates an `enrollments` row.
 | `record_admin_consent(...)` | admin-only append path; direct consent-ledger writes are denied |
 | `review_correction_request(...)` | admin-only locked one-time decision |
 | `consume_invite_rate_limit(p_actor_id uuid)` | service-only atomic invite quota used by the trusted web action |
+
+## NFC arrival station (migration 059; flag `nfc_sign_in`, ships OFF)
+
+Linux appliance only. Chip UID → student; the tag is never written with a
+student UUID. Do not apply 059 to production yet.
+
+| RPC | Caller |
+|---|---|
+| `pair_nfc_chip(student_id, chip_uid)` | admin, flag on; returns `chip_uid_suffix` |
+| `revoke_nfc_chip_for_student(student_id)` | admin, flag on |
+| `get_student_nfc_binding(student_id)` | admin, flag on; suffix and issued_at only |
+| `arrival_station_tap(chip_uid)` | `arrival_station` role only; today's eligible sessions, same present/late path as a kiosk tap |

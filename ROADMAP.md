@@ -79,15 +79,17 @@ override on a named grid.
 - **Kiosk-scoped device identity** — the box must not hold a full admin session
   in a cupboard. Prefer RPCs limited to today's expected roster. No service-role
   key on the device. Offline queue stays actor-bound.
-- **Client choice** — prefer reusing the Android kiosk on a cheap NFC phone if
-  that is enough; a Raspberry Pi + reader is fine if we will own the Linux
-  appliance. Do not build both.
+- **Chosen box** — a Linux appliance on Raspberry Pi OS or an Orange Pi / Armbian
+  clone, with a USB CCID reader (not a GPIO HAT). Do not also build a cheap
+  Android-phone station. Source lives in `station/`. iPhone/iPad/Android apps
+  fail closed if an `arrival_station` account signs in.
 - **Fail closed** — unexpected taps wait for the expected-today roster. Paper
   fallback remains.
 
-Do not start this until the 2026 loop is evidenced and the calendar/roster
-authority exists. When it is time to build, add a flagged, sequenced entry to
-`NEXT_BUILD_CHANGES.md`.
+Implemented dark behind `nfc_sign_in` (ships OFF). Do not apply migration 059
+or flip the flag in production until the 2026 loop is evidenced and humans
+complete `HUMANS.md` §77–§80. When enabling, keep the iPad kiosk as tap-name
+override; do not add Core NFC to `com.tava.TAVAttendance`.
 
 Not in this station: an unsupervised door reader, student/parent phone as the
 check-in actor, replacing tutor roster / PIN overrides / paper, or AI at the tap.

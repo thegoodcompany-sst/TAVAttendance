@@ -2,9 +2,9 @@
 -- TAVA Attendance — Development Seed Data
 -- Run ONLY against a local Supabase instance.
 -- ============================================================
--- Creates three locked users (admin, tutor, parent) with random, undisclosed
--- password hashes,
--- two classes, five students, one session, and sample attendance.
+-- Creates four locked users (admin, tutor, parent, arrival station) with
+-- random, undisclosed password hashes, two classes, five students, one session,
+-- and sample attendance. The station role requires migration 059.
 -- ============================================================
 
 -- Guard: refuse every database that already has an Auth identity. The seed
@@ -46,6 +46,14 @@ INSERT INTO auth.users (
         NOW(), 'authenticated', 'authenticated',
         '{"full_name": "Mary Parent", "role": "parent"}',
         NOW(), NOW()
+    ),
+    (
+        '00000000-0000-0000-0000-000000000004',
+        'station@local.tava.invalid',
+        crypt(encode(gen_random_bytes(32), 'hex'), gen_salt('bf')),
+        NOW(), 'authenticated', 'authenticated',
+        '{"full_name": "Arrival Station", "role": "parent"}',
+        NOW(), NOW()
     )
 ON CONFLICT (id) DO NOTHING;
 
@@ -54,6 +62,8 @@ ON CONFLICT (id) DO NOTHING;
 UPDATE profiles SET role = 'admin'  WHERE id = '00000000-0000-0000-0000-000000000001';
 UPDATE profiles SET role = 'tutor'  WHERE id = '00000000-0000-0000-0000-000000000002';
 UPDATE profiles SET role = 'parent' WHERE id = '00000000-0000-0000-0000-000000000003';
+UPDATE profiles SET role = 'arrival_station', full_name = 'Arrival Station'
+WHERE id = '00000000-0000-0000-0000-000000000004';
 
 -- Migration 038 centralises privileged authority on an immutable auth UUID.
 INSERT INTO security_principals (capability, user_id)

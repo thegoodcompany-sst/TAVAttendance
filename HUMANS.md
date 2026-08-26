@@ -876,3 +876,33 @@ kiosk/tutor overwrite protection as real from a checked-in SQL file.
    skips when a newer server row exists, and that `attendance_summary` still
    has `security_invoker`. Then install the matching client builds before
    calling the protection live.
+
+### ☐ 77. Do not apply migration 059 (NFC arrival station) to production yet
+
+The Linux arrival station, `nfc_tag_bindings`, `arrival_station` role, and
+`arrival_station_tap` RPC are in source only. Flag `nfc_sign_in` is seeded
+FALSE. Do **not** `supabase db push`, `supabase db reset`, or apply
+`059_nfc_arrival_station.sql` against production until the 2026 loop has
+evidence and this item is explicitly authorized.
+
+Local replay only: `supabase db reset --local`, lint, then every
+`supabase/tests/*.sql` (including `nfc_arrival_station_test.sql`).
+
+### ☐ 78. Provision the arrival-station Auth user (after 059 is authorized)
+
+Dashboard: create a dedicated Auth user (not an invite as admin/tutor/parent).
+As superadmin SQL, set `profiles.role = 'arrival_station'`. Store the password
+only on the box (`/etc/tava-station/env`). Never put the service-role key on
+the appliance. Do not use this account on an iPhone, iPad, or Android phone.
+
+### ☐ 79. Buy and image the arrival box
+
+Raspberry Pi 4/5 **or** an Orange Pi / Armbian clone, plus a USB CCID reader
+(ACR122U or similar) and NTAG213/NTAG215 cards — not MIFARE Classic. Follow
+`station/README.md`. Keep the iPad kiosk as the named-grid override.
+
+### ☐ 80. Do not flip `nfc_sign_in` in production
+
+Even after 059 is applied, leave the flag OFF until pairing UI, the physical
+box, paper fallback, and a staff drill are verified at the centre. Flipping
+the flag is a separate human-verified operation.

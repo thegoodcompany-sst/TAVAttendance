@@ -5,6 +5,13 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Dark NFC arrival station on a Pi-class Linux box (`station/`, Raspberry Pi OS
+  or Orange Pi/Armbian, USB CCID reader). Chip UID maps to a student; admin
+  pairs/reissues on the web when `nfc_sign_in` is on. The station account may
+  only call `arrival_station_tap`. Flag ships OFF; do not apply migration 059
+  to production (`HUMANS.md` §77). iPhone/iPad/Android fail closed if that
+  account signs in. The centre iPad kiosk stays tap-name; no Core NFC on
+  `com.tava.TAVAttendance`.
 - Centre kiosk is online-only: taps and overrides do not enter the pending
   queue. Wifi drop at the desk means paper, then reconcile against the website.
   Tutor roster can still queue; orange pending is device-local until the

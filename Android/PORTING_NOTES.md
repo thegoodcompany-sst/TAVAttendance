@@ -90,6 +90,13 @@ firebase apps:sdkconfig ANDROID 1:879371219921:android:dc7a8dbf4d8df141bf66f0 \
 
 The build fails at the `google-services` plugin step until the file exists.
 
+## NFC arrival station is not an Android port
+
+NFC sign-in is a Linux appliance in `station/`, not a phone kiosk. iOS and
+Android only fail closed when `profiles.role` is `arrival_station`. Do not add
+an NFC reader to the Android kiosk. Do not treat this as an iOS-to-Android
+handoff.
+
 ## Known parity gaps (follow-ups)
 
 These iOS items are ported at the data/service layer but still need Compose UI:

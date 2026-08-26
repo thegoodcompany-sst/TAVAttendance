@@ -63,13 +63,14 @@ explicitly authorize a safe exception or ask for the runbook to be changed.
 
 ## Repository shape and change seams
 
-TAVA has one Supabase backend and three clients:
+TAVA has one Supabase backend and four clients:
 
 | Area | Location | Established seam |
 |---|---|---|
 | iOS/iPadOS | `iOS/` (SwiftUI) | `AttendanceService` extensions and focused services; never query Supabase from a view |
 | Android | `Android/` (Compose) | `data/service` data sources; never query Supabase from a composable |
 | Web | `web/` (Next.js, Bun) | `lib/queries/*` and server actions; keep database access out of client components |
+| Arrival station | `station/` (Linux, PC/SC) | Dedicated Pi-class box; only `arrival_station_tap`; never an admin JWT or service-role key |
 | Backend | `supabase/` | Numbered SQL migrations, RLS, shaped RPCs, and private Storage |
 
 There is no custom application server. PostgREST/RPC and Row-Level Security are
@@ -194,6 +195,7 @@ skipped.
 | iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` | `iOS/` |
 | Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` | `Android/` |
 | Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build` | `web/` |
+| Arrival station | `python3 -m unittest discover -s tests` | `station/` |
 | Supabase | `supabase db reset --local && supabase db lint --local --schema public --level error --fail-on error`, then every `supabase/tests/*.sql` | repository root |
 
 On this Mac, iOS verification must use Xcode-beta and disable signing. A failure

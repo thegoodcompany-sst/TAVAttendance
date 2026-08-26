@@ -46,6 +46,11 @@ iOS/TAVAttendance.xcodeproj/-Xcc/
 # Copy Config.xcconfig.example → Config.xcconfig and fill in values.
 iOS/Config.xcconfig
 Android/secrets.properties
+station/config.toml
+station/.venv/
+station/.env
+__pycache__/
+*.py[cod]
 .gstack/
 
 # macOS Finder duplicates

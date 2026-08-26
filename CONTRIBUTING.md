@@ -74,7 +74,7 @@ flip one through the application/Data API:
 UPDATE feature_flags SET enabled = true WHERE key = 'parent_portal';
 -- keys: parent_portal, push_notifications, student_photos, study_space_tracking,
 --       test_mode, session_notes, qr_sign_in, awards, analytics,
---       retrospective_sessions
+--       retrospective_sessions, nfc_sign_in
 ```
 
 ---
@@ -123,9 +123,20 @@ cd web && bun install && bun run dev
 > `package-lock.json`). The app pins a non-standard Next.js — read
 > `web/AGENTS.md` before editing.
 
+## 5. Arrival station (`station/`)
+
+Raspberry Pi OS or Orange Pi/Armbian plus a USB CCID reader. Copy
+`station/config.example.toml` to a gitignored `config.toml` (anon key only).
+Setup, ACR122U notes, and systemd: `station/README.md`. Do not put the
+service-role key on the box.
+
+```bash
+cd station && python3 -m unittest discover -s tests
+```
+
 ---
 
-## 5. Local testing checklist
+## 6. Local testing checklist
 
 Automated tests cover attendance and security boundaries across all clients and
 the database. Kiosk semantics and the canonical manual QA scripts live in
@@ -142,6 +153,7 @@ the database. Kiosk semantics and the canonical manual QA scripts live in
 | iOS | `DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer xcodebuild test -project TAVAttendance.xcodeproj -scheme TAVAttendance -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO` | `iOS/` |
 | Android | `./gradlew testDebugUnitTest lintDebug assembleDebug --no-daemon` (JDK 17/21) | `Android/` |
 | Web | `bun install --frozen-lockfile && bun audit --audit-level=high && bun run test && bun run lint && bun run build` | `web/` |
+| Arrival station | `python3 -m unittest discover -s tests` | `station/` |
 
 On this dev Mac, iOS builds require Xcode-beta (`DEVELOPER_DIR` as above) and
 `CODE_SIGNING_ALLOWED=NO`; a `CodeSign swift-crypto_Crypto.bundle` failure is a
@@ -149,7 +161,7 @@ local keychain issue, not a code problem.
 
 ---
 
-## 6. Operations & monitoring (DEVOPS-04)
+## 7. Operations & monitoring (DEVOPS-04)
 
 - **Web (Vercel)**: enable Vercel's built-in health checks / deployment protection;
   watch the project's Analytics + Runtime Logs.

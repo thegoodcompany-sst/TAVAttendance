@@ -1,0 +1,12 @@
+# Copy to config.toml (gitignored) or point TAVA_STATION_CONFIG at a private file.
+# Use the anon key only. Never put the service-role key on this box.
+
+supabase_url = "https://YOUR_PROJECT.supabase.co"
+supabase_anon_key = "YOUR_ANON_KEY"
+station_email = "station@local.tava.invalid"
+# Prefer TAVA_STATION_PASSWORD in the environment instead of this field.
+station_password = ""
+
+http_host = "127.0.0.1"
+http_port = 8765
+debounce_seconds = 2.0

@@ -90,6 +90,13 @@ export default function LoginPage() {
       return
     }
 
+    if (profile?.role === 'arrival_station') {
+      await supabase.auth.signOut()
+      setError('This account is for the arrival station box, not the website.')
+      setLoading(false)
+      return
+    }
+
     if (profile?.role !== 'admin') {
       await supabase.auth.signOut()
       setError('This account does not have an application role.')

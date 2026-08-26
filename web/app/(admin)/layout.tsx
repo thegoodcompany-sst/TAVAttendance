@@ -27,6 +27,20 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // PROD-01: send parents to their own area instead of a dead-end "Access denied".
   if (profile?.role === 'parent') redirect('/parent')
 
+  if (profile?.role === 'arrival_station') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="text-center max-w-sm">
+          <h1 className="text-xl font-semibold mb-2">Arrival station account</h1>
+          <p className="text-sm text-muted-foreground mb-4">
+            This login belongs on the Linux arrival box, not the website. Sign out and use an admin account.
+          </p>
+          <SignOutButton />
+        </div>
+      </div>
+    )
+  }
+
   if (profile?.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">

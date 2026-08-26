@@ -20,6 +20,10 @@ const ROLE_BADGE: Record<string, { label: string; className: string }> = {
     label: 'Parent',
     className: 'bg-slate-100 text-slate-600 border-slate-200',
   },
+  arrival_station: {
+    label: 'Arrival station',
+    className: 'bg-amber-50 text-amber-800 border-amber-200',
+  },
 }
 
 async function getTeamMembers() {
@@ -88,7 +92,10 @@ export default async function UsersPage() {
                 </thead>
                 <tbody>
                   {members.map(member => {
-                    const badge = ROLE_BADGE[member.role] ?? ROLE_BADGE.tutor
+                    const badge = ROLE_BADGE[member.role] ?? {
+                      label: member.role,
+                      className: 'bg-slate-100 text-slate-600 border-slate-200',
+                    }
                     const joinedAt = new Date(member.created_at).toLocaleDateString('en-SG', {
                       timeZone: 'Asia/Singapore',
                       day: 'numeric',

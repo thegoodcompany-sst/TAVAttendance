@@ -2,10 +2,13 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getStudentConsent } from '@/lib/queries/pdpa'
+import { getStudentNfcBinding } from '@/lib/queries/nfc'
 import { classSummaryFromHistory, getStudent, getStudentResults, getStudentYearHistory } from '@/lib/queries/students'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PdpaPanel } from './pdpa-panel'
+import { NfcPanel } from './nfc-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,11 +23,13 @@ function PctBadge({ pct }: { pct: number | null }) {
 
 export default async function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [student, yearHistory, results, consent] = await Promise.all([
+  const nfcOn = await isFeatureEnabled('nfc_sign_in')
+  const [student, yearHistory, results, consent, nfcBinding] = await Promise.all([
     getStudent(id),
     getStudentYearHistory(id),
     getStudentResults(id),
     getStudentConsent(id),
+    nfcOn ? getStudentNfcBinding(id) : Promise.resolve(null),
   ])
 
   if (!student) notFound()
@@ -154,6 +159,10 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
           </div>
         )}
       </div>
+
+      {nfcOn && (
+        <NfcPanel studentId={id} studentName={student.full_name} binding={nfcBinding} />
+      )}
 
       <PdpaPanel studentId={id} studentName={student.full_name} consent={consent} />
     </div>

@@ -997,6 +997,15 @@ final class AttendanceLogicTests: XCTestCase {
         XCTAssertFalse(kioskStudentFacingRefreshFailureNotice.localizedCaseInsensitiveContains("postgrest"))
     }
 
+    func testArrivalStationRoleDoesNotOpenTutorShell() {
+        XCTAssertEqual(signedInDestination(forRole: "admin"), .admin)
+        XCTAssertEqual(signedInDestination(forRole: "parent"), .parent)
+        XCTAssertEqual(signedInDestination(forRole: "arrival_station"), .arrivalStation)
+        XCTAssertEqual(signedInDestination(forRole: "tutor"), .tutor)
+        XCTAssertEqual(signedInDestination(forRole: nil), .tutor)
+        XCTAssertEqual(signedInDestination(forRole: "unknown"), .tutor)
+    }
+
     private func entry(_ id: UUID, name: String, status: AttendanceStatus?) -> KioskEntry {
         KioskEntry(
             studentId: id,

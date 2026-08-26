@@ -81,6 +81,36 @@ null if no row). Migration 058 compare-and-skips when a newer server row
 already exists. Device clocks are still not trusted. This protection is not
 live in production until 058 is applied and those clients are installed.
 
+## Arrival station (NFC, flag `nfc_sign_in`)
+
+A dedicated Linux box at the door. Raspberry Pi OS, Orange Pi, or Armbian.
+USB CCID reader. NTAG213-class cards. Students tap a card. The box calls
+`arrival_station_tap` with the chip UID. An admin pairs and reissues cards on
+the website. Hardware and daemon steps live in `station/README.md`.
+
+The mark path matches a kiosk name tap. Status is `present` or `late` from
+`schedule_time` and `started_at`. Dual-enrolled children get one tap that
+marks every eligible session today. Already signed in, already dismissed,
+marked absent, or not on today's roster fail closed. Tutors override on the
+named iPad grid. Study Space is skipped. If wifi is down, use paper and
+reconcile on the website. The box must not hold an admin JWT or the
+service-role key.
+
+Unknown cards may show the full chip UID on the physical station screen so
+staff can type it into the web pair form. After pairing, the website shows
+only the last four characters.
+
+The iPad kiosk stays tap-name. Do not add Core NFC to the App Store app. If
+the station account is signed into iOS, Android, or the website, those
+clients fail closed and offer sign-out.
+
+The flag ships OFF. Do not apply migration 059 or flip the flag in production
+(`HUMANS.md` §77–§80).
+
+| Surface | Queues offline? | Wifi drop |
+|---|---|---|
+| Arrival station | No | Paper. Retry when the network returns. |
+
 ## Empty kiosk
 
 “No Classes Today” is shown only after a **successful** load that returned no
@@ -151,7 +181,13 @@ report or parent view.
 **Web smoke**: login → dashboard/mobile staff surfaces → student detail.
 Superadmin: `/feature-flags` lists live rows and toggles persist; ordinary
 admin gets 404. `/api/export` is a superadmin full operational ZIP, not a
-demo CSV; skip unless the file will be deleted.
+demo CSV; skip unless the file will be deleted. With `nfc_sign_in` on locally:
+student detail shows Arrival card pair/reissue/revoke; unknown-card UID from
+the station types in and the page then shows only the last four characters.
+
+**Arrival station** (flag on, local DB only): `station/` `--once` a paired UID
+→ cue On time/Late; second tap Already signed in; unbound UID Unknown card
+with the hex on screen; wifi stop → paper. Do not test this against production.
 
 ```sql
 -- security posture of the money view: {security_invoker=on}

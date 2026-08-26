@@ -2,7 +2,9 @@
 
 Student-operations system for TAVA's nonprofit tuition centre. Its core promise
 is **every child accounted for**. An iPad-native kiosk (SwiftUI), Android app
-(Jetpack Compose), and web admin dashboard (Next.js) share one Supabase backend.
+(Jetpack Compose), web admin dashboard (Next.js), and a Linux arrival station
+(`station/`) share one Supabase backend. The station is dark behind
+`nfc_sign_in` and is not in production.
 
 TAVA is not a payments, accounting, payroll, CRM, or business-ERP product. It
 focuses on the student journey and the evidence staff need to act safely.
@@ -38,6 +40,7 @@ product direction in [ROADMAP.md](ROADMAP.md); the next implementation queue in
 - **iOS**: SwiftUI, targeting iPad (iPadOS 17+) — `iOS/`
 - **Android**: Kotlin + Jetpack Compose — `Android/`
 - **Web**: Next.js admin dashboard — `web/`
+- **Arrival station**: Linux daemon, USB PC/SC NFC — `station/`
 - **Backend**: Supabase (Postgres + PostgREST + Auth + Storage) — `supabase/`
 - **Offline (iOS/Android)**: tutor roster pending store → `sync_attendance` RPC on reconnect. The centre kiosk is online-only.
 
@@ -48,12 +51,13 @@ product direction in [ROADMAP.md](ROADMAP.md); the next implementation queue in
 | iOS (kiosk + teacher) | `iOS/` | `open iOS/TAVAttendance.xcodeproj` |
 | Android | `Android/` | `cd Android && ./gradlew installDebug` |
 | Web (admin dashboard) | `web/` | `cd web && bun install && bun run dev` |
+| Arrival station | `station/` | See `station/README.md`. Not production. |
 
 Each platform reads Supabase credentials from a gitignored config file — see
 [CONTRIBUTING.md](CONTRIBUTING.md). Feature flags in the `feature_flags` table gate
 in-progress features (parent portal, push notifications, student photos, study space
-tracking, test mode, session notes, QR sign-in, awards, analytics, and retrospective
-sessions); they ship OFF unless a migration explicitly documents otherwise.
+tracking, test mode, session notes, QR sign-in, awards, analytics, retrospective
+sessions, and NFC sign-in); they ship OFF unless a migration explicitly documents otherwise.
 
 Built and gated (not future work — see [ROADMAP.md](ROADMAP.md) for that): parent
 portal, awards, student photos, session notes, QR sign-in, push notifications
@@ -78,6 +82,7 @@ iOS/TAVAttendance/
 
 Android/          Kotlin + Jetpack Compose app (see Android/PORTING_NOTES.md)
 web/              Next.js admin dashboard
+station/          Linux arrival station (Pi-class box, USB NFC). Dark. Not production.
 supabase/
   migrations/     Append-only schema history (indexed in supabase/migrations/README.md)
   functions/      notification + durable private-Storage cleanup workers
@@ -115,7 +120,9 @@ new-user metadata is deliberately not trusted for authorization, so a Dashboard
 invite is created as the least-privileged `parent` until an admin assigns its role
 through a trusted admin path.
 
-Roles: `admin`, `tutor`, `parent`. A trigger (`handle_new_user`) auto-creates the `profiles` row.
+Roles: `admin`, `tutor`, `parent`, and `arrival_station` after migration 059.
+A trigger (`handle_new_user`) auto-creates the `profiles` row as `parent`.
+The station role is not an invite option. Provision it per `HUMANS.md` §78.
 Admins link parent accounts to children from **/users**; the UI calls the existing
 `link_parent_student` / `unlink_parent_student` RPCs.
 

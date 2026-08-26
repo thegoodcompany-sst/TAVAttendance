@@ -34,6 +34,7 @@ const FILES: Array<{ table: string; file: string; columns: string[] }> = [
   { table: 'data_disclosures', file: 'data_disclosures.csv', columns: ['id', 'student_id', 'disclosed_to', 'disclosure_type', 'disclosed_by', 'disclosed_at', 'detail'] },
   { table: 'policy_documents', file: 'policy_documents.csv', columns: ['id', 'doc_type', 'version', 'title', 'body', 'is_current', 'published_at', 'created_at'] },
   { table: 'feature_flags', file: 'feature_flags.csv', columns: ['key', 'enabled', 'description', 'updated_at'] },
+  { table: 'nfc_tag_bindings', file: 'nfc_tag_bindings.csv', columns: ['id', 'chip_uid', 'student_id', 'issued_at', 'issued_by', 'revoked_at', 'revoked_by'] },
 ]
 
 async function fetchAll(supabase: Awaited<ReturnType<typeof createClient>>, table: string): Promise<ExportRow[]> {

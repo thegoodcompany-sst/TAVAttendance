@@ -23,8 +23,11 @@ import androidx.fragment.app.FragmentActivity
 import com.example.tavattendance.auth.AuthViewModel
 import com.example.tavattendance.auth.BiometricGate
 import com.example.tavattendance.auth.LoginScreen
+import com.example.tavattendance.core.signedInDestination
+import com.example.tavattendance.core.SignedInDestination
 import com.example.tavattendance.navigation.AdminApp
 import com.example.tavattendance.navigation.TutorApp
+import com.example.tavattendance.screens.ArrivalStationLockedScreen
 import com.example.tavattendance.screens.ParentDashboardScreen
 import com.example.tavattendance.ui.theme.TAVAttendanceTheme
 
@@ -79,10 +82,13 @@ class MainActivity : FragmentActivity() {
                         CircularProgressIndicator()
                     }
                     else -> BiometricGate(onSignOut = { authViewModel.signOut() }) {
-                        when (profile?.role) {
-                            "admin" -> AdminApp(authViewModel = authViewModel)
-                            "parent" -> ParentDashboardScreen(authViewModel = authViewModel)
-                            else -> TutorApp(authViewModel = authViewModel)
+                        when (signedInDestination(profile?.role)) {
+                            SignedInDestination.Admin -> AdminApp(authViewModel = authViewModel)
+                            SignedInDestination.Parent -> ParentDashboardScreen(authViewModel = authViewModel)
+                            SignedInDestination.ArrivalStation -> ArrivalStationLockedScreen(
+                                onSignOut = { authViewModel.signOut() }
+                            )
+                            SignedInDestination.Tutor -> TutorApp(authViewModel = authViewModel)
                         }
                     }
                 }

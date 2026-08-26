@@ -1,0 +1,20 @@
+[Unit]
+Description=TAVA NFC arrival station
+After=network-online.target pcscd.service
+Wants=network-online.target
+Requires=pcscd.service
+
+[Service]
+Type=simple
+User=tava
+Group=tava
+WorkingDirectory=/opt/tava-station
+Environment=TAVA_STATION_CONFIG=/etc/tava-station/config.toml
+EnvironmentFile=-/etc/tava-station/env
+ExecStart=/opt/tava-station/.venv/bin/tava-arrival-station
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
