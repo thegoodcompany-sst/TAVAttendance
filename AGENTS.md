@@ -152,7 +152,8 @@ or an explicit decision.
   Review deployments click. Keep their secrets in the `production-security`
   environment, limited to protected `main`; do not add required reviewers
   there, and do not copy those secrets to repository scope or pull-request
-  jobs (`HUMANS.md` §81).
+  jobs (`HUMANS.md` §81). `concurrency` only cancels superseded runs; it
+  does not replace clearing required reviewers.
 
 ## How to change each area
 

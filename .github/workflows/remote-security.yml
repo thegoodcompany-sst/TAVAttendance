@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+# One run per ref. Cancels superseded Waiting jobs after the environment
+# required-reviewer rule is gone. Does not by itself skip Review deployments,
+# and does not cancel historical runs that were queued without this group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   drift:
     name: Drift detector (prod vs repo)

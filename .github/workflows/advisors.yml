@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+# Weekly schedule plus rare dispatch. Cancels a leftover Waiting run when the
+# next Monday job (or a main-only dispatch) starts. Not a substitute for
+# clearing required reviewers on production-security (HUMANS.md §81).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   advisors:
     name: New Supabase advisor findings

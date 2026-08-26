@@ -932,9 +932,21 @@ against `https://api.github.com/repos/thegoodcompany-sst/TAVAttendance/environme
 `if: github.ref == 'refs/heads/main'` and do not run on pull requests. The
 environment is only for secret scoping plus the protected-branch restriction.
 A required reviewer still queues every `main` run for a human "Review
-deployments" click. That left Remote security checks `#95`
-(`32935548239` on `5eed3d9`) and Advisor watch (`32682486677`) Waiting.
-Latest CI on `main` (`CI` `#283`, same SHA) already passed.
+deployments" click. Waiting is not a hang: after approval, Remote security
+finishes in about 2–3 minutes (run `31991761441`). The pile-up is missing
+`concurrency` plus the reviewer click on every push.
+
+Stuck examples:
+
+- Remote security checks `#95` (`32935548239`) on `5eed3d9` — Waiting
+- Advisor watch is schedule-only (Monday 09:00 SGT), not a push check. `#6`
+  (`32682486677`) is Waiting on old SHA `8865624`. `#5` failed *after*
+  approval: `advisor-watch.mjs` exit 1 (new findings vs
+  `scripts/advisor-accepted.json`) and the drift job also failed. `#2` hit
+  GitHub's 30-day environment-wait timeout.
+
+Latest CI on `main` (`CI` `#283`, `5eed3d9`) already passed. Do not touch
+Android/gitleaks for this gate.
 
 Do this once in the GitHub UI (Settings → Environments → `production-security`):
 
@@ -944,13 +956,19 @@ Do this once in the GitHub UI (Settings → Environments → `production-securit
    all branches. Do not weaken `main` branch protection.
 3. Leave the three secrets on this environment. Do not recreate them as
    repository secrets.
-4. Existing Waiting runs do not start when the rule is removed. Reject or
-   cancel superseded waiting deployments (including older Remote security
-   checks on `main` before `5eed3d9`, and stale Advisor watch runs). Then
-   **Re-run** only the current-`main` Remote security checks
-   (`32935548239` if it is still the tip) and the latest Advisor watch.
-   After this, a new push to `main` should start those jobs without a
-   Review deployments click.
+4. Existing Waiting runs do not start when the rule is removed, and they
+   were queued without a `concurrency` group, so they will not cancel
+   themselves. Reject or cancel superseded waiting deployments. Workflow
+   `concurrency` only helps *later* superseded runs.
+5. After the wait is gone, a Remote security run on current `main` may
+   still fail because migrations 058 and 059 are in the repo and not in
+   production (`HUMANS.md` §76 / §77). That is schema drift, not the wait
+   bug. Do not block clearing reviewers on that failure, and do not apply
+   059 here.
+
+After this, a new push to `main` should start Remote security without a
+Review deployments click. The next Monday schedule (or a `main`-only
+dispatch) starts Advisor watch the same way.
 
 Equivalent API (do not omit `deployment_branch_policy`, or every branch
 could receive the secrets):
@@ -971,4 +989,9 @@ gh api --method PUT \
 EOF
 ```
 
-Confirm: `protection_rules` has no `required_reviewers` entry; `deployment_branch_policy.protected_branches` is still true; a new `main` run of Remote security checks reaches `in_progress` without pending deployments. Do not approve historical CI `#281`/`#282`.
+Confirm: `protection_rules` has no `required_reviewers` entry;
+`deployment_branch_policy.protected_branches` is still true; a new `main`
+run of Remote security checks reaches `in_progress` without pending
+deployments. Do not approve historical CI `#281`/`#282`. Do not treat a
+later Remote security failure on unapplied 058/059 as this wait bug. Do
+not treat Advisor watch `#5`/`#6`/`#2` as a hang.
