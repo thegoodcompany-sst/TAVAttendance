@@ -713,8 +713,14 @@ admin enforcement and force-push/deletion disabled. The `production-security`
 environment is limited to protected branches. Updated 2026-08-17: required
 reviewer is `EdmundLimBoEn` only, with `prevent_self_review` off — `waynetay`
 and `winson-lebron` were listed but not active, so waiting runs sat unapproved.
-Its three secrets remain environment-scoped. `.github/CODEOWNERS` is the
-reviewed source of truth for the same active reviewer.
+Updated 2026-08-26: that required-reviewer click is the wrong gate for these
+read-only jobs. Every push to `main` sat in Review deployments (Remote
+security checks `#95` / `32935548239` on `5eed3d9`, plus Advisor watch).
+Intended environment rules: **no required reviewers**, wait timer 0, deployment
+branches still **protected branches only**, secrets still environment-scoped.
+Do not weaken `main` branch protection. Complete the dashboard/API change
+under §81. `.github/CODEOWNERS` remains the reviewed source of truth for
+pre-merge review.
 
 - [x] Protected the environment and `main` with the controls above.
 - [x] Moved `TAVA_DB_URL`, `SUPABASE_ACCESS_TOKEN`, and
@@ -729,6 +735,9 @@ reviewed source of truth for the same active reviewer.
   self-approve. Approved current-main Remote security checks (`31991761441`)
   and Advisor watch (`31987290842`); rejected 12 superseded waiting
   deployments so they would not all hit production at once.
+- [ ] 2026-08-26: required reviewers still block the read-only gates. Clear
+  them per §81; keep protected-branch restriction and environment-scoped
+  secrets.
 
 ### ☐ 68. Deploy and verify the hardened web headers
 
@@ -906,3 +915,83 @@ Raspberry Pi 4/5 **or** an Orange Pi / Armbian clone, plus a USB CCID reader
 Even after 059 is applied, leave the flag OFF until pairing UI, the physical
 box, paper fallback, and a staff drill are verified at the centre. Flipping
 the flag is a separate human-verified operation.
+
+### ☐ 81. Let production-security gates run on `main` without Review deployments
+
+Git cannot store GitHub environment protection rules. Measured on 2026-08-26
+against `https://api.github.com/repos/thegoodcompany-sst/TAVAttendance/environments/production-security`:
+
+- Required reviewers: `EdmundLimBoEn` (this is the wait)
+- Wait timer: none (`wait_timer` 0)
+- Prevent self-review: off at environment level
+- Deployment branches: protected branches only
+- Secrets (keep here; do not copy to repository secrets): `TAVA_DB_URL`,
+  `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`
+
+`Remote security checks` and `Advisor watch` already restrict jobs with
+`if: github.ref == 'refs/heads/main'` and do not run on pull requests. The
+environment is only for secret scoping plus the protected-branch restriction.
+A required reviewer still queues every `main` run for a human "Review
+deployments" click. Waiting is not a hang: after approval, Remote security
+finishes in about 2–3 minutes (run `31991761441`). The pile-up is missing
+`concurrency` plus the reviewer click on every push.
+
+Stuck examples:
+
+- Remote security checks `#95` (`32935548239`) on `5eed3d9` — Waiting
+- Advisor watch is schedule-only (Monday 09:00 SGT), not a push check. `#6`
+  (`32682486677`) is Waiting on old SHA `8865624`. `#5` failed *after*
+  approval: `advisor-watch.mjs` exit 1 (new findings vs
+  `scripts/advisor-accepted.json`) and the drift job also failed. `#2` hit
+  GitHub's 30-day environment-wait timeout.
+
+Latest CI on `main` (`CI` `#283`, `5eed3d9`) already passed. Do not touch
+Android/gitleaks for this gate.
+
+Do this once in the GitHub UI (Settings → Environments → `production-security`):
+
+1. Required reviewers: remove `EdmundLimBoEn` and leave the list empty.
+   Save. Do not add a wait timer.
+2. Leave Deployment branches on **Protected branches**. Do not switch to
+   all branches. Do not weaken `main` branch protection.
+3. Leave the three secrets on this environment. Do not recreate them as
+   repository secrets.
+4. Existing Waiting runs do not start when the rule is removed, and they
+   were queued without a `concurrency` group, so they will not cancel
+   themselves. Reject or cancel superseded waiting deployments. Workflow
+   `concurrency` only helps *later* superseded runs.
+5. After the wait is gone, a Remote security run on current `main` may
+   still fail because migrations 058 and 059 are in the repo and not in
+   production (`HUMANS.md` §76 / §77). That is schema drift, not the wait
+   bug. Do not block clearing reviewers on that failure, and do not apply
+   059 here.
+
+After this, a new push to `main` should start Remote security without a
+Review deployments click. The next Monday schedule (or a `main`-only
+dispatch) starts Advisor watch the same way.
+
+Equivalent API (do not omit `deployment_branch_policy`, or every branch
+could receive the secrets):
+
+```bash
+gh api --method PUT \
+  repos/thegoodcompany-sst/TAVAttendance/environments/production-security \
+  --input - <<'EOF'
+{
+  "wait_timer": 0,
+  "prevent_self_review": false,
+  "reviewers": [],
+  "deployment_branch_policy": {
+    "protected_branches": true,
+    "custom_branch_policies": false
+  }
+}
+EOF
+```
+
+Confirm: `protection_rules` has no `required_reviewers` entry;
+`deployment_branch_policy.protected_branches` is still true; a new `main`
+run of Remote security checks reaches `in_progress` without pending
+deployments. Do not approve historical CI `#281`/`#282`. Do not treat a
+later Remote security failure on unapplied 058/059 as this wait bug. Do
+not treat Advisor watch `#5`/`#6`/`#2` as a hang.
