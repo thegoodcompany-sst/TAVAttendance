@@ -12,6 +12,9 @@ jobs:
   drift:
     name: Drift detector (prod vs repo)
     # Never expose production credentials to code from an unreviewed branch.
+    # `environment` scopes TAVA_DB_URL / SUPABASE_* to this job; it is not a
+    # human approval gate. Required reviewers on production-security must stay
+    # off so main runs without Review deployments (HUMANS.md §81).
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production-security

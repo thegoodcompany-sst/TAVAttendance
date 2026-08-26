@@ -5,6 +5,11 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Remote security checks and Advisor watch no longer wait for a human Review
+  deployments click on `main`. Prod credentials stay in the
+  `production-security` environment (not repository secrets, not pull-request
+  jobs). Clearing required reviewers on that environment is `HUMANS.md` §81;
+  this change cannot live in git. Waiting runs do not resume by themselves.
 - Dark NFC arrival station on a Pi-class Linux box (`station/`, Raspberry Pi OS
   or Orange Pi/Armbian, USB CCID reader). Chip UID maps to a student; admin
   pairs/reissues on the web when `nfc_sign_in` is on. The station account may

@@ -38,7 +38,10 @@ current commit's remote drift and security gates have just passed.
 
 7. Require the `Remote security checks` workflow on protected `main`. It
    compares live production with a clean local replay and fails on structural
-   drift after the explicit security assertions pass.
+   drift after the explicit security assertions pass. That job is a post-merge
+   read-only gate: it must start on `main` without a Review deployments
+   click. Prod credentials stay in the `production-security` environment
+   (`HUMANS.md` §81); do not move them to repository secrets or PR jobs.
 8. Review Supabase security and performance advisors. New findings need a
    numbered migration or a reviewed update to the accepted baseline.
 
