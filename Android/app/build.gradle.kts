@@ -32,8 +32,12 @@ if (releaseRequested && releaseSecrets.values.any { it == null }) {
 
 android {
     namespace = "com.example.tavattendance"
+    // core-ktx 1.19 and navigation-compose 2.10 require API 37+. 37.1 is the
+    // platform GitHub-hosted runners actually ship (`android-37` is not).
     compileSdk {
-        version = release(36)
+        version = release(37) {
+            minorApiLevel = 1
+        }
     }
 
     defaultConfig {

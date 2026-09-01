@@ -5,6 +5,11 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Android compiles against API 37.1 so the Dependabot android-deps bump can
+  build: `core-ktx` 1.19 and Navigation Compose 2.10 (and the Lifecycle 2.11
+  they pull) reject `compileSdk` 36. `targetSdk` stays 36. Also takes AGP
+  9.3.2, Kotlin 2.4.10, supabase-kt 3.8.0, Ktor 3.5.2,
+  kotlinx-serialization-json 1.11.0, and Firebase BOM 34.18.0.
 - Remote security checks and Advisor watch no longer wait for a human Review
   deployments click on `main`. Prod credentials stay in the
   `production-security` environment (not repository secrets, not pull-request
