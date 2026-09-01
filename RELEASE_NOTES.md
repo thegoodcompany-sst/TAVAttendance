@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Pin web `browserslist` to `^4.28.8` so `bun audit --audit-level=high` stays
+  green after GHSA-c83g-rgw3-j3cx and GHSA-73wf-gq98-2v4g (4.28.6 arrived via
+  `eslint-config-next` / `next` → `@babel/core`). Keep the #66 web-development
+  bumps.
 - Remote security checks and Advisor watch no longer wait for a human Review
   deployments click on `main`. Prod credentials stay in the
   `production-security` environment (not repository secrets, not pull-request
