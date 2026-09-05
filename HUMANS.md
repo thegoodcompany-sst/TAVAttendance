@@ -867,24 +867,22 @@ information-level index suggestions, but they must not be accepted
 automatically. Review each finding, then run
 `node scripts/advisor-watch.mjs --accept` only after human security review.
 
-### ☐ 76. Apply migration 058 (stale offline overwrite CAS) to production
+### ☑ 76. Apply atomic offline attendance protection to production
 
-The `observed_marked_at` compare-and-skip is **not live** until this migration
-is applied in production **and** the new clients are installed. Do not treat
-kiosk/tutor overwrite protection as real from a checked-in SQL file.
+Completed 2026-09-05 using the exact committed
+`supabase/migrations/060_atomic_offline_attendance_cas.sql` from `f574c62`.
+Migration 060 includes and supersedes the 058 sync change. Do not apply 058
+after 060 because it would restore the check/write race.
 
-1. Replay locally: `supabase db reset --local`, then
-   `supabase db lint --local --schema public --level error --fail-on error`
-   and every `supabase/tests/*.sql` (especially `sync_attendance_test.sql`).
-2. Apply the exact committed file
-   `supabase/migrations/058_offline_observed_cas.sql` through the reviewed
-   production path (`supabase db query --linked --file`). Never
-   `supabase db reset` or `supabase db push` against production. The file
-   already issues `NOTIFY pgrst, 'reload schema'`.
-3. Verify in production that `sync_attendance` reads `observed_marked_at` and
-   skips when a newer server row exists, and that `attendance_summary` still
-   has `security_invoker`. Then install the matching client builds before
-   calling the protection live.
+The local replay, seven SQL suites, and four authenticated concurrency cases
+passed before application. Production `prod-security-check.sql` assertions
+passed afterward through the linked Management API. Direct queries confirmed
+atomic sync/clear definitions and `attendance_summary.security_invoker=true`.
+The production NFC schema remains absent; §77 is unchanged.
+
+Matching native clients still need installation and device QA. Legacy clients
+that omit `observed_marked_at` retain their old behavior. Full production drift
+and web deployment remain blocked by the held NFC RPCs; see §82.
 
 ### ☐ 77. Do not apply migration 059 (NFC arrival station) to production yet
 
@@ -1010,16 +1008,32 @@ died`; booting the simulator and rerunning completed successfully.
 Browser component QA used synthetic data and a stubbed write
 boundary; it did not create students in production.
 
-Read-only production checks on 2026-09-05 found neither the observed-state CAS
-nor `apply_attendance_clear`; `nfc_tag_bindings` was also absent.
-`attendance_summary` retained `security_invoker=true`. The read-only production assertion gate failed with
-`ERROR: 42883: function "public.apply_attendance_clear(uuid,uuid,text,boolean,timestamptz)" does not exist`.
-No production migration or deployment was performed during this review.
+Initial read-only production checks on 2026-09-05 found neither the
+observed-state CAS nor `apply_attendance_clear`; `nfc_tag_bindings` was also
+absent. After local verification and commit, migration 060 was applied from
+`f574c62` through `supabase db query --linked --file`. The post-apply production
+assertions passed, atomic sync/clear definitions were present, and
+`attendance_summary` retained `security_invoker=true`. No NFC migration or web
+deployment was performed.
 
-- [ ] Apply the exact reviewed migration 060 through the production runbook,
-  then verify `sync_attendance` and `apply_attendance_clear` and run the
-  protected security/drift gates. Migration 060 includes the 058 sync behavior;
-  do not reapply 058 after 060 because it would restore the race.
+[CI for the implementation](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/33937596925)
+passed all seven jobs, including both native platforms and the new database
+concurrency checks. The read-only
+[production gate](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/33937596865)
+was rerun after application and failed only at the web schema-reference step
+for the held `pair_nfc_chip`, `revoke_nfc_chip_for_student`, and
+`get_student_nfc_binding` functions.
+
+[Advisor watch](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/33937864739)
+reported 46 findings outside the accepted baseline, with 19 stale baseline
+entries. Categories were five RLS-without-policy notices, 31 authenticated
+SECURITY DEFINER warnings, eight unindexed foreign keys, and two unused indexes.
+The new `apply_attendance_clear` warning covers an intentionally callable helper
+that retains actor, role, scope, enrollment, and session-window guards. The
+baseline was not changed. Complete the review in §75 before accepting findings.
+
+- [x] Apply migration 060 and verify its production definitions and security
+  assertions. Do not reapply 058 afterward.
 - [ ] Resolve the explicit 059 hold in §77 before expecting a clean full-schema
   drift gate or deploying current `main`. Do not bypass that gate or enable
   `nfc_sign_in` to ship these fixes.

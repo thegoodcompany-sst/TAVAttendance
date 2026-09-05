@@ -7,7 +7,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 - Offline attendance now compares observations atomically in migration 060,
   preventing concurrent online corrections from being overwritten or recreated.
-  Added real concurrent-write regressions to CI.
+  Added real concurrent-write regressions to CI. Applied migration 060 to
+  production on 2026-09-05 and verified the live security assertions. Matching
+  native builds still require installation and device QA (`HUMANS.md` §82).
 - Native rosters retain the server timestamp returned by online saves. iOS keeps
   full timestamp precision in queued records and syncs every owned session;
   Android reports permanent save rejections without queuing them. Saving, sync,
@@ -35,7 +37,8 @@ This is the source draft for mobile release notes. Keep completed changes under
   this change cannot live in git. Both workflows now cancel superseded runs
   via `concurrency`; that does not skip the reviewer click by itself, and
   already-waiting runs still need a reject/cancel. A later drift failure
-  because 058/059 are not in production is a separate gate (`HUMANS.md` §76).
+  because held migration 059 is not in production is a separate gate
+  (`HUMANS.md` §77); migration 060 now supplies the attendance protection.
 - Dark NFC arrival station on a Pi-class Linux box (`station/`, Raspberry Pi OS
   or Orange Pi/Armbian, USB CCID reader). Chip UID maps to a student; admin
   pairs/reissues on the web when `nfc_sign_in` is on. The station account may
@@ -51,9 +54,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 - New clients send `observed_marked_at` on offline sync. Migration 058
   compare-and-skips a delayed mutation when a newer server row already exists.
   Android now keeps JSON null in the pending queue when the device observed no
-  row, matching the sync envelope. Not live in production until 058 is applied
-  and those clients are installed (`HUMANS.md` §76). Device clocks remain
-  untrusted.
+  row, matching the sync envelope. Migration 060 supersedes 058 and is live
+  in production; matching client installation remains pending (`HUMANS.md` §76).
+  Device clocks remain untrusted.
 - Empty kiosk shows “No Classes Today” only after a successful load. A failed
   load retries instead of looking like a day off. Search is admin-only; unlock
   is a long-press on the lock. Leave in-app Face ID off on the kiosk iPad.
