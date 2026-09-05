@@ -342,6 +342,14 @@ BEGIN
             END IF;
     END;
 
+    BEGIN
+        PERFORM apply_attendance_clear(
+            v_session, v_student, 'cas-parent-clear', TRUE, NULL
+        );
+        RAISE EXCEPTION 'parent atomic attendance clear was accepted';
+    EXCEPTION WHEN insufficient_privilege THEN NULL;
+    END;
+
     -- 10–14. Offline observed_marked_at CAS (migration 058).
     -- Original session was ended above and cannot be reopened.
     PERFORM pg_temp.as_user(v_actor);
@@ -446,6 +454,55 @@ BEGIN
         FROM attendance_records
         WHERE session_id = v_cas_session AND student_id = v_cas_student
     ), 'batch did not insert the later valid row';
+
+    -- An empty observed clear never removes an existing mark, nor records a
+    -- successful receipt for a rejected mutation.
+    r := sync_attendance(pg_temp.payload(
+        v_cas_student, NULL, NOW(), 'cas-empty-clear-conflict',
+        NULL::TIMESTAMPTZ, v_cas_session
+    ));
+    ASSERT (r->>'skipped_conflict')::INTEGER = 1,
+        'empty observed clear must preserve an existing row: ' || r::TEXT;
+    ASSERT NOT EXISTS (
+        SELECT 1 FROM attendance_mutation_receipts
+        WHERE mutation_id = 'cas-empty-clear-conflict'
+    ), 'conflicted clear incorrectly recorded an accepted receipt';
+
+    SELECT marked_at INTO v_cas_marked_at FROM attendance_records
+    WHERE session_id = v_cas_session AND student_id = v_cas_student;
+    r := sync_attendance(pg_temp.payload(
+        v_cas_student, NULL, NOW(), 'cas-matching-clear',
+        v_cas_marked_at, v_cas_session
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1 AND NOT EXISTS (
+        SELECT 1 FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_cas_student
+    ), 'matching observed clear did not remove the row';
+    ASSERT EXISTS (
+        SELECT 1 FROM attendance_mutation_receipts
+        WHERE mutation_id = 'cas-batch-ok'
+    ), 'clear lost the previous mutation receipt';
+    r := sync_attendance(pg_temp.payload(
+        v_cas_student, NULL, NOW(), 'cas-matching-clear',
+        v_cas_marked_at, v_cas_session
+    ));
+    ASSERT (r->>'skipped')::INTEGER = 1, 'accepted clear was not replay-safe';
+    r := sync_attendance(pg_temp.payload(
+        v_cas_student, NULL, NOW(), 'cas-empty-clear-ok',
+        NULL::TIMESTAMPTZ, v_cas_session
+    ));
+    ASSERT (r->>'synced')::INTEGER = 1 AND EXISTS (
+        SELECT 1 FROM attendance_mutation_receipts
+        WHERE mutation_id = 'cas-empty-clear-ok'
+    ), 'empty clear must retain an accepted receipt';
+    r := sync_attendance(pg_temp.payload(
+        v_cas_student, 'late', NOW(), 'cas-write-after-clear',
+        v_cas_marked_at, v_cas_session
+    ));
+    ASSERT (r->>'skipped_conflict')::INTEGER = 1 AND NOT EXISTS (
+        SELECT 1 FROM attendance_records
+        WHERE session_id = v_cas_session AND student_id = v_cas_student
+    ), 'stale observed update recreated a cleared row';
 
     RAISE NOTICE 'sync_attendance_test: all assertions passed';
 END;

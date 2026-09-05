@@ -18,6 +18,7 @@ struct PendingAttendanceRecord: Codable {
     /// queued. Nil means the client observed no attendance row. Never the
     /// device queue timestamp (`markedAt` above).
     var observedMarkedAt: Date?
+    var observedMarkedAtRaw: String?
     /// False for migrated v3 envelopes that omitted the observation. New
     /// queue writes always observe the roster and set this true.
     var didObserveRow: Bool
@@ -26,7 +27,7 @@ struct PendingAttendanceRecord: Codable {
         case ownerUserId, sessionId, studentId, status, notes
         case absenceInformed, clientMutationId, markedAt, isSynced
         case observedMarkedAt = "observed_marked_at"
-        case didObserveRow
+        case didObserveRow, observedMarkedAtRaw
     }
 
     init(
@@ -40,7 +41,8 @@ struct PendingAttendanceRecord: Codable {
         markedAt: Date,
         isSynced: Bool,
         observedMarkedAt: Date? = nil,
-        didObserveRow: Bool = false
+        didObserveRow: Bool = false,
+        observedMarkedAtRaw: String? = nil
     ) {
         self.ownerUserId = ownerUserId
         self.sessionId = sessionId
@@ -52,6 +54,7 @@ struct PendingAttendanceRecord: Codable {
         self.markedAt = markedAt
         self.isSynced = isSynced
         self.observedMarkedAt = observedMarkedAt
+        self.observedMarkedAtRaw = observedMarkedAtRaw
         self.didObserveRow = didObserveRow
     }
 
@@ -67,6 +70,7 @@ struct PendingAttendanceRecord: Codable {
         markedAt = try container.decode(Date.self, forKey: .markedAt)
         isSynced = try container.decode(Bool.self, forKey: .isSynced)
         observedMarkedAt = try container.decodeIfPresent(Date.self, forKey: .observedMarkedAt)
+        observedMarkedAtRaw = try container.decodeIfPresent(String.self, forKey: .observedMarkedAtRaw)
         if let flag = try container.decodeIfPresent(Bool.self, forKey: .didObserveRow) {
             didObserveRow = flag
         } else {
@@ -88,6 +92,7 @@ struct PendingAttendanceRecord: Codable {
         try container.encode(markedAt, forKey: .markedAt)
         try container.encode(isSynced, forKey: .isSynced)
         try container.encode(didObserveRow, forKey: .didObserveRow)
+        try container.encodeIfPresent(observedMarkedAtRaw, forKey: .observedMarkedAtRaw)
         if didObserveRow {
             if let observedMarkedAt {
                 try container.encode(observedMarkedAt, forKey: .observedMarkedAt)
@@ -358,7 +363,8 @@ final class PendingAttendanceStore: ObservableObject {
         status: AttendanceStatus?,
         notes: String?,
         absenceInformed: Bool? = nil,
-        observedMarkedAt: Date?
+        observedMarkedAt: Date?,
+        observedMarkedAtRaw: String? = nil
     ) -> Bool {
         guard activeOwnerUserId == ownerUserId else { return false }
         var records = load(ownerUserId: ownerUserId)
@@ -382,7 +388,8 @@ final class PendingAttendanceStore: ObservableObject {
                 markedAt: Date(),
                 isSynced: false,
                 observedMarkedAt: observedMarkedAt,
-                didObserveRow: true
+                didObserveRow: true,
+                observedMarkedAtRaw: observedMarkedAtRaw
             )
             records.append(record)
         }

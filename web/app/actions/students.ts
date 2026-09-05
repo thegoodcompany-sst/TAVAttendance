@@ -16,6 +16,14 @@ export type StudentInput = {
   notes?: string | null
 }
 
+function isStudentInput(value: unknown): value is StudentInput {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return typeof input.fullName === 'string'
+    && ['dateOfBirth', 'school', 'yearOfStudy', 'notes'].every(key =>
+      input[key] == null || typeof input[key] === 'string')
+}
+
 /**
  * Create one student with the PDPA consent attestation gate (s13–17).
  * Blocks if `consentAttested` is false; on success writes a granted
@@ -28,10 +36,12 @@ export async function createStudent(
   const { error: authErr, supabase } = await requireAdmin()
   if (authErr) return { error: authErr }
 
+  if (!isStudentInput(input)) return { error: 'Student fields must be text.' }
+
   const fullName = input.fullName.trim()
   if (!fullName) return { error: 'Student name is required.' }
 
-  if (!consentAttested) {
+  if (consentAttested !== true) {
     return { error: 'Parent/guardian consent must be attested before creating a student.' }
   }
 
@@ -74,7 +84,7 @@ export async function bulkImportStudents(
   const { error: authErr, supabase } = await requireAdmin()
   if (authErr) return { error: authErr, created: 0, skipped: [] }
 
-  if (!consentAttested) {
+  if (consentAttested !== true) {
     return {
       error: 'Parent/guardian consent must be attested for all imported students.',
       created: 0,
@@ -98,6 +108,10 @@ export async function bulkImportStudents(
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]
+    if (!isStudentInput(r)) {
+      skipped.push({ row: i + 1, reason: 'Student fields must be text' })
+      continue
+    }
     const fullName = r.fullName?.trim()
     if (!fullName) {
       skipped.push({ row: i + 1, reason: 'Missing name' })

@@ -361,3 +361,5 @@ internal fun recordsAfterSync(
 ): List<PendingAttendanceRecord> = records.filterNot {
     it.isSynced || it.clientMutationId in clientMutationIds
 }
+
+internal fun shouldQueueAttendanceFailure(error: Throwable): Boolean = error is java.io.IOException

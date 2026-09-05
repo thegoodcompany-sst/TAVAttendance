@@ -995,3 +995,40 @@ run of Remote security checks reaches `in_progress` without pending
 deployments. Do not approve historical CI `#281`/`#282`. Do not treat a
 later Remote security failure on unapplied 058/059 as this wait bug. Do
 not treat Advisor watch `#5`/`#6`/`#2` as a hang.
+
+### ☐ 82. Release the September reliability and export fixes
+
+Source fixes are in migration 060 and the matching native/web clients. Local
+verification on 2026-09-05 passed the complete migration replay through 060,
+schema lint, seven SQL suites, security assertions, and four real concurrent
+write cases. The old 058 body reproduced the stale overwrite. Web passed
+56 tests, audit, lint, and production build. Android passed 89 tests, lint,
+and debug build. iOS passed 76 tests, with one queue-Keychain integration test
+skipped after an explicit missing-entitlement probe under unsigned testing.
+An earlier simulator attempt failed with `Mach error -308 - (ipc/mig) server
+died`; booting the simulator and rerunning completed successfully.
+Browser component QA used synthetic data and a stubbed write
+boundary; it did not create students in production.
+
+Read-only production checks on 2026-09-05 found neither the observed-state CAS
+nor `apply_attendance_clear`; `nfc_tag_bindings` was also absent.
+`attendance_summary` retained `security_invoker=true`. The read-only production assertion gate failed with
+`ERROR: 42883: function "public.apply_attendance_clear(uuid,uuid,text,boolean,timestamptz)" does not exist`.
+No production migration or deployment was performed during this review.
+
+- [ ] Apply the exact reviewed migration 060 through the production runbook,
+  then verify `sync_attendance` and `apply_attendance_clear` and run the
+  protected security/drift gates. Migration 060 includes the 058 sync behavior;
+  do not reapply 058 after 060 because it would restore the race.
+- [ ] Resolve the explicit 059 hold in §77 before expecting a clean full-schema
+  drift gate or deploying current `main`. Do not bypass that gate or enable
+  `nfc_sign_in` to ship these fixes.
+- [ ] Install matching native builds and run the synthetic online/offline,
+  competing-device, clear, multi-session, and rejection checks in
+  `docs/KIOSK_ATTENDANCE.md`. Full authenticated device QA was skipped here.
+- [ ] Exercise authenticated CSV import and ZIP export in the release
+  environment. Partial imports require resubmitting only corrected skipped
+  rows. Exports use stable pagination but not a cross-table transaction.
+
+A separate final reviewer hit its usage limit before returning a verdict.
+The primary agent reviewed the diff; independent review was not completed.

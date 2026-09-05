@@ -11,10 +11,16 @@ describe('dashboard export CSV utilities', () => {
   it('neutralizes spreadsheet formulas', () => {
     expect(csvCell('=SUM(A1:A2)')).toBe("'=SUM(A1:A2)")
     expect(csvCell(' @cmd')).toBe("' @cmd")
+    expect(csvCell("\n=1+1")).toBe('"\'\n=1+1"')
+    expect(csvCell("\u0000\t@cmd")).toBe("'\u0000\t@cmd")
   })
 
   it('emits headers for empty datasets', () => {
     expect(toCsv([], ['id', 'name'])).toBe('id,name\r\n')
+  })
+
+  it('exports only explicitly permitted columns', () => {
+    expect(toCsv([{ id: '1', private_future_column: 'secret' }], ['id'])).toBe('id\r\n1\r\n')
   })
 
   it('uses a stable dated archive name', () => {
@@ -54,5 +60,29 @@ describe('Study Space filtering', () => {
     expect(result.enrollments).toHaveLength(1)
     expect(result.tutorAssignments).toHaveLength(1)
     expect(result.auditLog).toEqual([{ id: 'b', table_name: 'students', record_id: 'student' }])
+  })
+})
+
+
+describe('historical Study Space exclusions', () => {
+  it('follows deleted classes and descendants regardless of audit order and checks both snapshots', () => {
+    const result = filterStudySpaceData({
+      classes: [{ id: 'regular', is_study_space: false }],
+      sessions: [], attendanceRecords: [], dismissals: [], enrollments: [], tutorAssignments: [],
+      auditLog: [
+        { id: 'attendance-delete', table_name: 'attendance_records', record_id: 'attendance' },
+        { id: 'dismissal-delete', table_name: 'dismissals', record_id: 'dismissal' },
+        { id: 'enrollment-delete', table_name: 'enrollments', record_id: 'enrollment' },
+        { id: 'assignment-delete', table_name: 'class_tutor_assignments', record_id: 'assignment' },
+        { id: 'attendance-move', table_name: 'attendance_records', record_id: 'attendance', old_data: { session_id: 'session' }, new_data: { session_id: 'regular-session' } },
+        { id: 'dismissal-move', table_name: 'dismissals', record_id: 'dismissal', old_data: { session_id: 'session' }, new_data: { session_id: 'regular-session' } },
+        { id: 'enrollment-move', table_name: 'enrollments', record_id: 'enrollment', old_data: { class_id: 'study' }, new_data: { class_id: 'regular' } },
+        { id: 'assignment-move', table_name: 'class_tutor_assignments', record_id: 'assignment', old_data: { class_id: 'study' }, new_data: { class_id: 'regular' } },
+        { id: 'session-move', table_name: 'sessions', record_id: 'session', old_data: { class_id: 'study' }, new_data: { class_id: 'regular' } },
+        { id: 'class-change', table_name: 'classes', record_id: 'study', old_data: { is_study_space: true }, new_data: { is_study_space: false } },
+        { id: 'regular', table_name: 'classes', record_id: 'regular', new_data: { is_study_space: false } },
+      ],
+    })
+    expect(result.auditLog.map(row => row.id)).toEqual(['regular'])
   })
 })

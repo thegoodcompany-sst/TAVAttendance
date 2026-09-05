@@ -1,6 +1,6 @@
 export type ExportRow = Record<string, unknown>
 
-const FORMULA_PREFIX = /^[\t\r ]*[=+\-@]/
+const FORMULA_PREFIX = /^[\u0000-\u0020]*[=+\-@]/
 
 export function csvCell(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -17,14 +17,7 @@ export function csvCell(value: unknown): string {
     : safeText
 }
 
-export function toCsv(rows: ExportRow[], fallbackColumns: string[] = []): string {
-  const columns = [...fallbackColumns]
-  for (const row of rows) {
-    for (const key of Object.keys(row)) {
-      if (!columns.includes(key)) columns.push(key)
-    }
-  }
-
+export function toCsv(rows: ExportRow[], columns: string[]): string {
   if (columns.length === 0) return ''
 
   return [
@@ -54,71 +47,51 @@ export function filterStudySpaceData({
   tutorAssignments: ExportRow[]
   auditLog: ExportRow[]
 }) {
-  const studyClassIds = new Set(
-    classes.filter(row => row.is_study_space === true).map(row => String(row.id)),
-  )
-  const visibleClasses = classes.filter(row => !studyClassIds.has(String(row.id)))
-  const studySessionIds = new Set(
-    sessions.filter(row => studyClassIds.has(String(row.class_id))).map(row => String(row.id)),
-  )
-  const visibleSessions = sessions.filter(row => !studySessionIds.has(String(row.id)))
-  const studyAttendanceIds = new Set(
-    attendanceRecords
-      .filter(row => studySessionIds.has(String(row.session_id)))
-      .map(row => String(row.id)),
-  )
-  const visibleAttendance = attendanceRecords.filter(row => !studyAttendanceIds.has(String(row.id)))
-  const studyDismissalIds = new Set(
-    dismissals
-      .filter(row => studySessionIds.has(String(row.session_id)))
-      .map(row => String(row.id)),
-  )
+  const snapshots = (row: ExportRow): ExportRow[] => [row.old_data, row.new_data]
+    .filter((value): value is ExportRow => value !== null && typeof value === 'object' && !Array.isArray(value))
+  const references = (row: ExportRow, field: string, ids: Set<string>) =>
+    typeof row[field] === 'string' && ids.has(row[field] as string)
 
-  const snapshotFor = (row: ExportRow) => (row.new_data ?? row.old_data ?? {}) as ExportRow
-  const auditStudySessionIds = new Set([
-    ...studySessionIds,
-    ...auditLog
-      .filter(row => row.table_name === 'sessions' && studyClassIds.has(String(snapshotFor(row).class_id)))
-      .map(row => String(row.record_id)),
-  ])
-  const auditStudyAttendanceIds = new Set([
-    ...studyAttendanceIds,
-    ...auditLog
-      .filter(row => row.table_name === 'attendance_records' && auditStudySessionIds.has(String(snapshotFor(row).session_id)))
-      .map(row => String(row.record_id)),
-  ])
-  const auditStudyDismissalIds = new Set([
-    ...studyDismissalIds,
-    ...auditLog
-      .filter(row => row.table_name === 'dismissals' && auditStudySessionIds.has(String(snapshotFor(row).session_id)))
-      .map(row => String(row.record_id)),
-  ])
-
-  const auditReferencesStudySpace = (row: ExportRow) => {
-    const snapshot = snapshotFor(row)
-    const recordId = String(row.record_id)
-    if (row.table_name === 'classes' && snapshot.is_study_space === true) return true
-    if (studyClassIds.has(String(snapshot.class_id))) return true
-    if (auditStudySessionIds.has(String(snapshot.session_id))) return true
-
-    switch (row.table_name) {
-      case 'classes': return studyClassIds.has(recordId)
-      case 'sessions': return auditStudySessionIds.has(recordId)
-      case 'attendance_records': return auditStudyAttendanceIds.has(recordId)
-      case 'dismissals': return auditStudyDismissalIds.has(recordId)
-      case 'enrollments': return studyClassIds.has(String(snapshot.class_id))
-      case 'class_tutor_assignments': return studyClassIds.has(String(snapshot.class_id))
-      default: return false
+  // Retain identities from both snapshots, including records no longer in live tables.
+  const excludedIds = (table: string, rows: ExportRow[], predicate: (row: ExportRow) => boolean) => {
+    const ids = new Set<string>()
+    for (const row of rows) {
+      if (predicate(row) && typeof row.id === 'string') ids.add(row.id)
     }
+    for (const row of auditLog) {
+      if (row.table_name === table && snapshots(row).some(predicate) && typeof row.record_id === 'string') {
+        ids.add(row.record_id)
+      }
+    }
+    return ids
+  }
+  const studyClassIds = excludedIds('classes', classes, row => row.is_study_space === true)
+  const studySessionIds = excludedIds('sessions', sessions, row => references(row, 'class_id', studyClassIds))
+  const studyAttendanceIds = excludedIds('attendance_records', attendanceRecords, row => references(row, 'session_id', studySessionIds))
+  const studyDismissalIds = excludedIds('dismissals', dismissals, row => references(row, 'session_id', studySessionIds))
+  const studyEnrollmentIds = excludedIds('enrollments', enrollments, row => references(row, 'class_id', studyClassIds))
+  const studyAssignmentIds = excludedIds('class_tutor_assignments', tutorAssignments, row => references(row, 'class_id', studyClassIds))
+  const excludedByTable: Record<string, Set<string>> = {
+    classes: studyClassIds,
+    sessions: studySessionIds,
+    attendance_records: studyAttendanceIds,
+    dismissals: studyDismissalIds,
+    enrollments: studyEnrollmentIds,
+    class_tutor_assignments: studyAssignmentIds,
   }
 
   return {
-    classes: visibleClasses,
-    sessions: visibleSessions,
-    attendanceRecords: visibleAttendance,
-    dismissals: dismissals.filter(row => !studyDismissalIds.has(String(row.id))),
-    enrollments: enrollments.filter(row => !studyClassIds.has(String(row.class_id))),
-    tutorAssignments: tutorAssignments.filter(row => !studyClassIds.has(String(row.class_id))),
-    auditLog: auditLog.filter(row => !auditReferencesStudySpace(row)),
+    classes: classes.filter(row => !references(row, 'id', studyClassIds)),
+    sessions: sessions.filter(row => !references(row, 'id', studySessionIds)),
+    attendanceRecords: attendanceRecords.filter(row => !references(row, 'id', studyAttendanceIds)),
+    dismissals: dismissals.filter(row => !references(row, 'id', studyDismissalIds)),
+    enrollments: enrollments.filter(row => !references(row, 'id', studyEnrollmentIds)),
+    tutorAssignments: tutorAssignments.filter(row => !references(row, 'id', studyAssignmentIds)),
+    auditLog: auditLog.filter(row => {
+      const ids = excludedByTable[String(row.table_name)]
+      if (ids && references(row, 'record_id', ids)) return false
+      return !snapshots(row).some(snapshot =>
+        references(snapshot, 'class_id', studyClassIds) || references(snapshot, 'session_id', studySessionIds))
+    }),
   }
 }

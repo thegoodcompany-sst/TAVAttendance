@@ -235,18 +235,20 @@ extension AttendanceService {
         ).execute()
     }
 
+    @discardableResult
     func markAttendance(
         sessionId: UUID, studentId: UUID, status: AttendanceStatus,
         notes: String? = nil, lateReason: String? = nil,
         absenceInformed: Bool? = nil
-    ) async throws {
+    ) async throws -> AttendanceWriteReceipt {
         let record = AttendanceInsert(
             sessionId: sessionId, studentId: studentId, status: status,
             notes: notes, lateReason: lateReason,
             absenceInformed: absenceInformed,
             clientMutationId: UUID().uuidString)
-        try await db.from("attendance_records")
-            .upsert(record, onConflict: "session_id,student_id").execute()
+        return try await db.from("attendance_records")
+            .upsert(record, onConflict: "session_id,student_id")
+            .select("marked_at").single().execute().value
     }
 
     func clearAttendance(sessionId: UUID, studentId: UUID, clientMutationId: String = UUID().uuidString) async throws {
@@ -318,7 +320,7 @@ extension AttendanceService {
                 clientMutationId: r.clientMutationId,
                 markedAt: iso.string(from: r.markedAt),
                 absenceInformed: r.absenceInformed,
-                observedMarkedAt: r.observedMarkedAt.map { iso.string(from: $0) },
+                observedMarkedAt: r.observedMarkedAtRaw ?? r.observedMarkedAt.map { iso.string(from: $0) },
                 didObserveRow: r.didObserveRow
             )
         }

@@ -5,6 +5,20 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Offline attendance now compares observations atomically in migration 060,
+  preventing concurrent online corrections from being overwritten or recreated.
+  Added real concurrent-write regressions to CI.
+- Native rosters retain the server timestamp returned by online saves. iOS keeps
+  full timestamp precision in queued records and syncs every owned session;
+  Android reports permanent save rejections without queuing them. Saving, sync,
+  and End Class no longer overlap.
+- Web CSV import preserves multiline notes, rejects malformed input, reports
+  invalid row fields, requires explicit consent, and prevents an unchanged
+  completed import from being submitted twice.
+- Dashboard exports exclude historical Study Space records, select only named
+  columns, restrict staff profiles to staff, order pages consistently, and
+  escape formulas hidden behind control characters.
+
 - Pin web `browserslist` to `^4.28.8` so `bun audit --audit-level=high` stays
   green after GHSA-c83g-rgw3-j3cx and GHSA-73wf-gq98-2v4g (4.28.6 arrived via
   `eslint-config-next` / `next` → `@babel/core`). Keep the #66 web-development

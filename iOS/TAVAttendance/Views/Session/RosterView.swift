@@ -11,6 +11,7 @@ struct RosterView: View {
     @State private var sessionNotes: String? = nil
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var rosterRevision = 0
     @State private var isEndingClass = false
     @State private var showEndClassConfirm = false
     @State private var showMarkAbsentConfirm = false
@@ -116,7 +117,7 @@ struct RosterView: View {
                         showEndClassConfirm = true
                     }
                     .foregroundStyle(.red)
-                    .disabled(isEndingClass)
+                    .disabled(isEndingClass || isSaving)
                 }
             }
         }
@@ -168,6 +169,7 @@ struct RosterView: View {
                 error = AppError("Your session changed. Sign in again before marking attendance.")
             }
             await loadRoster()
+            if network.isConnected { await syncPending() }
         }
         .onChange(of: network.isConnected) { _, connected in
             if connected {
@@ -257,7 +259,7 @@ struct RosterView: View {
                 )
         }
         .buttonStyle(.plain)
-        .disabled(session.endedAt != nil)
+        .disabled(session.endedAt != nil || isSaving || isEndingClass)
         .accessibilityLabel("Mark as \(fullLabel(for: status, absenceInformed: effectiveAbsenceInformed(for: entry, proposed: status)))")
     }
 
@@ -275,7 +277,7 @@ struct RosterView: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(session.endedAt != nil || isSaving)
+        .disabled(session.endedAt != nil || isSaving || isEndingClass)
         .accessibilityLabel("Not Here Yet")
     }
 
@@ -291,7 +293,7 @@ struct RosterView: View {
     }
 
     private var hasPendingUnsynced: Bool {
-        pendingForCurrentUser.contains { $0.sessionId == session.id }
+        !pendingForCurrentUser.isEmpty
     }
 
     // PROD-03: students with no status yet (server, pending, or local override).
@@ -358,6 +360,7 @@ struct RosterView: View {
     // MARK: - Actions
 
     private func endClass() async {
+        guard !isSaving, !isEndingClass else { return }
         isEndingClass = true
         defer { isEndingClass = false }
         do {
@@ -389,8 +392,11 @@ struct RosterView: View {
     // effectiveStatus's pendingStore fallback. Does not toggle isLoading so the
     // refresh spinner (not the full-screen ProgressView) is shown.
     private func refreshRoster() async {
+        guard !isSaving, !isEndingClass else { return }
+        let revision = rosterRevision
         do {
             let updated = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+            guard revision == rosterRevision, !isSaving else { return }
             roster = updated
             localStatus.removeAll()
             localAbsenceInformed.removeAll()
@@ -411,10 +417,16 @@ struct RosterView: View {
         }
     }
 
+    @MainActor
     private func markAttendance(
         entry: RosterEntry, status: AttendanceStatus,
         absenceInformed: Bool? = nil
     ) async {
+        guard !isSaving, !isEndingClass else { return }
+        isSaving = true
+        rosterRevision += 1
+        defer { isSaving = false; rosterRevision += 1 }
+        let entry = roster.first { $0.studentId == entry.studentId } ?? entry
         guard let ownerUserId = currentOwnerUserId else {
             self.error = AppError("Your session changed. Sign in again before marking attendance.")
             return
@@ -427,17 +439,18 @@ struct RosterView: View {
 
         if network.isConnected {
             do {
-                try await AttendanceService.shared.markAttendance(
+                let receipt = try await AttendanceService.shared.markAttendance(
                     sessionId: session.id,
                     studentId: entry.studentId,
                     status: status,
                     notes: nil,
                     absenceInformed: status == .absent ? absenceInformed : nil
                 )
-                // PERF-04: trust the optimistic localStatus instead of re-fetching
-                // the whole roster on every tap (a full round-trip + list rebuild for
-                // each button press). The override stays correct until the view is
-                // reloaded via pull-to-refresh or a later read-only review.
+                if currentOwnerUserId == ownerUserId,
+                   let index = roster.firstIndex(where: { $0.studentId == entry.studentId }) {
+                    roster[index].acknowledge(
+                        status: status, absenceInformed: absenceInformed, markedAt: receipt.markedAt)
+                }
             } catch {
                 // Only a transport failure (network dropped mid-request) should fall
                 // through to the offline pending store. A hard rejection — RLS denial,
@@ -462,7 +475,13 @@ struct RosterView: View {
         }
     }
 
+    @MainActor
     private func clearAttendance(entry: RosterEntry) async {
+        guard !isSaving, !isEndingClass else { return }
+        isSaving = true
+        rosterRevision += 1
+        defer { isSaving = false; rosterRevision += 1 }
+        let entry = roster.first { $0.studentId == entry.studentId } ?? entry
         guard let ownerUserId = currentOwnerUserId else {
             self.error = AppError("Your session changed. Sign in again before clearing attendance.")
             return
@@ -476,6 +495,10 @@ struct RosterView: View {
             do {
                 try await AttendanceService.shared.clearAttendance(
                     sessionId: session.id, studentId: entry.studentId)
+                if currentOwnerUserId == ownerUserId,
+                   let index = roster.firstIndex(where: { $0.studentId == entry.studentId }) {
+                    roster[index].acknowledge(status: nil, absenceInformed: nil, markedAt: nil)
+                }
             } catch {
                 if error is URLError {
                     queuePending(ownerUserId: ownerUserId, entry: entry, status: nil)
@@ -502,7 +525,8 @@ struct RosterView: View {
             status: status,
             notes: nil,
             absenceInformed: absenceInformed,
-            observedMarkedAt: entry.status != nil ? entry.markedAt : nil
+            observedMarkedAt: entry.status != nil ? entry.markedAt : nil,
+            observedMarkedAtRaw: entry.status != nil ? entry.observedMarkedAtRaw : nil
         )
         guard queued else {
             localStatus.removeValue(forKey: entry.studentId)
@@ -517,15 +541,16 @@ struct RosterView: View {
     }
 
     private func syncPending() async {
+        guard !isSaving, !isEndingClass else { return }
         guard let ownerUserId = currentOwnerUserId else {
             pendingStore.clear()
             return
         }
         let unsynced = pendingStore.allPending(ownerUserId: ownerUserId)
-            .filter { $0.sessionId == session.id }
         guard !unsynced.isEmpty else { return }
         isSaving = true
-        defer { isSaving = false }
+        rosterRevision += 1
+        defer { isSaving = false; rosterRevision += 1 }
         let started = Date()
         let pendingBefore = unsynced.count
         do {
@@ -555,8 +580,9 @@ struct RosterView: View {
             }
             do {
                 roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
-                for record in unsynced {
+                for record in unsynced where record.sessionId == session.id {
                     localStatus.removeValue(forKey: record.studentId)
+                    localAbsenceInformed.removeValue(forKey: record.studentId)
                     locallyCleared.remove(record.studentId)
                     localMarkedAt.removeValue(forKey: record.studentId)
                 }

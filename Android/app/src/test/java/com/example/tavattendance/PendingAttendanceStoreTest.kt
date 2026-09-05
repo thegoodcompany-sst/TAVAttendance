@@ -1,5 +1,7 @@
 package com.example.tavattendance
 
+import com.example.tavattendance.data.models.AttendanceWriteReceipt
+import com.example.tavattendance.data.store.shouldQueueAttendanceFailure
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.store.PendingAttendanceRecord
 import com.example.tavattendance.data.store.PendingQueueCipher
@@ -125,6 +127,28 @@ class PendingAttendanceStoreTest {
         assertEquals("m1", migrated.clientMutationId)
         assertNull(migrated.observedMarkedAt)
         assertFalse(migrated.didObserveRow)
+    }
+
+    @Test
+    fun acknowledgedTimestampSurvivesOfflineCorrectionWithoutRounding() {
+        val receipt = Json.decodeFromString<AttendanceWriteReceipt>(
+            """{"marked_at":"2026-09-05T11:01:00.654321+00:00"}"""
+        )
+        val original = record("m1").copy(
+            observedMarkedAt = receipt.markedAt, didObserveRow = true
+        )
+        val correction = correctedPendingRecord(original, AttendanceStatus.late, null, null, "m2", "later")
+        val decoded = decodePendingQueue(encodePendingQueue(owner, listOf(correction))!!, owner)!!.single()
+        assertEquals("2026-09-05T11:01:00.654321+00:00", decoded.observedMarkedAt)
+    }
+
+    @Test
+    fun onlyTransportFailuresAreQueued() {
+        assertTrue(shouldQueueAttendanceFailure(java.io.IOException("offline")))
+        assertTrue(shouldQueueAttendanceFailure(java.net.SocketTimeoutException("timeout")))
+        assertFalse(shouldQueueAttendanceFailure(SecurityException("denied")))
+        assertFalse(shouldQueueAttendanceFailure(IllegalStateException("session ended")))
+        assertFalse(shouldQueueAttendanceFailure(java.util.concurrent.CancellationException()))
     }
 
     @Test

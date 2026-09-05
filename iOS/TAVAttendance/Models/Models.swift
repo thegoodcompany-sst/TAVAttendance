@@ -190,8 +190,9 @@ struct RosterEntry: Codable, Identifiable {
     let studentId: UUID
     let fullName: String
     var status: AttendanceStatus?
-    let markedAt: Date?
+    var markedAt: Date?
     var absenceInformed: Bool?
+    var observedMarkedAtRaw: String? = nil
     let avatarUrl: String?   // PROD-04; nil unless a photo was uploaded
 
     var id: UUID { studentId }
@@ -203,6 +204,35 @@ struct RosterEntry: Codable, Identifiable {
         case markedAt  = "marked_at"
         case absenceInformed = "absence_informed"
         case avatarUrl = "avatar_url"
+    }
+}
+
+extension RosterEntry {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        studentId = try container.decode(UUID.self, forKey: .studentId)
+        fullName = try container.decode(String.self, forKey: .fullName)
+        status = try container.decodeIfPresent(AttendanceStatus.self, forKey: .status)
+        markedAt = try container.decodeIfPresent(Date.self, forKey: .markedAt)
+        observedMarkedAtRaw = try container.decodeIfPresent(String.self, forKey: .markedAt)
+        absenceInformed = try container.decodeIfPresent(Bool.self, forKey: .absenceInformed)
+        avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
+    }
+
+    mutating func acknowledge(status: AttendanceStatus?, absenceInformed: Bool?, markedAt: String?) {
+        self.status = status
+        self.absenceInformed = absenceInformed
+        observedMarkedAtRaw = markedAt
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        self.markedAt = markedAt.flatMap { formatter.date(from: $0) }
+    }
+}
+
+struct AttendanceWriteReceipt: Decodable {
+    let markedAt: String
+    enum CodingKeys: String, CodingKey {
+        case markedAt = "marked_at"
     }
 }
 

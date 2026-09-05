@@ -102,6 +102,18 @@ BEGIN
         'anon', 'public.clear_attendance(uuid,uuid,text)', 'EXECUTE'
     ), 'attendance clear RPC grants are unsafe';
 
+    ASSERT has_function_privilege(
+        'authenticated',
+        'public.apply_attendance_clear(uuid,uuid,text,boolean,timestamptz)',
+        'EXECUTE'
+    ) AND NOT has_function_privilege(
+        'anon', 'public.apply_attendance_clear(uuid,uuid,text,boolean,timestamptz)',
+        'EXECUTE'
+    ), 'atomic attendance clear grants are unsafe';
+    ASSERT POSITION('marked_at = p_observed_marked_at' IN LOWER(pg_get_functiondef(
+        'public.apply_attendance_clear(uuid,uuid,text,boolean,timestamptz)'::REGPROCEDURE
+    ))) > 0, 'attendance clear lost atomic observed-state predicate';
+
     v_attendance_integrity := LOWER(pg_get_functiondef(
         'public.enforce_attendance_write_integrity()'::REGPROCEDURE
     ));
@@ -200,6 +212,11 @@ BEGIN
           AND tgname = 'archive_attendance_mutation_receipt'
           AND NOT tgisinternal
     ), 'replaced attendance mutation IDs are not archived';
+    ASSERT POSITION('on conflict (session_id, student_id) do nothing' IN v_sync_attendance) > 0
+       AND POSITION('and marked_at =' IN v_sync_attendance) > 0
+       AND POSITION('apply_attendance_clear' IN v_sync_attendance) > 0,
+        'offline attendance lost atomic observed-state writes';
+
     ASSERT POSITION('attendance_mutation_is_replay' IN v_sync_attendance) > 0
        AND POSITION('pg_advisory_xact_lock' IN v_sync_attendance) > 0
        AND POSITION('clock_timestamp()' IN v_sync_attendance) > 0

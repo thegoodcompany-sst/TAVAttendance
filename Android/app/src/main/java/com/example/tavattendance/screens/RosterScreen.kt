@@ -35,6 +35,7 @@ import com.example.tavattendance.data.models.RosterEntry
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
 import com.example.tavattendance.data.service.KioskAttendanceDataSource
+import com.example.tavattendance.data.store.shouldQueueAttendanceFailure
 import com.example.tavattendance.data.store.PendingAttendanceRecord
 import com.example.tavattendance.data.store.PendingAttendanceStore
 import com.example.tavattendance.data.store.observedServerMarkedAt
@@ -112,6 +113,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     private var sessionId: String = ""
+    private var rosterRevision = 0
 
     private fun currentOwnerUserId(): String? =
         SupabaseClient.client.auth.currentUserOrNull()?.id
@@ -177,12 +179,15 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadRoster() {
+        if (_isSaving.value) return
+        val revision = rosterRevision
         viewModelScope.launch {
             val hadData = _roster.value.isNotEmpty()
             if (!hadData) _isLoading.value = true
             _loadError.value = null
             runCatching { AttendanceService.fetchRoster(sessionId) }
                 .onSuccess {
+                    if (revision != rosterRevision || _isSaving.value) return@onSuccess
                     _roster.value = it
                     _localStatus.value = emptyMap()
                     _localAbsenceInformed.value = emptyMap()
@@ -200,10 +205,12 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun markAttendance(
-        entry: RosterEntry,
+        selectedEntry: RosterEntry,
         status: AttendanceStatus?,
         absenceInformed: Boolean? = null
     ) {
+        if (_isSaving.value || _isEndingClass.value) return
+        val entry = _roster.value.firstOrNull { it.studentId == selectedEntry.studentId } ?: selectedEntry
         if (!_sessionEditable.value) {
             _snackbarMessage.value = "This session is read-only."
             return
@@ -213,6 +220,8 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             _snackbarMessage.value = "Your session changed. Sign in again before marking attendance."
             return
         }
+        _isSaving.value = true
+        rosterRevision += 1
         val flag = if (status == AttendanceStatus.absent) absenceInformed else null
         // Optimistic update
         _localStatus.value = _localStatus.value + (entry.studentId to status)
@@ -230,25 +239,39 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             if (isOnline.value) {
                 runCatching {
-                    if (status == null) {
+                    val markedAt = if (status == null) {
                         AttendanceService.clearAttendance(sessionId, entry.studentId)
+                        null
                     } else {
                         AttendanceService.markAttendance(
                             sessionId = sessionId,
                             studentId = entry.studentId,
                             status = status,
                             absenceInformed = flag
-                        )
+                        ).markedAt
                     }
-                    // PERF-04: trust the optimistic override instead of re-fetching the
-                    // whole roster on every tap. The override stays until loadRoster()
-                    // is called again (pull-to-refresh / later read-only review).
-                }.onFailure {
-                    queuePending(ownerUserId, entry, status, flag)
+                    if (currentOwnerUserId()?.equals(ownerUserId, ignoreCase = true) == true) {
+                        _roster.value = _roster.value.map {
+                            if (it.studentId == entry.studentId) {
+                                it.copy(status = status, markedAt = markedAt, absenceInformed = flag)
+                            } else it
+                        }
+                    }
+                }.onFailure { error ->
+                    if (shouldQueueAttendanceFailure(error)) {
+                        queuePending(ownerUserId, entry, status, flag)
+                    } else {
+                        _localStatus.value = _localStatus.value - entry.studentId
+                        _localAbsenceInformed.value = _localAbsenceInformed.value - entry.studentId
+                        _localMarkedAt.value = _localMarkedAt.value - entry.studentId
+                        _snackbarMessage.value = "Could not save attendance. Refresh the register and try again."
+                    }
                 }
             } else {
                 queuePending(ownerUserId, entry, status, flag)
             }
+            rosterRevision += 1
+            _isSaving.value = false
         }
     }
 
@@ -281,14 +304,16 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun markAllUnmarkedAbsent() {
         if (!_sessionEditable.value) return
-        for (entry in unmarkedEntries()) {
-            // Bulk end-of-class remainder = nobody told us (absence_informed = false).
-            markAttendance(entry, AttendanceStatus.absent, absenceInformed = false)
+        viewModelScope.launch {
+            for (entry in unmarkedEntries()) {
+                markAttendance(entry, AttendanceStatus.absent, absenceInformed = false)
+                isSaving.first { !it }
+            }
         }
     }
 
     fun endClass(onComplete: () -> Unit) {
-        if (!_sessionEditable.value) return
+        if (!_sessionEditable.value || _isSaving.value || _isEndingClass.value) return
         viewModelScope.launch {
             _isEndingClass.value = true
             runCatching {
@@ -306,6 +331,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
     // Syncs ALL pending records (not just this session's) — pending marks made in a session
     // that is not opened online again would otherwise never sync.
     fun syncPending() {
+        if (_isSaving.value) return
         viewModelScope.launch {
             val ownerUserId = currentOwnerUserId() ?: run {
                 pendingStore.clear()
@@ -314,6 +340,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
             val unsynced = pendingStore.allPending(ownerUserId)
             if (unsynced.isEmpty()) return@launch
             _isSaving.value = true
+            rosterRevision += 1
             val startMs = System.currentTimeMillis()
             runCatching {
                 val result = AttendanceService.syncPending(unsynced)
@@ -354,6 +381,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                 })
                 _snackbarMessage.value = "Failed to sync attendance: ${e.localizedMessage ?: e.javaClass.simpleName}"
             }
+            rosterRevision += 1
             _isSaving.value = false
         }
     }
@@ -529,7 +557,7 @@ fun RosterScreen(
                     } else {
                         TextButton(
                             onClick = { showEndConfirm = true },
-                            enabled = !isEndingClass
+                            enabled = !isEndingClass && !isSaving
                         ) {
                             Text("End Class", color = MaterialTheme.colorScheme.error)
                         }
@@ -568,7 +596,7 @@ fun RosterScreen(
                         effectiveStatus = status,
                         absenceInformed = vm.effectiveAbsenceInformed(entry),
                         isPending = pending,
-                        enabled = canEdit,
+                        enabled = canEdit && !isSaving && !isEndingClass,
                         markedAt = markedAt,
                         timeFmt = timeFmt,
                         onStatusClick = { newStatus -> vm.markAttendance(entry, newStatus) },

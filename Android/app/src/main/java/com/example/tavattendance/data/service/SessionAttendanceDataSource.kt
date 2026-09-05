@@ -192,7 +192,7 @@ internal object SessionAttendanceDataSource {
         status: AttendanceStatus,
         notes: String? = null,
         absenceInformed: Boolean? = null
-    ) {
+    ): AttendanceWriteReceipt {
         val record = AttendanceInsert(
             sessionId = sessionId,
             studentId = studentId,
@@ -201,7 +201,10 @@ internal object SessionAttendanceDataSource {
             absenceInformed = if (status == AttendanceStatus.absent) absenceInformed else null,
             clientMutationId = UUID.randomUUID().toString()
         )
-        db.from("attendance_records").upsert(record) { onConflict = "session_id,student_id" }
+        return db.from("attendance_records").upsert(record) {
+            onConflict = "session_id,student_id"
+            select(Columns.raw("marked_at"))
+        }.decodeSingle<AttendanceWriteReceipt>()
     }
     suspend fun fetchStudentAttendanceHistory(
         studentId: String,

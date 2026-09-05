@@ -1,5 +1,6 @@
 import AppIntents
 import XCTest
+import Security
 import CryptoKit
 @testable import TAVAttendance
 
@@ -379,6 +380,60 @@ final class AttendanceLogicTests: XCTestCase {
             observedMarkedAt: observedMarkedAt,
             didObserveRow: didObserveRow
         )
+    }
+
+    func testAcknowledgedAttendanceKeepsExactServerTimestampThroughOfflineCorrection() throws {
+        let owner = UUID()
+        let raw = "2026-09-05T11:00:00.123456+00:00"
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let value = try decoder.singleValueContainer().decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return try XCTUnwrap(formatter.date(from: value))
+        }
+        let json = """
+        {"student_id":"\(UUID())","full_name":"Test","status":"present","marked_at":"\(raw)"}
+        """
+        var entry = try decoder.decode(RosterEntry.self, from: Data(json.utf8))
+        XCTAssertEqual(entry.observedMarkedAtRaw, raw)
+        let receipt = try JSONDecoder().decode(AttendanceWriteReceipt.self, from: Data(
+            #"{"marked_at":"2026-09-05T11:01:00.654321+00:00"}"#.utf8))
+        entry.acknowledge(status: .late, absenceInformed: nil, markedAt: receipt.markedAt)
+        var record = pendingRecord(ownerUserId: owner, observedMarkedAt: entry.markedAt, didObserveRow: true)
+        record.observedMarkedAtRaw = entry.observedMarkedAtRaw
+        record.applyCorrection(status: .absent, notes: nil, absenceInformed: true)
+        let data = try XCTUnwrap(PendingAttendanceQueueCodec.encode(ownerUserId: owner, records: [record]))
+        let decoded = try XCTUnwrap(PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: owner)?.first)
+        XCTAssertEqual(decoded.observedMarkedAtRaw, receipt.markedAt)
+        XCTAssertNotEqual(decoded.observedMarkedAtRaw, raw)
+        entry.acknowledge(status: nil, absenceInformed: nil, markedAt: nil)
+        XCTAssertNil(entry.status)
+        XCTAssertNil(entry.observedMarkedAtRaw)
+        XCTAssertNil(entry.markedAt)
+    }
+
+    @MainActor
+    func testPendingStoreReturnsAllOwnedSessionsForSync() throws {
+        let probe: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "test-keychain-access-" + UUID().uuidString,
+        ]
+        let status = SecItemCopyMatching(probe as CFDictionary, nil)
+        try XCTSkipIf(status == errSecMissingEntitlement,
+                      "Unsigned simulator tests cannot access the queue Keychain.")
+        XCTAssertEqual(status, errSecItemNotFound)
+        let store = PendingAttendanceStore.shared
+        let owner = UUID()
+        store.activateOwner(owner)
+        defer { store.clear() }
+        let sessions = [UUID(), UUID()]
+        for session in sessions {
+            XCTAssertTrue(store.add(ownerUserId: owner, sessionId: session, studentId: UUID(),
+                                    status: .present, notes: nil, observedMarkedAt: nil))
+        }
+        XCTAssertEqual(Set(store.allPending(ownerUserId: owner).map(\.sessionId)), Set(sessions))
+        XCTAssertTrue(store.allPending(ownerUserId: UUID()).isEmpty)
     }
 
     func testPendingQueueRoundTripRequiresMatchingEnvelopeAndRecordOwner() throws {

@@ -138,6 +138,11 @@ object RetrospectiveSessionRules {
 enum class AttendanceStatus { present, absent, late }
 
 @Serializable
+data class AttendanceWriteReceipt(
+    @SerialName("marked_at") val markedAt: String
+)
+
+@Serializable
 data class AttendanceInsert(
     @SerialName("session_id") val sessionId: String,
     @SerialName("student_id") val studentId: String,

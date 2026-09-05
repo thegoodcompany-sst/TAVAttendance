@@ -119,3 +119,13 @@ application from this table; require the remote drift/security gates.
 | 057 | reject_nric_in_messages | Reject NRIC/FIN in message subject/body (trigger + send_parent_message) | yes   |
 | 058 | offline_observed_cas   | Offline sync CAS on observed_marked_at; skip stale-queue overwrites | yes   |
 | 059 | nfc_arrival_station  | Arrival-station role, nfc_tag_bindings, tap/pair RPCs, flag `nfc_sign_in` OFF | yes   |
+| 060 | atomic_offline_attendance_cas | Atomic observed-state writes and clears preserve concurrent online corrections | yes   |
+
+Migration 060 concurrency regression (after a clean local replay):
+
+```sh
+python3 supabase/tests/sync_attendance_concurrency_test.py
+```
+
+This uses the local Supabase Docker database and real concurrent authenticated
+writes to check updates, clears, inserts, and deletion races.

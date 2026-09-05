@@ -107,3 +107,73 @@ These iOS items are ported at the data/service layer but still need Compose UI:
 - Parent portal (PROD-01) ported 2026-07-12.
 - Kiosk QR sign-in (flag `qr_sign_in`) ported 2026-07-12 (CameraX + ML Kit,
   `QrScannerSheet.kt`). Session notes (flag `session_notes`) ported 2026-07-12.
+
+## September 2026 attendance fix validation handoffs
+
+The Android parity fixes are already included. These blocks retain the separate
+platform review step before a release.
+
+```markdown
+You are verifying iOS attendance-fix parity in the Android app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Android/
+
+## Feature summary
+Online saves return the exact server marked_at used for later offline CAS.
+Queue corrections retain their original observation. Saves and sync serialize;
+End Class cannot overlap a save. Permanent server rejections do not queue.
+The implementation is present; verify it before release.
+
+## iOS files changed
+- iOS/TAVAttendance/Models/Models.swift preserves exact timestamp receipts.
+- iOS/TAVAttendance/Core/PendingAttendanceStore.swift persists raw observations.
+- iOS/TAVAttendance/Services/AttendanceService+SessionsAttendance.swift returns receipts.
+- iOS/TAVAttendance/Views/Session/RosterView.swift updates snapshots and syncs all owned sessions.
+
+## Android targets
+- Android/app/src/main/java/com/example/tavattendance/data/service/SessionAttendanceDataSource.kt
+- Android/app/src/main/java/com/example/tavattendance/data/store/PendingAttendanceStore.kt
+- Android/app/src/main/java/com/example/tavattendance/screens/RosterScreen.kt
+- Android/app/src/test/java/com/example/tavattendance/PendingAttendanceStoreTest.kt
+
+## New Supabase schema (must be consumed by Android)
+Migration 060 makes existing sync_attendance observed_marked_at comparisons
+atomic. The existing RPC signatures remain compatible. No new RPC call needed.
+
+## Sample test to write
+Mark online, queue a correction with the returned microsecond timestamp,
+persist/reload, sync, and verify the correction saves. Repeat with a competing
+server update and verify skipped_conflict preserves that update.
+
+Match existing Kotlin/Compose patterns. Do not change shared migration files.
+```
+
+```markdown
+You are verifying iOS attendance-fix parity in the Web app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/web/
+
+## Feature summary
+Native queues preserve exact acknowledged server timestamps and use atomic
+observed-state CAS. Web attendance stays online-only; do not add a browser
+queue. Verify web corrections remain authoritative when a native device syncs.
+
+## iOS files changed
+- iOS/TAVAttendance/Models/Models.swift preserves exact timestamp receipts.
+- iOS/TAVAttendance/Core/PendingAttendanceStore.swift persists raw observations.
+- iOS/TAVAttendance/Services/AttendanceService+SessionsAttendance.swift sends observations.
+- iOS/TAVAttendance/Views/Session/RosterView.swift serializes saves and sync.
+
+## Web targets
+- web/app/actions/mobile.ts
+- web/lib/mobile-queries.ts
+
+## New Supabase schema (must be consumed by Web)
+Migration 060 changes existing sync/clear internals. No new web RPC or column
+is required. Preserve online server authorization and Study Space exclusions.
+
+## Sample test to write
+A native device queues an absent mark from timestamp A. Web marks late and
+receives timestamp B. Native reconnect reports skipped_conflict and web still
+shows late. Run with synthetic students in the release environment.
+
+Match existing query/action boundaries. Do not change shared migration files.
+```

@@ -384,6 +384,14 @@ func createStudentWithConsent(
 }
 ```
 
+Web CSV import accepts up to five columns in this order: `full_name`,
+`date_of_birth`, `school`, `year_of_study`, and `notes`. A leading `name` or
+`full_name` header is optional. Quoted fields may contain commas, escaped
+quotes, and newlines. Malformed quoting or extra columns block submission.
+The server requires text fields and boolean `true` consent, reports skipped
+rows, and retains the count of successful rows. After a completed import,
+replace the CSV with only new or corrected skipped rows before submitting again.
+
 ---
 
 ## 5. Attendance Flow (Tutor)
@@ -414,7 +422,7 @@ func markAttendance(
     studentId: UUID,
     status: AttendanceStatus,
     notes: String? = nil
-) async throws {
+) async throws -> AttendanceWriteReceipt {
     let record = AttendanceInsert(
         sessionId:        sessionId,
         studentId:        studentId,
@@ -422,14 +430,18 @@ func markAttendance(
         notes:            notes,
         clientMutationId: UUID().uuidString
     )
-    try await SupabaseManager.shared.client
+    return try await SupabaseManager.shared.client
         .from("attendance_records")
         .upsert(record, onConflict: "session_id,student_id")
-        .execute()
+        .select("marked_at").single().execute().value
 }
 ```
 
 `onConflict: "session_id,student_id"` means calling this function twice for the same student in the same session updates, not duplicates.
+
+Request `.select("marked_at").single()` on the online upsert and decode its
+response as a string receipt. Keep this exact timestamp for later offline
+comparisons; a local `Date()` or a rounded timestamp is not an observation.
 
 ### 5.2 Clear a Student Back to Not Here Yet
 
@@ -636,12 +648,21 @@ newer correction replaced the row. Reusing an ID for a different
 student/session/actor is a hard `23505` collision rather than a silent skip;
 ended-session writes are counted separately in `blocked_ended_session`.
 
-Stale delayed overwrite: new clients send `observed_marked_at` — the live
-row's server `marked_at` last seen, or null if they saw no row. Migration 058
-compare-and-skips when a newer server row already exists; the skip is counted
-in `skipped`. Old clients that omit the field do not get this protection.
-It is not live in production until 058 is applied **and** those clients are
-installed. The centre kiosk does not use this queue (online-only).
+New clients send `observed_marked_at`, the exact server `marked_at` string last
+seen, or JSON null if they saw no row. Preserve all fractional digits through
+persistence and retries. Migration 060 puts the comparison inside the update,
+insert, or delete so a concurrent correction cannot pass between check and
+write. Conflicts increment `skipped_conflict`; `skipped` counts replays. Old
+clients that omit the field retain legacy behavior.
+
+Online marks return `marked_at` in the upsert response. Clients update their
+acknowledged roster snapshot from that response; a successful clear records an
+observed empty row. A queued correction retains its first observation even if
+edited again offline. iOS and Android sync all pending sessions for the current
+actor. Permanent server rejections do not become offline marks.
+
+Migration 060 must be applied and matching clients installed before claiming
+this protection in production. The centre kiosk remains online-only.
 
 ---
 

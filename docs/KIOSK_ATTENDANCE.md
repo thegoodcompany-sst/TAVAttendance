@@ -69,17 +69,46 @@ The tutor roster can queue. An orange pending dot means the mark exists only
 on that device. The website is the source of truth. Do not End Class, sign
 out, uninstall, or hop accounts while anything is pending. Do not offline-mark
 kids who already tapped the kiosk; a delayed queue can still fight that mark
-until migration 058 is applied in production and the new clients are installed.
+until migration 060 is applied in production and the new clients are installed.
 
 | Surface | Queues offline? | Wifi drop |
 |---|---|---|
 | Sign In kiosk | No | Paper. Retry the load; do not treat a failed load as a day off. |
 | Tutor roster | Yes | Orange dot. Wait for it to clear and check the website. Paper if it sticks. |
 
-New clients send `observed_marked_at` (the server `marked_at` last seen, or
-null if no row). Migration 058 compare-and-skips when a newer server row
-already exists. Device clocks are still not trusted. This protection is not
-live in production until 058 is applied and those clients are installed.
+New clients preserve the exact server `marked_at` string as
+`observed_marked_at`, or null for an empty row. Migration 060 compares that
+observation atomically with the write, including concurrent updates and clears.
+Device clocks are not trusted. Online saves refresh the acknowledged observation
+without fetching the whole roster. Both native clients sync all queued sessions
+owned by the signed-in account. They serialize saves and sync, and disable End
+Class while a save is running. Server rejections are shown instead of queued.
+
+Before relying on this protection, apply migration 060 and install matching
+clients. Old iOS queue entries stored as dates cannot recover discarded
+fractional seconds and may require manual reconciliation after a conflict.
+
+### Regression checks with synthetic students
+
+1. Mark a student online, disconnect, change the mark, reconnect, and check the
+   server row. The correction saves when no other writer intervened.
+2. Repeat with another device changing the row before reconnect. The pending
+   mark reports a conflict and preserves the other device's correction.
+3. Clear online, disconnect, mark again, and reconnect. The new mark uses an
+   observed empty row.
+4. Queue marks in two sessions. Open either roster online and verify both
+   sessions sync for the same account.
+5. Submit a mark after the server closes the session. Show the rejection and
+   keep the pending queue unchanged.
+
+### Dashboard export
+
+Only the superadmin can download the ZIP. Exports select documented columns,
+exclude Study Space at the query source, and remove related audit history from
+both old and new snapshots, including deleted records. `staff_profiles.csv`
+contains admins and tutors. Pagination has a stable unique order but is not a
+transactional snapshot across tables. Spreadsheet formula prefixes are escaped,
+including prefixes hidden behind ASCII control characters.
 
 ## Arrival station (NFC, flag `nfc_sign_in`)
 
