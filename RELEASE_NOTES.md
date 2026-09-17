@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Pin web `js-yaml` to `4.3.2` and `sharp` to `^0.35.4` so
+  `bun audit --audit-level=high` stays green after GHSA-2883-xcg3-v3hh
+  (eslint → js-yaml 4.3.1) and GHSA-rgj7-g3m4-5g8c (next → sharp 0.35.3).
 - Offline attendance now compares observations atomically in migration 060,
   preventing concurrent online corrections from being overwritten or recreated.
   Added real concurrent-write regressions to CI. Applied migration 060 to
