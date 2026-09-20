@@ -1055,8 +1055,10 @@ Signed-out Duo layout tests passed (3/3); iPhone 17 unit regressions passed
 (76 passed, one skipped). See `docs/IPHONE_DUO_QA.md` for completed manual
 checks, exact runtime, and remaining state coverage.
 
-- [ ] Sign in locally on **TAVA iPhone Duo** using the test account; identify its
-  role and disposable fixtures without putting credentials in chat or source.
+- [ ] Provide a signed-in **TAVA iPhone Duo** session or a documented secure
+  local test-account setup. The maintainer currently has no direct Mac access.
+  Identify the account role and disposable fixtures; keep credentials out of
+  chat and source.
 - [ ] Supply test access for remaining admin/tutor/parent roles and complete
   their applicable matrix cells, including synthetic mutation/replay checks.
 - [ ] Verify QR capture and device authentication on physical hardware before

@@ -108,6 +108,11 @@ Select the installed Duo destination to repeat there. Run the ordinary
   unlock, rotation during confirmation, short landscape scrolling, and a
   375 × 667 resized viewport. Device Hub clamped a requested smaller viewport;
   this is not evidence for a 320-point viewport.
+- Duo synthetic incorrect-PIN feedback counted down from four remaining
+  attempts; the fifth failure removed the keypad and showed a 30-second
+  lockout. Closing preserved the lockout and Cancel dismissed it. The damaged-
+  PIN explanation and Cancel were checked; real device-owner reset was not.
+- The main app showed an opaque privacy cover in the Duo app switcher.
 - Normal light appearance and default text size were restored after checking.
 
 Result bundles (local DerivedData `TAVAttendance-*/Logs/Test/`):
@@ -120,8 +125,10 @@ this change does not alter authentication session semantics.
 
 The inventory above is broader than the completed checks. Authenticated admin,
 tutor and parent navigation, live grid/bulk controls, all loading/error states,
-multitasking on both sides, every intermediate fold angle, lockout/recovery,
+multitasking on both sides, every intermediate fold angle, authenticated recovery,
 camera permission flows and real-device QR/biometrics still need evidence.
 A username/password account does not supply all three roles or guarantee
-synthetic records. Sign in locally and identify disposable fixtures before
-mutation tests. Do not call this a complete Duo release sign-off yet.
+synthetic records. The maintainer is remote without direct Mac access; there is no signed-in
+account available to this session. Provide an authenticated simulator session
+or a documented secure local test-account setup, and identify disposable
+fixtures before mutation tests. Do not call this a complete Duo release sign-off yet.
