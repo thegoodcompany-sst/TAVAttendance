@@ -90,6 +90,49 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tava.TAVAttendanceTests
         GENERATE_INFOPLIST_FILE: "YES"
 
+  TAVLayoutLab:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: TAVAttendance
+        excludes:
+          - TAVAttendanceApp.swift
+          - Info.plist
+          - AppIntents
+      - path: TAVAttendance/AppIntents/KioskRouter.swift
+      - path: LayoutLab
+    info:
+      path: LayoutLab/Info.plist
+      properties:
+        CFBundleDisplayName: TAVA Layout Lab
+        UILaunchScreen: {}
+    dependencies:
+      - package: Supabase
+        product: Supabase
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        PRODUCT_BUNDLE_IDENTIFIER: com.tava.LayoutLab
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        TARGETED_DEVICE_FAMILY: "1,2"
+
+  TAVAttendanceUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: TAVAttendanceUITests
+    dependencies:
+      - target: TAVAttendance
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        PRODUCT_BUNDLE_IDENTIFIER: com.tava.TAVAttendanceUITests
+        GENERATE_INFOPLIST_FILE: "YES"
+
 schemes:
   TAVAttendance:
     build:
@@ -99,3 +142,17 @@ schemes:
     test:
       targets:
         - TAVAttendanceTests
+
+  TAVAttendanceLayout:
+    build:
+      targets:
+        TAVAttendance: all
+        TAVAttendanceUITests: [test]
+    test:
+      targets:
+        - TAVAttendanceUITests
+
+  TAVLayoutLab:
+    build:
+      targets:
+        TAVLayoutLab: all

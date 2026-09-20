@@ -177,3 +177,77 @@ shows late. Run with synthetic students in the release environment.
 
 Match existing query/action boundaries. Do not change shared migration files.
 ```
+
+
+## September 2026 adaptive login and PIN handoffs
+
+### Android
+
+```markdown
+You are porting iOS feature changes to the Android app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Android/
+
+## Feature summary
+Keep login and kiosk PIN actions reachable in short, narrow, folded and
+large-text layouts. Preserve entered values across geometry changes. iOS now
+uses scrollable login/PIN content and width-adaptive keypad buttons. Follow
+Android's existing IME behavior; do not blindly change its submit semantics.
+
+## iOS files changed
+- iOS/TAVAttendance/Views/Auth/LoginView.swift — scrolling and focus navigation.
+- iOS/TAVAttendance/Views/Kiosk/KioskPINViews.swift — scrolling and flexible keypad.
+- iOS/TAVAttendanceUITests/AdaptiveLoginTests.swift — signed-out geometry checks.
+- docs/IPHONE_DUO_QA.md — device-state matrix and actual verification limits.
+
+## Android targets
+- Android/app/src/main/java/com/example/tavattendance/auth/LoginScreen.kt
+- Android/app/src/main/java/com/example/tavattendance/screens/kiosk/KioskPINDialogs.kt
+
+## New Supabase schema (must be consumed by Android)
+None.
+
+## Sample test to write
+Set a short landscape viewport and large font scale; type reserved example
+email without submitting; resize/rotate; assert the draft survives and Sign In
+remains reachable. In isolated PIN fixtures, confirm a mismatch can be retried
+and Delete/Cancel remain reachable with IME/insets respected.
+
+Implement the needed changes using existing Kotlin/Compose patterns. Preserve
+PIN verification, lockout persistence and authentication. Do not change shared
+Supabase migration files. Run Android tests, lint, build and emulator QA.
+```
+
+### Web
+
+```markdown
+You are porting iOS feature changes to the Web app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/web/
+
+## Feature summary
+Audit short/narrow login layouts, keyboard visibility and text zoom against the
+iOS adaptive-layout fix. Preserve the browser form's established Enter/submit
+behavior. Apply only issues reproduced on Web; native PIN keypad behavior has
+no direct Web counterpart in this change.
+
+## iOS files changed
+- iOS/TAVAttendance/Views/Auth/LoginView.swift — scrolling and keyboard reachability.
+- iOS/TAVAttendance/Views/Kiosk/KioskPINViews.swift — native PIN layout.
+- docs/IPHONE_DUO_QA.md — state matrix and evidence.
+
+## Web targets
+- web/app/login/page.tsx — login viewport and field/action reachability.
+- Existing browser QA coverage for login and accessibility zoom.
+
+## New Supabase schema (must be consumed by Web)
+None.
+
+## Sample test to write
+Open signed-out login at a short mobile viewport and 200% text zoom. Type a
+reserved example email without submitting; resize; assert the draft persists
+and fields, errors and Sign In can be scrolled into view without horizontal
+clipping.
+
+Read web/AGENTS.md first. Implement reproduced fixes with existing patterns;
+preserve auth routing and invite recovery. Do not change shared migrations.
+Run the prescribed Web verification and browser checks.
+```

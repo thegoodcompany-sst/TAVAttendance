@@ -94,11 +94,9 @@ struct PINSetupSheet: View {
 
     var body: some View {
         NavigationStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
-                .overlay(
-                    VStack(spacing: 40) {
-                        Spacer()
-
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 24) {
                         VStack(spacing: 16) {
                             Text(step == 1 ? "Choose a 4-digit PIN" : "Confirm your PIN")
                                 .font(.title2.bold())
@@ -118,10 +116,14 @@ struct PINSetupSheet: View {
 
                         numPad(tint: .accentColor) { digit in append(digit) } onDelete: { deleteLast() }
 
-                        Spacer()
                     }
-                    .padding(32)
-                )
+                    .multilineTextAlignment(.center)
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: geometry.size.height)
+                }
+            }
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle(storedPIN.isEmpty ? "Set PIN" : "Change PIN")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -192,83 +194,92 @@ struct PINUnlockOverlay: View {
         ZStack {
             Color.black.opacity(0.78).ignoresSafeArea()
 
-            VStack(spacing: 40) {
-                VStack(spacing: 10) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 56))
-                        .foregroundStyle(.white)
-                    Text("Admin Access")
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(.white)
-                    Text(recoveryRequired
-                         ? "Saved PIN needs secure recovery"
-                         : (isLockedOut ? "Too many attempts" : "Enter PIN to unlock"))
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-
-                if recoveryRequired {
-                    VStack(spacing: 16) {
-                        Text("Authenticate with the device passcode or biometrics to reset this damaged PIN.")
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(.white.opacity(0.8))
-                        authenticatedResetButton("Reset with Device Authentication")
-                        Button("Cancel") { onDone(false) }
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                } else if isLockedOut {
-                    VStack(spacing: 12) {
-                        Text(lockoutMessage)
-                            .font(.title2.bold())
-                            .foregroundStyle(.orange)
-                        Button("Cancel") { onDone(false) }
-                            .foregroundStyle(.white.opacity(0.7))
-                        authenticatedResetButton("Forgot PIN — Reset Kiosk")
-                            .padding(.top, 8)
-                    }
-                } else {
-                    HStack(spacing: 20) {
-                        ForEach(0..<4) { i in
-                            Circle()
-                                .fill(entered.count > i ? Color.white : Color.white.opacity(0.3))
-                                .frame(width: 18, height: 18)
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(spacing: 24) {
+                        VStack(spacing: 10) {
+                            Image(systemName: "lock.shield.fill")
+                                .font(.system(size: 56))
+                                .foregroundStyle(.white)
+                            Text("Admin Access")
+                                .font(.largeTitle.bold())
+                                .foregroundStyle(.white)
+                            Text(recoveryRequired
+                                 ? "Saved PIN needs secure recovery"
+                                 : (isLockedOut ? "Too many attempts" : "Enter PIN to unlock"))
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.7))
                         }
-                    }
 
-                    if !error.isEmpty {
-                        Text(error).foregroundStyle(.red).font(.subheadline)
-                    }
-
-                    numPad(tint: .white,
-                           onDigit: { digit in appendUnlock(digit) },
-                           onDelete: { if !entered.isEmpty { entered.removeLast() } },
-                           leading: { AnyView(
-                               Button("Cancel") { onDone(false) }
-                                   .foregroundStyle(.white.opacity(0.7))
-                                   .frame(width: 80, height: 80)
-                           ) })
-
-                    // No auto-prompt: the overlay can be opened accidentally by a student,
-                    // so biometrics require an explicit tap.
-                    if allowBiometric,
-                       let name = Biometrics.biometryName(policy: .deviceOwnerAuthenticationWithBiometrics) {
-                        Button {
-                            Task {
-                                if await Biometrics.authenticate(
-                                    reason: "Unlock kiosk admin mode",
-                                    policy: .deviceOwnerAuthenticationWithBiometrics) {
-                                    onDone(true)
+                        if recoveryRequired {
+                            VStack(spacing: 16) {
+                                Text("Authenticate with the device passcode or biometrics to reset this damaged PIN.")
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.white.opacity(0.8))
+                                authenticatedResetButton("Reset with Device Authentication")
+                                Button("Cancel") { onDone(false) }
+                                    .foregroundStyle(.white.opacity(0.7))
+                            }
+                        } else if isLockedOut {
+                            VStack(spacing: 12) {
+                                Text(lockoutMessage)
+                                    .font(.title2.bold())
+                                    .foregroundStyle(.orange)
+                                Button("Cancel") { onDone(false) }
+                                    .foregroundStyle(.white.opacity(0.7))
+                                authenticatedResetButton("Forgot PIN — Reset Kiosk")
+                                    .padding(.top, 8)
+                            }
+                        } else {
+                            HStack(spacing: 20) {
+                                ForEach(0..<4) { i in
+                                    Circle()
+                                        .fill(entered.count > i ? Color.white : Color.white.opacity(0.3))
+                                        .frame(width: 18, height: 18)
                                 }
                             }
-                        } label: {
-                            Label("Unlock with \(name)",
-                                  systemImage: name == "Touch ID" ? "touchid" : "faceid")
-                                .foregroundStyle(.white)
+
+                            if !error.isEmpty {
+                                Text(error).foregroundStyle(.red).font(.subheadline)
+                            }
+
+                            numPad(tint: .white,
+                                   onDigit: { digit in appendUnlock(digit) },
+                                   onDelete: { if !entered.isEmpty { entered.removeLast() } },
+                                   leading: { AnyView(
+                                       Button("Cancel") { onDone(false) }
+                                           .foregroundStyle(.white.opacity(0.7))
+                                           .lineLimit(1)
+                                           .minimumScaleFactor(0.5)
+                                           .frame(maxWidth: .infinity, minHeight: 64)
+                                   ) })
+
+                            // No auto-prompt: the overlay can be opened accidentally by a student,
+                            // so biometrics require an explicit tap.
+                            if allowBiometric,
+                               let name = Biometrics.biometryName(policy: .deviceOwnerAuthenticationWithBiometrics) {
+                                Button {
+                                    Task {
+                                        if await Biometrics.authenticate(
+                                            reason: "Unlock kiosk admin mode",
+                                            policy: .deviceOwnerAuthenticationWithBiometrics) {
+                                            onDone(true)
+                                        }
+                                    }
+                                } label: {
+                                    Label("Unlock with \(name)",
+                                          systemImage: name == "Touch ID" ? "touchid" : "faceid")
+                                        .foregroundStyle(.white)
+                                }
+                            }
                         }
                     }
+                    .multilineTextAlignment(.center)
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: geometry.size.height)
                 }
             }
-            .padding(48)
         }
         .onAppear { tick() }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in tick() }
@@ -339,38 +350,39 @@ func numPad(
     leading: (() -> AnyView)? = nil
 ) -> some View {
     let rows: [[String]] = [["1","2","3"],["4","5","6"],["7","8","9"]]
-    return VStack(spacing: 16) {
+    return VStack(spacing: 12) {
         ForEach(rows.indices, id: \.self) { i in
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 ForEach(rows[i], id: \.self) { d in
                     padKey(d, tint: tint, action: { onDigit(d) })
                 }
             }
         }
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             if let l = leading {
                 l()
             } else {
-                Spacer().frame(width: 80, height: 80)
+                Color.clear.frame(maxWidth: .infinity).frame(height: 64)
             }
             padKey("0", tint: tint, action: { onDigit("0") })
             Button(action: onDelete) {
                 Image(systemName: "delete.left")
                     .font(.title2)
-                    .frame(width: 80, height: 80)
+                    .frame(maxWidth: .infinity, minHeight: 64)
                     .foregroundStyle(tint)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Delete")
         }
     }
+    .frame(maxWidth: 272)
 }
 
 func padKey(_ digit: String, tint: Color, action: @escaping () -> Void) -> some View {
     Button(action: action) {
         Text(digit)
             .font(.title.weight(.light))
-            .frame(width: 80, height: 80)
+            .frame(maxWidth: .infinity, minHeight: 64)
             .background(tint.opacity(tint == .white ? 0.15 : 0.1), in: Circle())
             .foregroundStyle(tint == .white ? Color.white : Color.primary)
     }

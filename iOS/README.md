@@ -41,6 +41,14 @@ Device builds sign with the `DEVELOPMENT_TEAM` set in `project.yml`; the push
 entitlement (`aps-environment`) additionally needs the Push Notifications
 capability enabled on the App ID (see HUMANS.md).
 
+For iPhone Duo, build with Xcode 27.1's SDK and use the display/flow matrix in
+[`docs/IPHONE_DUO_QA.md`](../docs/IPHONE_DUO_QA.md). The separate
+`TAVAttendanceLayout` scheme runs signed-out login UI regressions. The
+`TAVLayoutLab` scheme builds a separate application with the real PIN controls
+and synthetic attendance cards. It has its own storage domain and no backend
+configuration; use it for destructive PIN/lockout experiments. Neither the lab
+entry point nor its fixtures are included in the production application target.
+
 ## Layout
 
 ```

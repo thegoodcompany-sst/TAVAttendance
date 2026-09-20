@@ -8,11 +8,13 @@ struct LoginView: View {
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     @State private var showingPrivacy: Bool = false
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable { case email, password }
 
     var body: some View {
-        Color(.systemGroupedBackground)
-            .ignoresSafeArea()
-            .overlay(
+        GeometryReader { geometry in
+            ScrollView {
                 VStack(spacing: 36) {
                     // Branding
                     VStack(spacing: 14) {
@@ -64,6 +66,9 @@ struct LoginView: View {
                                 .autocapitalization(.none)
                                 .disableAutocorrection(true)
                                 .textContentType(.emailAddress)
+                                .focused($focusedField, equals: .email)
+                                .submitLabel(.next)
+                                .onSubmit { focusedField = .password }
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
@@ -75,6 +80,9 @@ struct LoginView: View {
                             SecureField("Password", text: $password)
                                 .textFieldStyle(.roundedBorder)
                                 .textContentType(.password)
+                                .focused($focusedField, equals: .password)
+                                .submitLabel(.done)
+                                .onSubmit { focusedField = nil }
                         }
 
                         if let errorMessage {
@@ -112,11 +120,16 @@ struct LoginView: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: 440)
-                .padding(.horizontal, 32)
-            )
-            .sheet(isPresented: $showingPrivacy) {
-                PrivacyNoticeView()
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geometry.size.height)
             }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .sheet(isPresented: $showingPrivacy) {
+            PrivacyNoticeView()
+        }
     }
 
     private func signIn() {
