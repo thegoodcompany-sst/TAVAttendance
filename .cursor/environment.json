@@ -1,0 +1,20 @@
+{
+  "name": "TAVA Attendance",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start.sh",
+  "terminals": [
+    {
+      "name": "web-dev",
+      "command": "cd web && bun run dev"
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 3000 },
+    { "name": "supabase-api", "port": 54321 },
+    { "name": "supabase-studio", "port": 54323 }
+  ]
+}
