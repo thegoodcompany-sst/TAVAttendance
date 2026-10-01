@@ -39,7 +39,7 @@ jobs:
           fi
           scripts/drift-check.sh
           psql "$TAVA_DB_URL" -v ON_ERROR_STOP=1 -f scripts/prod-security-check.sql
-      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.109.1
       - name: Schema drift (prod vs replayed migrations)
