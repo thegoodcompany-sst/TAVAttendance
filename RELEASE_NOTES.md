@@ -5,6 +5,11 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Bump the Android Gradle wrapper to 9.6.0 so AGP 9.4.1 from the
+  android-deps Dependabot group can run. AGP 9.4 requires Gradle 9.6.0;
+  the wrapper was still on 9.5.1. Also takes Kotlin 2.4.20, core-ktx
+  1.19.1, Navigation Compose 2.10.2, Ktor 3.6.0, and Firebase BOM 34.19.0.
+
 - Take the web-production Dependabot bumps (`next` 16.3.6, React 19.3.0,
   `@supabase/ssr` 0.12.7, `@supabase/supabase-js` 2.117.2, and the other
   grouped production patches) and pin `brace-expansion` to `5.0.12` so
