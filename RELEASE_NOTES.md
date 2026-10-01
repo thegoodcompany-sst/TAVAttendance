@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Take the web-production Dependabot bumps (`next` 16.3.6, React 19.3.0,
+  `@supabase/ssr` 0.12.7, `@supabase/supabase-js` 2.117.2, and the other
+  grouped production patches) and pin `brace-expansion` to `5.0.12` so
+  `bun audit --audit-level=high` stays green after GHSA-qhr7-859c-m2p7 /
+  GHSA-6j4f-fj2g-mc7p (the previous 5.0.9 override was still vulnerable).
+
 - Pin web `js-yaml` to `4.3.2` and `sharp` to `^0.35.4` so
   `bun audit --audit-level=high` stays green after GHSA-2883-xcg3-v3hh
   (eslint → js-yaml 4.3.1) and GHSA-rgj7-g3m4-5g8c (next → sharp 0.35.3).
