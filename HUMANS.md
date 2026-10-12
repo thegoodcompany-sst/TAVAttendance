@@ -1067,3 +1067,45 @@ checks, exact runtime, and remaining state coverage.
   their applicable matrix cells, including synthetic mutation/replay checks.
 - [ ] Verify QR capture and device authentication on physical hardware before
   claiming those flows are Duo-ready. Preserve the release holds in §82.
+
+### ☐ 84. Close release verification gaps after the missing-profile RPC patch
+
+2026-10-12: migration 061 was applied from exact commit `d1fa28a` through
+`supabase db query --linked --file`. The three deployed role helpers now return
+false for absent profiles; class punctuality requires a current tutor role;
+analytics ingestion rejects a missing role. NFC remains absent under §77.
+
+Before the patch, local authenticated subjects without profiles could read an
+existing session and class totals. A still-existing Auth account with a removed
+profile could also insert an analytics event. The new regression rejects these
+paths, including retained tutor assignments/parent links and both JWT subject
+representations, while retaining valid admin/tutor/parent/station behavior.
+
+Clean replay through 061, database lint, all eight SQL suites, production
+security assertions against local replay, and all four attendance concurrency
+cases passed. Rollback/reapply and the absent-NFC migration branch passed.
+The independent reviewer identified the direct analytics NULL check; it was
+reproduced and corrected in the final candidate. No client code changed; no
+production user data or feature flags were changed for validation.
+
+Post-apply production security assertions passed through the Management API.
+All five changed live function definitions match the verified local definitions.
+`attendance_summary` retains `security_invoker=true`; the station helper and
+NFC table remain absent. Full release verification is still blocked:
+
+- [ ] Resolve the §77 NFC hold only through its existing authorization process.
+  [Remote security checks](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/38217009811)
+  failed: `Schema check FAILED — deploying this would 400 against prod:`,
+  naming missing `pair_nfc_chip`, `revoke_nfc_chip_for_student`, and
+  `get_student_nfc_binding`. The later structural comparison was skipped.
+  Reapply 061 immediately after any future authorized 059 deployment.
+- [ ] Complete the human advisor review in §75. The refreshed
+  [Advisor watch](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/38217037326)
+  again reported `46 NEW advisor finding(s) not in the accepted baseline` and
+  19 stale accepted entries. The baseline was not changed.
+- [ ] Authorize a separate web dependency update. The
+  [web audit](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/38217009715/job/114703990393)
+  failed with `4 vulnerabilities (4 high)`: `source-map-js`
+  (GHSA-68fv-2mgg-jv7q), `braces` (GHSA-vfj7-8cjw-p6xm), `next`
+  (GHSA-cjq9-62q9-8jv4), and `sharp` (GHSA-wq5f-xc86-pv6w).
+  Web tests, lint, and build were skipped after that audit failure.
