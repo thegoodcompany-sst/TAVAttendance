@@ -7,6 +7,50 @@ BEGIN TRANSACTION READ ONLY;
 SET LOCAL statement_timeout = '30s';
 SET LOCAL plpgsql.check_asserts = on;
 
+-- A missing profile must not turn IF NOT role_predicate() into IF NULL.
+DO $$
+DECLARE
+    v_subject UUID := gen_random_uuid();
+    v_sub TEXT := current_setting('request.jwt.claim.sub', TRUE);
+    v_claims TEXT := current_setting('request.jwt.claims', TRUE);
+    v_signature TEXT;
+    v_proc pg_proc%ROWTYPE;
+BEGIN
+    WHILE EXISTS (SELECT 1 FROM public.profiles WHERE id = v_subject) LOOP
+        v_subject := gen_random_uuid();
+    END LOOP;
+    PERFORM set_config('request.jwt.claim.sub', v_subject::TEXT, TRUE);
+    PERFORM set_config('request.jwt.claims', '{}', TRUE);
+    ASSERT public.get_my_role() IS NULL;
+    ASSERT public.is_admin() IS FALSE, '061 missing-profile admin check is not fail-closed';
+    ASSERT public.is_tutor() IS FALSE, '061 missing-profile tutor check is not fail-closed';
+    ASSERT public.is_parent() IS FALSE, '061 missing-profile parent check is not fail-closed';
+    IF to_regprocedure('public.is_arrival_station()') IS NOT NULL THEN
+        EXECUTE 'SELECT public.is_arrival_station()' INTO v_signature;
+        ASSERT v_signature = 'false', '061 missing-profile station check is not fail-closed';
+    END IF;
+    FOREACH v_signature IN ARRAY ARRAY[
+        'public.is_admin()', 'public.is_tutor()', 'public.is_parent()', 'public.is_arrival_station()'
+    ] LOOP
+        IF to_regprocedure(v_signature) IS NULL THEN CONTINUE; END IF;
+        SELECT * INTO STRICT v_proc FROM pg_proc WHERE oid = v_signature::REGPROCEDURE;
+        ASSERT v_proc.prosecdef AND v_proc.provolatile = 's';
+        ASSERT 'search_path=public, pg_temp' = ANY(v_proc.proconfig);
+        ASSERT NOT has_function_privilege('anon', v_signature, 'EXECUTE');
+        ASSERT has_function_privilege('authenticated', v_signature, 'EXECUTE');
+        ASSERT has_function_privilege('service_role', v_signature, 'EXECUTE');
+    END LOOP;
+    ASSERT POSITION('is_tutor() AND tutor_owns_class(p_class_id)' IN
+        pg_get_functiondef('public.class_punctuality(uuid,date,date)'::REGPROCEDURE)) > 0,
+        '061 class punctuality must require a current tutor role';
+    ASSERT POSITION('v_role IS NULL OR v_role NOT IN' IN
+        pg_get_functiondef('public.submit_app_events(jsonb)'::REGPROCEDURE)) > 0,
+        '061 analytics must reject a missing profile role';
+    PERFORM set_config('request.jwt.claim.sub', COALESCE(v_sub, ''), TRUE);
+    PERFORM set_config('request.jwt.claims', COALESCE(v_claims, '{}'), TRUE);
+END;
+$$;
+
 DO $$
 DECLARE
     v_attendance_integrity TEXT;

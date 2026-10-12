@@ -892,6 +892,10 @@ FALSE. Do **not** `supabase db push`, `supabase db reset`, or apply
 `059_nfc_arrival_station.sql` against production until the 2026 loop has
 evidence and this item is explicitly authorized.
 
+After that authorization, apply 061 immediately after 059 and before any NFC
+use: 059 defines the old nullable station-role predicate. Reapplying 061 is
+safe; keep `nfc_sign_in` OFF and run the role and security regressions.
+
 Local replay only: `supabase db reset --local`, lint, then every
 `supabase/tests/*.sql` (including `nfc_arrival_station_test.sql`).
 

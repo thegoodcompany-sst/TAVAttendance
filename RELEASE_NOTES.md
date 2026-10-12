@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Close missing-profile authorization bypasses in database RPCs: role checks
+  return false when the caller has no profile, analytics rejects a missing
+  role, and class summaries require a current tutor role as well as an
+  assignment (migration 061). Preserve the NFC
+  release hold; reapply 061 after any later migration-059 deployment.
+
 - Bump the Android Gradle wrapper to 9.6.0 so AGP 9.4.1 from the
   android-deps Dependabot group can run. AGP 9.4 requires Gradle 9.6.0;
   the wrapper was still on 9.5.1. Also takes Kotlin 2.4.20, core-ktx

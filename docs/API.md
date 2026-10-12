@@ -101,6 +101,10 @@ for await state in SupabaseManager.shared.client.auth.authStateChanges {
 ### 2.3 Get Current User & Role
 
 The user's role (`admin`, `tutor`, `parent`, `arrival_station`) is stored in the `profiles` table.
+An absent profile leaves `get_my_role()` as SQL NULL, but every Boolean role
+helper returns false. A still-valid JWT cannot replace a current application
+role. Privileged RPCs deny callers without that role; class punctuality also
+requires a current tutor role alongside an active class assignment.
 Invite UI may only mint `admin`, `tutor`, or `parent`. The arrival-station
 account is provisioned in the Dashboard and promoted with superadmin SQL
 (`HUMANS.md` §78). iOS and Android must fail closed on `arrival_station` —

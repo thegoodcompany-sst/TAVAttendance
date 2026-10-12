@@ -120,6 +120,12 @@ application from this table; require the remote drift/security gates.
 | 058 | offline_observed_cas   | Offline sync CAS on observed_marked_at; skip stale-queue overwrites | yes   |
 | 059 | nfc_arrival_station  | Arrival-station role, nfc_tag_bindings, tap/pair RPCs, flag `nfc_sign_in` OFF | yes   |
 | 060 | atomic_offline_attendance_cas | Atomic observed-state writes and clears preserve concurrent online corrections | yes   |
+| 061 | fail_closed_role_checks | Reject missing-profile RPC callers and require a current tutor role for class totals; update station predicate only where 059 is installed | yes   |
+
+Migration 061 preserves the production hold on 059. When 059 is eventually
+authorized, apply 061 again immediately afterward: 059 defines the older nullable
+station predicate. Run the role regression and production security gates before
+enabling NFC. Reapplying 061 is safe and does not change feature flags.
 
 Migration 060 concurrency regression (after a clean local replay):
 
