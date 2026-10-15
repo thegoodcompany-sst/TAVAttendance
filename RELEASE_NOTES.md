@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Bump web `next` and `eslint-config-next` to `16.3.8` (GHSA-cjq9-62q9-8jv4)
+  and pin `sharp` to `^0.35.5` (GHSA-wq5f-xc86-pv6w) and `source-map-js` to
+  `^1.2.2` (GHSA-68fv-2mgg-jv7q) so `bun audit --audit-level=high` clears
+  the patchable advisories.
 - Close missing-profile authorization bypasses in database RPCs: role checks
   return false when the caller has no profile, analytics rejects a missing
   role, and class summaries require a current tutor role as well as an
