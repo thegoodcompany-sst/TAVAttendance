@@ -5,19 +5,16 @@ import { getMobileProfile } from '@/lib/mobile-queries'
 import { classSummaryFromHistory, getStudent, getStudentResults, getStudentYearHistory } from '@/lib/queries/students'
 import { statusLabel, statusColor } from '@/lib/status'
 import { StudentDetailActions } from '@/components/mobile/student-detail-actions'
-import { isDemoRequest } from '@/lib/demo/state'
-import { DemoProfileEgg } from '@/components/demo/demo-profile-egg'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MobileStudentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [profile, student, yearHistory, results, demo] = await Promise.all([
+  const [profile, student, yearHistory, results] = await Promise.all([
     getMobileProfile(),
     getStudent(id),
     getStudentYearHistory(id),
     getStudentResults(id),
-    isDemoRequest(),
   ])
   if (!student) notFound()
 
@@ -33,8 +30,6 @@ export default async function MobileStudentPage({ params }: { params: Promise<{ 
       <p className="mt-1 text-sm text-blue-100">{[student.school, student.year_of_study].filter(Boolean).join(' · ') || 'No school details'}</p>
       {student.notes && <p className="mt-4 rounded-xl bg-white/10 px-3 py-2 text-sm text-blue-50">{student.notes}</p>}
     </section>
-
-    {demo && <DemoProfileEgg name={student.full_name} />}
 
     <StudentDetailActions student={student} initialResults={results} isAdmin={isAdmin} />
 

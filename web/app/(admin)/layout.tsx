@@ -8,7 +8,6 @@ import { isFeatureEnabled } from '@/lib/feature-flags'
 import { AnalyticsCapture } from '@/lib/analytics'
 import { isDemoRequest } from '@/lib/demo/state'
 import { DemoBadge } from '@/components/demo/demo-badge'
-import { DemoEasterEggToast } from '@/components/demo/demo-easter-egg-toast'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -67,7 +66,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-screen bg-surface">
       <AnalyticsCapture enabled={showHealth && !demo} userId={user.id} role={profile.role} />
-      {demo && <DemoEasterEggToast />}
       <Sidebar userName={userName} isSuperadmin={superadmin} showAwards={showAwards} showHealth={showHealth} />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-surface">

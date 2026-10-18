@@ -30,7 +30,7 @@ final class DemoModeTests: XCTestCase {
         XCTAssertFalse(DemoMode.isDemoEmail(""))
     }
 
-    func testSeedIsSafeCompleteAndContainsTheEasterEggs() {
+    func testSeedIsSafeAndComplete() {
         let data = DemoSeed.make(now: fixedNow)
         XCTAssertEqual(data.students.count, 24)
         XCTAssertEqual(data.classes.filter { $0.isStudySpace != true }.count, 4)
@@ -47,16 +47,7 @@ final class DemoModeTests: XCTestCase {
 
         for name in ["Lauren Tan", "Brian Chew", "Agrim Singh", "Nick Chan"] {
             XCTAssertNotNil(data.students.first { $0.fullName == name }, "\(name) should be on the demo roster")
-            XCTAssertNotNil(DemoEasterEgg.forStudent(named: name), "\(name) should have an Easter egg")
         }
-        XCTAssertNil(DemoEasterEgg.forStudent(named: "Ryan Teo"))
-        XCTAssertEqual(DemoEasterEgg.forStudent(named: " lauren tan ")?.name, "Lauren Tan")
-
-        // Lauren's perfect-attendance Easter egg is backed by the data.
-        let lauren = data.students.first { $0.fullName == "Lauren Tan" }!
-        let laurenRows = data.attendance.filter { $0.studentId == lauren.id }
-        XCTAssertFalse(laurenRows.isEmpty)
-        XCTAssertTrue(laurenRows.allSatisfy { $0.status == .present })
 
         // Three-valued status only, absence_informed only on absent rows.
         XCTAssertTrue(data.attendance.allSatisfy { $0.status != .absent ? $0.absenceInformed == nil : true })
@@ -164,5 +155,33 @@ final class DemoModeTests: XCTestCase {
         XCTAssertFalse(DemoMode.wasActiveOnLastLaunch)
         XCTAssertFalse(auth.isAuthenticated)
         XCTAssertNil(auth.currentProfile)
+    }
+
+    /// The four familiar names are the only Easter egg: they are ordinary
+    /// students with ordinary records and no special UI or messages.
+    func testFamiliarNamesAreOrdinaryStudentsWithNoEasterEggUI() async throws {
+        DemoMode.setActive(true, persist: false)
+        DemoStore.shared.reset()
+        let data = DemoStore.shared.snapshot
+        let service = AttendanceService.shared
+        func hasEmoji(_ text: String) -> Bool {
+            text.unicodeScalars.contains { $0.properties.isEmojiPresentation }
+        }
+        for name in ["Lauren Tan", "Brian Chew", "Agrim Singh", "Nick Chan"] {
+            let student = try XCTUnwrap(data.students.first { $0.fullName == name })
+            XCTAssertNil(student.avatarUrl, "\(name) has no special photo")
+            for text in [student.fullName, student.school ?? "", student.yearOfStudy ?? ""] {
+                XCTAssertFalse(hasEmoji(text), "\(name) shows no emoji")
+            }
+            let cls = try XCTUnwrap(data.enrollments.first { $0.studentId == student.id })
+            let session = try await service.getOrCreateTodaySession(classId: cls.classId)
+            _ = try await service.markAttendance(sessionId: session.id, studentId: student.id, status: .present)
+            let history = try await service.fetchStudentAttendanceHistory(studentId: student.id)
+            XCTAssertFalse(history.isEmpty)
+        }
+        let messages = DemoStore.shared.snapshot.messages.map(\.body).joined(separator: " ")
+        XCTAssertFalse(messages.localizedCaseInsensitiveContains("fun fact"))
+        XCTAssertFalse(hasEmoji(messages))
+        XCTAssertEqual(DemoNetworkGuard.blockedRequestCount, 0)
     }
 }

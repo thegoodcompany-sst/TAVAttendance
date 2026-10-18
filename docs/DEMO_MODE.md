@@ -21,9 +21,9 @@ without touching real records.
   retrospective sessions, NFC and test mode are on, so check-in works on any day.
   Push, analytics and student photos are off. File uploads and the data wipe
   say they are switched off in demo mode.
-- Easter eggs: check in or open the profile of **Lauren Tan** 🌟,
-  **Brian Chew** 🏀, **Agrim Singh** 🚀 or **Nick Chan** 🎉 for a friendly
-  banner on check-in and a fun-fact card on their profile.
+- Familiar names: **Lauren Tan**, **Brian Chew**, **Agrim Singh** and
+  **Nick Chan** are on the roster as ordinary students. Their names are the
+  only Easter egg. Demo mode adds no UI beyond the Demo badge.
 
 Demo ids are deterministic and shared by iOS and web, so a QR code printed from
 the web demo scans on the iOS demo kiosk.

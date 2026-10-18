@@ -5,14 +5,16 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
-- Demo mode: Easter-egg check-in banners no longer show confetti. The
-  banner, the fun-fact profile cards and the Demo badge are unchanged.
+- Demo mode now looks like the normal app. Removed all Easter-egg UI (check-in
+  banners, confetti, emoji and fun-fact cards). Lauren Tan, Brian Chew, Agrim
+  Singh and Nick Chan stay on the demo roster as ordinary students. The Demo
+  badge and its reset/exit menu stay.
 
 - Demo mode on iOS and web: signing in as `demo@thegoodcompanysg.dev` runs
   the app against an on-device, invented dataset and never contacts Supabase.
   It has a Demo badge with reset, sign-out resets the data, and it includes
-  Easter eggs for Lauren Tan, Brian Chew, Agrim Singh and Nick Chan. No
-  backend or schema change. CI now also builds iOS for an iPad simulator. See
+  familiar names (Lauren Tan, Brian Chew, Agrim Singh, Nick Chan) on the
+  roster. No backend or schema change. CI now also builds iOS for an iPad simulator. See
   `docs/DEMO_MODE.md`.
 
 - Bump web `next` and `eslint-config-next` to `16.3.8` (GHSA-cjq9-62q9-8jv4)

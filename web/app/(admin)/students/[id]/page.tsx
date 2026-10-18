@@ -9,8 +9,6 @@ import { StatusBadge } from '@/components/status-badge'
 import { Avatar } from '@/components/dashboard/avatar'
 import { PdpaPanel } from './pdpa-panel'
 import { NfcPanel } from './nfc-panel'
-import { isDemoRequest } from '@/lib/demo/state'
-import { DemoProfileEgg } from '@/components/demo/demo-profile-egg'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +23,7 @@ function PctBadge({ pct }: { pct: number | null }) {
 
 export default async function StudentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [nfcOn, demo] = await Promise.all([isFeatureEnabled('nfc_sign_in'), isDemoRequest()])
+  const nfcOn = await isFeatureEnabled('nfc_sign_in')
   const [student, yearHistory, results, consent, nfcBinding] = await Promise.all([
     getStudent(id),
     getStudentYearHistory(id),
@@ -48,8 +46,6 @@ export default async function StudentDetailPage({ params }: { params: Promise<{ 
         <ArrowLeft size={14} />
         All students
       </Link>
-
-      {demo && <DemoProfileEgg name={student.full_name} />}
 
       {/* Header */}
       <div className="bg-white rounded-3xl p-6 shadow-card flex items-center gap-5">

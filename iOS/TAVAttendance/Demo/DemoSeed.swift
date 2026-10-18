@@ -88,7 +88,7 @@ enum DemoSeed {
         let classN: Int
     }
 
-    /// Invented roster. Four familiar names carry Easter eggs (see DemoEasterEgg).
+    /// Invented roster (ordinary students; ids shared with web/lib/demo/seed.ts).
     static let studentSpecs: [StudentSpec] = [
         StudentSpec(n: 1, name: "Nick Chan", school: "Bukit View Primary", year: "P5", classN: 1),
         StudentSpec(n: 2, name: "Aisyah Binte Rahim", school: "Keming Primary", year: "P5", classN: 1),
@@ -126,7 +126,7 @@ enum DemoSeed {
     ]
 
     /// Deterministic attendance for past sessions: mostly present, some late,
-    /// a few absent. Lauren Tan keeps a perfect record.
+    /// a few absent. Lauren Tan has a full-attendance record.
     static func pastStatus(studentN: Int, sessionIndex: Int, name: String) -> (AttendanceStatus, Bool?, Int) {
         let v = (studentN * 37 + sessionIndex * 53 + 11) % 100
         if name == "Lauren Tan" { return (.present, nil, v) }
@@ -311,7 +311,7 @@ enum DemoSeed {
         let notice = PolicyDocument(
             id: UUID(uuidString: "de00000d-0000-4000-8000-000000000001")!,
             docType: "data_protection_notice", version: "1.1",
-            title: "TAVA Attendance — Data Protection Notice (demo)",
+            title: "TAVA Attendance — Data Protection Notice",
             body: """
             This is demo mode. Everything you see is invented sample data stored only on this device.
 

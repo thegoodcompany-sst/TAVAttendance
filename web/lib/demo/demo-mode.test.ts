@@ -16,6 +16,12 @@ const { createServerClient, createBrowserClient, createSupabaseClient, cookieJar
 
 vi.mock('server-only', () => ({}))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/navigation', () => ({
+  notFound: () => { throw new Error('NEXT_NOT_FOUND') },
+  redirect: (url: string) => { throw new Error(`NEXT_REDIRECT ${url}`) },
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn(), replace: vi.fn() }),
+  usePathname: () => '/',
+}))
 vi.mock('@supabase/ssr', () => ({ createServerClient, createBrowserClient }))
 vi.mock('@supabase/supabase-js', () => ({ createClient: createSupabaseClient }))
 vi.mock('next/headers', () => {
@@ -33,7 +39,6 @@ vi.mock('next/headers', () => {
 
 import { DEMO_COOKIE, DEMO_EMAIL, DEMO_USER_ID, isDemoEmail } from './constants'
 import { buildDemoTables, demoId, DEMO_KIND, STUDY_SPACE_CLASS_ID } from './seed'
-import { DEMO_EASTER_EGGS, easterEggFor } from './easter-eggs'
 import { decodeJournal, encodeJournal, chunk } from './journal'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -50,6 +55,9 @@ import { getPendingCorrections, getPrivacyNotice, getStudentConsent } from '@/li
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { pairNfcChip } from '@/app/actions/nfc'
 import { todayInTz } from '@/lib/date'
+import AdminStudentPage from '@/app/(admin)/students/[id]/page'
+import MobileStudentPage from '@/app/mobile/students/[id]/page'
+import { isValidElement, type ReactNode } from 'react'
 
 const fetchSpy = vi.fn(async () => {
   throw new Error('Network access is not allowed in demo mode')
@@ -73,6 +81,7 @@ function expectNoSupabase() {
 }
 
 const NICK = demoId(DEMO_KIND.student, 1)
+const FAMILIAR_NAMES = ['Lauren Tan', 'Brian Chew', 'Agrim Singh', 'Nick Chan']
 const LAUREN = demoId(DEMO_KIND.student, 7)
 
 describe('demo email', () => {
@@ -114,16 +123,14 @@ describe('demo seed', () => {
     expect(tables.sessions.filter(s => s.session_date === '2026-10-19')).toHaveLength(4)
   })
 
-  it('includes every Easter-egg student and keeps ids identical to iOS', () => {
-    for (const egg of DEMO_EASTER_EGGS) {
-      expect(tables.students.some(s => s.full_name === egg.name), egg.name).toBe(true)
+  it('includes the familiar names as ordinary students with ids identical to iOS', () => {
+    for (const name of FAMILIAR_NAMES) {
+      expect(tables.students.some(s => s.full_name === name), name).toBe(true)
     }
     expect(tables.students.find(s => s.id === 'de000003-0000-4000-8000-000000000001')?.full_name).toBe('Nick Chan')
-    expect(easterEggFor('lauren tan')?.emoji).toBe('🌟')
-    expect(easterEggFor('Rachel Lim')).toBeNull()
   })
 
-  it('gives Lauren Tan a perfect record', () => {
+  it('gives Lauren Tan a full-attendance record', () => {
     const lauren = tables.attendance_records.filter(r => r.student_id === LAUREN)
     expect(lauren.length).toBeGreaterThan(0)
     expect(lauren.every(r => r.status === 'present')).toBe(true)
@@ -251,5 +258,64 @@ describe('journal encoding', () => {
     const journal = { v: 1 as const, t: { messages: { u: { a: { id: 'a', body: 'hi' } }, d: ['b'] } } }
     expect(decodeJournal(encodeJournal(journal))).toEqual(journal)
     expect(decodeJournal('not-valid')).toEqual({ v: 1, t: {} })
+  })
+})
+
+/** Every literal string, string prop and component name in a rendered element tree. */
+function collectUi(node: ReactNode, out: string[] = []): string[] {
+  if (node === null || node === undefined || typeof node === 'boolean') return out
+  if (typeof node === 'string' || typeof node === 'number') { out.push(String(node)); return out }
+  if (Array.isArray(node)) { node.forEach(child => collectUi(child, out)); return out }
+  if (isValidElement(node)) {
+    const type = node.type as unknown
+    const typeName = typeof type === 'string' ? type
+      : typeof type === 'function' ? (type as { name?: string }).name
+      : (type as { displayName?: string; render?: { name?: string } } | null)?.displayName ?? (type as { render?: { name?: string } } | null)?.render?.name
+    out.push(`<${typeName || 'anonymous'}>`)
+    for (const [key, value] of Object.entries((node.props ?? {}) as Record<string, unknown>)) {
+      if (key === 'children') collectUi(value as ReactNode, out)
+      else if (typeof value === 'string') out.push(value)
+      else if (isValidElement(value) || Array.isArray(value)) collectUi(value as ReactNode, out)
+    }
+  }
+  return out
+}
+
+describe('familiar names are the only Easter egg', () => {
+  beforeEach(async () => {
+    await enterDemoMode(DEMO_EMAIL)
+    vi.clearAllMocks()
+  })
+
+  it('renders their student profiles exactly like any other student (no Easter-egg UI)', async () => {
+    const client = await createClient()
+    const { data: students } = await client.from('students').select('id, full_name')
+    const ordinary = students!.find(s => s.full_name === 'Ryan Teo')!
+    const shape = (ui: string[]) => ui.filter(t => t.startsWith('<')).filter((t, i, all) => all.indexOf(t) === i).sort()
+
+    for (const Page of [AdminStudentPage, MobileStudentPage]) {
+      const baseline = collectUi(await Page({ params: Promise.resolve({ id: ordinary.id }) }))
+      expect(shape(baseline).length).toBeGreaterThan(2)
+      for (const name of FAMILIAR_NAMES) {
+        const student = students!.find(s => s.full_name === name)!
+        const ui = collectUi(await Page({ params: Promise.resolve({ id: student.id }) }))
+        const text = ui.join(' ')
+        expect(text).toContain(name)
+        expect(text).not.toMatch(/fun fact|🌟|🏀|🚀|🎉|easter|confetti/i)
+        expect(ui.some(t => /^<Demo/.test(t)), `${name} profile has no demo-only component`).toBe(false)
+        // Same components as an ordinary student's profile.
+        expect(shape(ui)).toEqual(shape(baseline))
+      }
+    }
+
+    // Checking them in has no side effect beyond the attendance write.
+    const { data: sessions } = await client.from('sessions').select('id, class_id').eq('session_date', todayInTz())
+    for (const name of FAMILIAR_NAMES) {
+      const student = students!.find(s => s.full_name === name)!
+      const { data: enrollment } = await client.from('enrollments').select('class_id').eq('student_id', student.id).single()
+      const session = sessions!.find(s => s.class_id === enrollment!.class_id)!
+      expect(await markAttendance(session.id, student.id, 'present')).toEqual({ error: null })
+    }
+    expectNoSupabase()
   })
 })

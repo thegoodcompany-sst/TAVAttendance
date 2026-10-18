@@ -342,7 +342,7 @@ final class DemoStore: @unchecked Sendable {
         markedAt explicitMarkedAt: Date? = nil
     ) throws -> AttendanceWriteReceipt {
         let markedAt = explicitMarkedAt ?? now
-        let studentName: String = try write { d in
+        let _: String = try write { d in
             guard let session = d.sessions.first(where: { $0.id == sessionId }) else {
                 throw DemoModeError.notFound("session")
             }
@@ -366,9 +366,6 @@ final class DemoStore: @unchecked Sendable {
                     lateReason: status == .late ? lateReason : nil, absenceInformed: informed))
             }
             return student.fullName
-        }
-        if status == .present || status == .late {
-            DemoEasterEggCenter.post(studentName: studentName, moment: .checkIn)
         }
         return AttendanceWriteReceipt(markedAt: Self.isoFractional.string(from: markedAt))
     }
@@ -434,9 +431,6 @@ final class DemoStore: @unchecked Sendable {
                         absenceInformed: row.absenceInformed,
                         session: .init(sessionDate: s.sessionDate, class: .init(name: c.name)))
                 }
-        }
-        if let name = read({ d in d.students.first { $0.id == studentId }?.fullName }) {
-            DemoEasterEggCenter.post(studentName: name, moment: .profile)
         }
         return records
     }
@@ -591,7 +585,6 @@ final class DemoStore: @unchecked Sendable {
             guard let s = d.students.first(where: { $0.id == id }) else { throw DemoModeError.notFound("student") }
             let rows = d.attendance.filter { $0.studentId == id }
             return [
-                "demo": true,
                 "student": [
                     "id": s.id.uuidString.lowercased(),
                     "full_name": s.fullName,
