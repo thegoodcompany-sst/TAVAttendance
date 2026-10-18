@@ -8,7 +8,9 @@ final class NetworkMonitor: ObservableObject {
     init() {
         monitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async {
-                self?.isConnected = path.status == .satisfied
+                // Demo mode never needs the network, so it always behaves as online
+                // (no offline queue) even in airplane mode.
+                self?.isConnected = DemoMode.isActive || path.status == .satisfied
             }
         }
         monitor.start(queue: DispatchQueue(label: "NetworkMonitor"))

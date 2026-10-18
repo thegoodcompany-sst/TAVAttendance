@@ -251,3 +251,20 @@ Read web/AGENTS.md first. Implement reproduced fixes with existing patterns;
 preserve auth routing and invite recovery. Do not change shared migrations.
 Run the prescribed Web verification and browser checks.
 ```
+
+## Demo mode (`demo@thegoodcompanysg.dev`): iOS + web shipped 2026-10-18, Android not ported
+
+- **Feature summary:** demo email sign-in switches the app into an on-device
+  in-memory store with invented data, and makes no Supabase calls. Includes a
+  Demo badge with reset/exit, sign-out reset, and Easter eggs (Lauren Tan, Brian
+  Chew, Agrim Singh, Nick Chan).
+- **iOS files:** `iOS/TAVAttendance/Demo/*`, demo branches at the top of each
+  `AttendanceService+*.swift` method, `AuthManager` (enter/reset/exit),
+  `SupabaseManager` (guarded URLSession), `TAVAttendanceApp` (overlay).
+- **Android targets:** a `DemoRepository` behind the existing repository
+  interfaces, chosen at sign-in, plus an OkHttp interceptor that rejects all
+  requests while demo mode is on.
+- **Schema:** none. Reuse the deterministic ids from `docs/DEMO_MODE.md`
+  (`de{kind:06x}-0000-4000-8000-{n:012x}`) so QR codes match the other apps.
+- **Sample test:** demo sign-in leaves the HTTP interceptor's blocked count at 0
+  after loading the roster and marking a student present.

@@ -34,7 +34,7 @@ export default async function ParentResultsPage({
 
   const { data: slips } = await supabase
     .rpc('get_parent_result_slips', { p_student_id: studentId })
-  const adminClient = createAdminClient()
+  const adminClient = await createAdminClient()
   const resultSlips = (slips ?? []) as ParentResultSlipRow[]
 
   // Defense-in-depth: never mint a service-role signed URL for a path that is

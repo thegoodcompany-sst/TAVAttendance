@@ -107,7 +107,7 @@ struct LoginView: View {
                                     .background(Color.accentColor)
                                     .cornerRadius(10)
                             }
-                            .disabled(email.isEmpty || password.isEmpty)
+                            .disabled(email.isEmpty || (password.isEmpty && !DemoMode.isDemoEmail(email)))
                         }
                     }
                     .padding(28)

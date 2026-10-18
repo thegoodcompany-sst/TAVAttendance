@@ -28,6 +28,10 @@ final class FeatureFlagStore: ObservableObject {
 
     /// Refreshes the flag cache. Safe to call repeatedly (e.g. after sign-in).
     func load() async {
+        if DemoMode.isActive {
+            applyDemoFlags()
+            return
+        }
         do {
             let rows: [Row] = try await db
                 .from("feature_flags")
@@ -41,6 +45,16 @@ final class FeatureFlagStore: ObservableObject {
             print("FeatureFlagStore: flag load failed (\(type(of: error)))")
             #endif
         }
+    }
+
+    /// Demo mode uses a fixed local flag set and never reads `feature_flags`.
+    func applyDemoFlags() {
+        flags = DemoMode.featureFlags
+    }
+
+    /// Drops cached flags (used when leaving demo mode).
+    func clear() {
+        flags = [:]
     }
 
     func isEnabled(_ flag: FeatureFlag) -> Bool {

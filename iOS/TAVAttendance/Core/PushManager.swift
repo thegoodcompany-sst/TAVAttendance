@@ -30,7 +30,7 @@ enum PushManager {
     /// Requests notification authorization and registers for remote notifications,
     /// but only when the push_notifications flag is enabled.
     static func registerIfEnabled() async {
-        guard FeatureFlagStore.shared.isEnabled(.pushNotifications) else { return }
+        guard !DemoMode.isActive, FeatureFlagStore.shared.isEnabled(.pushNotifications) else { return }
         let center = UNUserNotificationCenter.current()
         let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
         guard granted else { return }

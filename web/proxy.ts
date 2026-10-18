@@ -1,7 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { DEMO_COOKIE, parseDemoStart } from '@/lib/demo/constants'
 
 export async function proxy(request: NextRequest) {
+  // On-device demo: the demo cookie is the whole session. Never contact
+  // Supabase Auth for a demo browser (see lib/demo/).
+  if (parseDemoStart(request.cookies.get(DEMO_COOKIE)?.value) !== null) {
+    if (request.nextUrl.pathname === '/login') {
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

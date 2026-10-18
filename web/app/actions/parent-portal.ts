@@ -69,7 +69,7 @@ export async function prepareResultSlipUpload(
   }
 
   const path = `${studentId}/${crypto.randomUUID()}-${safeObjectName(fileName)}`
-  const adminClient = createAdminClient()
+  const adminClient = await createAdminClient()
   const { error: reserveError } = await adminClient.rpc('reserve_result_slip_upload', {
     p_actor_id: user.id,
     p_student_id: studentId,
@@ -146,7 +146,7 @@ export async function finalizeResultSlipUpload(
   // Do not trust client-supplied size/type metadata. The Storage service has
   // already enforced the bucket limits; this existence/metadata check also
   // prevents creating database rows for files that were never uploaded.
-  const adminClient = createAdminClient()
+  const adminClient = await createAdminClient()
   const { data: intent, error: intentError } = await adminClient
     .from('result_slip_upload_intents')
     .select('student_id, actor_id, expected_size, expected_mime, expires_at')

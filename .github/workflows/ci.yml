@@ -165,6 +165,22 @@ jobs:
             -destination "platform=iOS Simulator,id=$simulator_id" \
             -disableAutomaticPackageResolution \
             CODE_SIGNING_ALLOWED=NO
+      - name: Build for iPad simulator
+        run: |
+          ipad_id="$(
+            xcrun simctl list devices available -j |
+              python3 -c 'import json,sys; devices=json.load(sys.stdin)["devices"].values(); print(next((d["udid"] for runtime in devices for d in runtime if d.get("isAvailable") and d["name"].startswith("iPad")), ""))'
+          )"
+          if [ -z "$ipad_id" ]; then
+            echo "::error::No available iPad simulator was found on the runner."
+            exit 1
+          fi
+          xcodebuild build \
+            -project TAVAttendance.xcodeproj \
+            -scheme TAVAttendance \
+            -destination "platform=iOS Simulator,id=$ipad_id" \
+            -disableAutomaticPackageResolution \
+            CODE_SIGNING_ALLOWED=NO
 
   migrations:
     name: Supabase (db lint)

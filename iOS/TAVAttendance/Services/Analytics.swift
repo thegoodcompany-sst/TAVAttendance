@@ -147,6 +147,11 @@ final class Analytics: NSObject {
     }
 
     func flush() async {
+        // Demo mode is offline by design: never ship telemetry from it.
+        if DemoMode.isActive {
+            buffer.removeAll()
+            return
+        }
         await flush(using: { batch in
             struct Params: Encodable {
                 let events: [AppEvent]

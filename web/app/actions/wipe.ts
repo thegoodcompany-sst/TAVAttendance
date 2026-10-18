@@ -17,7 +17,7 @@ export async function wipeOperationalData(
 
   // The destructive RPC is service-role-only so even the principal cannot
   // bypass this Storage-aware orchestration through direct PostgREST calls.
-  const { data, error } = await createAdminClient().rpc('wipe_operational_data_secure', {
+  const { data, error } = await (await createAdminClient()).rpc('wipe_operational_data_secure', {
     confirmation,
     p_actor_id: user.id,
   })
@@ -25,7 +25,7 @@ export async function wipeOperationalData(
 
   const counts = (data ?? {}) as Record<string, number>
   try {
-    const adminClient = createAdminClient()
+    const adminClient = await createAdminClient()
     await clearPrivateStudentBuckets(adminClient)
     await acknowledgeAllStudentStorageCleanup(adminClient)
   } catch (storageError) {

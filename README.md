@@ -126,6 +126,10 @@ The station role is not an invite option. Provision it per `HUMANS.md` §78.
 Admins link parent accounts to children from **/users**; the UI calls the existing
 `link_parent_student` / `unlink_parent_student` RPCs.
 
+**Demo mode:** sign in as `demo@thegoodcompanysg.dev` (any password) on iOS or
+web to get an on-device demo with invented data. It never touches Supabase.
+See [`docs/DEMO_MODE.md`](docs/DEMO_MODE.md).
+
 ---
 
 ## Roadmap

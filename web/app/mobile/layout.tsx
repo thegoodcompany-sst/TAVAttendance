@@ -4,12 +4,16 @@ import { ArrowUpRight } from 'lucide-react'
 import { getMobileProfile } from '@/lib/mobile-queries'
 import { SignOutButton } from '@/components/sign-out-button'
 import { MobileNav } from '@/components/mobile/mobile-nav'
+import { isDemoRequest } from '@/lib/demo/state'
+import { DemoBadge } from '@/components/demo/demo-badge'
+import { DemoEasterEggToast } from '@/components/demo/demo-easter-egg-toast'
 
 export default async function MobileLayout({ children }: { children: React.ReactNode }) {
   const profile = await getMobileProfile()
   if (!profile) redirect('/login?next=/mobile/classes')
   if (profile?.role === 'parent') redirect('/parent')
   if (profile?.role !== 'admin' && profile?.role !== 'tutor') redirect('/login')
+  const demo = await isDemoRequest()
 
   return (
     <div className="mobile-shell min-h-dvh bg-[linear-gradient(180deg,#eef4ff_0,#fffbf2_15rem,#fffbf2_100%)] pb-24">
@@ -20,6 +24,7 @@ export default async function MobileLayout({ children }: { children: React.React
             <p className="truncate text-[11px] font-bold uppercase tracking-[.13em] text-blue-100">{profile.fullName} · {profile.role}</p>
           </div>
           <div className="flex items-center gap-1">
+            {demo && <DemoBadge tone="dark" />}
             {profile.role === 'admin' && (
               <Link href="/" aria-label="Open desktop dashboard" className="grid h-10 w-10 place-items-center rounded-xl text-blue-100 hover:bg-white/10 hover:text-white">
                 <ArrowUpRight size={19} />
@@ -29,6 +34,7 @@ export default async function MobileLayout({ children }: { children: React.React
           </div>
         </div>
       </header>
+      {demo && <DemoEasterEggToast />}
       <main className="mx-auto max-w-2xl px-4 py-5">{children}</main>
       <MobileNav isAdmin={profile.role === 'admin'} />
     </div>
