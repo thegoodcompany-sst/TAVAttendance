@@ -331,7 +331,7 @@ export function buildDemoTables(now: number): DemoTables {
       id: 'de00000d-0000-4000-8000-000000000001',
       doc_type: 'data_protection_notice',
       version: '1.1',
-      title: 'TAVA Attendance — Data Protection Notice (demo)',
+      title: 'TAVA Attendance — Data Protection Notice',
       body: 'This is demo mode. Everything you see is invented sample data, and changes stay in this browser only.\n\nIn the real app, TAVA collects each child\'s name, school, level, and attendance so tutors can account for every child, contact parents when needed, and keep the centre safe. Data is kept only as long as it is needed and is never sold or shared for marketing.',
       is_current: true,
       published_at: iso(daysAgo(120)),

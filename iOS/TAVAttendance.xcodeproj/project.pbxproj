@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5B2BDB4BD2B6AA8C84DA0032 /* DemoEasterEggs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */; };
-		0361C579E41F81D16D95016B /* DemoEasterEggs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */; };
 		AA9F0679AD6908854025A3DF /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A2E963809AB34E6325871 /* DemoMode.swift */; };
 		62DBA40FA2F54D1D60BEE5DB /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A2E963809AB34E6325871 /* DemoMode.swift */; };
 		06C6472884849B751561FA22 /* DemoModeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D482096548E2803406F84DF4 /* DemoModeOverlay.swift */; };
@@ -163,7 +161,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoEasterEggs.swift; sourceTree = "<group>"; };
 		BD3A2E963809AB34E6325871 /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
 		D482096548E2803406F84DF4 /* DemoModeOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeOverlay.swift; sourceTree = "<group>"; };
 		75C711A6490AD28D30837D9E /* DemoSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoSeed.swift; sourceTree = "<group>"; };
@@ -271,7 +268,6 @@
 		FFD45DD3BA9A8419DE3FFBBE /* Demo */ = {
 			isa = PBXGroup;
 			children = (
-				08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */,
 				BD3A2E963809AB34E6325871 /* DemoMode.swift */,
 				D482096548E2803406F84DF4 /* DemoModeOverlay.swift */,
 				75C711A6490AD28D30837D9E /* DemoSeed.swift */,
@@ -683,7 +679,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0361C579E41F81D16D95016B /* DemoEasterEggs.swift in Sources */,
 				62DBA40FA2F54D1D60BEE5DB /* DemoMode.swift in Sources */,
 				24F616C01FC33B49A4B04A8E /* DemoModeOverlay.swift in Sources */,
 				641374116C739CA922D8D9C3 /* DemoSeed.swift in Sources */,
@@ -747,7 +742,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5B2BDB4BD2B6AA8C84DA0032 /* DemoEasterEggs.swift in Sources */,
 				AA9F0679AD6908854025A3DF /* DemoMode.swift in Sources */,
 				06C6472884849B751561FA22 /* DemoModeOverlay.swift in Sources */,
 				B62824B11B42BC153923A5B2 /* DemoSeed.swift in Sources */,

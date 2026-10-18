@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, UserCheck, X } from 'lucide-react'
-import { celebrateDemoCheckIn } from '@/lib/demo/celebrate'
 import { clearKioskAttendance, markKioskAttendance, prepareSignInBoard, signInKioskStudent } from '@/app/actions/mobile'
 import type { KioskEntry } from '@/lib/mobile-queries'
 import { statusLabel, type AttendanceStatus } from '@/lib/status'
@@ -56,8 +55,6 @@ export function SignInBoard({ initialEntries }: { initialEntries: KioskEntry[] }
           absenceInformed: previousInformed,
         } : row))
         setError(result.error)
-      } else {
-        celebrateDemoCheckIn(entry.fullName, status)
       }
     })
   }
@@ -110,7 +107,6 @@ export function SignInBoard({ initialEntries }: { initialEntries: KioskEntry[] }
         } : row))
         setError(result.error)
       } else if (result.status) {
-        celebrateDemoCheckIn(entry.fullName, result.status)
         setEntries(current => current.map(row => row.studentId === entry.studentId ? {
           ...row,
           status: result.status!,

@@ -3,7 +3,6 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Clock3, FileText, Search, UserX, X } from 'lucide-react'
-import { celebrateDemoCheckIn } from '@/lib/demo/celebrate'
 import { clearAttendance, endClass, markAttendance, markRemainingAbsent, saveMobileSessionNote } from '@/app/actions/mobile'
 import { rosterStatusLabel, type AttendanceStatus } from '@/lib/status'
 import type { MobileRosterEntry } from '@/lib/mobile-queries'
@@ -63,8 +62,6 @@ export function RosterClient({ sessionId, initialRoster, initialNotes, readOnly,
           markedAt: previousMarkedAt,
         } : row))
         setError(result.error)
-      } else {
-        celebrateDemoCheckIn(entry.fullName, status)
       }
     })
   }

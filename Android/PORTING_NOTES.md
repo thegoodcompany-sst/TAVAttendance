@@ -256,8 +256,9 @@ Run the prescribed Web verification and browser checks.
 
 - **Feature summary:** demo email sign-in switches the app into an on-device
   in-memory store with invented data, and makes no Supabase calls. Includes a
-  Demo badge with reset/exit, sign-out reset, and Easter eggs (Lauren Tan, Brian
-  Chew, Agrim Singh, Nick Chan).
+  Demo badge with reset/exit and sign-out reset. Lauren Tan, Brian Chew, Agrim
+  Singh and Nick Chan are on the roster as ordinary students, with no special
+  UI.
 - **iOS files:** `iOS/TAVAttendance/Demo/*`, demo branches at the top of each
   `AttendanceService+*.swift` method, `AuthManager` (enter/reset/exit),
   `SupabaseManager` (guarded URLSession), `TAVAttendanceApp` (overlay).

@@ -6,7 +6,6 @@
  * demo session cannot read from or write to the real database.
  */
 import { DEMO_USER_ID, DEMO_EMAIL } from './constants'
-import { easterEggFor } from './easter-eggs'
 import { STUDY_SPACE_CLASS_ID, sgDate, type DemoRow, type DemoTables } from './seed'
 
 export type DemoError = { message: string; code?: string; details?: string | null; hint?: string | null }
@@ -57,8 +56,6 @@ export type DemoDatabase = {
   /** Wall clock used for server-assigned timestamps. */
   now: () => number
   onChange?: (change: DemoChange) => void
-  /** Called with a student's name when they are checked in. */
-  onCheckIn?: (studentName: string) => void
 }
 
 const ok = <T>(data: T, count: number | null = null, status = 200): DemoResult<T> =>
@@ -417,7 +414,6 @@ class DemoQuery implements PromiseLike<DemoResult> {
       written.push(row)
     }
     this.db.onChange?.({ table: this.table, upserted: written, deleted: [] })
-    if (this.table === 'attendance_records') notifyCheckIns(this.db, written)
     if (!this.returning) return ok(null, null, 201)
     return this.shape(written)
   }
@@ -444,16 +440,6 @@ class DemoQuery implements PromiseLike<DemoResult> {
 
 function rowsById(rows: DemoRow[], shaped: Record<string, unknown>): DemoRow | undefined {
   return shaped && typeof shaped.id === 'string' ? rows.find(r => r.id === shaped.id) : undefined
-}
-
-function notifyCheckIns(db: DemoDatabase, rows: DemoRow[]) {
-  if (!db.onCheckIn) return
-  const students = db.tables.students ?? []
-  for (const row of rows) {
-    if (row.status !== 'present' && row.status !== 'late') continue
-    const name = students.find(s => s.id === row.student_id)?.full_name
-    if (typeof name === 'string' && easterEggFor(name)) db.onCheckIn(name)
-  }
 }
 
 function mutableTable(db: DemoDatabase, table: string): DemoRow[] {
@@ -724,7 +710,6 @@ const RPCS: Record<string, RpcHandler> = {
     const student = readTable(db, 'students').find(s => s.id === a.p_student_id)
     if (!student) return fail('student not found')
     return ok({
-      demo: true,
       student,
       enrollments: readTable(db, 'enrollments').filter(e => e.student_id === student.id),
       attendance: readTable(db, 'attendance_records').filter(r => r.student_id === student.id),

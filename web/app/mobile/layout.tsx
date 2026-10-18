@@ -6,7 +6,6 @@ import { SignOutButton } from '@/components/sign-out-button'
 import { MobileNav } from '@/components/mobile/mobile-nav'
 import { isDemoRequest } from '@/lib/demo/state'
 import { DemoBadge } from '@/components/demo/demo-badge'
-import { DemoEasterEggToast } from '@/components/demo/demo-easter-egg-toast'
 
 export default async function MobileLayout({ children }: { children: React.ReactNode }) {
   const profile = await getMobileProfile()
@@ -34,7 +33,6 @@ export default async function MobileLayout({ children }: { children: React.React
           </div>
         </div>
       </header>
-      {demo && <DemoEasterEggToast />}
       <main className="mx-auto max-w-2xl px-4 py-5">{children}</main>
       <MobileNav isAdmin={profile.role === 'admin'} />
     </div>
