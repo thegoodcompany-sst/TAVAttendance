@@ -23,7 +23,7 @@ without touching real records.
   say they are switched off in demo mode.
 - Easter eggs: check in or open the profile of **Lauren Tan** 🌟,
   **Brian Chew** 🏀, **Agrim Singh** 🚀 or **Nick Chan** 🎉 for a friendly
-  banner (with confetti on check-in).
+  banner on check-in and a fun-fact card on their profile.
 
 Demo ids are deterministic and shared by iOS and web, so a QR code printed from
 the web demo scans on the iOS demo kiosk.

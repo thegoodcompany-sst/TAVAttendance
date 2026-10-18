@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Demo mode: Easter-egg check-in banners no longer show confetti. The
+  banner, the fun-fact profile cards and the Demo badge are unchanged.
+
 - Demo mode on iOS and web: signing in as `demo@thegoodcompanysg.dev` runs
   the app against an on-device, invented dataset and never contacts Supabase.
   It has a Demo badge with reset, sign-out resets the data, and it includes

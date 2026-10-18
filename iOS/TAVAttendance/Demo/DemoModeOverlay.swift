@@ -10,12 +10,6 @@ struct DemoModeOverlay: View {
     var body: some View {
         ZStack {
             if let event = eggs.current {
-                if event.moment == .checkIn {
-                    DemoConfettiView(seed: event.id.hashValue)
-                        .id(event.id)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
                 VStack {
                     DemoEasterEggBanner(event: event)
                         .onTapGesture { eggs.dismiss() }
@@ -107,67 +101,5 @@ private struct DemoEasterEggBanner: View {
         .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isStaticText)
-    }
-}
-
-/// Lightweight confetti burst: coloured pieces fall once from the top edge.
-private struct DemoConfettiView: View {
-    let seed: Int
-    @State private var falling = false
-
-    private struct Piece: Identifiable {
-        let id: Int
-        let x: CGFloat
-        let delay: Double
-        let duration: Double
-        let spin: Double
-        let size: CGFloat
-        let color: Color
-    }
-
-    private var pieces: [Piece] {
-        var generator = SeededGenerator(seed: UInt64(bitPattern: Int64(seed)))
-        let colors: [Color] = [.pink, .orange, .yellow, .green, .blue, .purple, .red, .mint]
-        return (0..<48).map { i in
-            Piece(
-                id: i,
-                x: CGFloat.random(in: 0...1, using: &generator),
-                delay: Double.random(in: 0...0.6, using: &generator),
-                duration: Double.random(in: 1.6...2.8, using: &generator),
-                spin: Double.random(in: 180...720, using: &generator),
-                size: CGFloat.random(in: 7...13, using: &generator),
-                color: colors[i % colors.count])
-        }
-    }
-
-    var body: some View {
-        GeometryReader { geo in
-            ForEach(pieces) { piece in
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(piece.color)
-                    .frame(width: piece.size, height: piece.size * 0.55)
-                    .rotationEffect(.degrees(falling ? piece.spin : 0))
-                    .position(
-                        x: piece.x * geo.size.width,
-                        y: falling ? geo.size.height + 40 : -20)
-                    .animation(.easeIn(duration: piece.duration).delay(piece.delay), value: falling)
-            }
-        }
-        .ignoresSafeArea()
-        .onAppear { falling = true }
-    }
-}
-
-private struct SeededGenerator: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) { state = seed == 0 ? 0x9E3779B97F4A7C15 : seed }
-
-    mutating func next() -> UInt64 {
-        // xorshift64*
-        state ^= state >> 12
-        state ^= state << 25
-        state ^= state >> 27
-        return state &* 2685821657736338717
     }
 }
