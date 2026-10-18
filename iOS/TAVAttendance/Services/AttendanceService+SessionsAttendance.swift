@@ -168,7 +168,7 @@ extension AttendanceService {
         classId: UUID, sessionDate: String, topic: String?, notes: String?, subTutorId: UUID?
     ) async throws -> Session {
         if DemoMode.isActive { return try DemoStore.shared.createRetrospectiveSession(classId: classId, sessionDate: sessionDate, topic: topic, notes: notes, subTutorId: subTutorId) }
-        try await db.rpc(
+        return try await db.rpc(
             "create_retrospective_session",
             params: CreateRetrospectiveSessionParams(
                 classId: classId, sessionDate: sessionDate, topic: topic,
@@ -180,7 +180,7 @@ extension AttendanceService {
         sessionId: UUID, topic: String?, notes: String?, subTutorId: UUID?
     ) async throws -> Session {
         if DemoMode.isActive { return try DemoStore.shared.updateRetrospectiveSession(sessionId: sessionId, topic: topic, notes: notes, subTutorId: subTutorId) }
-        try await db.rpc(
+        return try await db.rpc(
             "update_retrospective_session",
             params: UpdateRetrospectiveSessionParams(
                 sessionId: sessionId, topic: topic, notes: notes,

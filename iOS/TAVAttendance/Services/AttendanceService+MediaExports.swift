@@ -25,7 +25,7 @@ extension AttendanceService {
     /// A short-lived signed URL for a private student photo path.
     func signedStudentPhotoURL(path: String) async throws -> URL {
         if DemoMode.isActive { throw DemoModeError.unavailable(String(localized: "Photos are not stored in demo mode.")) }
-        try await db.storage.from("student-photos").createSignedURL(path: path, expiresIn: 3600)
+        return try await db.storage.from("student-photos").createSignedURL(path: path, expiresIn: 3600)
     }
 
     // MARK: - Device tokens (PROD-02, flag: push_notifications)

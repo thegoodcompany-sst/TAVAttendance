@@ -150,7 +150,7 @@ final class DemoModeTests: XCTestCase {
     @MainActor
     func testSigningInWithTheDemoEmailNeedsNoBackendAndSignOutLeavesDemo() async throws {
         let auth = AuthManager()
-        try await auth.signIn(email: "Demo@TheGoodCompanySG.dev", password: "anything")
+        try await auth.signIn(email: "Demo@TheGoodCompanySG.dev", password: "not-a-secret")
         XCTAssertTrue(DemoMode.isActive)
         XCTAssertTrue(auth.isAuthenticated)
         XCTAssertEqual(auth.currentProfile?.role, "admin")
