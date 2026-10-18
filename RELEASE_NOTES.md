@@ -5,6 +5,13 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Demo mode on iOS and web: signing in as `demo@thegoodcompanysg.dev` runs
+  the app against an on-device, invented dataset and never contacts Supabase.
+  It has a Demo badge with reset, sign-out resets the data, and it includes
+  Easter eggs for Lauren Tan, Brian Chew, Agrim Singh and Nick Chan. No
+  backend or schema change. CI now also builds iOS for an iPad simulator. See
+  `docs/DEMO_MODE.md`.
+
 - Bump web `next` and `eslint-config-next` to `16.3.8` (GHSA-cjq9-62q9-8jv4)
   and pin `sharp` to `^0.35.5` (GHSA-wq5f-xc86-pv6w) and `source-map-js` to
   `^1.2.2` (GHSA-68fv-2mgg-jv7q) so `bun audit --audit-level=high` clears

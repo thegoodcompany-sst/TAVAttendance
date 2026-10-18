@@ -7,6 +7,7 @@ extension AttendanceService {
     /// Uploads a student photo to the `student-photos` bucket and stores its path
     /// on the student row. Returns the storage path.
     func uploadStudentPhoto(studentId: UUID, fileData: Data, fileName: String, mime: String) async throws -> String {
+        if DemoMode.isActive { throw DemoModeError.unavailable(String(localized: "Photos are not stored in demo mode.")) }
         let maxBytes = 5 * 1024 * 1024
         guard fileData.count <= maxBytes else {
             throw AppError("This photo is too large. Please choose an image under 5 MB.")
@@ -23,7 +24,8 @@ extension AttendanceService {
 
     /// A short-lived signed URL for a private student photo path.
     func signedStudentPhotoURL(path: String) async throws -> URL {
-        try await db.storage.from("student-photos").createSignedURL(path: path, expiresIn: 3600)
+        if DemoMode.isActive { throw DemoModeError.unavailable(String(localized: "Photos are not stored in demo mode.")) }
+        return try await db.storage.from("student-photos").createSignedURL(path: path, expiresIn: 3600)
     }
 
     // MARK: - Device tokens (PROD-02, flag: push_notifications)
@@ -31,6 +33,7 @@ extension AttendanceService {
     /// Registers this device's push token for the signed-in user so the
     /// notify-parent edge function can reach them. Idempotent on the token.
     func registerDeviceToken(_ token: String, platform: String = "ios") async throws {
+        if DemoMode.isActive { return }
         struct Params: Encodable {
             let token: String; let platform: String
             enum CodingKeys: String, CodingKey {
@@ -56,6 +59,7 @@ extension AttendanceService {
     /// QA-04 / MAINT-06: returns the joined `session_date` so the export uses the
     /// true session date (not `marked_at`, which is wrong for offline-synced rows).
     func fetchAttendanceForExport(classId: UUID, from: Date, to: Date) async throws -> [AttendanceExportRecord] {
+        if DemoMode.isActive { return DemoStore.shared.fetchAttendanceForExport(classId: classId, from: from, to: to) }
         let fmt = Self.ymdFormatter
         return try await db.from("attendance_records")
             .select("student_id, status, marked_at, late_reason, session:sessions!inner(session_date, class_id)")

@@ -5,26 +5,31 @@ extension AttendanceService {
     // MARK: - Classes
 
     func fetchMyClasses() async throws -> [TAVClass] {
+        if DemoMode.isActive { return DemoStore.shared.fetchMyClasses() }
         // The shaped RPC includes current assignments plus recent sessions the
         // caller is explicitly covering as a substitute.
         return try await db.rpc("get_my_classes").execute().value
     }
 
     func createClass(_ cls: ClassInsert) async throws -> TAVClass {
+        if DemoMode.isActive { return DemoStore.shared.createClass(cls) }
         return try await db.from("classes").insert(cls).select().single().execute().value
     }
 
     func updateClass(id: UUID, _ cls: ClassInsert) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.updateClass(id: id, cls) }
         try await db.from("classes").update(cls).eq("id", value: id).execute()
     }
 
     func deleteClass(id: UUID) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.deleteClass(id: id) }
         try await db.from("classes").update(["is_active": false]).eq("id", value: id).execute()
     }
 
     // MARK: - Students
 
     func fetchAllStudents() async throws -> [Student] {
+        if DemoMode.isActive { return DemoStore.shared.fetchAllStudents() }
         return try await db.from("students").select()
             .eq("is_active", value: true).order("full_name")
             .execute().value
@@ -34,6 +39,7 @@ extension AttendanceService {
     /// `students` so staff-only notes, birth dates, and actor IDs never cross
     /// the Data API boundary.
     func fetchParentChildren() async throws -> [Student] {
+        if DemoMode.isActive { return DemoStore.shared.fetchParentChildren() }
         return try await db.rpc("get_parent_children").execute().value
     }
 
@@ -53,6 +59,7 @@ extension AttendanceService {
 
     /// Creates the student and mandatory consent ledger row in one DB transaction.
     func createStudentWithConsent(_ student: StudentInsert, sourceNote: String? = nil) async throws -> Student {
+        if DemoMode.isActive { return DemoStore.shared.createStudent(student) }
         return try await db.rpc(
             "create_student_with_consent",
             params: CreateStudentWithConsentParams(
@@ -65,10 +72,12 @@ extension AttendanceService {
     }
 
     func updateStudent(id: UUID, _ student: StudentInsert) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.updateStudent(id: id, student) }
         try await db.from("students").update(student).eq("id", value: id).execute()
     }
 
     func deactivateStudent(id: UUID) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.deactivateStudent(id: id) }
         try await db.from("students").update(["is_active": false]).eq("id", value: id).execute()
     }
 
@@ -77,10 +86,12 @@ extension AttendanceService {
     /// RLS scopes rows to the caller: admins see all, tutors only students
     /// enrolled in their assigned classes.
     func fetchStudentResults() async throws -> [StudentResult] {
+        if DemoMode.isActive { return DemoStore.shared.fetchStudentResults() }
         return try await db.from("student_results").select().execute().value
     }
 
     func upsertStudentResult(studentId: UUID, subject: ResultSlipSubject, grade: String) async throws {
+        if DemoMode.isActive { return DemoStore.shared.upsertStudentResult(studentId: studentId, subject: subject, grade: grade) }
         let record = StudentResultUpsert(
             studentId: studentId,
             subject: subject.rawValue,
@@ -92,6 +103,7 @@ extension AttendanceService {
     }
 
     func deleteStudentResult(studentId: UUID, subject: ResultSlipSubject) async throws {
+        if DemoMode.isActive { return DemoStore.shared.deleteStudentResult(studentId: studentId, subject: subject) }
         try await db.from("student_results").delete()
             .eq("student_id", value: studentId)
             .eq("subject", value: subject.rawValue)
@@ -101,12 +113,14 @@ extension AttendanceService {
     // MARK: - Enrollments
 
     func fetchEnrollments(classId: UUID) async throws -> [Enrollment] {
+        if DemoMode.isActive { return DemoStore.shared.fetchEnrollments(classId: classId) }
         return try await db.from("enrollments").select()
             .eq("class_id", value: classId).eq("is_active", value: true)
             .execute().value
     }
 
     func enrollStudent(studentId: UUID, classId: UUID) async throws {
+        if DemoMode.isActive { return DemoStore.shared.enrollStudent(studentId: studentId, classId: classId) }
         struct EnrollInsert: Encodable {
             let studentId: UUID; let classId: UUID; let isActive: Bool
             enum CodingKeys: String, CodingKey {
@@ -120,6 +134,7 @@ extension AttendanceService {
     }
 
     func unenrollStudent(studentId: UUID, classId: UUID) async throws {
+        if DemoMode.isActive { return DemoStore.shared.unenrollStudent(studentId: studentId, classId: classId) }
         // MAINT-04: record when the unenrolment happened, not just is_active=false.
         struct Unenroll: Encodable {
             let isActive: Bool
@@ -139,12 +154,14 @@ extension AttendanceService {
     // MARK: - Tutor assignments
 
     func fetchTutors() async throws -> [Profile] {
+        if DemoMode.isActive { return DemoStore.shared.fetchTutors() }
         return try await db.from("profiles").select()
             .eq("role", value: "tutor").order("full_name")
             .execute().value
     }
 
     func fetchTutorAssignments(classId: UUID) async throws -> [TutorAssignment] {
+        if DemoMode.isActive { return DemoStore.shared.fetchTutorAssignments(classId: classId) }
         return try await db.from("class_tutor_assignments")
             .select("id, class_id, tutor_id")
             .eq("class_id", value: classId)
@@ -152,6 +169,7 @@ extension AttendanceService {
     }
 
     func assignTutor(tutorId: UUID, classId: UUID, assignedUntil: Date? = nil) async throws {
+        if DemoMode.isActive { return DemoStore.shared.assignTutor(tutorId: tutorId, classId: classId) }
         // MAINT-05: assigned_until can now be set (an end date for the assignment);
         // tutor_owns_class() honours it (NULL = open-ended). nil omits the column.
         struct AssignInsert: Encodable {
@@ -170,6 +188,7 @@ extension AttendanceService {
     }
 
     func unassignTutor(tutorId: UUID, classId: UUID) async throws {
+        if DemoMode.isActive { return DemoStore.shared.unassignTutor(tutorId: tutorId, classId: classId) }
         try await db.from("class_tutor_assignments")
             .delete()
             .eq("class_id", value: classId).eq("tutor_id", value: tutorId)

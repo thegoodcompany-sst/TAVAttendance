@@ -54,7 +54,12 @@ struct TAVAttendanceApp: App {
                                     TutorTabView()
                                 }
                             }
-                            if biometricUnlockEnabled && !isBioUnlocked {
+                            // Rebuilds every screen when demo data is reset.
+                            .id(authManager.demoDataGeneration)
+                            if DemoMode.isActive {
+                                DemoModeOverlay()
+                            }
+                            if biometricUnlockEnabled && !isBioUnlocked && !DemoMode.isActive {
                                 BiometricLockView(isUnlocked: $isBioUnlocked)
                             }
                         }

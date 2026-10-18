@@ -45,7 +45,7 @@ export async function inviteUser(
     return { error: 'Only the superadmin can invite another admin account.' }
   }
 
-  const adminClient = createAdminClient()
+  const adminClient = await createAdminClient()
 
   const { url: siteUrl, error: siteUrlError } = resolveSiteUrl()
   if (siteUrlError || !siteUrl) return { error: siteUrlError ?? 'SITE_URL misconfigured.' }
@@ -108,7 +108,7 @@ export async function removeUser(userId: string): Promise<{ error: string | null
 
   if (profile?.role !== 'admin') return { error: 'Only admins can remove users.' }
 
-  const adminClient = createAdminClient()
+  const adminClient = await createAdminClient()
 
   // Guard: a plain admin must not be able to delete another admin (or the
   // superadmin who controls feature flags). Only the superadmin may remove admins.

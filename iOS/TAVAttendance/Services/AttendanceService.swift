@@ -32,4 +32,10 @@ final class AttendanceService {
     }()
 
     private init() {}
+
+    /// The signed-in account that owns local offline state. In demo mode this is
+    /// the local demo admin; otherwise the Supabase session user.
+    var currentUserId: UUID? {
+        DemoMode.isActive ? DemoMode.userId : db.auth.currentSession?.user.id
+    }
 }

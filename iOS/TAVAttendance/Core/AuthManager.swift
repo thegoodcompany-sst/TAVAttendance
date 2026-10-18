@@ -6,18 +6,65 @@ final class AuthManager: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentProfile: Profile? = nil
     @Published var isLoading = true
+    /// Changes whenever demo data is (re)seeded so the signed-in UI rebuilds and reloads.
+    @Published private(set) var demoDataGeneration = UUID()
 
     private let supabase = SupabaseManager.shared.client
 
     init() {
+        // A relaunch inside demo mode stays in demo mode (with freshly seeded data).
+        if DemoMode.wasActiveOnLastLaunch {
+            enterDemoMode()
+        }
         Task {
             await listenToAuthChanges()
         }
     }
 
+    // MARK: - On-device demo mode
+
+    /// Switches to the seeded on-device demo. No Supabase call is made.
+    func enterDemoMode() {
+        PendingAttendanceStore.shared.clear()
+        DemoMode.setActive(true)
+        DemoStore.shared.reset()
+        DemoEasterEggCenter.shared.reset()
+        FeatureFlagStore.shared.applyDemoFlags()
+        Analytics.shared.role = DemoMode.profile.role
+        currentProfile = DemoMode.profile
+        demoDataGeneration = UUID()
+        isAuthenticated = true
+        isLoading = false
+    }
+
+    /// Throws away every change made during the demo and reseeds it.
+    func resetDemoData() {
+        guard DemoMode.isActive else { return }
+        DemoStore.shared.reset()
+        DemoEasterEggCenter.shared.reset()
+        demoDataGeneration = UUID()
+    }
+
+    private func exitDemoMode() {
+        DemoMode.setActive(false)
+        DemoStore.shared.reset()
+        DemoEasterEggCenter.shared.reset()
+        FeatureFlagStore.shared.clear()
+        PendingAttendanceStore.shared.clear()
+        Analytics.shared.role = nil
+        currentProfile = nil
+        isAuthenticated = false
+        isLoading = false
+    }
+
     private func listenToAuthChanges() async {
-        isLoading = true
+        if !DemoMode.isActive { isLoading = true }
         for await (event, session) in supabase.auth.authStateChanges {
+            // Demo mode owns the signed-in state; ignore Supabase session events.
+            if DemoMode.isActive {
+                isLoading = false
+                continue
+            }
             switch event {
             case .signedIn:
                 if let userId = session?.user.id {
@@ -51,6 +98,7 @@ final class AuthManager: ObservableObject {
     }
 
     private func fetchProfile(userId: UUID) async {
+        guard !DemoMode.isActive else { return }
         // Role drives which UI is shown (admin/parent/tutor). A nil profile silently
         // falls through to the tutor UI — an admin/parent would land in the wrong app.
         // Retry a few times, then sign out rather than route them incorrectly.
@@ -83,10 +131,18 @@ final class AuthManager: ObservableObject {
     }
 
     func signIn(email: String, password: String) async throws {
+        if DemoMode.isDemoEmail(email) {
+            enterDemoMode()
+            return
+        }
         try await supabase.auth.signIn(email: email, password: password)
     }
 
     func signOut() async throws {
+        if DemoMode.isActive {
+            exitDemoMode()
+            return
+        }
         // Clear synchronously before the auth request so no stale queue survives an
         // offline/failed sign-out or becomes visible to a subsequent account.
         PendingAttendanceStore.shared.clear()

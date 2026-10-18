@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { isDemoEmail } from '@/lib/demo/constants'
+import { enterDemoMode } from '@/app/actions/demo'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -60,6 +62,20 @@ export default function LoginPage() {
     e.preventDefault()
     setError(null)
     setLoading(true)
+
+    // Demo account: runs entirely on this device against invented data and
+    // never contacts Supabase. Any password works.
+    if (isDemoEmail(email)) {
+      const { error: demoError } = await enterDemoMode(email)
+      if (demoError) {
+        setError(demoError)
+        setLoading(false)
+        return
+      }
+      router.push('/')
+      router.refresh()
+      return
+    }
 
     const supabase = createClient()
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
@@ -149,7 +165,7 @@ export default function LoginPage() {
               <input
                 id="password"
                 type="password"
-                required
+                required={!isDemoEmail(email)}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-border px-3 py-2 text-sm shadow-sm focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/40"

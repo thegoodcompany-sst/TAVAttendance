@@ -6,6 +6,7 @@ extension AttendanceService {
 
     /// Fetches the current Data Protection Notice. Any authenticated user may read it.
     func fetchPrivacyNotice() async throws -> PolicyDocument? {
+        if DemoMode.isActive { return DemoStore.shared.fetchPrivacyNotice() }
         let rows: [PolicyDocument] = try await db.from("policy_documents")
             .select()
             .eq("doc_type", value: "data_protection_notice")
@@ -40,6 +41,7 @@ extension AttendanceService {
         status: ConsentStatus = .granted,
         sourceNote: String? = nil
     ) async throws {
+        if DemoMode.isActive { return DemoStore.shared.recordConsent(studentId: studentId, consentType: consentType, status: status) }
         try await db.rpc(
             "record_admin_consent",
             params: RecordAdminConsentParams(
@@ -69,6 +71,7 @@ extension AttendanceService {
 
     /// Returns the latest consent row per (student, type) for one student, from `current_consent`.
     func fetchCurrentConsent(studentId: UUID) async throws -> [ConsentRecord] {
+        if DemoMode.isActive { return DemoStore.shared.fetchCurrentConsent(studentId: studentId) }
         return try await db.from("current_consent")
             .select()
             .eq("student_id", value: studentId)
@@ -102,6 +105,7 @@ extension AttendanceService {
     /// Calls the admin-guarded RPC and returns the raw JSON bytes of the personal-data bundle.
     /// The RPC also logs a `data_disclosures` row server-side.
     func exportStudentPersonalData(id: UUID) async throws -> Data {
+        if DemoMode.isActive { return try DemoStore.shared.exportStudentPersonalData(id: id) }
         // The RPC returns a JSONB value; capture it as raw Data so we can write it to disk verbatim.
         let response = try await db
             .rpc("export_student_personal_data", params: ["p_student_id": id.uuidString])
@@ -112,6 +116,7 @@ extension AttendanceService {
     // MARK: - PDPA: correction requests (#A1)
 
     func fetchCorrectionRequests(status: CorrectionStatus = .pending) async throws -> [CorrectionRequest] {
+        if DemoMode.isActive { return DemoStore.shared.fetchCorrectionRequests(status: status) }
         return try await db.from("correction_requests")
             .select()
             .eq("status", value: status.rawValue)
@@ -133,6 +138,7 @@ extension AttendanceService {
         decision: CorrectionStatus,
         note: String?
     ) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.reviewCorrection(id: id, decision: decision, note: note) }
         struct Params: Encodable {
             let requestId: UUID
             let decision: String

@@ -13,6 +13,12 @@ final class SupabaseManager {
         else {
             fatalError("Supabase config missing. Add SUPABASE_PROJECT_URL and SUPABASE_ANON_KEY to Config.xcconfig (copy from Config.xcconfig.example).")
         }
-        client = SupabaseClient(supabaseURL: url, supabaseKey: anonKey)
+        // Every request goes through DemoNetworkGuard first, which refuses to send
+        // anything while on-device demo mode is active.
+        client = SupabaseClient(
+            supabaseURL: url,
+            supabaseKey: anonKey,
+            options: SupabaseClientOptions(global: .init(session: DemoNetworkGuard.guardedSession()))
+        )
     }
 }

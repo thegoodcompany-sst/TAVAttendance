@@ -168,13 +168,19 @@ struct ResultSlipUploadSheet: View {
         )
 
         do {
-            let _: ResultSlip = try await SupabaseManager.shared.client
-                .from("result_slips")
-                .insert(insert)
-                .select()
-                .single()
-                .execute()
-                .value
+            if DemoMode.isActive {
+                _ = DemoStore.shared.createResultSlip(
+                    studentId: insert.studentId, examName: insert.examName, examDate: insert.examDate,
+                    subject: insert.subject, score: insert.score, maxScore: insert.maxScore)
+            } else {
+                let _: ResultSlip = try await SupabaseManager.shared.client
+                    .from("result_slips")
+                    .insert(insert)
+                    .select()
+                    .single()
+                    .execute()
+                    .value
+            }
             await onSaved()
             dismiss()
         } catch {

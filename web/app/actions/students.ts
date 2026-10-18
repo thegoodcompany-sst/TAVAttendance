@@ -172,7 +172,7 @@ export async function anonymiseStudent(studentId: string): Promise<{ error: stri
   const { error: authErr, user } = await requireAdmin()
   if (authErr || !user) return { error: authErr ?? 'Not authenticated.' }
 
-  const adminClient = createAdminClient()
+  const adminClient = await createAdminClient()
 
   try {
     await removeStudentPrivateFiles(adminClient, studentId)
@@ -209,7 +209,7 @@ export async function eraseStudent(studentId: string): Promise<{ error: string |
   const { error: authErr, user } = await requireAdmin()
   if (authErr || !user) return { error: authErr ?? 'Not authenticated.' }
 
-  const adminClient = createAdminClient()
+  const adminClient = await createAdminClient()
 
   try {
     await removeStudentPrivateFiles(adminClient, studentId)

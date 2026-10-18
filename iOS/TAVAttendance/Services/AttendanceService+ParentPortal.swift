@@ -7,6 +7,7 @@ extension AttendanceService {
         limit: Int = 100,
         since: Date? = nil
     ) async throws -> [AttendanceHistoryRecord] {
+        if DemoMode.isActive { return DemoStore.shared.fetchStudentAttendanceHistory(studentId: studentId, limit: limit, since: since) }
         struct Params: Encodable {
             let studentId: UUID
             let limit: Int
@@ -33,6 +34,7 @@ extension AttendanceService {
 
     /// Parent-safe projection installed by migration 038.
     func fetchResultSlips(studentId: UUID) async throws -> [ResultSlip] {
+        if DemoMode.isActive { return DemoStore.shared.fetchResultSlips(studentId: studentId) }
         return try await db.rpc(
             "get_parent_result_slips",
             params: ["p_student_id": studentId.uuidString]
@@ -41,6 +43,7 @@ extension AttendanceService {
 
     /// Staff retain their RLS-scoped base-table view.
     func fetchStaffResultSlips(studentId: UUID) async throws -> [ResultSlip] {
+        if DemoMode.isActive { return DemoStore.shared.fetchResultSlips(studentId: studentId) }
         return try await db.from("result_slips")
             .select()
             .eq("student_id", value: studentId)
@@ -57,6 +60,7 @@ extension AttendanceService {
         score: Double,
         maxScore: Double
     ) async throws -> ResultSlip {
+        if DemoMode.isActive { return DemoStore.shared.createResultSlip(studentId: studentId, examName: examName, examDate: examDate, subject: subject, score: score, maxScore: maxScore) }
         struct Params: Encodable {
             let studentId: UUID
             let examName: String
@@ -94,6 +98,7 @@ extension AttendanceService {
     // MARK: - Parent messages (Phase 2)
 
     func fetchMessages(studentId: UUID) async throws -> [ParentMessage] {
+        if DemoMode.isActive { return DemoStore.shared.fetchMessages(studentId: studentId) }
         return try await db.rpc(
             "get_parent_messages",
             params: ["p_student_id": studentId.uuidString]
@@ -109,6 +114,7 @@ extension AttendanceService {
         if subject?.contains(nric) == true || body.contains(nric) {
             throw AppError("Messages must not contain an NRIC/FIN.")
         }
+        if DemoMode.isActive { return DemoStore.shared.sendMessage(studentId: studentId, subject: subject, body: body) }
         struct Params: Encodable {
             let studentId: UUID
             let subject: String?
@@ -137,6 +143,7 @@ extension AttendanceService {
     // MARK: - Parent linking (#13)
 
     func fetchParents() async throws -> [Profile] {
+        if DemoMode.isActive { return DemoStore.shared.fetchParents() }
         return try await db.from("profiles")
             .select()
             .eq("role", value: "parent")
@@ -145,6 +152,7 @@ extension AttendanceService {
     }
 
     func fetchParentLinks(parentId: UUID) async throws -> [UUID] {
+        if DemoMode.isActive { return DemoStore.shared.fetchParentLinks(parentId: parentId) }
         struct Link: Codable { let studentId: UUID; enum CodingKeys: String, CodingKey { case studentId = "student_id" } }
         let rows: [Link] = try await db.from("parent_student_links")
             .select("student_id")
@@ -154,6 +162,7 @@ extension AttendanceService {
     }
 
     func linkParentToStudent(parentId: UUID, studentId: UUID) async throws {
+        if DemoMode.isActive { return DemoStore.shared.linkParent(parentId: parentId, studentId: studentId) }
         try await db.rpc("link_parent_student", params: [
             "p_parent": parentId.uuidString,
             "p_student": studentId.uuidString
@@ -161,6 +170,7 @@ extension AttendanceService {
     }
 
     func unlinkParentFromStudent(parentId: UUID, studentId: UUID) async throws {
+        if DemoMode.isActive { return DemoStore.shared.unlinkParent(parentId: parentId, studentId: studentId) }
         try await db.rpc("unlink_parent_student", params: [
             "p_parent": parentId.uuidString,
             "p_student": studentId.uuidString

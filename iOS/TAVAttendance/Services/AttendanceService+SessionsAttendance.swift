@@ -74,12 +74,14 @@ extension AttendanceService {
     // MARK: - Sessions
 
     func fetchSessions(for classId: UUID) async throws -> [Session] {
+        if DemoMode.isActive { return DemoStore.shared.fetchSessions(for: classId) }
         return try await db.from("sessions").select()
             .eq("class_id", value: classId).order("session_date", ascending: false)
             .execute().value
     }
 
     func getOrCreateTodaySession(classId: UUID) async throws -> Session {
+        if DemoMode.isActive { return DemoStore.shared.getOrCreateTodaySession(classId: classId) }
         // The database derives the Singapore civil date and handles the unique
         // create race. For substitutes it returns only their pre-assigned row;
         // it never turns a substitution into class-wide session-create authority.
@@ -91,6 +93,7 @@ extension AttendanceService {
 
     /// Sets started_at = NOW(). Call only when the session has not yet been started.
     func startSession(id: UUID) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.startSession(id: id) }
         try await db.rpc("set_session_lifecycle", params: [
             "p_session_id": id.uuidString,
             "p_action": "start",
@@ -99,6 +102,7 @@ extension AttendanceService {
 
     /// Sets ended_at = NOW(). Does not affect started_at or attendance records.
     func endSession(id: UUID) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.endSession(id: id) }
         try await db.rpc("set_session_lifecycle", params: [
             "p_session_id": id.uuidString,
             "p_action": "end",
@@ -108,6 +112,7 @@ extension AttendanceService {
     /// Saves the tutor's free-text note on a session (flag `session_notes`).
     /// An empty note is stored as SQL NULL, sent explicitly (the SDK omits nil properties).
     func updateSessionNotes(id: UUID, notes: String?) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.updateSessionNotes(id: id, notes: notes) }
         struct Params: Encodable {
             let sessionId: UUID
             let notes: String?
@@ -162,7 +167,8 @@ extension AttendanceService {
     func createRetrospectiveSession(
         classId: UUID, sessionDate: String, topic: String?, notes: String?, subTutorId: UUID?
     ) async throws -> Session {
-        try await db.rpc(
+        if DemoMode.isActive { return try DemoStore.shared.createRetrospectiveSession(classId: classId, sessionDate: sessionDate, topic: topic, notes: notes, subTutorId: subTutorId) }
+        return try await db.rpc(
             "create_retrospective_session",
             params: CreateRetrospectiveSessionParams(
                 classId: classId, sessionDate: sessionDate, topic: topic,
@@ -173,7 +179,8 @@ extension AttendanceService {
     func updateRetrospectiveSession(
         sessionId: UUID, topic: String?, notes: String?, subTutorId: UUID?
     ) async throws -> Session {
-        try await db.rpc(
+        if DemoMode.isActive { return try DemoStore.shared.updateRetrospectiveSession(sessionId: sessionId, topic: topic, notes: notes, subTutorId: subTutorId) }
+        return try await db.rpc(
             "update_retrospective_session",
             params: UpdateRetrospectiveSessionParams(
                 sessionId: sessionId, topic: topic, notes: notes,
@@ -184,12 +191,14 @@ extension AttendanceService {
     // MARK: - Roster & Attendance
 
     func fetchRoster(sessionId: UUID) async throws -> [RosterEntry] {
+        if DemoMode.isActive { return try DemoStore.shared.fetchRoster(sessionId: sessionId) }
         return try await db
             .rpc("get_session_roster", params: ["p_session_id": sessionId.uuidString])
             .execute().value
     }
 
     func fetchRetrospectiveRoster(sessionId: UUID) async throws -> [RosterEntry] {
+        if DemoMode.isActive { return try DemoStore.shared.fetchRoster(sessionId: sessionId) }
         struct Params: Encodable {
             let sessionId: UUID
             enum CodingKeys: String, CodingKey { case sessionId = "session_id" }
@@ -203,6 +212,7 @@ extension AttendanceService {
         sessionId: UUID, studentId: UUID, status: AttendanceStatus?,
         absenceInformed: Bool? = nil
     ) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.markRetrospectiveAttendance(sessionId: sessionId, studentId: studentId, status: status, absenceInformed: absenceInformed) }
         struct Params: Encodable {
             let sessionId: UUID
             let studentId: UUID
@@ -241,6 +251,7 @@ extension AttendanceService {
         notes: String? = nil, lateReason: String? = nil,
         absenceInformed: Bool? = nil
     ) async throws -> AttendanceWriteReceipt {
+        if DemoMode.isActive { return try DemoStore.shared.markAttendance(sessionId: sessionId, studentId: studentId, status: status, notes: notes, lateReason: lateReason, absenceInformed: absenceInformed) }
         let record = AttendanceInsert(
             sessionId: sessionId, studentId: studentId, status: status,
             notes: notes, lateReason: lateReason,
@@ -252,6 +263,7 @@ extension AttendanceService {
     }
 
     func clearAttendance(sessionId: UUID, studentId: UUID, clientMutationId: String = UUID().uuidString) async throws {
+        if DemoMode.isActive { return DemoStore.shared.clearAttendance(sessionId: sessionId, studentId: studentId) }
         struct Params: Encodable {
             let sessionId: UUID
             let studentId: UUID
@@ -269,6 +281,7 @@ extension AttendanceService {
     }
 
     func fetchStudentAttendanceHistory(studentId: UUID, limit: Int = 100, since: Date? = nil) async throws -> [AttendanceHistoryRecord] {
+        if DemoMode.isActive { return DemoStore.shared.fetchStudentAttendanceHistory(studentId: studentId, limit: limit, since: since) }
         // QA-05: the `since` window must filter on the session date (the real class
         // date), not marked_at. An offline record marked weeks ago but synced today
         // belongs in the window for its session date. `!inner` makes session an INNER
@@ -300,6 +313,7 @@ extension AttendanceService {
     func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (
         synced: Int, skipped: Int, blockedEndedSession: Int, skippedConflict: Int
     ) {
+        if DemoMode.isActive { return try DemoStore.shared.syncPending(records) }
         guard let currentUserId = db.auth.currentSession?.user.id else {
             throw AppError("Cannot sync attendance without an authenticated account.")
         }
@@ -341,6 +355,7 @@ extension AttendanceService {
     // MARK: - Punctuality (#8)
 
     func fetchClassPunctuality(classId: UUID, from: Date, to: Date) async throws -> PunctualitySummary {
+        if DemoMode.isActive { return DemoStore.shared.fetchClassPunctuality(classId: classId, from: from, to: to) }
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withFullDate]
         let rows: [PunctualitySummary] = try await db
@@ -358,6 +373,7 @@ extension AttendanceService {
     // MARK: - Substitution (#16)
 
     func setSessionSubstitute(sessionId: UUID, tutorId: UUID?) async throws {
+        if DemoMode.isActive { return try DemoStore.shared.setSessionSubstitute(sessionId: sessionId, tutorId: tutorId) }
         struct Patch: Encodable {
             let subTutorId: UUID?
             enum CodingKeys: String, CodingKey { case subTutorId = "sub_tutor_id" }

@@ -284,7 +284,7 @@ struct RosterView: View {
     // MARK: - Computed helpers
 
     private var currentOwnerUserId: UUID? {
-        SupabaseManager.shared.client.auth.currentSession?.user.id
+        AttendanceService.shared.currentUserId
     }
 
     private var pendingForCurrentUser: [PendingAttendanceRecord] {

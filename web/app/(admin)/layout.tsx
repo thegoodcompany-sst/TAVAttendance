@@ -6,6 +6,9 @@ import { Sidebar } from '@/components/dashboard/sidebar'
 import { isSuperadmin } from '@/lib/superadmin'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { AnalyticsCapture } from '@/lib/analytics'
+import { isDemoRequest } from '@/lib/demo/state'
+import { DemoBadge } from '@/components/demo/demo-badge'
+import { DemoEasterEggToast } from '@/components/demo/demo-easter-egg-toast'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -54,21 +57,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   const userName = profile.full_name ?? 'Admin'
-  const [superadmin, showAwards, showHealth] = await Promise.all([
+  const [superadmin, showAwards, showHealth, demo] = await Promise.all([
     isSuperadmin(supabase),
     isFeatureEnabled('awards'),
     isFeatureEnabled('analytics'),
+    isDemoRequest(),
   ])
 
   return (
     <div className="flex min-h-screen bg-surface">
-      <AnalyticsCapture enabled={showHealth} userId={user.id} role={profile.role} />
+      <AnalyticsCapture enabled={showHealth && !demo} userId={user.id} role={profile.role} />
+      {demo && <DemoEasterEggToast />}
       <Sidebar userName={userName} isSuperadmin={superadmin} showAwards={showAwards} showHealth={showHealth} />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-surface">
         {/* Mobile top nav */}
         <header className="md:hidden print:hidden bg-white border-b border-border h-14 flex items-center justify-between gap-3 px-4 sticky top-0 z-10">
-          <span className="flex-shrink-0 font-display font-semibold text-brand text-xl">TAVA</span>
+          <span className="flex flex-shrink-0 items-center gap-2">
+            <span className="font-display font-semibold text-brand text-xl">TAVA</span>
+            {demo && <DemoBadge />}
+          </span>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
             <nav className="flex min-w-0 gap-0.5 overflow-x-auto">
               {[
@@ -107,7 +115,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </header>
 
         {/* Desktop top bar */}
-        <header className="hidden md:flex print:hidden bg-white border-b border-border h-14 items-center justify-end px-6 sticky top-0 z-10 flex-shrink-0">
+        <header className={`hidden md:flex print:hidden bg-white border-b border-border h-14 items-center px-6 sticky top-0 z-10 flex-shrink-0 ${demo ? 'justify-between' : 'justify-end'}`}>
+          {demo && <DemoBadge />}
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{userName}</span>
             <SignOutButton />

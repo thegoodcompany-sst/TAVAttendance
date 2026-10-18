@@ -204,6 +204,7 @@ extension AttendanceService {
     /// Loads today's Study Space session (creating it on first use) and the roster of
     /// ALL active students with their current Present/Not-Here-Yet status for it.
     func loadStudySpace() async throws -> (session: Session, roster: [RosterEntry]) {
+        if DemoMode.isActive { return try DemoStore.shared.loadStudySpace() }
         let session = try await getOrCreateTodaySession(classId: Self.studySpaceClassId)
         let roster: [RosterEntry] = try await db
             .rpc("get_study_space_roster", params: ["p_session_id": session.id.uuidString])
@@ -215,6 +216,7 @@ extension AttendanceService {
     // MARK: - Dismissals (#15)
 
     func recordDismissal(sessionId: UUID, studentId: UUID) async throws -> Dismissal {
+        if DemoMode.isActive { return DemoStore.shared.recordDismissal(sessionId: sessionId, studentId: studentId) }
         struct DismissalInsert: Encodable {
             let sessionId: UUID; let studentId: UUID; let dismissedAt: Date
             enum CodingKeys: String, CodingKey {
@@ -229,6 +231,7 @@ extension AttendanceService {
     }
 
     func undoDismissal(sessionId: UUID, studentId: UUID) async throws {
+        if DemoMode.isActive { return DemoStore.shared.undoDismissal(sessionId: sessionId, studentId: studentId) }
         try await db.from("dismissals")
             .delete()
             .eq("session_id", value: sessionId)
@@ -238,6 +241,7 @@ extension AttendanceService {
 
     /// Returns a map of studentId → Dismissal for the given students across today's sessions.
     func fetchTodaysDismissals(sessionIds: [UUID]) async throws -> [UUID: Dismissal] {
+        if DemoMode.isActive { return DemoStore.shared.fetchTodaysDismissals(sessionIds: sessionIds) }
         guard !sessionIds.isEmpty else { return [:] }
         let rows: [Dismissal] = try await db.from("dismissals")
             .select()
@@ -256,6 +260,7 @@ extension AttendanceService {
 
     /// Parent-safe dismissal projection; session and actor identifiers stay server-side.
     func fetchTodayDismissals() async throws -> [Dismissal] {
+        if DemoMode.isActive { return DemoStore.shared.fetchTodayDismissals() }
         return try await db.rpc("get_parent_dismissals").execute().value
     }
 
@@ -267,6 +272,7 @@ extension AttendanceService {
     /// Parent-only, once-only: sets safely_home_at on the child's dismissal row.
     /// Server enforces ownership and immutability (mark_safely_home, migration 030).
     func markSafelyHome(dismissalId: UUID) async throws {
+        if DemoMode.isActive { return DemoStore.shared.markSafelyHome(dismissalId: dismissalId) }
         try await db.rpc("mark_safely_home", params: ["p_dismissal_id": dismissalId.uuidString]).execute()
     }
 

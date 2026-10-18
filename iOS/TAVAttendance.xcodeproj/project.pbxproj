@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5B2BDB4BD2B6AA8C84DA0032 /* DemoEasterEggs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */; };
+		0361C579E41F81D16D95016B /* DemoEasterEggs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */; };
+		AA9F0679AD6908854025A3DF /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A2E963809AB34E6325871 /* DemoMode.swift */; };
+		62DBA40FA2F54D1D60BEE5DB /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD3A2E963809AB34E6325871 /* DemoMode.swift */; };
+		06C6472884849B751561FA22 /* DemoModeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D482096548E2803406F84DF4 /* DemoModeOverlay.swift */; };
+		24F616C01FC33B49A4B04A8E /* DemoModeOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = D482096548E2803406F84DF4 /* DemoModeOverlay.swift */; };
+		B62824B11B42BC153923A5B2 /* DemoSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C711A6490AD28D30837D9E /* DemoSeed.swift */; };
+		641374116C739CA922D8D9C3 /* DemoSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C711A6490AD28D30837D9E /* DemoSeed.swift */; };
+		D12979AF436107EDDAF00EDE /* DemoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD0B76BFFB6AE629CE582E4 /* DemoStore.swift */; };
+		F238063EAEE7D60286DF339A /* DemoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD0B76BFFB6AE629CE582E4 /* DemoStore.swift */; };
+		173C7793ACF00132DA097E6B /* DemoModeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5B00D2D362529DBE50D7280 /* DemoModeTests.swift */; };
 		005C16F16B9AC6B5AB250045 /* AttendanceStatusLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61EEEFD5B8C25B46836143E8 /* AttendanceStatusLabel.swift */; };
 		008FCAF57A4546172C75D4D7 /* KioskSecurityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C66652EA0064DADB44F1E820 /* KioskSecurityPolicy.swift */; };
 		01664D28876316AD8B14BEA1 /* AttendanceLogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AC7E67C7091F97B5D7E4FF /* AttendanceLogicTests.swift */; };
@@ -152,6 +163,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoEasterEggs.swift; sourceTree = "<group>"; };
+		BD3A2E963809AB34E6325871 /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
+		D482096548E2803406F84DF4 /* DemoModeOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeOverlay.swift; sourceTree = "<group>"; };
+		75C711A6490AD28D30837D9E /* DemoSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoSeed.swift; sourceTree = "<group>"; };
+		ADD0B76BFFB6AE629CE582E4 /* DemoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoStore.swift; sourceTree = "<group>"; };
+		B5B00D2D362529DBE50D7280 /* DemoModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeTests.swift; sourceTree = "<group>"; };
 		00D13ADBA1A88996D74858B4 /* StudentAttendanceRateIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentAttendanceRateIntent.swift; sourceTree = "<group>"; };
 		062063676FA1667F968035C8 /* AttendanceService+ClassesStudents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AttendanceService+ClassesStudents.swift"; sourceTree = "<group>"; };
 		06D9A61ADE3ECD77F0BD9220 /* ExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportView.swift; sourceTree = "<group>"; };
@@ -251,6 +268,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		FFD45DD3BA9A8419DE3FFBBE /* Demo */ = {
+			isa = PBXGroup;
+			children = (
+				08AA6E6B2D487D10D050B9B7 /* DemoEasterEggs.swift */,
+				BD3A2E963809AB34E6325871 /* DemoMode.swift */,
+				D482096548E2803406F84DF4 /* DemoModeOverlay.swift */,
+				75C711A6490AD28D30837D9E /* DemoSeed.swift */,
+				ADD0B76BFFB6AE629CE582E4 /* DemoStore.swift */,
+			);
+			path = Demo;
+			sourceTree = "<group>";
+		};
 		005E8B751146133CB8FCA8C5 /* Parent */ = {
 			isa = PBXGroup;
 			children = (
@@ -329,6 +358,7 @@
 				232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */,
 				3BB69713E30D1B0586407932 /* AppIntents */,
 				9E1CA679F85B258F455BB18F /* Core */,
+				FFD45DD3BA9A8419DE3FFBBE /* Demo */,
 				B01C0DBACA98886FA038F890 /* Models */,
 				9B2124344B144DC479818A99 /* Services */,
 				B45DE67A859A4D79875E07C9 /* Views */,
@@ -349,6 +379,7 @@
 			children = (
 				D6DEBD5025C3EA87CF049788 /* AnalyticsTests.swift */,
 				87AC7E67C7091F97B5D7E4FF /* AttendanceLogicTests.swift */,
+				B5B00D2D362529DBE50D7280 /* DemoModeTests.swift */,
 			);
 			path = TAVAttendanceTests;
 			sourceTree = "<group>";
@@ -642,6 +673,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				173C7793ACF00132DA097E6B /* DemoModeTests.swift in Sources */,
 				FD3419A9374A8E606D4F799C /* AnalyticsTests.swift in Sources */,
 				01664D28876316AD8B14BEA1 /* AttendanceLogicTests.swift in Sources */,
 			);
@@ -651,6 +683,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0361C579E41F81D16D95016B /* DemoEasterEggs.swift in Sources */,
+				62DBA40FA2F54D1D60BEE5DB /* DemoMode.swift in Sources */,
+				24F616C01FC33B49A4B04A8E /* DemoModeOverlay.swift in Sources */,
+				641374116C739CA922D8D9C3 /* DemoSeed.swift in Sources */,
+				F238063EAEE7D60286DF339A /* DemoStore.swift in Sources */,
 				558912DCEB8C7ABC9FBEFD98 /* Analytics.swift in Sources */,
 				EC4A25C36D358ABC9AC28F9E /* AppError.swift in Sources */,
 				F816C8A9440C069EAAC3B426 /* AttendanceService+ClassesStudents.swift in Sources */,
@@ -710,6 +747,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5B2BDB4BD2B6AA8C84DA0032 /* DemoEasterEggs.swift in Sources */,
+				AA9F0679AD6908854025A3DF /* DemoMode.swift in Sources */,
+				06C6472884849B751561FA22 /* DemoModeOverlay.swift in Sources */,
+				B62824B11B42BC153923A5B2 /* DemoSeed.swift in Sources */,
+				D12979AF436107EDDAF00EDE /* DemoStore.swift in Sources */,
 				57360712B2FCAB4474584EFF /* Analytics.swift in Sources */,
 				135C5B0F8A62B43146F4B8C3 /* AppError.swift in Sources */,
 				990449AF9CA36A3D7E6C518B /* AttendanceService+ClassesStudents.swift in Sources */,
