@@ -19,7 +19,19 @@ final class AuthManager: ObservableObject {
         Task {
             await listenToAuthChanges()
         }
+        // Offline cold launch: restoring a stored session can wait on a token refresh
+        // that never completes. Never hold the launch spinner longer than this; the
+        // sign-in screen (and therefore the on-device demo) stays reachable offline.
+        // A session that resolves later still signs the user in via the listener.
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.launchSpinnerTimeoutNanoseconds)
+            guard let self, self.isLoading, !self.isAuthenticated else { return }
+            self.isLoading = false
+        }
     }
+
+    /// Upper bound on the launch spinner while waiting for Supabase's initial session.
+    static let launchSpinnerTimeoutNanoseconds: UInt64 = 3_000_000_000
 
     // MARK: - On-device demo mode
 
