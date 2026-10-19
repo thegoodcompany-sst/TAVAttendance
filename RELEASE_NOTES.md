@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- iOS demo mode works in airplane mode from a cold launch. The launch spinner
+  is capped at 3 s, so the sign-in screen appears even when a stored session
+  can't refresh offline. A missing Supabase config no longer crashes at launch.
+  New offline end-to-end test (every request forced to fail, zero attempts).
+  CI builds the iPad target in Release.
+
 - Demo mode now looks like the normal app. Removed all Easter-egg UI (check-in
   banners, confetti, emoji and fun-fact cards). Lauren Tan, Brian Chew, Agrim
   Singh and Nick Chan stay on the demo roster as ordinary students. The Demo

@@ -56,6 +56,20 @@ the web demo scans on the iOS demo kiosk.
   stored on the server. Reset or sign-out clears them.
 - `is_superadmin` is false in demo mode, so export, flags and wipe stay hidden.
 
+## Offline and hard-coded
+
+- **iOS works fully offline.** The demo email, the seed data and the demo
+  feature flags are compiled into the app. No remote flag, remote config, env
+  var or server toggle can change or disable them, and nothing is `#if DEBUG`.
+  A missing `Config.xcconfig` no longer crashes the app, and the launch spinner
+  is capped at 3 s, so the sign-in screen appears in airplane mode. In demo
+  mode, push, analytics, feature-flag fetches and the auth listener make no
+  network calls, and the offline banner never shows. A relaunch stays in demo
+  mode with fresh data. CI builds the iPad target in the Release configuration,
+  the one used for Archive.
+- **Web needs a connection.** The dashboard is server-rendered on Vercel, so
+  pages can't load offline. Demo mode on the web only avoids the database.
+
 ## Tests
 
 - iOS: `iOS/TAVAttendanceTests/DemoModeTests.swift` covers email matching, seed

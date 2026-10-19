@@ -184,4 +184,116 @@ final class DemoModeTests: XCTestCase {
         XCTAssertFalse(hasEmoji(messages))
         XCTAssertEqual(DemoNetworkGuard.blockedRequestCount, 0)
     }
+
+    /// Airplane-mode rehearsal: cold launch → sign-in screen → demo sign-in → every
+    /// screen's data → check-in, edits → reset → relaunch → sign-out, while every
+    /// network request (Supabase client and URLSession.shared) is forced to fail.
+    /// Passes only if the whole flow makes zero network attempts.
+    @MainActor
+    func testFullDemoFlowWorksWithEveryNetworkRequestFailing() async throws {
+        URLProtocol.registerClass(FailingNetworkProtocol.self)
+        FailingNetworkProtocol.reset()
+        DemoNetworkGuard.startRecordingRealRequests()
+        defer {
+            URLProtocol.unregisterClass(FailingNetworkProtocol.self)
+            _ = DemoNetworkGuard.stopRecordingRealRequests()
+        }
+
+        // Cold launch: the sign-in screen must appear without the network.
+        let auth = AuthManager()
+        let deadline = Date().addingTimeInterval(5)
+        while auth.isLoading && Date() < deadline {
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTAssertFalse(auth.isLoading, "sign-in screen must be reachable offline")
+        XCTAssertFalse(auth.isAuthenticated)
+
+        // Sign in through the normal sign-in call.
+        try await auth.signIn(email: "demo@thegoodcompanysg.dev", password: "")
+        XCTAssertTrue(DemoMode.isActive)
+        XCTAssertTrue(auth.isAuthenticated)
+        XCTAssertEqual(auth.currentProfile?.role, "admin")
+        await FeatureFlagStore.shared.load()
+        XCTAssertTrue(FeatureFlagStore.shared.isEnabled(.testMode))
+
+        // Every screen's data.
+        let service = AttendanceService.shared
+        let classes = try await service.fetchMyClasses()
+        XCTAssertEqual(classes.count, 4)
+        for cls in classes {
+            let loaded1 = try await service.fetchSessions(for: cls.id)
+            XCTAssertFalse(loaded1.isEmpty)
+            let loaded2 = try await service.fetchEnrollments(classId: cls.id)
+            XCTAssertFalse(loaded2.isEmpty)
+            _ = try await service.fetchTutorAssignments(classId: cls.id)
+            let today = try await service.getOrCreateTodaySession(classId: cls.id)
+            let loaded3 = try await service.fetchRoster(sessionId: today.id)
+            XCTAssertFalse(loaded3.isEmpty)
+        }
+        let students = try await service.fetchAllStudents()
+        XCTAssertEqual(students.count, 24)
+        let loaded4 = try await service.fetchStudentResults()
+        XCTAssertFalse(loaded4.isEmpty)
+        let loaded5 = try await service.fetchTutors()
+        XCTAssertFalse(loaded5.isEmpty)
+        let loaded6 = try await service.fetchParents()
+        XCTAssertFalse(loaded6.isEmpty)
+        let kiosk = try await service.fetchKioskEntries()
+        XCTAssertEqual(kiosk.count, 24)
+        let loaded7 = try await service.loadStudySpace()
+        XCTAssertEqual(loaded7.roster.count, 24)
+        _ = try await service.fetchTodayDismissals()
+        let loaded8 = try await service.fetchCorrectionRequests()
+        XCTAssertFalse(loaded8.isEmpty)
+        let loaded9 = try await service.fetchPrivacyNotice()
+        XCTAssertNotNil(loaded9)
+        let nick = try XCTUnwrap(students.first { $0.fullName == "Nick Chan" })
+        let loaded10 = try await service.fetchStudentAttendanceHistory(studentId: nick.id)
+        XCTAssertFalse(loaded10.isEmpty)
+        let loaded11 = try await service.fetchCurrentConsent(studentId: nick.id)
+        XCTAssertFalse(loaded11.isEmpty)
+        _ = try await service.fetchStaffResultSlips(studentId: nick.id)
+        _ = try await service.fetchMessages(studentId: nick.id)
+
+        // Check-in and edits.
+        let entry = try XCTUnwrap(kiosk.first { $0.fullName == "Nick Chan" })
+        let status = try await service.markKioskSignIn(entry: entry)
+        XCTAssertTrue(status == .present || status == .late)
+        try await service.updateStudent(
+            id: nick.id, StudentInsert(fullName: "Nick Chan", school: "Bukit View Primary", yearOfStudy: "P5"))
+        try await service.upsertStudentResult(studentId: nick.id, subject: .english, grade: "AL2")
+        let session = try await service.getOrCreateTodaySession(classId: classes[0].id)
+        try await service.updateSessionNotes(id: session.id, notes: "Comprehension practice")
+
+        // Reset, relaunch (still in demo, fresh data), sign out.
+        auth.resetDemoData()
+        let relaunched = AuthManager()
+        XCTAssertTrue(relaunched.isAuthenticated, "a relaunch stays in demo mode offline")
+        XCTAssertFalse(relaunched.isLoading)
+        let loaded12 = try await service.fetchAllStudents()
+        XCTAssertEqual(loaded12.count, 24)
+        try await relaunched.signOut()
+        XCTAssertFalse(DemoMode.isActive)
+        XCTAssertFalse(relaunched.isAuthenticated)
+
+        XCTAssertEqual(DemoNetworkGuard.blockedRequestCount, 0, "no Supabase request was even attempted")
+        XCTAssertEqual(FailingNetworkProtocol.attempts, 0, "no URLSession.shared request was attempted")
+        XCTAssertEqual(DemoNetworkGuard.stopRecordingRealRequests(), [], "no request left the demo path")
+    }
+}
+
+/// Stands in for airplane mode: every URLSession.shared request fails immediately.
+final class FailingNetworkProtocol: URLProtocol {
+    private static let lock = NSLock()
+    private static var count = 0
+    static var attempts: Int { lock.lock(); defer { lock.unlock() }; return count }
+    static func reset() { lock.lock(); count = 0; lock.unlock() }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        Self.lock.lock(); Self.count += 1; Self.lock.unlock()
+        client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+    }
+    override func stopLoading() {}
 }
