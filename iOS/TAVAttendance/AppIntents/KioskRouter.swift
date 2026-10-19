@@ -29,7 +29,7 @@ final class KioskSecurityState: ObservableObject {
 
     var allowsAppIntents: Bool {
         Self.allowsAppIntents(
-            hasConfiguredPIN: !(UserDefaults.standard.string(forKey: "kioskPIN") ?? "").isEmpty,
+            hasConfiguredPIN: !(DemoMode.kioskDefaults.string(forKey: "kioskPIN") ?? "").isEmpty,
             isAdminUnlocked: isAdminUnlocked
         )
     }
@@ -45,10 +45,10 @@ final class KioskSecurityState: ObservableObject {
     /// Revokes kiosk admin authorization app-wide when the app backgrounds, even if the
     /// kiosk tab is not currently mounted. App Intents share this process-local state.
     func relockIfConfigured() {
-        let hasConfiguredPIN = !(UserDefaults.standard.string(forKey: "kioskPIN") ?? "").isEmpty
+        let hasConfiguredPIN = !(DemoMode.kioskDefaults.string(forKey: "kioskPIN") ?? "").isEmpty
         guard hasConfiguredPIN else { return }
         isAdminUnlocked = false
-        UserDefaults.standard.set(true, forKey: "kioskLocked")
+        DemoMode.kioskDefaults.set(true, forKey: "kioskLocked")
     }
 
     private init() {}

@@ -41,6 +41,12 @@ the web demo scans on the iOS demo kiosk.
 - `DemoNetworkGuard` (a `URLProtocol` installed into the Supabase client's
   `URLSession`) refuses every Supabase request while demo mode is on. It is a
   safety net in case a call site skips the service layer.
+- The iOS demo kiosk starts locked. **Tap the lock icon**, then enter **any
+  four digits** (for example `0853`) to unlock admin controls. Cancel keeps it
+  locked; Kiosk Settings → Lock Kiosk Now lets you rehearse again. Demo PIN,
+  lock and failure-counter settings are separate from the real kiosk and reset
+  on demo entry, reset and exit. Live kiosks still require a long press and
+  their configured PIN.
 - Sign-out resets demo data. `NetworkMonitor` reports "connected" in demo mode,
   so the demo still works in airplane mode and never queues offline writes.
 
@@ -79,3 +85,16 @@ the web demo scans on the iOS demo kiosk.
   `@supabase/supabase-js` and `fetch`, then drives the real query functions and
   server actions in demo mode. It asserts that none of them is called, and that
   a non-demo cookie jar uses the real clients.
+
+### Demo kiosk verification (2026-10-19)
+
+Xcode-beta, signing disabled, iPhone Duo / iOS 27.1: **85 unit tests passed,
+one skipped**. The demo kiosk UI regression passed: normal lock-icon tap,
+Cancel stays locked, `0853` unlocks, Kiosk Settings relocks, then `9876`
+unlocks. The storage regression also checks invalid/incomplete input, unchanged
+live settings, revoked demo authorization and wrong-PIN rejection outside demo.
+
+The canonical iPhone 17 command could not run: `Unable to find a device matching
+the provided destination specifier`. Creating it against the installed runtime
+failed with `Incompatible device`; the available Duo destination was used.
+Physical presentation-device installation and QA remain in `HUMANS.md` §85.

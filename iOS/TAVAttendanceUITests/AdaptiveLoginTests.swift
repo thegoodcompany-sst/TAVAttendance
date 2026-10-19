@@ -57,6 +57,30 @@ final class AdaptiveLoginTests: XCTestCase {
         XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
     }
 
+    func testDemoKioskUnlocksWithAnyPINAfterTappingLock() {
+        app.launchArguments += ["-tava.demoMode.active", "YES"]
+        app.launch()
+        let signIn = app.buttons["Sign-In"]
+        XCTAssertTrue(signIn.waitForExistence(timeout: 15))
+        signIn.tap()
+        let unlock = app.buttons["Unlock"]
+        XCTAssertTrue(unlock.waitForExistence(timeout: 10))
+        unlock.tap()
+        XCTAssertTrue(app.staticTexts["Admin Access"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(unlock.waitForExistence(timeout: 5))
+        unlock.tap()
+        for digit in ["0", "8", "5", "3"] { app.buttons[digit].tap() }
+        XCTAssertTrue(app.staticTexts["ADMIN"].waitForExistence(timeout: 5))
+        app.buttons["Kiosk Settings"].tap()
+        XCTAssertTrue(app.buttons["Lock Kiosk Now"].waitForExistence(timeout: 5))
+        app.buttons["Lock Kiosk Now"].tap()
+        XCTAssertTrue(unlock.waitForExistence(timeout: 5))
+        unlock.tap()
+        for digit in ["9", "8", "7", "6"] { app.buttons[digit].tap() }
+        XCTAssertTrue(app.staticTexts["ADMIN"].waitForExistence(timeout: 5))
+    }
+
     private func reveal(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
         for _ in 0..<8 {
             if element.isHittable && app.windows.firstMatch.frame.contains(element.frame) { return }

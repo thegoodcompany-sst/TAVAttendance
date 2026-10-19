@@ -40,6 +40,7 @@ final class AuthManager: ObservableObject {
         PendingAttendanceStore.shared.clear()
         DemoMode.setActive(true)
         DemoStore.shared.reset()
+        DemoMode.resetKiosk()
         FeatureFlagStore.shared.applyDemoFlags()
         Analytics.shared.role = DemoMode.profile.role
         currentProfile = DemoMode.profile
@@ -52,12 +53,14 @@ final class AuthManager: ObservableObject {
     func resetDemoData() {
         guard DemoMode.isActive else { return }
         DemoStore.shared.reset()
+        DemoMode.resetKiosk()
         demoDataGeneration = UUID()
     }
 
     private func exitDemoMode() {
         DemoMode.setActive(false)
         DemoStore.shared.reset()
+        DemoMode.resetKiosk()
         FeatureFlagStore.shared.clear()
         PendingAttendanceStore.shared.clear()
         Analytics.shared.role = nil

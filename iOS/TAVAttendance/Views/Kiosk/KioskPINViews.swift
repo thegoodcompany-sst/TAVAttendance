@@ -6,7 +6,7 @@ struct KioskSettingsSheet: View {
     @Binding var isLocked: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var showPINSetup = false
-    @AppStorage("kioskBiometricUnlock") private var kioskBiometricUnlock = false
+    @AppStorage("kioskBiometricUnlock", store: DemoMode.kioskDefaults) private var kioskBiometricUnlock = false
 
     // SECURITY: Change PIN / Remove PIN both re-authenticate against the current PIN
     // before taking effect, so reaching this sheet is not enough to alter the PIN.
@@ -172,8 +172,8 @@ struct PINUnlockOverlay: View {
     let onDone: (Bool) -> Void
 
     // Persisted so a device restart can't reset the lockout counter.
-    @AppStorage("kioskFailedAttempts") private var failedAttempts: Int = 0
-    @AppStorage("kioskLockoutUntil") private var lockoutUntil: Double = 0
+    @AppStorage("kioskFailedAttempts", store: DemoMode.kioskDefaults) private var failedAttempts: Int = 0
+    @AppStorage("kioskLockoutUntil", store: DemoMode.kioskDefaults) private var lockoutUntil: Double = 0
 
     @State private var entered = ""
     @State private var error = ""
@@ -181,7 +181,7 @@ struct PINUnlockOverlay: View {
     @State private var isResetting = false
 
     private var isLockedOut: Bool {
-        isKioskUnlockBlocked(lockoutUntil: lockoutUntil, now: Date().timeIntervalSince1970)
+        !DemoMode.isActive && isKioskUnlockBlocked(lockoutUntil: lockoutUntil, now: Date().timeIntervalSince1970)
     }
 
     private var lockoutMessage: String {
@@ -314,6 +314,10 @@ struct PINUnlockOverlay: View {
         error = ""
         entered += d
         if entered.count == 4 {
+            if DemoMode.isActive {
+                onDone(kioskPINMatches(entered: entered, storedPIN: storedPIN))
+                return
+            }
             let now = Date().timeIntervalSince1970
             let current = KioskPINLockoutState(
                 failedAttempts: failedAttempts,

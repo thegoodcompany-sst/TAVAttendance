@@ -7,9 +7,9 @@ struct GlobalKioskView: View {
     @EnvironmentObject private var featureFlags: FeatureFlagStore
     @Environment(\.scenePhase) private var scenePhase
 
-    @AppStorage("kioskPIN") private var storedPIN = ""
-    @AppStorage("kioskLocked") private var isLocked = false
-    @AppStorage("kioskBiometricUnlock") private var kioskBiometricUnlock = false
+    @AppStorage("kioskPIN", store: DemoMode.kioskDefaults) private var storedPIN = ""
+    @AppStorage("kioskLocked", store: DemoMode.kioskDefaults) private var isLocked = false
+    @AppStorage("kioskBiometricUnlock", store: DemoMode.kioskDefaults) private var kioskBiometricUnlock = false
 
     @State private var entries: [KioskEntry] = []
     @State private var isLoading = true
@@ -397,8 +397,7 @@ struct GlobalKioskView: View {
             if !isAdminMode {
                 // Not admin (a PIN is set and hasn't been entered this session):
                 // show the unlock affordance, never the settings gear.
-                // Long-press only — a short tap is easy for a child to hit and
-                // 5 failed PIN attempts lock staff out for 30s…1h.
+                // Live kiosks require a hold to avoid accidental student taps.
                 Image(systemName: "lock.fill")
                     .font(.title3)
                     .foregroundStyle(.secondary)
@@ -408,8 +407,11 @@ struct GlobalKioskView: View {
                     .onLongPressGesture(minimumDuration: 1.5) {
                         showPINEntry = true
                     }
+                    .onTapGesture {
+                        if DemoMode.isActive { showPINEntry = true }
+                    }
                     .accessibilityLabel("Unlock")
-                    .accessibilityHint("Hold to unlock")
+                    .accessibilityHint(DemoMode.isActive ? "Tap to unlock" : "Hold to unlock")
                     .accessibilityAddTraits(.isButton)
                     .accessibilityAction {
                         showPINEntry = true
@@ -425,6 +427,7 @@ struct GlobalKioskView: View {
                         .padding(10)
                         .background(Color(.systemGray5), in: Circle())
                 }
+                .accessibilityLabel("Kiosk Settings")
             }
         }
         .padding(.horizontal, 28)

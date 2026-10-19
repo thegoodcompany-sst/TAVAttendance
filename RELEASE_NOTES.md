@@ -5,6 +5,11 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- iOS demo kiosk: tap the lock icon and enter any four-digit PIN (including
+  `0853`) to unlock. Demo lock settings reset with the demo and never modify
+  the real kiosk PIN or lockout counters. Exiting the demo revokes its admin
+  unlock.
+
 - iOS demo mode works in airplane mode from a cold launch. The launch spinner
   is capped at 3 s, so the sign-in screen appears even when a stored session
   can't refresh offline. A missing Supabase config no longer crashes at launch.

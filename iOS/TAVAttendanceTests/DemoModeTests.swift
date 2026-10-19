@@ -30,6 +30,36 @@ final class DemoModeTests: XCTestCase {
         XCTAssertFalse(DemoMode.isDemoEmail(""))
     }
 
+    @MainActor
+    func testDemoKioskAcceptsAnyFourDigitsAndKeepsRealSettingsUntouched() {
+        let keys = ["kioskPIN", "kioskLocked", "kioskFailedAttempts", "kioskLockoutUntil",
+                    "kioskBiometricUnlock"]
+        let realSettings = keys.map { UserDefaults.standard.object(forKey: $0) as? NSObject }
+        let realPIN = hashPIN("1234")
+        DemoMode.setActive(true, persist: false)
+        DemoMode.resetKiosk()
+
+        XCTAssertTrue(DemoMode.kioskDefaults.bool(forKey: "kioskLocked"))
+        for pin in ["0853", "9999", "0000", "1234"] {
+            XCTAssertTrue(kioskPINMatches(entered: pin, storedPIN: realPIN))
+            XCTAssertTrue(kioskPINMatches(entered: pin, storedPIN: ""))
+        }
+        for pin in ["", "085", "08530", "abcd"] {
+            XCTAssertFalse(kioskPINMatches(entered: pin, storedPIN: realPIN))
+        }
+        DemoMode.kioskDefaults.set("changed-demo-pin", forKey: "kioskPIN")
+        DemoMode.kioskDefaults.set(false, forKey: "kioskLocked")
+        KioskSecurityState.shared.isAdminUnlocked = true
+        DemoMode.setActive(false, persist: false)
+        DemoMode.resetKiosk()
+
+        XCTAssertFalse(KioskSecurityState.shared.isAdminUnlocked)
+        XCTAssertEqual(keys.map { UserDefaults.standard.object(forKey: $0) as? NSObject }, realSettings)
+        XCTAssertFalse(kioskPINMatches(entered: "0853", storedPIN: realPIN))
+        XCTAssertFalse(kioskPINMatches(entered: "0853", storedPIN: ""))
+        XCTAssertTrue(kioskPINMatches(entered: "1234", storedPIN: realPIN))
+    }
+
     func testSeedIsSafeAndComplete() {
         let data = DemoSeed.make(now: fixedNow)
         XCTAssertEqual(data.students.count, 24)

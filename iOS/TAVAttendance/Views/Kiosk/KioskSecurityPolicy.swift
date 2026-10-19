@@ -143,9 +143,12 @@ func constantTimeEqualHex(_ left: String, _ right: String) -> Bool {
     return difference == 0
 }
 
-/// Verifies an entered PIN against the stored representation. Supports current v1 hashes only
-/// at the comparison boundary (legacy plaintext is migrated before unlock).
+/// The offline demo accepts any four digits; live kiosks verify the stored PIN.
+/// Legacy plaintext is migrated before unlock.
 func kioskPINMatches(entered: String, storedPIN: String) -> Bool {
+    if DemoMode.isActive {
+        return entered.count == 4 && entered.utf8.allSatisfy { (48...57).contains($0) }
+    }
     switch storedKioskPINDisposition(storedPIN) {
     case .currentHash:
         return constantTimeEqualHex(hashPIN(entered), storedPIN)

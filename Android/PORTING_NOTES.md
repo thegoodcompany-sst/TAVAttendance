@@ -269,3 +269,69 @@ Run the prescribed Web verification and browser checks.
   (`de{kind:06x}-0000-4000-8000-{n:012x}`) so QR codes match the other apps.
 - **Sample test:** demo sign-in leaves the HTTP interceptor's blocked count at 0
   after loading the roster and marking a student present.
+
+## October 2026 demo kiosk unlock handoffs
+
+### Android
+
+```text
+You are porting iOS feature changes to the Android app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/Android/
+
+Feature summary
+After Android demo mode is implemented, start its kiosk locked, open the PIN
+keypad on a normal lock-icon tap and accept any four digits, including 0853.
+Keep live PIN checks and lockouts. Isolate demo PIN/settings/counters from live
+storage; reset demo lock state on entry/reset/exit and revoke admin unlock.
+
+iOS files changed
+- Demo/DemoMode.swift and Core/AuthManager.swift: demo kiosk storage/lifecycle.
+- Views/Kiosk/GlobalKioskView.swift, KioskPINViews.swift, KioskSecurityPolicy.swift:
+  tap-to-unlock and demo-only PIN acceptance.
+- AppIntents/KioskRouter.swift: use the matching kiosk storage for authorization.
+
+Android targets
+- screens/kiosk/GlobalKioskScreen.kt: tap affordance.
+- screens/kiosk/GlobalKioskViewModel.kt: demo PIN/storage/authorization lifecycle.
+- screens/kiosk/KioskPINDialogs.kt and KioskSecurityPolicy.kt: isolated demo unlock.
+
+New Supabase schema (must be consumed by Android)
+None.
+
+Sample test to write
+Demo unlock accepts 0853 and 9876, rejects incomplete/non-digit PINs, cancel
+stays locked, and lock/unlock can repeat. Exit demo: live settings are unchanged,
+admin authorization is revoked and an incorrect live PIN still fails.
+
+Implement with existing Kotlin/Compose patterns after the separate demo port.
+Do not change Supabase migrations; they are shared.
+```
+
+### Web
+
+```text
+You are assessing iOS feature parity for the Web app at
+/Users/limboenedmund/Documents/apps/TAVA/TAVAttendance/web/
+
+Feature summary
+The iOS demo kiosk accepts a normal lock-icon tap and any four-digit PIN.
+Live security stays unchanged; demo credentials and lock state are isolated.
+Web currently has no kiosk PIN lock, so no Web change is required for this fix.
+
+iOS files changed
+- Views/Kiosk/GlobalKioskView.swift, KioskPINViews.swift, KioskSecurityPolicy.swift.
+- Demo/DemoMode.swift, Core/AuthManager.swift, AppIntents/KioskRouter.swift.
+
+Web targets
+- components/mobile/sign-in-board.tsx: existing sign-in board, no PIN lock.
+
+New Supabase schema (must be consumed by Web)
+None.
+
+Sample test to write
+If a Web kiosk lock is separately requested, verify demo accepts 0853/9876
+without changing live credentials or authorization, and live wrong PIN fails.
+
+No implementation is needed now. Do not add a PIN feature solely for parity.
+Do not change Supabase migrations; they are shared.
+```

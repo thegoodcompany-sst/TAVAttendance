@@ -161,7 +161,10 @@ Class early if On Time vs Late matters.
 | PIN set, locked | Student-facing grid; administrative navigation hidden; search hidden |
 | PIN set, unlocked | ADMIN badge, search, and override controls visible |
 
-Unlock is a **long-press on the lock**. The unlock state is not persisted
+In the offline iOS demo, **tap the lock** and enter **any four digits** (such
+as `0853`). Demo lock settings are isolated from the real kiosk.
+
+Outside demo mode, unlock is a **long-press on the lock**. The unlock state is not persisted
 across app restarts. The PIN protects the UI, not the underlying administrator
 Supabase session; treat the device as privileged and physically supervise it.
 

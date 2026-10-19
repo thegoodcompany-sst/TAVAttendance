@@ -34,6 +34,22 @@ enum DemoMode {
         FeatureFlag.analytics.rawValue: false,
     ]
 
+    private static let kioskDefaultsName = "tava.demo.kiosk"
+    private static let demoKioskDefaults = UserDefaults(suiteName: kioskDefaultsName)!
+
+    /// Demo PIN settings must never change the real kiosk's credentials or lockout.
+    static var kioskDefaults: UserDefaults {
+        isActive ? demoKioskDefaults : .standard
+    }
+
+    @MainActor
+    static func resetKiosk() {
+        demoKioskDefaults.removePersistentDomain(forName: kioskDefaultsName)
+        demoKioskDefaults.set("0000", forKey: "kioskPIN")
+        demoKioskDefaults.set(true, forKey: "kioskLocked")
+        KioskSecurityState.shared.isAdminUnlocked = false
+    }
+
     private static let lock = NSLock()
     private static var active = false
     private static let defaultsKey = "tava.demoMode.active"

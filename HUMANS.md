@@ -1109,3 +1109,16 @@ NFC table remain absent. Full release verification is still blocked:
   (GHSA-68fv-2mgg-jv7q), `braces` (GHSA-vfj7-8cjw-p6xm), `next`
   (GHSA-cjq9-62q9-8jv4), and `sharp` (GHSA-wq5f-xc86-pv6w).
   Web tests, lint, and build were skipped after that audit failure.
+
+### ☐ 85. Install the demo kiosk unlock fix before the presentation
+
+2026-10-19: the iOS demo kiosk now opens its keypad on a normal tap and accepts
+any four digits. Demo credentials, lock state and counters are separate from
+the real kiosk. Unit verification on iPhone Duo passed (85 passed, one skipped);
+the UI regression passed with cancel, `0853`, relock and `9876`.
+
+- [ ] Build/install the updated iOS app on the presentation device, sign in as
+  `demo@thegoodcompanysg.dev`, open Sign-In, tap the lock and enter `0853`.
+  Confirm ADMIN appears, then relock through Kiosk Settings and repeat with
+  another four-digit PIN. Physical-device QA and TestFlight upload were not
+  performed as part of this source fix.
