@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web dev tooling: pin vite to 8.1.6 (GHSA-587h-7wmj-h5pm in bundled
+  launch-editor) so the CI dependency audit passes again.
+
 - iOS demo kiosk: tap the lock icon and enter any four-digit PIN (including
   `0853`) to unlock. Demo lock settings reset with the demo and never modify
   the real kiosk PIN or lockout counters. Exiting the demo revokes its admin
