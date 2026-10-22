@@ -7,6 +7,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 - Web dev tooling: pin vite to 8.1.6 (GHSA-587h-7wmj-h5pm in bundled
   launch-editor) so the CI dependency audit passes again.
+- Web demo cookies now enforce encoded and decompressed journal size limits;
+  oversized journals fall back to the fresh demo seed.
 
 - iOS demo kiosk: tap the lock icon and enter any four-digit PIN (including
   `0853`) to unlock. Demo lock settings reset with the demo and never modify
