@@ -4,6 +4,7 @@
  * Nothing about a demo session is stored on the server.
  */
 import { deflateRawSync, inflateRawSync } from 'node:zlib'
+import { DEMO_STATE_MAX_CHUNKS } from './constants'
 import type { DemoChange } from './emulator'
 import type { DemoRow, DemoTables } from './seed'
 
@@ -47,6 +48,9 @@ export function applyJournal(tables: DemoTables, journal: DemoJournal): DemoTabl
 
 /** Max characters per cookie value (browsers allow ~4096 bytes per cookie incl. name). */
 export const CHUNK_SIZE = 3800
+const MAX_ENCODED_LENGTH = CHUNK_SIZE * DEMO_STATE_MAX_CHUNKS
+// Journaling all 398 seeded rows is ~135 KB; allow ample room for demo edits.
+const MAX_DECODED_BYTES = 1024 * 1024
 
 export function encodeJournal(journal: DemoJournal): string {
   if (Object.keys(journal.t).length === 0) return ''
@@ -54,12 +58,14 @@ export function encodeJournal(journal: DemoJournal): string {
 }
 
 export function decodeJournal(encoded: string): DemoJournal {
-  if (!encoded) return emptyJournal()
+  if (!encoded || encoded.length > MAX_ENCODED_LENGTH) return emptyJournal()
   try {
-    const parsed = JSON.parse(inflateRawSync(Buffer.from(encoded, 'base64url')).toString('utf8'))
+    const parsed = JSON.parse(inflateRawSync(Buffer.from(encoded, 'base64url'), {
+      maxOutputLength: MAX_DECODED_BYTES,
+    }).toString('utf8'))
     if (parsed && parsed.v === 1 && typeof parsed.t === 'object') return parsed as DemoJournal
   } catch {
-    // A corrupt or truncated journal falls back to the fresh seed.
+    // A corrupt, truncated or oversized journal falls back to the fresh seed.
   }
   return emptyJournal()
 }

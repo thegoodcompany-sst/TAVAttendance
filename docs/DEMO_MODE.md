@@ -60,6 +60,10 @@ the web demo scans on the iOS demo kiosk.
 - Demo changes are kept as a compressed journal in this browser's
   `tava_demo_state.N` cookies, on top of the deterministic seed. Nothing is
   stored on the server. Reset or sign-out clears them.
+  Reading is capped at 15,200 encoded characters (four cookies) and 1 MiB of
+  decompressed JSON; oversized journals fall back to the fresh seed just like
+  corrupt cookies. The decoded limit leaves over seven times the space needed
+  to journal every seeded row (about 135 KB).
 - `is_superadmin` is false in demo mode, so export, flags and wipe stay hidden.
 
 ## Offline and hard-coded
