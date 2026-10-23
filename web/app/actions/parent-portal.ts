@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { claimResultSlipValidation } from '@/lib/result-slip-validation'
 import { NRIC_RE } from '@/lib/admin'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -149,7 +150,7 @@ export async function finalizeResultSlipUpload(
   const adminClient = await createAdminClient()
   const { data: intent, error: intentError } = await adminClient
     .from('result_slip_upload_intents')
-    .select('student_id, actor_id, expected_size, expected_mime, expires_at')
+    .select('student_id, actor_id, expected_size, expected_mime, expires_at, finalized_at, finalized_result_id')
     .eq('path', upload.path)
     .eq('student_id', studentId)
     .eq('actor_id', user.id)
@@ -162,30 +163,40 @@ export async function finalizeResultSlipUpload(
     return { error: 'Upload authorization is invalid or expired.' }
   }
 
-  const objectName = upload.path.slice(studentId.length + 1)
-  const { data: objects, error: listError } = await adminClient.storage
-    .from('result-slips')
-    .list(studentId, { limit: 100, search: objectName })
-  if (listError) return { error: 'Could not verify the uploaded file.' }
-  const object = objects?.find(candidate => candidate.id && candidate.name === objectName)
-  const metadata = object?.metadata as Record<string, unknown> | undefined
-  const storedSize = typeof metadata?.size === 'number' ? metadata.size : null
-  const storedType = typeof metadata?.mimetype === 'string' ? metadata.mimetype : null
-  if (!object || storedSize !== upload.fileSize || storedType !== upload.fileType) {
-    await adminClient.storage.from('result-slips').remove([upload.path])
-    // Keep the path tombstone until the signed token expires. The client
-    // already holds that token and could otherwise recreate an untracked file.
-    return { error: 'Uploaded file verification failed.' }
+  if (intent.finalized_at && !intent.finalized_result_id) {
+    return { error: 'Upload authorization was already consumed.' }
   }
 
-  const { data: storedFile, error: downloadError } = await adminClient.storage
-    .from('result-slips')
-    .download(upload.path)
-  if (downloadError || !storedFile || !(await fileSignatureMatches(storedFile, upload.fileType))) {
-    await adminClient.storage.from('result-slips').remove([upload.path])
-    // A rejected upload token remains reusable until expiry; retaining the
-    // intent lets the cleanup worker remove any late replay at the exact path.
-    return { error: 'The file contents do not match the selected file type.' }
+  // Finalized retries go straight to the RPC's exact-metadata retry check.
+  if (!intent.finalized_at) {
+    if (!(await claimResultSlipValidation(adminClient, user.id, upload.path))) {
+      return { error: 'Upload verification limit reached or unavailable. Please prepare a new upload.' }
+    }
+
+    const objectName = upload.path.slice(studentId.length + 1)
+    const { data: objects, error: listError } = await adminClient.storage
+      .from('result-slips')
+      .list(studentId, { limit: 100, search: objectName })
+    if (listError) return { error: 'Could not verify the uploaded file. Please try again.' }
+    const object = objects?.find(candidate => candidate.id && candidate.name === objectName)
+    const metadata = object?.metadata as Record<string, unknown> | undefined
+    const storedSize = typeof metadata?.size === 'number' ? metadata.size : null
+    const storedType = typeof metadata?.mimetype === 'string' ? metadata.mimetype : null
+    if (!object || storedSize !== upload.fileSize || storedType !== upload.fileType) {
+      return { error: 'Uploaded file verification failed.' }
+    }
+
+    const { data: storedFile, error: downloadError } = await adminClient.storage
+      .from('result-slips')
+      .download(upload.path)
+    if (downloadError || !storedFile) {
+      return { error: 'Could not download the uploaded file. Please try again.' }
+    }
+    if (!(await fileSignatureMatches(storedFile, upload.fileType))) {
+      return { error: 'The file contents do not match the selected file type.' }
+    }
+    // Never delete here, even on rejection: another request may have committed.
+    // The intent-expiry worker safely cleans up abandoned/rejected objects.
   }
 
   const { error } = await adminClient.rpc('finalize_result_slip_upload', {
@@ -204,13 +215,14 @@ export async function finalizeResultSlipUpload(
     // safely removes genuinely abandoned uploads later.
     const { data: persisted } = await adminClient
       .from('result_slips')
-      .select('id')
+      .select('id, exam_name, subject, score, max_score')
       .eq('student_id', studentId)
       .eq('uploaded_by', user.id)
       .eq('file_path', upload.path)
       .limit(1)
       .maybeSingle()
-    if (persisted) {
+    if (persisted && persisted.exam_name === examName && persisted.subject === subject &&
+        persisted.score === score && persisted.max_score === maxScore) {
       revalidatePath(`/parent/results/${studentId}`)
       return { error: null }
     }
