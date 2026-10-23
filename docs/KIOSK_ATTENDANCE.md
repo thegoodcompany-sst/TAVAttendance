@@ -81,7 +81,17 @@ New clients preserve the exact server `marked_at` string as
 observation atomically with the write, including concurrent updates and clears.
 Device clocks are not trusted. Online saves refresh the acknowledged observation
 without fetching the whole roster. Both native clients sync all queued sessions
-owned by the signed-in account. They serialize saves and sync, and disable End
+owned by the signed-in account, in chunks of at most 500. Each successful chunk
+removes only its acknowledged mutation IDs. Permanent SQL permission, data and
+constraint rejections split the failed transaction until the rejected mutation
+is isolated. That mutation remains encrypted on the device as quarantined,
+with a reconciliation warning; later syncs skip it so other attendance proceeds.
+Transport, cancellation and unknown failures keep the unacknowledged remainder
+for retry. A fresh local correction rotates the mutation ID and requeues the
+record. Successful online corrections (including clears) remove the matching
+mutation captured before the request, including quarantine; newer queued edits
+are preserved. Failed requests do not acknowledge queued mutations. Reconcile quarantined marks against the website and paper before signing
+out: account changes/sign-out still clear all local records. They serialize saves and sync, and disable End
 Class while a save is running. Server rejections are shown instead of queued.
 
 Before relying on this protection, apply migration 060 and install matching
@@ -228,3 +238,16 @@ SELECT reloptions FROM pg_class WHERE relname='attendance_summary';
 SELECT COUNT(*) FROM attendance_summary a
 JOIN classes c ON c.id = a.class_id WHERE c.is_study_space;
 ```
+
+### Offline batch recovery QA
+
+Using a test account and local/test backend, queue 501 distinct student/session
+mutations. Reconnect and verify all valid marks reach the server in requests of
+at most 500. Repeat with one permanently rejected old-session mark among valid
+current marks: valid marks must sync, the rejected mark must remain pending,
+and the reconciliation warning must survive reopening the roster/app. Disconnect
+after the first successful chunk: only unacknowledged work should retry. Correct
+a quarantined mark after reconciliation and verify it receives a new mutation
+ID. While online, correct and clear quarantined marks, reopen the roster and
+verify server status appears with no stale pending override or warning. Repeat
+with a failed request and verify the pending mark remains. Sign out and confirm no queued or quarantined records appear for another user.

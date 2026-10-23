@@ -6,6 +6,53 @@ import CryptoKit
 
 final class AttendanceLogicTests: XCTestCase {
 
+    private enum SyncFailure: Error, Equatable { case permanent, transport }
+
+    @MainActor
+    func testOfflineSyncChunks501RecordsAndAcknowledgesEachChunk() async throws {
+        var sizes: [Int] = []
+        var acknowledged: [Int] = []
+        try await OfflineAttendanceSync.run(Array(0..<501), send: { batch in
+            if batch.count > 500 { throw SyncFailure.permanent }
+            sizes.append(batch.count)
+            acknowledged += batch
+        }, quarantine: { _ in XCTFail("Valid record quarantined") })
+        XCTAssertEqual(sizes, [500, 1])
+        XCTAssertEqual(acknowledged, Array(0..<501))
+    }
+
+    @MainActor
+    func testOfflineSyncIsolatesPermanentRejectionAndContinues() async throws {
+        var acknowledged: [Int] = []
+        var rejected: [Int] = []
+        try await OfflineAttendanceSync.run(Array(0..<501), isPermanent: {
+            ($0 as? SyncFailure) == .permanent
+        }, send: { batch in
+            if batch.contains(7) { throw SyncFailure.permanent }
+            acknowledged += batch
+        }, quarantine: { rejected.append($0) })
+        XCTAssertEqual(rejected, [7])
+        XCTAssertEqual(acknowledged, Array(0..<501).filter { $0 != 7 })
+    }
+
+    @MainActor
+    func testOfflineSyncTransportFailureKeepsUnacknowledgedRecords() async {
+        var acknowledged: [Int] = []
+        var attempts = 0
+        do {
+            try await OfflineAttendanceSync.run(Array(0..<1001), isPermanent: { _ in false }, send: { batch in
+                attempts += 1
+                if attempts == 2 { throw SyncFailure.transport }
+                acknowledged += batch
+            }, quarantine: { _ in XCTFail("Transport failure quarantined") })
+            XCTFail("Expected transport failure")
+        } catch {
+            XCTAssertEqual(error as? SyncFailure, .transport)
+        }
+        XCTAssertEqual(attempts, 2)
+        XCTAssertEqual(acknowledged, Array(0..<500))
+    }
+
     private let calendar = Calendar(identifier: .gregorian)
 
     @MainActor
@@ -382,6 +429,19 @@ final class AttendanceLogicTests: XCTestCase {
         )
     }
 
+    func testQuarantineSurvivesReloadAndCorrectionRequeuesWithNewIdentity() throws {
+        let owner = UUID()
+        var rejected = pendingRecord(ownerUserId: owner)
+        rejected.isQuarantined = true
+        let data = try XCTUnwrap(PendingAttendanceQueueCodec.encode(ownerUserId: owner, records: [rejected]))
+        var decoded = try XCTUnwrap(PendingAttendanceQueueCodec.decode(data, expectedOwnerUserId: owner)?.first)
+        XCTAssertTrue(decoded.isQuarantined)
+        XCTAssertFalse(decoded.isSynced)
+        decoded.applyCorrection(status: .late, notes: nil, absenceInformed: nil, clientMutationId: "corrected")
+        XCTAssertFalse(decoded.isQuarantined)
+        XCTAssertEqual(decoded.clientMutationId, "corrected")
+    }
+
     func testAcknowledgedAttendanceKeepsExactServerTimestampThroughOfflineCorrection() throws {
         let owner = UUID()
         let raw = "2026-09-05T11:00:00.123456+00:00"
@@ -434,6 +494,45 @@ final class AttendanceLogicTests: XCTestCase {
         }
         XCTAssertEqual(Set(store.allPending(ownerUserId: owner).map(\.sessionId)), Set(sessions))
         XCTAssertTrue(store.allPending(ownerUserId: UUID()).isEmpty)
+    }
+
+    @MainActor
+    func testOnlineCorrectionAcknowledgesQuarantineWithoutRemovingNewerMutation() throws {
+        let probe: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "test-keychain-access-" + UUID().uuidString,
+        ]
+        let status = SecItemCopyMatching(probe as CFDictionary, nil)
+        try XCTSkipIf(status == errSecMissingEntitlement,
+                      "Unsigned simulator tests cannot access the queue Keychain.")
+        XCTAssertEqual(status, errSecItemNotFound)
+        let store = PendingAttendanceStore.shared
+        let owner = UUID()
+        store.activateOwner(owner)
+        defer { store.clear() }
+        let session = UUID()
+        let student = UUID()
+        XCTAssertTrue(store.add(ownerUserId: owner, sessionId: session, studentId: student,
+                                status: .present, notes: nil, observedMarkedAt: nil))
+        let rejected = try XCTUnwrap(store.allPending(ownerUserId: owner).first)
+        store.quarantine(ownerUserId: owner, clientMutationId: rejected.clientMutationId)
+        XCTAssertTrue(try XCTUnwrap(store.allPending(ownerUserId: owner).first).isQuarantined)
+        // A successful online correction acknowledges the captured ID, even in quarantine.
+        store.markSynced(ownerUserId: owner, clientMutationIds: [rejected.clientMutationId])
+        XCTAssertTrue(store.allPending(ownerUserId: owner).isEmpty)
+
+        XCTAssertTrue(store.add(ownerUserId: owner, sessionId: session, studentId: student,
+                                status: .present, notes: nil, observedMarkedAt: nil))
+        let old = try XCTUnwrap(store.allPending(ownerUserId: owner).first)
+        store.quarantine(ownerUserId: owner, clientMutationId: old.clientMutationId)
+        XCTAssertTrue(store.add(ownerUserId: owner, sessionId: session, studentId: student,
+                                status: nil, notes: nil, observedMarkedAt: nil))
+        store.markSynced(ownerUserId: owner, clientMutationIds: [old.clientMutationId])
+        let newer = try XCTUnwrap(store.allPending(ownerUserId: owner).first)
+        XCTAssertNotEqual(newer.clientMutationId, old.clientMutationId)
+        XCTAssertNil(newer.status)
+        store.markSynced(ownerUserId: UUID(), clientMutationIds: [newer.clientMutationId])
+        XCTAssertEqual(store.allPending(ownerUserId: owner).count, 1)
     }
 
     func testPendingQueueRoundTripRequiresMatchingEnvelopeAndRecordOwner() throws {

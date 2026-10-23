@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Native tutor offline sync sends at most 500 mutations per request and removes
+  only acknowledged mutation IDs. Permanent SQL rejections are isolated and
+  retained in the encrypted account queue with a reconciliation warning, so
+  unrelated attendance can sync; transport failures retain unacknowledged work.
+  Successful online corrections and clears remove the matching queued mutation,
+  including quarantine, without discarding newer queued edits.
 - Web monthly attendance comparisons and weekly trends now fetch all attendance
   pages in unique ID order before calculating percentages. Page failures surface
   as errors instead of displaying partial reports.
