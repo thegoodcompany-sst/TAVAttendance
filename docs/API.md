@@ -823,7 +823,20 @@ Phase 2: `result_slips` and `messages` are live through shaped parent RPCs;
 `awards` remains admin-only and feature-flagged. Phase 3: `dismissals` is live
 through a shaped parent RPC; `food_polls` and `food_poll_responses` remain dormant.
 
-Web file uploads use actor/child-bound intents. Finalized retries bypass Storage
+Web monthly and weekly analytics page attendance by ascending ID with an
+exclusive last-ID cursor. Concurrent inserts/clears cannot shift subsequent
+pages; this does not provide a snapshot of changing attendance statuses.
+
+Web file uploads use actor/child-bound intents. The browser retains its prepared
+path, file, metadata and upload stage until success while the form stays mounted,
+so a lost finalization response retries the same operation without re-uploading.
+An already-present Storage object proceeds through trusted finalization checks,
+allowing recovery after a lost upload response. Parents can explicitly start over
+or change the file after a failed attempt; this releases the local reservation
+without deleting the object (the existing expiry worker handles abandoned files).
+After ownership validation, expired/missing intents permit only a read-only
+lookup of the exact persisted actor/student/path and result metadata; they never
+authorize new finalizations or Storage work. Finalized retries bypass Storage
 and use the finalizer RPC's exact-metadata check; ambiguous responses are accepted
 only when the persisted metadata also matches. Unfinalized intents allow at most
 three Storage validation attempts, including failed downloads. The service-only

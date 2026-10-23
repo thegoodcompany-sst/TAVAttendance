@@ -19,6 +19,16 @@ function optionalNumber(formData: FormData, name: string): number | null {
 export function UploadForm({ studentId }: { studentId: string }) {
   const router = useRouter()
   const formRef = useRef<HTMLFormElement>(null)
+  const attempt = useRef<{
+    file: File
+    path: string
+    token: string
+    uploaded: boolean
+    editMetadata: boolean
+    upload: Parameters<typeof finalizeResultSlipUpload>[1]
+  } | null>(null)
+  const [metadataLocked, setMetadataLocked] = useState(false)
+  const [hasAttempt, setHasAttempt] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -28,54 +38,98 @@ export function UploadForm({ studentId }: { studentId: string }) {
     const formData = new FormData(e.currentTarget)
     const file = formData.get('file')
     startTransition(async () => {
-      if (!(file instanceof File) || file.size === 0) {
+      if (!attempt.current && (!(file instanceof File) || file.size === 0)) {
         setError('A file is required.')
         return
       }
-      if (!ALLOWED_TYPES.has(file.type)) {
+      if (!attempt.current && file instanceof File && !ALLOWED_TYPES.has(file.type)) {
         setError('File must be a PDF, JPG, or PNG.')
         return
       }
-      if (file.size > MAX_BYTES) {
+      if (!attempt.current && file instanceof File && file.size > MAX_BYTES) {
         setError('File must be under 10MB.')
         return
       }
 
-      const prepared = await prepareResultSlipUpload(
-        studentId,
-        file.name,
-        file.type,
-        file.size,
-      )
-      if (prepared.error || !prepared.path || !prepared.token) {
-        setError(prepared.error ?? 'Could not prepare the upload.')
-        return
-      }
+      try {
+        if (!attempt.current && file instanceof File) {
+          const prepared = await prepareResultSlipUpload(
+            studentId,
+            file.name,
+            file.type,
+            file.size,
+          )
+          if (prepared.error || !prepared.path || !prepared.token) {
+            setError(prepared.error ?? 'Could not prepare the upload.')
+            return
+          }
 
-      const supabase = createClient()
-      const { error: uploadError } = await supabase.storage
-        .from('result-slips')
-        .uploadToSignedUrl(prepared.path, prepared.token, file, {
-          contentType: file.type,
-        })
-      if (uploadError) {
-        setError('Could not upload the file. Please try again.')
-        return
-      }
+          attempt.current = {
+            file, path: prepared.path, token: prepared.token, uploaded: false, editMetadata: false,
+            upload: {
+              path: prepared.path, fileType: file.type, fileSize: file.size,
+              examName: String(formData.get('exam_name') ?? ''),
+              subject: String(formData.get('subject') ?? '') || null,
+              score: optionalNumber(formData, 'score'),
+              maxScore: optionalNumber(formData, 'max_score'),
+            },
+          }
+        }
+        setHasAttempt(true)
+        const current = attempt.current
+        if (!current) return
+        if (current.editMetadata) {
+          current.upload = {
+            ...current.upload,
+            examName: String(formData.get('exam_name') ?? ''),
+            subject: String(formData.get('subject') ?? '') || null,
+            score: optionalNumber(formData, 'score'),
+            maxScore: optionalNumber(formData, 'max_score'),
+          }
+          current.editMetadata = false
+        }
+        setMetadataLocked(true)
+        if (!current.uploaded) {
+          const supabase = createClient()
+          const { error: uploadError } = await supabase.storage
+            .from('result-slips')
+            .uploadToSignedUrl(current.path, current.token, current.file, {
+              contentType: current.file.type,
+            })
+          // A previous upload may have succeeded even if its response was lost.
+          // A duplicate is only a reason to try trusted verification, never proof
+          // that the stored contents are valid.
+          const alreadyPresent = uploadError && (
+            uploadError.statusCode === '409' ||
+            ('code' in uploadError && uploadError.code === 'ResourceAlreadyExists') ||
+            uploadError.message === 'The resource already exists' ||
+            uploadError.message === 'Resource already exists'
+          )
+          if (uploadError && !alreadyPresent) {
+            setError('Could not upload the file. Please try again.')
+            return
+          }
 
-      const { error } = await finalizeResultSlipUpload(studentId, {
-        path: prepared.path,
-        fileType: file.type,
-        fileSize: file.size,
-        examName: String(formData.get('exam_name') ?? ''),
-        subject: String(formData.get('subject') ?? '') || null,
-        score: optionalNumber(formData, 'score'),
-        maxScore: optionalNumber(formData, 'max_score'),
-      })
-      if (error) setError(error)
-      else {
-        formRef.current?.reset()
-        router.refresh()
+          current.uploaded = true
+        }
+
+        const { error } = await finalizeResultSlipUpload(studentId, current.upload)
+        if (error) {
+          // Metadata errors can be corrected on the same path; other failures
+          // can be abandoned with the explicit start-over action.
+          // Transport failures keep the original metadata for an exact retry.
+          current.editMetadata = true
+          setMetadataLocked(false)
+          setError(error)
+        } else {
+          attempt.current = null
+          setHasAttempt(false)
+          setMetadataLocked(false)
+          formRef.current?.reset()
+          router.refresh()
+        }
+      } catch {
+        setError('Could not complete the upload. Please try again to resume it.')
       }
     })
   }
@@ -85,13 +139,15 @@ export function UploadForm({ studentId }: { studentId: string }) {
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
-      <input name="exam_name" placeholder="Exam name (e.g. Mid-Year Maths)" required className={inputClass} />
-      <div className="flex gap-3">
-        <input name="subject" placeholder="Subject (optional)" className={inputClass} />
-        <input name="score" type="number" step="any" placeholder="Score" className={inputClass} />
-        <input name="max_score" type="number" step="any" placeholder="Out of" className={inputClass} />
-      </div>
-      <input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required className="block text-sm" />
+      <fieldset disabled={isPending || metadataLocked} className="space-y-3">
+        <input name="exam_name" placeholder="Exam name (e.g. Mid-Year Maths)" required className={inputClass} />
+        <div className="flex gap-3">
+          <input name="subject" placeholder="Subject (optional)" className={inputClass} />
+          <input name="score" type="number" step="any" placeholder="Score" className={inputClass} />
+          <input name="max_score" type="number" step="any" placeholder="Out of" className={inputClass} />
+        </div>
+      </fieldset>
+      <input name="file" type="file" accept="application/pdf,image/jpeg,image/png" required disabled={isPending || hasAttempt} className="block text-sm" />
       <div className="flex items-center gap-3">
         <button
           type="submit"
@@ -100,6 +156,23 @@ export function UploadForm({ studentId }: { studentId: string }) {
         >
           {isPending ? 'Uploading…' : 'Upload slip'}
         </button>
+        {hasAttempt && (
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => {
+              attempt.current = null
+              setHasAttempt(false)
+              setMetadataLocked(false)
+              setError(null)
+              const fileInput = formRef.current?.elements.namedItem('file')
+              if (fileInput instanceof HTMLInputElement) fileInput.value = ''
+            }}
+            className="text-sm font-medium text-primary disabled:opacity-50"
+          >
+            Start over / change file
+          </button>
+        )}
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     </form>
