@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web analytics uses ID cursors to avoid skipped or repeated attendance after
+  concurrent inserts/clears. Result-slip retries retain the prepared upload and
+  resume finalization after transport failures; expired/missing intents allow
+  read-only recovery of exact saved results. Lost Storage responses recover through
+  trusted verification, and parents can start over or change a rejected file.
+
 - Attendance eligibility checks now lock the session against concurrent closure,
   including clears with no existing attendance row.
 - Native tutor offline sync sends at most 500 mutations per request and removes

@@ -156,10 +156,30 @@ export async function finalizeResultSlipUpload(
     .eq('actor_id', user.id)
     .is('cleanup_claimed_at', null)
     .maybeSingle()
-  if (
-    intentError || !intent || new Date(intent.expires_at).getTime() <= Date.now() ||
-    intent.expected_size !== upload.fileSize || intent.expected_mime !== upload.fileType
-  ) {
+  async function recoverPersistedResult() {
+    const { data: persisted, error } = await adminClient
+      .from('result_slips')
+      .select('id, exam_name, subject, score, max_score')
+      .eq('student_id', studentId)
+      .eq('uploaded_by', user!.id)
+      .eq('file_path', upload.path)
+      .limit(1)
+      .maybeSingle()
+    return !error && persisted && persisted.exam_name === examName && persisted.subject === subject &&
+      persisted.score === score && persisted.max_score === maxScore
+  }
+
+  if (intentError) return { error: 'Could not verify upload authorization. Please try again.' }
+  if (!intent || new Date(intent.expires_at).getTime() <= Date.now()) {
+    // Recovery is read-only: an unavailable intent must never authorize a new
+    // finalization or any Storage work, even if it changes during this request.
+    if (await recoverPersistedResult()) {
+      revalidatePath(`/parent/results/${studentId}`)
+      return { error: null }
+    }
+    return { error: 'Upload authorization is invalid or expired.' }
+  }
+  if (intent.expected_size !== upload.fileSize || intent.expected_mime !== upload.fileType) {
     return { error: 'Upload authorization is invalid or expired.' }
   }
 
@@ -213,16 +233,7 @@ export async function finalizeResultSlipUpload(
     // Resolve that ambiguous state before reporting failure, and never delete
     // an object here: a live intent supports a retry, while the expiry worker
     // safely removes genuinely abandoned uploads later.
-    const { data: persisted } = await adminClient
-      .from('result_slips')
-      .select('id, exam_name, subject, score, max_score')
-      .eq('student_id', studentId)
-      .eq('uploaded_by', user.id)
-      .eq('file_path', upload.path)
-      .limit(1)
-      .maybeSingle()
-    if (persisted && persisted.exam_name === examName && persisted.subject === subject &&
-        persisted.score === score && persisted.max_score === maxScore) {
+    if (await recoverPersistedResult()) {
       revalidatePath(`/parent/results/${studentId}`)
       return { error: null }
     }
