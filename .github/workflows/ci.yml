@@ -207,3 +207,5 @@ jobs:
           done
       - name: Verify concurrent attendance corrections
         run: python3 supabase/tests/sync_attendance_concurrency_test.py
+      - name: Verify attendance is serialized with session closure
+        run: python3 supabase/tests/attendance_session_lock_test.py

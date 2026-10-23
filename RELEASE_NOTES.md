@@ -5,6 +5,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Attendance eligibility checks now lock the session against concurrent closure,
+  including clears with no existing attendance row.
 - Native tutor offline sync sends at most 500 mutations per request and removes
   only acknowledged mutation IDs. Permanent SQL rejections are isolated and
   retained in the encrypted account queue with a reconciliation warning, so

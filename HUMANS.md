@@ -1134,3 +1134,17 @@ No deployment or production change was performed.
 Review follow-up: also verify successful online corrections and clears remove
 quarantined overrides after reopening the roster; failed requests retain them.
 Native tests/builds and device QA remain unverified in this container.
+
+### ☐ 87. Verify attendance/session closure locking locally
+
+2026-10-23: migration 062 adds session locks to attendance eligibility checks.
+This container lacks Supabase CLI, Docker, and PostgreSQL, so database replay,
+SQL regressions, and real concurrency execution remain unverified. No remote
+database was contacted and no migration was deployed.
+
+- [ ] On a disposable local Supabase database, replay migrations, run the SQL
+  suite and both Python concurrency tests under `supabase/tests/`. Demonstrate
+  that `attendance_session_lock_test.py` fails before 062 and passes after it;
+  verify rollback/reapply of 062 locally.
+- [ ] Run the attendance/session closure flow with two staff clients, confirming
+  that a mark or clear waiting behind closure is rejected and the row preserved.

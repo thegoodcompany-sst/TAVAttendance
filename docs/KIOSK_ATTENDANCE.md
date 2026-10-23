@@ -239,6 +239,14 @@ SELECT COUNT(*) FROM attendance_summary a
 JOIN classes c ON c.id = a.class_id WHERE c.is_study_space;
 ```
 
+### Concurrent session closure
+
+Attendance writes and clears hold a shared session row lock until transaction
+completion. Session closure takes an exclusive row lock: if closure wins, a
+waiting attendance mutation checks the committed `ended_at` and is rejected;
+if attendance wins, closure waits for it to finish. Empty clears use the same
+boundary. Dedicated retrospective edits retain their existing eligibility rules.
+
 ### Offline batch recovery QA
 
 Using a test account and local/test backend, queue 501 distinct student/session
