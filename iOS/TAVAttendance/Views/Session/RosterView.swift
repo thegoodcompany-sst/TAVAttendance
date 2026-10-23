@@ -75,6 +75,14 @@ struct RosterView: View {
                 rosterList
             }
         }
+        .safeAreaInset(edge: .top) {
+            if pendingForCurrentUser.contains(where: { $0.isQuarantined }) {
+                Text("Some attendance needs reconciliation. Marks remain on this device; check the website register before signing out.")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .padding()
+            }
+        }
         .navigationTitle(navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -439,6 +447,10 @@ struct RosterView: View {
 
         if network.isConnected {
             do {
+                // Snapshot IDs before awaiting: a newer queued correction must survive.
+                let pendingMutationIds = Set(pendingStore.allPending(ownerUserId: ownerUserId)
+                    .filter { $0.sessionId == session.id && $0.studentId == entry.studentId }
+                    .map(\.clientMutationId))
                 let receipt = try await AttendanceService.shared.markAttendance(
                     sessionId: session.id,
                     studentId: entry.studentId,
@@ -446,6 +458,9 @@ struct RosterView: View {
                     notes: nil,
                     absenceInformed: status == .absent ? absenceInformed : nil
                 )
+                if currentOwnerUserId == ownerUserId, !pendingMutationIds.isEmpty {
+                    pendingStore.markSynced(ownerUserId: ownerUserId, clientMutationIds: pendingMutationIds)
+                }
                 if currentOwnerUserId == ownerUserId,
                    let index = roster.firstIndex(where: { $0.studentId == entry.studentId }) {
                     roster[index].acknowledge(
@@ -493,8 +508,15 @@ struct RosterView: View {
 
         if network.isConnected {
             do {
+                // Snapshot IDs before awaiting: a newer queued correction must survive.
+                let pendingMutationIds = Set(pendingStore.allPending(ownerUserId: ownerUserId)
+                    .filter { $0.sessionId == session.id && $0.studentId == entry.studentId }
+                    .map(\.clientMutationId))
                 try await AttendanceService.shared.clearAttendance(
                     sessionId: session.id, studentId: entry.studentId)
+                if currentOwnerUserId == ownerUserId, !pendingMutationIds.isEmpty {
+                    pendingStore.markSynced(ownerUserId: ownerUserId, clientMutationIds: pendingMutationIds)
+                }
                 if currentOwnerUserId == ownerUserId,
                    let index = roster.firstIndex(where: { $0.studentId == entry.studentId }) {
                     roster[index].acknowledge(status: nil, absenceInformed: nil, markedAt: nil)
@@ -547,6 +569,9 @@ struct RosterView: View {
             return
         }
         let unsynced = pendingStore.allPending(ownerUserId: ownerUserId)
+        if unsynced.contains(where: { $0.isQuarantined }) {
+            self.error = AppError("Attendance marks need reconciliation and remain on this device. Check the website register and use paper before signing out.")
+        }
         guard !unsynced.isEmpty else { return }
         isSaving = true
         rosterRevision += 1
@@ -554,44 +579,45 @@ struct RosterView: View {
         let started = Date()
         let pendingBefore = unsynced.count
         do {
-            // The RPC succeeded — every record is terminal (synced, skipped because a
-            // newer server row won, or blocked because the session already ended). Clear
-            // them all; leaving skipped/blocked rows in the store re-sends them forever.
-            let result = try await AttendanceService.shared.syncPending(unsynced)
-            Analytics.shared.track(.ops, name: "sync_result", properties: [
-                "synced": .integer(result.synced),
-                "skipped": .integer(result.skipped),
-                "blocked_ended_session": .integer(result.blockedEndedSession),
-                "skipped_conflict": .integer(result.skippedConflict),
-                "pending_before": .integer(pendingBefore),
-                "duration_ms": Analytics.ms(since: started),
-            ])
-            // Terminal outcomes (synced, skipped, blocked, conflict) must leave
-            // the queue so they are not retried forever — but the tutor has to
-            // see that dropped marks were not saved.
-            pendingStore.markSynced(
-                ownerUserId: ownerUserId,
-                clientMutationIds: Set(unsynced.map(\.clientMutationId))
-            )
-            if result.blockedEndedSession > 0 || result.skippedConflict > 0 {
-                self.error = AppError(
-                    "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
+            try await OfflineAttendanceSync.run(unsynced.filter { !$0.isQuarantined }, send: { batch in
+                let result = try await AttendanceService.shared.syncPending(batch)
+                Analytics.shared.track(.ops, name: "sync_result", properties: [
+                    "synced": .integer(result.synced),
+                    "skipped": .integer(result.skipped),
+                    "blocked_ended_session": .integer(result.blockedEndedSession),
+                    "skipped_conflict": .integer(result.skippedConflict),
+                    "pending_before": .integer(pendingBefore),
+                    "duration_ms": Analytics.ms(since: started),
+                ])
+                // Terminal outcomes (synced, skipped, blocked, conflict) must leave
+                // the queue so they are not retried forever — but the tutor has to
+                // see that dropped marks were not saved.
+                pendingStore.markSynced(
+                    ownerUserId: ownerUserId,
+                    clientMutationIds: Set(batch.map(\.clientMutationId))
                 )
-            }
-            do {
-                roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
-                for record in unsynced where record.sessionId == session.id {
-                    localStatus.removeValue(forKey: record.studentId)
-                    localAbsenceInformed.removeValue(forKey: record.studentId)
-                    locallyCleared.remove(record.studentId)
-                    localMarkedAt.removeValue(forKey: record.studentId)
+                if result.blockedEndedSession > 0 || result.skippedConflict > 0 {
+                    self.error = AppError(
+                        "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
+                    )
                 }
-            } catch {
-                loadError = AppError("Could not refresh roster", underlyingError: error)
-            }
+                do {
+                    roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+                    for record in batch where record.sessionId == session.id {
+                        localStatus.removeValue(forKey: record.studentId)
+                        localAbsenceInformed.removeValue(forKey: record.studentId)
+                        locallyCleared.remove(record.studentId)
+                        localMarkedAt.removeValue(forKey: record.studentId)
+                    }
+                } catch {
+                    loadError = AppError("Could not refresh roster", underlyingError: error)
+                }
+            }, quarantine: { record in
+                pendingStore.quarantine(ownerUserId: ownerUserId, clientMutationId: record.clientMutationId)
+                self.error = AppError("Attendance marks need reconciliation and remain on this device. Check the website register and use paper before signing out.")
+            })
         } catch {
-            // Only reached on a transport failure (the RPC never returned). Keep the
-            // records and retry on next reconnect.
+            // Unacknowledged records remain queued after transport or unknown failures.
             Analytics.shared.track(.ops, name: "sync_failure", properties: [
                 // Exception descriptions may echo submitted row values.
                 "message": .string(String(describing: type(of: error))),

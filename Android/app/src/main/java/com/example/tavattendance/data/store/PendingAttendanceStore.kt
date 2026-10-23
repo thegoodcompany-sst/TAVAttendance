@@ -43,6 +43,7 @@ data class PendingAttendanceRecord(
     val clientMutationId: String,
     val markedAt: String,
     var isSynced: Boolean = false,
+    var isQuarantined: Boolean = false,
     // Server marked_at observed when first queued; JSON null means observed no row.
     var observedMarkedAt: String? = null,
     // False for migrated v3 envelopes that omitted the observation. New writes set true.
@@ -322,6 +323,13 @@ class PendingAttendanceStore(context: Context) {
         loadLocked(ownerUserId).filter { !it.isSynced }
     }
 
+    fun quarantine(ownerUserId: String, clientMutationId: String): Boolean = synchronized(queueLock) {
+        val records = loadLocked(ownerUserId).map {
+            if (it.clientMutationId == clientMutationId) it.copy(isQuarantined = true) else it
+        }
+        saveLocked(ownerUserId, records)
+    }
+
     fun markSynced(ownerUserId: String, clientMutationIds: Set<String>): Boolean =
         synchronized(queueLock) {
             val canonicalOwner = canonicalOwnerUserId(ownerUserId) ?: return@synchronized false
@@ -351,6 +359,7 @@ internal fun correctedPendingRecord(
     clientMutationId = clientMutationId,
     markedAt = markedAt,
     isSynced = false,
+    isQuarantined = false,
 )
 
 /** Synced attendance contains student identifiers and has no offline purpose.
@@ -363,3 +372,33 @@ internal fun recordsAfterSync(
 }
 
 internal fun shouldQueueAttendanceFailure(error: Throwable): Boolean = error is java.io.IOException
+
+internal fun isPermanentAttendanceRejection(error: Throwable): Boolean {
+    val code = (error as? io.github.jan.supabase.postgrest.exception.PostgrestRestException)?.code
+        ?: return false
+    return code == "42501" || code.startsWith("22") || code.startsWith("23")
+}
+
+/** Split atomic permanent failures; acknowledge each successful chunk before continuing. */
+internal suspend fun <T> syncOfflineAttendance(
+    records: List<T>,
+    isPermanent: (Throwable) -> Boolean = ::isPermanentAttendanceRejection,
+    send: suspend (List<T>) -> Unit,
+    quarantine: (T) -> Unit,
+) {
+    suspend fun submit(batch: List<T>) {
+        try {
+            send(batch)
+        } catch (error: Exception) {
+            if (!isPermanent(error)) throw error
+            if (batch.size == 1) {
+                quarantine(batch.single())
+            } else {
+                val middle = batch.size / 2
+                submit(batch.take(middle))
+                submit(batch.drop(middle))
+            }
+        }
+    }
+    for (batch in records.chunked(500)) submit(batch)
+}

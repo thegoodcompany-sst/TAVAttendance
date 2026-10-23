@@ -1123,7 +1123,19 @@ the UI regression passed with cancel, `0853`, relock and `9876`.
   another four-digit PIN. Physical-device QA and TestFlight upload were not
   performed as part of this source fix.
 
-### ☐ 86. Verify attendance/session closure locking locally
+### ☐ 86. Verify native offline batch recovery on devices
+
+2026-10-23: Finding 3 client fix adds bounded requests and retained quarantine.
+Native checks could not run in the Linux task container: Xcode and Java are
+unavailable. Before shipping, run the canonical iOS and Android test/build
+commands and the offline batch recovery QA in `docs/KIOSK_ATTENDANCE.md`.
+No deployment or production change was performed.
+
+Review follow-up: also verify successful online corrections and clears remove
+quarantined overrides after reopening the roster; failed requests retain them.
+Native tests/builds and device QA remain unverified in this container.
+
+### ☐ 87. Verify attendance/session closure locking locally
 
 2026-10-23: migration 062 adds session locks to attendance eligibility checks.
 This container lacks Supabase CLI, Docker, and PostgreSQL, so database replay,

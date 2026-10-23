@@ -25,6 +25,8 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
+import com.example.tavattendance.data.store.syncOfflineAttendance
 import javax.crypto.KeyGenerator
 
 class PendingAttendanceStoreTest {
@@ -39,6 +41,70 @@ class PendingAttendanceStoreTest {
         markedAt = "2026-07-15T00:00:00Z",
         isSynced = synced,
     )
+
+    @Test
+    fun offlineSyncChunks501Records() = runBlocking {
+        val sizes = mutableListOf<Int>()
+        val acknowledged = mutableListOf<Int>()
+        syncOfflineAttendance((0..500).toList(), send = { batch ->
+            require(batch.size <= 500)
+            sizes.add(batch.size)
+            acknowledged.addAll(batch)
+        }, quarantine = { error("Valid record quarantined") })
+        assertEquals(listOf(500, 1), sizes)
+        assertEquals((0..500).toList(), acknowledged)
+    }
+
+    @Test
+    fun offlineSyncIsolatesPermanentRejectionAndContinues() = runBlocking {
+        val acknowledged = mutableListOf<Int>()
+        val rejected = mutableListOf<Int>()
+        syncOfflineAttendance((0..500).toList(), isPermanent = { it is SecurityException }, send = { batch ->
+            if (7 in batch) throw SecurityException("permanent rejection")
+            acknowledged.addAll(batch)
+        }, quarantine = { rejected.add(it) })
+        assertEquals(listOf(7), rejected)
+        assertEquals((0..500).filter { it != 7 }, acknowledged)
+    }
+
+    @Test
+    fun offlineSyncTransportFailureRetainsUnacknowledgedRemainder() = runBlocking {
+        val acknowledged = mutableListOf<Int>()
+        var attempts = 0
+        try {
+            syncOfflineAttendance((0..1000).toList(), send = { batch ->
+                attempts++
+                if (attempts == 2) throw java.io.IOException("offline")
+                acknowledged.addAll(batch)
+            }, quarantine = { error("Transport failure quarantined") })
+            error("Expected transport failure")
+        } catch (_: java.io.IOException) {
+            assertEquals(2, attempts)
+            assertEquals((0..499).toList(), acknowledged)
+        }
+    }
+
+    @Test
+    fun quarantineSurvivesReloadAndOnlyAcknowledgedIdsAreRemoved() {
+        val rejected = record("rejected").copy(isQuarantined = true)
+        val records = listOf(rejected, record("saved"), record("new-tap"))
+        val reloaded = requireNotNull(decodePendingQueue(requireNotNull(encodePendingQueue(owner, records)), owner))
+        val remaining = recordsAfterSync(reloaded, setOf("saved", "old-tap"))
+        assertEquals(listOf("rejected", "new-tap"), remaining.map { it.clientMutationId })
+        assertTrue(remaining.first().isQuarantined)
+        val corrected = correctedPendingRecord(rejected, AttendanceStatus.late, null, null, "retry", "later")
+        assertFalse(corrected.isQuarantined)
+    }
+
+    @Test
+    fun onlineCorrectionAcknowledgesQuarantineWithoutRemovingNewerMutation() {
+        val rejected = record("rejected").copy(isQuarantined = true)
+        val unrelated = record("other").copy(studentId = "other-student")
+        val capturedIds = setOf(rejected.clientMutationId)
+        assertEquals(listOf(unrelated), recordsAfterSync(listOf(rejected, unrelated), capturedIds))
+        val newer = correctedPendingRecord(rejected, null, null, null, "new-clear", "later")
+        assertEquals(listOf(newer, unrelated), recordsAfterSync(listOf(newer, unrelated), capturedIds))
+    }
 
     @Test
     fun syncedAndLegacySyncedRecordsAreRemovedFromDeviceCache() {
