@@ -264,6 +264,13 @@ struct RosterEntry: Codable, Identifiable {
 
 ## 4. Core Queries
 
+Web monthly attendance comparisons and weekly trends read attendance records
+with the caller’s RLS scope, excluding Study Space and inactive classes/students
+on every page. They request ranges ordered by the unique attendance record ID,
+advance by the number of rows received, and continue until an empty page before
+aggregating. Any page error fails the report; an API row cap must not silently
+change the percentages.
+
 Base-table RLS remains defense in depth, but security-sensitive discovery and
 writes use shaped RPCs. A recent substitute can see an explicitly covered past
 session without receiving authority over today's class.
