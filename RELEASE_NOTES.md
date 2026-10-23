@@ -7,6 +7,8 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 - Attendance eligibility checks now lock the session against concurrent closure,
   including clears with no existing attendance row.
+- Web result-slip finalization skips Storage on finalized retries, preserves files
+  on validation/download failures, and caps validation at three attempts per upload.
 
 - Web dev tooling: pin vite to 8.1.6 (GHSA-587h-7wmj-h5pm in bundled
   launch-editor) so the CI dependency audit passes again.
