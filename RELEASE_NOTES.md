@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web demo journals now validate tables, row shapes, counts and domain uniqueness
+  before application; query expansion budgets prevent small cookies from causing
+  disproportionate work. Invalid journals fall back atomically to the demo seed.
+  Demo writes enforce these limits before acceptance and return an explicit
+  error without losing prior edits, including for multi-table RPCs.
+
 - Web analytics uses ID cursors to avoid skipped or repeated attendance after
   concurrent inserts/clears. Result-slip retries retain the prepared upload and
   resume finalization after transport failures; expired/missing intents allow

@@ -64,6 +64,7 @@ export async function getDemoClient(): Promise<DemoClient | null> {
   const journal = readJournal(store)
   const db: DemoDatabase = {
     tables: applyJournal(buildDemoTables(start), journal),
+    journal,
     now: () => Date.now(),
     onChange: change => {
       recordChange(journal, change)

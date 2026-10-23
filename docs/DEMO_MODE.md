@@ -64,6 +64,16 @@ the web demo scans on the iOS demo kiosk.
   decompressed JSON; oversized journals fall back to the fresh seed just like
   corrupt cookies. The decoded limit leaves over seven times the space needed
   to journal every seeded row (about 135 KB).
+  Journals also require allowlisted tables and columns, typed bounded values,
+  matching row IDs, at most 256 upserts/deletions per table and 1,024 overall.
+  The merged seed plus journal has the same row limits and enforces domain
+  uniqueness (including class/date sessions and class/student enrollments).
+  Writes are staged and checked against the same structural, row and byte
+  limits before acceptance, including every table changed by an RPC. Rejected
+  writes return an explicit error and preserve prior in-memory and cookie state.
+  Invalid journals are discarded atomically. Query projections stop with an
+  explicit error after 5,000 projected rows, 100,000 relationship row scans or
+  1 MiB of projected scalar data; partial results are never returned.
 - `is_superadmin` is false in demo mode, so export, flags and wipe stay hidden.
 
 ## Offline and hard-coded

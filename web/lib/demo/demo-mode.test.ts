@@ -37,7 +37,7 @@ vi.mock('next/headers', () => {
   return { cookies: async () => ({ ...store }), headers: async () => new Headers() }
 })
 
-import { DEMO_COOKIE, DEMO_EMAIL, DEMO_USER_ID, isDemoEmail } from './constants'
+import { DEMO_STATE_COOKIE, DEMO_COOKIE, DEMO_EMAIL, DEMO_USER_ID, isDemoEmail } from './constants'
 import { buildDemoTables, demoId, DEMO_KIND, STUDY_SPACE_CLASS_ID } from './seed'
 import { decodeJournal, encodeJournal, chunk } from './journal'
 import { createClient } from '@/lib/supabase/server'
@@ -316,6 +316,24 @@ describe('familiar names are the only Easter egg', () => {
       const session = sessions!.find(s => s.class_id === enrollment!.class_id)!
       expect(await markAttendance(session.id, student.id, 'present')).toEqual({ error: null })
     }
+    expectNoSupabase()
+  })
+})
+
+
+describe('untrusted demo journal dashboard', () => {
+  it('discards same-day session/enrollment amplification before running the dashboard query', async () => {
+    await enterDemoMode(DEMO_EMAIL)
+    const baseline = await getTodaySessions()
+    const seed = buildDemoTables(Number(cookieJar.get(DEMO_COOKIE)))
+    const session = seed.sessions.find(row => row.session_date === todayInTz())!
+    const enrollment = seed.enrollments.find(row => row.class_id === session.class_id)!
+    const journal = { v: 1 as const, t: {
+      sessions: { u: Object.fromEntries(Array.from({ length: 300 }, (_, i) => [`s${i}`, { ...session, id: `s${i}` }])), d: [] },
+      enrollments: { u: Object.fromEntries(Array.from({ length: 300 }, (_, i) => [`e${i}`, { ...enrollment, id: `e${i}` }])), d: [] },
+    } }
+    chunk(encodeJournal(journal)).forEach((part, i) => cookieJar.set(`${DEMO_STATE_COOKIE}.${i}`, part))
+    expect(await getTodaySessions()).toEqual(baseline)
     expectNoSupabase()
   })
 })
