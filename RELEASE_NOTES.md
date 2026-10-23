@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Attendance eligibility checks now lock the session against concurrent closure,
+  including clears with no existing attendance row.
+
 - Web dev tooling: pin vite to 8.1.6 (GHSA-587h-7wmj-h5pm in bundled
   launch-editor) so the CI dependency audit passes again.
 - Web demo cookies now enforce encoded and decompressed journal size limits;

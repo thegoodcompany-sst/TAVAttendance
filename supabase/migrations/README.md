@@ -121,6 +121,7 @@ application from this table; require the remote drift/security gates.
 | 059 | nfc_arrival_station  | Arrival-station role, nfc_tag_bindings, tap/pair RPCs, flag `nfc_sign_in` OFF | yes   |
 | 060 | atomic_offline_attendance_cas | Atomic observed-state writes and clears preserve concurrent online corrections | yes   |
 | 061 | fail_closed_role_checks | Reject missing-profile RPC callers and require a current tutor role for class totals; update station predicate only where 059 is installed | yes   |
+| 062 | attendance_session_lock | Serialize attendance writes and clears with session closure | yes   |
 
 Migration 061 preserves the production hold on 059. When 059 is eventually
 authorized, apply 061 again immediately afterward: 059 defines the older nullable
@@ -135,3 +136,13 @@ python3 supabase/tests/sync_attendance_concurrency_test.py
 
 This uses the local Supabase Docker database and real concurrent authenticated
 writes to check updates, clears, inserts, and deletion races.
+
+Migration 062 closure regression (after a clean local replay):
+
+```sh
+python3 supabase/tests/attendance_session_lock_test.py
+```
+
+Uses concurrent local database connections and observed PostgreSQL lock waits,
+covering insert, correction, clear, empty clear, and closure rollback for both
+assigned tutors and substitutes.

@@ -1122,3 +1122,17 @@ the UI regression passed with cancel, `0853`, relock and `9876`.
   Confirm ADMIN appears, then relock through Kiosk Settings and repeat with
   another four-digit PIN. Physical-device QA and TestFlight upload were not
   performed as part of this source fix.
+
+### ☐ 86. Verify attendance/session closure locking locally
+
+2026-10-23: migration 062 adds session locks to attendance eligibility checks.
+This container lacks Supabase CLI, Docker, and PostgreSQL, so database replay,
+SQL regressions, and real concurrency execution remain unverified. No remote
+database was contacted and no migration was deployed.
+
+- [ ] On a disposable local Supabase database, replay migrations, run the SQL
+  suite and both Python concurrency tests under `supabase/tests/`. Demonstrate
+  that `attendance_session_lock_test.py` fails before 062 and passes after it;
+  verify rollback/reapply of 062 locally.
+- [ ] Run the attendance/session closure flow with two staff clients, confirming
+  that a mark or clear waiting behind closure is rejected and the row preserved.
