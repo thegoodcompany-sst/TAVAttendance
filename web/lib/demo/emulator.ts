@@ -5,6 +5,8 @@
  * the app's RPCs, `auth`, and `storage`. It never performs network I/O, so a
  * demo session cannot read from or write to the real database.
  */
+import { emptyJournal, recordChange, canPersistJournal, type DemoJournal } from './journal'
+import { validDemoTables } from './journal-validation'
 import { DEMO_USER_ID, DEMO_EMAIL } from './constants'
 import { STUDY_SPACE_CLASS_ID, sgDate, type DemoRow, type DemoTables } from './seed'
 
@@ -55,6 +57,7 @@ export type DemoDatabase = {
   tables: DemoTables
   /** Wall clock used for server-assigned timestamps. */
   now: () => number
+  journal?: DemoJournal
   onChange?: (change: DemoChange) => void
 }
 
@@ -62,6 +65,35 @@ const ok = <T>(data: T, count: number | null = null, status = 200): DemoResult<T
   ({ data, error: null, count, status, statusText: 'OK' })
 const fail = (message: string, code = 'DEMO', status = 400): DemoResult<null> =>
   ({ data: null, error: { message, code, details: null, hint: null }, count: null, status, statusText: 'Error' })
+
+/** Stage the entire operation, including multi-table RPCs, before publishing it. */
+function transact(db: DemoDatabase, run: () => DemoResult): DemoResult {
+  const tables = db.tables
+  const onChange = db.onChange
+  const changes: DemoChange[] = []
+  db.tables = structuredClone(tables)
+  db.onChange = change => changes.push(structuredClone(change))
+  let candidate: DemoTables
+  let journal: DemoJournal
+  let result: DemoResult
+  try {
+    result = run()
+    if (result.error || !changes.length) return result
+    journal = structuredClone(db.journal ?? emptyJournal())
+    for (const change of changes) recordChange(journal, change)
+    if (!validDemoTables(db.tables) || !canPersistJournal(journal)) {
+      return fail('Demo persistence limit exceeded or invalid data. Your previous changes have been kept.')
+    }
+    candidate = db.tables
+  } finally {
+    db.tables = tables
+    db.onChange = onChange
+  }
+  db.tables = candidate
+  db.journal = journal
+  for (const change of changes) onChange?.(change)
+  return result
+}
 
 function newId(): string {
   return globalThis.crypto.randomUUID()
@@ -325,7 +357,7 @@ class DemoQuery implements PromiseLike<DemoResult> {
   ): PromiseLike<TResult1 | TResult2> {
     let result: DemoResult
     try {
-      result = this.execute()
+      result = this.mode === 'select' ? this.execute() : transact(this.db, () => this.execute())
     } catch (error) {
       result = fail(error instanceof Error ? error.message : 'Demo query failed')
     }
@@ -359,8 +391,9 @@ class DemoQuery implements PromiseLike<DemoResult> {
 
   private shape(rows: DemoRow[]): DemoResult {
     const node = parseSelect(this.selectText)
+    const budget = { rows: 5000, scans: 100000, bytes: 1024 * 1024 }
     let out = rows
-      .map(row => project(this.db, this.table, row, node, this.filters.filter(f => f.path.length > 1)))
+      .map(row => project(this.db, this.table, row, node, this.filters.filter(f => f.path.length > 1), budget))
       .filter((r): r is Record<string, unknown> => r !== null)
 
     for (const order of [...this.orders].reverse()) {
@@ -448,11 +481,21 @@ function mutableTable(db: DemoDatabase, table: string): DemoRow[] {
   return db.tables[table]
 }
 
+type ProjectionBudget = { rows: number; scans: number; bytes: number }
+
+function spend(budget: ProjectionBudget, kind: keyof ProjectionBudget, amount: number) {
+  budget[kind] -= amount
+  if (budget[kind] < 0) throw new Error('Demo query expansion limit exceeded; reset the demo to continue.')
+}
+
 /** Projects one row through a select tree. Returns null if an !inner embed or nested filter excludes it. */
-function project(db: DemoDatabase, table: string, row: DemoRow, node: SelectNode, nested: Filter[]): Record<string, unknown> | null {
+function project(db: DemoDatabase, table: string, row: DemoRow, node: SelectNode, nested: Filter[], budget: ProjectionBudget): Record<string, unknown> | null {
+  spend(budget, 'rows', 1)
   const out: Record<string, unknown> = {}
   if (node.columns === '*') Object.assign(out, row)
   else for (const col of node.columns) out[col] = row[col] ?? null
+
+  spend(budget, 'bytes', Buffer.byteLength(JSON.stringify(out), 'utf8'))
 
   for (const embed of node.embeds) {
     const childFilters = nested
@@ -468,8 +511,11 @@ function project(db: DemoDatabase, table: string, row: DemoRow, node: SelectNode
     const toOne = FOREIGN_KEYS.find(([child, , parent]) => child === table && parent === embed.table)
     if (toOne) {
       const [, column] = toOne
-      const parentRow = readTable(db, embed.table).find(r => r.id === row[column])
-      const value = parentRow && passes(parentRow) ? project(db, embed.table, parentRow, embed.select, deeper) : null
+      const parentRow = readTable(db, embed.table).find(r => {
+        spend(budget, 'scans', 1)
+        return r.id === row[column]
+      })
+      const value = parentRow && passes(parentRow) ? project(db, embed.table, parentRow, embed.select, deeper, budget) : null
       if (!value && embed.inner) return null
       if (!value && own.length > 0 && !embed.inner) {
         out[embed.alias] = null
@@ -482,8 +528,11 @@ function project(db: DemoDatabase, table: string, row: DemoRow, node: SelectNode
     if (toMany) {
       const [, column] = toMany
       const children = readTable(db, embed.table)
-        .filter(r => r[column] === row.id && passes(r))
-        .map(r => project(db, embed.table, r, embed.select, deeper))
+        .filter(r => {
+          spend(budget, 'scans', 1)
+          return r[column] === row.id && passes(r)
+        })
+        .map(r => project(db, embed.table, r, embed.select, deeper, budget))
         .filter((r): r is Record<string, unknown> => r !== null)
       if (embed.inner && children.length === 0) return null
       out[embed.alias] = children
@@ -843,7 +892,7 @@ export function createDemoClient(db: DemoDatabase) {
       const run = (): DemoResult => {
         if (!handler) return fail(`${fn} is not available in demo mode.`)
         try {
-          return handler(db, args)
+          return transact(db, () => handler(db, args))
         } catch (error) {
           return fail(error instanceof Error ? error.message : `${fn} failed in demo mode`)
         }
@@ -882,14 +931,18 @@ export function createDemoClient(db: DemoDatabase) {
             phone: null,
             created_at: new Date(db.now()).toISOString(),
           }
-          mutableTable(db, 'profiles').push(profile)
-          change(db, 'profiles', [profile])
-          return { data: { user }, error: null }
+          return transact(db, () => {
+            mutableTable(db, 'profiles').push(profile)
+            change(db, 'profiles', [profile])
+            return ok({ user })
+          })
         },
         deleteUser: async (userId: string) => {
-          db.tables.profiles = (db.tables.profiles ?? []).filter(p => p.id !== userId)
-          change(db, 'profiles', [], [userId])
-          return { data: {}, error: null }
+          return transact(db, () => {
+            db.tables.profiles = (db.tables.profiles ?? []).filter(p => p.id !== userId)
+            change(db, 'profiles', [], [userId])
+            return ok({})
+          })
         },
       },
     },

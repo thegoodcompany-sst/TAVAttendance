@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web demo journals now validate tables, row shapes, counts and domain uniqueness
+  before application; query expansion budgets prevent small cookies from causing
+  disproportionate work. Invalid journals fall back atomically to the demo seed.
+  Demo writes enforce these limits before acceptance and return an explicit
+  error without losing prior edits, including for multi-table RPCs.
+
 - Attendance eligibility checks now lock the session against concurrent closure,
   including clears with no existing attendance row.
 - Native tutor offline sync sends at most 500 mutations per request and removes

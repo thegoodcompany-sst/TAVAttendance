@@ -5,6 +5,7 @@
  */
 import { deflateRawSync, inflateRawSync } from 'node:zlib'
 import { DEMO_STATE_MAX_CHUNKS } from './constants'
+import { validDemoTables, validJournal } from './journal-validation'
 import type { DemoChange } from './emulator'
 import type { DemoRow, DemoTables } from './seed'
 
@@ -28,6 +29,8 @@ export function recordChange(journal: DemoJournal, change: DemoChange): void {
 }
 
 export function applyJournal(tables: DemoTables, journal: DemoJournal): DemoTables {
+  if (!validJournal(journal)) return tables
+  const candidate = { ...tables }
   for (const [table, entry] of Object.entries(journal.t)) {
     const deleted = new Set(entry.d)
     const rows = (tables[table] ?? []).filter(row => !deleted.has(row.id))
@@ -41,9 +44,9 @@ export function applyJournal(tables: DemoTables, journal: DemoJournal): DemoTabl
         rows[at] = { ...rows[at], ...row }
       }
     }
-    tables[table] = rows
+    candidate[table] = rows
   }
-  return tables
+  return validDemoTables(candidate) ? candidate : tables
 }
 
 /** Max characters per cookie value (browsers allow ~4096 bytes per cookie incl. name). */
@@ -57,13 +60,20 @@ export function encodeJournal(journal: DemoJournal): string {
   return deflateRawSync(Buffer.from(JSON.stringify(journal), 'utf8'), { level: 9 }).toString('base64url')
 }
 
+/** Apply the same structural and transport limits before accepting a write. */
+export function canPersistJournal(journal: DemoJournal): boolean {
+  return validJournal(journal)
+    && Buffer.byteLength(JSON.stringify(journal), 'utf8') <= MAX_DECODED_BYTES
+    && encodeJournal(journal).length <= MAX_ENCODED_LENGTH
+}
+
 export function decodeJournal(encoded: string): DemoJournal {
   if (!encoded || encoded.length > MAX_ENCODED_LENGTH) return emptyJournal()
   try {
     const parsed = JSON.parse(inflateRawSync(Buffer.from(encoded, 'base64url'), {
       maxOutputLength: MAX_DECODED_BYTES,
     }).toString('utf8'))
-    if (parsed && parsed.v === 1 && typeof parsed.t === 'object') return parsed as DemoJournal
+    if (validJournal(parsed)) return parsed
   } catch {
     // A corrupt, truncated or oversized journal falls back to the fresh seed.
   }
