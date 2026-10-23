@@ -19,25 +19,29 @@ function record(id: number, date: string, status: string) {
 }
 
 // Enforce the API cap even when the caller forgets to request a range.
-function mockClient(rows: ReturnType<typeof record>[], cap = 1000, failFrom?: number) {
+function mockClient(rows: ReturnType<typeof record>[], cap = 1000, failFrom?: number, mutate?: () => void) {
   const queries: ReturnType<typeof makeQuery>[] = []
   function makeQuery() {
+    let after = ''
     let offset = 0
     let end = cap - 1
     const query = {
       select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
       gte: vi.fn().mockReturnThis(), lte: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
+      gt: vi.fn((_key: string, value: string) => { after = value; return query }),
+      limit: vi.fn((count: number) => { end = count - 1; return query }),
       range: vi.fn((from: number, to: number) => { offset = from; end = to; return query }),
       then: (resolve: (value: unknown) => unknown) => Promise.resolve(
-        failFrom !== undefined && offset >= failFrom
+        failFrom !== undefined && queries.length > 1
           ? { data: null, error: { message: 'page unavailable' } }
-          : { data: rows.slice(offset, Math.min(end + 1, offset + cap)), error: null },
+          : { data: rows.filter(row => row.id > after).slice(offset, Math.min(end + 1, offset + cap)), error: null },
       ).then(resolve),
     }
     return query
   }
   const from = vi.fn(() => {
+    if (queries.length === 1) mutate?.()
     const query = makeQuery()
     queries.push(query)
     return query
@@ -73,7 +77,7 @@ describe('analytics pagination', () => {
       thisMonthSessions: 1000, lastMonthSessions: 1000,
     }])
     expect(from).toHaveBeenCalledTimes(3)
-    expect(queries.map(q => q.range.mock.calls[0])).toEqual([[0, 999], [1000, 1999], [2000, 2999]])
+    expect(queries.map(q => q.gt.mock.calls[0])).toEqual([undefined, ['id', '000999'], ['id', '001999']])
     expectFilters(queries, '2026-09-01')
   })
 
@@ -99,4 +103,22 @@ describe('analytics pagination', () => {
     expect(await fetch()).toEqual([])
     expect(from).toHaveBeenCalledTimes(1)
   })
+})
+
+it.each(['delete', 'insert'])('avoids shifted pages after concurrent %s', async change => {
+  const rows = [record(1, '2026-09-07', 'present'), record(2, '2026-09-07', 'absent'), record(3, '2026-10-05', 'present')]
+  mockClient(rows, 2, undefined, () => {
+    if (change === 'delete') rows.shift()
+    else rows.unshift(record(0, '2026-09-07', 'absent'))
+  })
+  expect(await getMonthlyAttendanceDrops()).toEqual([{
+    studentId: 'synthetic-student', studentName: 'Test Student',
+    thisMonthPct: 100, lastMonthPct: 50, delta: 50, thisMonthSessions: 1, lastMonthSessions: 2,
+  }])
+  const weeklyRows = [record(1, '2026-10-05', 'present'), record(2, '2026-10-05', 'absent'), record(3, '2026-10-05', 'present')]
+  mockClient(weeklyRows, 2, undefined, () => {
+    if (change === 'delete') weeklyRows.shift()
+    else weeklyRows.unshift(record(0, '2026-10-05', 'absent'))
+  })
+  expect(await getWeeklyAttendanceTrend()).toEqual([{ weekStart: '2026-10-05', attendancePct: 66.7, totalRecords: 3 }])
 })

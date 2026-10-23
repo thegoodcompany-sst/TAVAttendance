@@ -31,8 +31,8 @@ beforeEach(() => {
       eq: (key: string, value: unknown) => { filters[key] = value; return query },
       lt: async () => ({ error: null }),
       maybeSingle: async () => ({ data: table === 'result_slip_upload_intents'
-        ? (filters.actor_id === 'parent' && filters.student_id === studentId ? { ...intent } : null)
-        : persisted, error: null }),
+        ? (filters.actor_id === 'parent' && filters.student_id === studentId ? (intent ? { ...intent } : null) : null)
+        : (filters.student_id === studentId && filters.uploaded_by === 'parent' && filters.file_path === upload.path ? persisted : null), error: null }),
       insert: async ({ id }: { id: string }) => {
         if (databaseError) return { error: { code: '08006' } }
         if (slots.has(id)) return { error: { code: '23505' } }
@@ -112,4 +112,21 @@ it('checks ownership before privileged work', async () => {
     rpc: async () => ({ data: [] }) })
   expect((await finalizeResultSlipUpload(studentId, upload)).error).toBe('Not authorized.')
   expect(mocks.admin).not.toHaveBeenCalled()
+})
+
+it.each(['expired', 'missing'])('recovers only an exact persisted result with an %s intent', async kind => {
+  if (kind === 'expired') {
+    intent.expires_at = new Date(0).toISOString()
+    intent.finalized_at = new Date().toISOString()
+    intent.finalized_result_id = 'result'
+  } else intent = undefined as unknown as Record<string, unknown>
+  persisted = { id: 'result', exam_name: 'Exam', subject: null, score: null, max_score: null }
+  expect(await finalizeResultSlipUpload(studentId, upload)).toEqual({ error: null })
+  expect((await finalizeResultSlipUpload(studentId, { ...upload, examName: 'Changed' })).error).toMatch(/expired/)
+  persisted = null
+  expect((await finalizeResultSlipUpload(studentId, upload)).error).toMatch(/expired/)
+  expect(rpc).not.toHaveBeenCalled()
+  expect(list).not.toHaveBeenCalled()
+  expect(download).not.toHaveBeenCalled()
+  expect(slots.size).toBe(0)
 })
