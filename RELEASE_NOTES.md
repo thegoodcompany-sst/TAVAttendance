@@ -11,6 +11,9 @@ This is the source draft for mobile release notes. Keep completed changes under
   unrelated attendance can sync; transport failures retain unacknowledged work.
   Successful online corrections and clears remove the matching queued mutation,
   including quarantine, without discarding newer queued edits.
+- Web monthly attendance comparisons and weekly trends now fetch all attendance
+  pages in unique ID order before calculating percentages. Page failures surface
+  as errors instead of displaying partial reports.
 - Web result-slip finalization skips Storage on finalized retries, preserves files
   on validation/download failures, and caps validation at three attempts per upload.
 

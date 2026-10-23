@@ -10,6 +10,23 @@ import {
   weeklyAttendanceFromRecords,
 } from '@/lib/queries/analytics-helpers'
 
+// Continue to an empty page: a hosted row cap may be smaller than our request.
+async function fetchAttendancePages<T>(
+  context: string,
+  fetchPage: (from: number, to: number) => PromiseLike<{
+    data: T[] | null
+    error: { message: string } | null
+  }>,
+): Promise<T[]> {
+  const rows: T[] = []
+  for (;;) {
+    const { data, error } = await fetchPage(rows.length, rows.length + 999)
+    if (error) throw new Error(`${context}: ${error.message}`)
+    if (!data?.length) return rows
+    rows.push(...data)
+  }
+}
+
 export type DailyAttendancePoint = {
   date: string
   present: number
@@ -135,7 +152,7 @@ export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]>
     ? `${y - 1}-12-01`
     : `${y}-${String(m - 1).padStart(2, '0')}-01`
 
-  const { data, error } = await supabase
+  const data = await fetchAttendancePages('getMonthlyAttendanceDrops', (from, to) => supabase
     .from('attendance_records')
     .select('status, student_id, student:students!inner(full_name, is_active), session:sessions!inner(session_date, class:classes!inner(is_study_space, is_active))')
     .eq('session.class.is_study_space', false)
@@ -143,10 +160,9 @@ export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]>
     .eq('student.is_active', true)
     .gte('session.session_date', lastMonthStart)
     .lte('session.session_date', today)
-
-  if (error) {
-    throw new Error(`getMonthlyAttendanceDrops: ${error.message}`)
-  }
+    .order('id', { ascending: true })
+    .range(from, to),
+  )
 
   const testMode = await isFeatureEnabled('test_mode')
 
@@ -196,7 +212,7 @@ export async function getWeeklyAttendanceTrend(weeks = 12): Promise<WeeklyAttend
   const today = todayInTz()
   const startDate = weekStartOf(dateOffsetInTz(-7 * (weeks - 1)))
 
-  const { data, error } = await supabase
+  const data = await fetchAttendancePages('getWeeklyAttendanceTrend', (from, to) => supabase
     .from('attendance_records')
     .select('status, student:students!inner(is_active), session:sessions!inner(session_date, class:classes!inner(is_study_space, is_active))')
     .eq('session.class.is_study_space', false)
@@ -204,10 +220,9 @@ export async function getWeeklyAttendanceTrend(weeks = 12): Promise<WeeklyAttend
     .eq('student.is_active', true)
     .gte('session.session_date', startDate)
     .lte('session.session_date', today)
-
-  if (error) {
-    throw new Error(`getWeeklyAttendanceTrend: ${error.message}`)
-  }
+    .order('id', { ascending: true })
+    .range(from, to),
+  )
 
   const testMode = await isFeatureEnabled('test_mode')
 
