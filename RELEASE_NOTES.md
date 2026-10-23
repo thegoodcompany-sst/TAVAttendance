@@ -5,6 +5,13 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Native tutor offline sync sends at most 500 mutations per request and removes
+  only acknowledged mutation IDs. Permanent SQL rejections are isolated and
+  retained in the encrypted account queue with a reconciliation warning, so
+  unrelated attendance can sync; transport failures retain unacknowledged work.
+  Successful online corrections and clears remove the matching queued mutation,
+  including quarantine, without discarding newer queued edits.
+
 - Web dev tooling: pin vite to 8.1.6 (GHSA-587h-7wmj-h5pm in bundled
   launch-editor) so the CI dependency audit passes again.
 - Web demo cookies now enforce encoded and decompressed journal size limits;

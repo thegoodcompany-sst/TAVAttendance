@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import Security
+import Supabase
 
 struct PendingAttendanceRecord: Codable {
     let ownerUserId: UUID
@@ -13,6 +14,7 @@ struct PendingAttendanceRecord: Codable {
     // markedAt so an in-flight sync of the old id can't clobber the newer tap.
     var clientMutationId: String
     var markedAt: Date
+    var isQuarantined: Bool = false
     var isSynced: Bool
     /// Last **server** `marked_at` the roster showed when this row was first
     /// queued. Nil means the client observed no attendance row. Never the
@@ -27,7 +29,7 @@ struct PendingAttendanceRecord: Codable {
         case ownerUserId, sessionId, studentId, status, notes
         case absenceInformed, clientMutationId, markedAt, isSynced
         case observedMarkedAt = "observed_marked_at"
-        case didObserveRow, observedMarkedAtRaw
+        case didObserveRow, observedMarkedAtRaw, isQuarantined
     }
 
     init(
@@ -68,6 +70,7 @@ struct PendingAttendanceRecord: Codable {
         absenceInformed = try container.decodeIfPresent(Bool.self, forKey: .absenceInformed)
         clientMutationId = try container.decode(String.self, forKey: .clientMutationId)
         markedAt = try container.decode(Date.self, forKey: .markedAt)
+        isQuarantined = try container.decodeIfPresent(Bool.self, forKey: .isQuarantined) ?? false
         isSynced = try container.decode(Bool.self, forKey: .isSynced)
         observedMarkedAt = try container.decodeIfPresent(Date.self, forKey: .observedMarkedAt)
         observedMarkedAtRaw = try container.decodeIfPresent(String.self, forKey: .observedMarkedAtRaw)
@@ -90,6 +93,7 @@ struct PendingAttendanceRecord: Codable {
         try container.encodeIfPresent(absenceInformed, forKey: .absenceInformed)
         try container.encode(clientMutationId, forKey: .clientMutationId)
         try container.encode(markedAt, forKey: .markedAt)
+        try container.encode(isQuarantined, forKey: .isQuarantined)
         try container.encode(isSynced, forKey: .isSynced)
         try container.encode(didObserveRow, forKey: .didObserveRow)
         try container.encodeIfPresent(observedMarkedAtRaw, forKey: .observedMarkedAtRaw)
@@ -116,6 +120,7 @@ struct PendingAttendanceRecord: Codable {
         self.absenceInformed = absenceInformed
         self.clientMutationId = clientMutationId
         self.markedAt = markedAt
+        self.isQuarantined = false
         self.isSynced = false
     }
 }
@@ -400,6 +405,13 @@ final class PendingAttendanceStore: ObservableObject {
         load(ownerUserId: ownerUserId).filter { !$0.isSynced }
     }
 
+    func quarantine(ownerUserId: UUID, clientMutationId: String) {
+        var records = load(ownerUserId: ownerUserId)
+        guard let index = records.firstIndex(where: { $0.clientMutationId == clientMutationId }) else { return }
+        records[index].isQuarantined = true
+        _ = save(ownerUserId: ownerUserId, records: records)
+    }
+
     /// Removes successfully-synced records from the store entirely so UserDefaults
     /// does not grow unbounded over time.
     func markSynced(ownerUserId: UUID, clientMutationIds: Set<String>) {
@@ -408,5 +420,40 @@ final class PendingAttendanceStore: ObservableObject {
             !$0.isSynced && !clientMutationIds.contains($0.clientMutationId)
         }
         _ = save(ownerUserId: ownerUserId, records: remaining)
+    }
+}
+
+/// A failed RPC is atomic. Split only permanent SQL rejections to isolate the
+/// offending mutation; transport/auth-expiry/cancellation errors retain the rest.
+enum OfflineAttendanceSync {
+    static func isPermanent(_ error: Error) -> Bool {
+        guard let code = (error as? PostgrestError)?.code else { return false }
+        return code == "42501" || code.hasPrefix("22") || code.hasPrefix("23")
+    }
+
+    @MainActor
+    static func run<Record>(
+        _ records: [Record],
+        isPermanent: (Error) -> Bool = OfflineAttendanceSync.isPermanent,
+        send: ([Record]) async throws -> Void,
+        quarantine: (Record) -> Void
+    ) async throws {
+        func submit(_ batch: [Record]) async throws {
+            do {
+                try await send(batch)
+            } catch {
+                guard isPermanent(error) else { throw error }
+                if batch.count == 1 {
+                    quarantine(batch[0])
+                } else {
+                    let middle = batch.count / 2
+                    try await submit(Array(batch[..<middle]))
+                    try await submit(Array(batch[middle...]))
+                }
+            }
+        }
+        for start in stride(from: 0, to: records.count, by: 500) {
+            try await submit(Array(records[start..<min(start + 500, records.count)]))
+        }
     }
 }

@@ -335,3 +335,34 @@ without changing live credentials or authorization, and live wrong PIN fails.
 No implementation is needed now. Do not add a PIN feature solely for parity.
 Do not change Supabase migrations; they are shared.
 ```
+
+## Offline batch recovery handoffs
+
+```text
+You are verifying iOS feature parity in Android/.
+Feature summary: bounded offline sync, partial acknowledgements, retained
+quarantine for permanent SQL rejections and visible reconciliation warnings.
+iOS files changed: Core/PendingAttendanceStore.swift (policy/persistence),
+Views/Session/RosterView.swift (integration), AttendanceLogicTests.swift.
+Android targets: data/store/PendingAttendanceStore.kt, screens/RosterScreen.kt,
+and PendingAttendanceStoreTest.kt. Equivalent changes are included in this fix.
+New Supabase schema: None.
+Sample test: queue 501 records including one permanent rejection; verify 500
+valid acknowledgements and one retained quarantine. Fail the second chunk with
+transport loss and verify the first acknowledgement remains committed locally.
+Also verify online corrections and clears acknowledge the captured quarantined
+mutation, preserve newer queued edits, and show server truth after reopening.
+Run native tests and device QA; no additional port or migration is required.
+```
+
+```text
+You are assessing iOS feature parity in web/.
+Feature summary: native offline queue batch recovery and retained quarantine.
+iOS files changed: Core/PendingAttendanceStore.swift, Views/Session/RosterView.swift,
+and AttendanceLogicTests.swift.
+Web targets: none; Web has no equivalent persisted native offline queue.
+New Supabase schema: None.
+Sample test if a Web queue is separately introduced: submit 501 mutations with
+one rejected record; retain that record and acknowledge the valid ones.
+No Web implementation or migration is required for this fix.
+```

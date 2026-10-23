@@ -32,6 +32,7 @@ import com.example.tavattendance.core.TrackScreen
 import com.example.tavattendance.data.models.AttendanceStatus
 import com.example.tavattendance.data.models.AttendanceStatusLabel
 import com.example.tavattendance.data.models.RosterEntry
+import com.example.tavattendance.data.store.syncOfflineAttendance
 import com.example.tavattendance.data.service.AttendanceService
 import com.example.tavattendance.data.service.FeatureFlags
 import com.example.tavattendance.data.service.KioskAttendanceDataSource
@@ -239,6 +240,10 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             if (isOnline.value) {
                 runCatching {
+                    // Snapshot IDs before suspending so newer queued corrections survive.
+                    val pendingMutationIds = pendingStore.allPending(ownerUserId)
+                        .filter { it.sessionId == sessionId && it.studentId == entry.studentId }
+                        .map { it.clientMutationId }.toSet()
                     val markedAt = if (status == null) {
                         AttendanceService.clearAttendance(sessionId, entry.studentId)
                         null
@@ -251,6 +256,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                         ).markedAt
                     }
                     if (currentOwnerUserId()?.equals(ownerUserId, ignoreCase = true) == true) {
+                        if (pendingMutationIds.isNotEmpty()) {
+                            pendingStore.markSynced(ownerUserId, pendingMutationIds)
+                        }
                         _roster.value = _roster.value.map {
                             if (it.studentId == entry.studentId) {
                                 it.copy(status = status, markedAt = markedAt, absenceInformed = flag)
@@ -338,41 +346,49 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                 return@launch
             }
             val unsynced = pendingStore.allPending(ownerUserId)
+            if (unsynced.any { it.isQuarantined }) {
+                _snackbarMessage.value = "Attendance marks need reconciliation and remain on this device. Check the website register and use paper before signing out."
+            }
             if (unsynced.isEmpty()) return@launch
             _isSaving.value = true
             rosterRevision += 1
             val startMs = System.currentTimeMillis()
             runCatching {
-                val result = AttendanceService.syncPending(unsynced)
-                Analytics.track(AnalyticsEventType.OPS, "sync_result", buildJsonObject {
-                    put("synced", result.synced)
-                    put("skipped", result.skipped)
-                    put("blocked_ended_session", result.blockedEndedSession)
-                    put("skipped_conflict", result.skippedConflict)
-                    put("pending_before", unsynced.size)
-                    put("duration_ms", System.currentTimeMillis() - startMs)
-                })
-                // RPC success is terminal for the batch (synced, skipped, blocked, or
-                // skipped_conflict). Leaving those rows queued re-sends them forever.
-                pendingStore.markSynced(ownerUserId, unsynced.map { it.clientMutationId }.toSet())
-                for (r in unsynced.filter { it.sessionId == sessionId }) {
-                    _localStatus.value = _localStatus.value - r.studentId
-                    _localAbsenceInformed.value = _localAbsenceInformed.value - r.studentId
-                    _localMarkedAt.value = _localMarkedAt.value - r.studentId
-                }
-                runCatching { _roster.value = AttendanceService.fetchRoster(sessionId) }
-                    .onFailure { e ->
-                        SafeLog.error("Roster", "fetchRoster after sync failed", e)
-                        _loadError.value = e.localizedMessage ?: "Failed to load roster"
-                        if (_roster.value.isNotEmpty()) {
-                            _snackbarMessage.value = _loadError.value
-                        }
+                syncOfflineAttendance(unsynced.filterNot { it.isQuarantined }, send = { batch ->
+                    val result = AttendanceService.syncPending(batch)
+                    Analytics.track(AnalyticsEventType.OPS, "sync_result", buildJsonObject {
+                        put("synced", result.synced)
+                        put("skipped", result.skipped)
+                        put("blocked_ended_session", result.blockedEndedSession)
+                        put("skipped_conflict", result.skippedConflict)
+                        put("pending_before", unsynced.size)
+                        put("duration_ms", System.currentTimeMillis() - startMs)
+                    })
+                    // RPC success is terminal for the batch (synced, skipped, blocked, or
+                    // skipped_conflict). Leaving those rows queued re-sends them forever.
+                    pendingStore.markSynced(ownerUserId, batch.map { it.clientMutationId }.toSet())
+                    for (r in batch.filter { it.sessionId == sessionId }) {
+                        _localStatus.value = _localStatus.value - r.studentId
+                        _localAbsenceInformed.value = _localAbsenceInformed.value - r.studentId
+                        _localMarkedAt.value = _localMarkedAt.value - r.studentId
                     }
-                val dropped = result.blockedEndedSession + result.skippedConflict
-                if (dropped > 0) {
-                    _snackbarMessage.value =
-                        "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
-                }
+                    runCatching { _roster.value = AttendanceService.fetchRoster(sessionId) }
+                        .onFailure { e ->
+                            SafeLog.error("Roster", "fetchRoster after sync failed", e)
+                            _loadError.value = e.localizedMessage ?: "Failed to load roster"
+                            if (_roster.value.isNotEmpty()) {
+                                _snackbarMessage.value = _loadError.value
+                            }
+                        }
+                    val dropped = result.blockedEndedSession + result.skippedConflict
+                    if (dropped > 0) {
+                        _snackbarMessage.value =
+                            "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
+                    }
+                }, quarantine = { record ->
+                    pendingStore.quarantine(ownerUserId, record.clientMutationId)
+                    _snackbarMessage.value = "Attendance marks need reconciliation and remain on this device. Check the website register and use paper before signing out."
+                })
             }.onFailure { e ->
                 SafeLog.error("Roster", "syncPending failed", e)
                 Analytics.track(AnalyticsEventType.OPS, "sync_failure", buildJsonObject {
@@ -410,6 +426,9 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
 
     fun isPending(entry: RosterEntry): Boolean =
         pendingForCurrentUser().any { it.studentId == entry.studentId && it.sessionId == sessionId }
+
+    fun hasQuarantinedAttendance(): Boolean =
+        pendingForCurrentUser().any { it.isQuarantined }
 
     fun hasPendingUnsynced(): Boolean =
         pendingForCurrentUser().any { it.sessionId == sessionId }
@@ -581,6 +600,15 @@ fun RosterScreen(
                 Text("No students enrolled.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (vm.hasQuarantinedAttendance()) {
+                    item {
+                        Text(
+                            "Some attendance needs reconciliation. Marks remain on this device; check the website register before signing out.",
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                }
                 items(roster, key = { it.studentId }) { entry ->
                     val status = vm.effectiveStatus(entry)
                     val pending = vm.isPending(entry)
