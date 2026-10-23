@@ -823,6 +823,16 @@ Phase 2: `result_slips` and `messages` are live through shaped parent RPCs;
 `awards` remains admin-only and feature-flagged. Phase 3: `dismissals` is live
 through a shaped parent RPC; `food_polls` and `food_poll_responses` remain dormant.
 
+Web file uploads use actor/child-bound intents. Finalized retries bypass Storage
+and use the finalizer RPC's exact-metadata check; ambiguous responses are accepted
+only when the persisted metadata also matches. Unfinalized intents allow at most
+three Storage validation attempts, including failed downloads. The service-only
+`rate_limit_events` table reserves deterministic per-actor/path/attempt UUID slots
+using its primary key, so concurrent web instances share the bound. Slots are
+retained for seven days (longer than the intent lifetime). Exhausted uploads need
+a new reservation, subject to the existing upload quota. Download failures are
+retryable; rejected files remain for the intent-expiry worker to clean up safely.
+
 ## Retrospective sessions (migration 037; flag `retrospective_sessions`)
 
 Past-session management is server-gated and available only to admins and tutors
