@@ -71,6 +71,9 @@ the web demo scans on the iOS demo kiosk.
   Writes are staged and checked against the same structural, row and byte
   limits before acceptance, including every table changed by an RPC. Rejected
   writes return an explicit error and preserve prior in-memory and cookie state.
+  Explicitly allowlisted read-only RPCs skip write staging and clone only their
+  responses to keep returned rows detached from stored data. All other RPCs,
+  including get-or-create operations, retain transactional validation.
   Invalid journals are discarded atomically. Query projections stop with an
   explicit error after 5,000 projected rows, 100,000 relationship row scans or
   1 MiB of projected scalar data; partial results are never returned.

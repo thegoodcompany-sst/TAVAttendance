@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web demo read-only RPCs clone only their responses instead of all demo tables;
+  writes retain transactional validation and rollback.
+
 - Web demo journals now validate tables, row shapes, counts and domain uniqueness
   before application; query expansion budgets prevent small cookies from causing
   disproportionate work. Invalid journals fall back atomically to the demo seed.

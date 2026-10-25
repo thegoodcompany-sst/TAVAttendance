@@ -595,6 +595,25 @@ function readTable(db: DemoDatabase, table: string): DemoRow[] {
 
 type RpcHandler = (db: DemoDatabase, args: Record<string, any>) => DemoResult
 
+/** Explicit opt-in: new RPCs (including get-or-create handlers) stage writes by default. */
+const READ_ONLY_RPCS = new Set([
+  'get_my_classes',
+  'get_session_roster',
+  'get_retrospective_session_roster',
+  'get_study_space_roster',
+  'get_roster_for_date',
+  'export_student_personal_data',
+  'get_student_nfc_binding',
+  'class_punctuality',
+  'get_parent_children',
+  'get_parent_messages',
+  'get_parent_result_slips',
+  'get_parent_attendance_summary',
+  'get_parent_attendance_history',
+  'get_parent_dismissals',
+  'is_superadmin',
+])
+
 function today(db: DemoDatabase): string {
   return sgDate(db.now())
 }
@@ -892,6 +911,8 @@ export function createDemoClient(db: DemoDatabase) {
       const run = (): DemoResult => {
         if (!handler) return fail(`${fn} is not available in demo mode.`)
         try {
+          // Detach only the response so callers cannot mutate stored rows through it.
+          if (READ_ONLY_RPCS.has(fn)) return structuredClone(handler(db, args))
           return transact(db, () => handler(db, args))
         } catch (error) {
           return fail(error instanceof Error ? error.message : `${fn} failed in demo mode`)
