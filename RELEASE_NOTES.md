@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web dev tooling: pin transitive Zod to 4.6.7 to address the high-severity
+  collection-validation memory exhaustion advisory (GHSA-mrhx-c7xc-m3w5)
+  reported by the CI dependency audit.
+
 - iOS offline replay binds ownership and RPC authorization to one immutable
   session/token snapshot. Logout and account changes cancel captured queue drains
   so they cannot continue as a subsequent account.
