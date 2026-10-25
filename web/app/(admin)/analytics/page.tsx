@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/dashboard/page-header'
 import { KpiTile } from '@/components/dashboard/kpi-tile'
-import { getAttendanceSummary, getMonthlyAttendanceDrops, getWeeklyAttendanceTrend } from '@/lib/queries/analytics'
+import { getAttendanceSummary, getAttendanceAnalytics } from '@/lib/queries/analytics'
 import {
   ClassAttendanceChart,
   StudentAttendanceTable,
@@ -16,10 +16,9 @@ function pct(attended: number, total: number): number {
 }
 
 export default async function AnalyticsPage() {
-  const [summary, drops, weeklyTrend] = await Promise.all([
+  const [summary, { drops, weeklyTrend }] = await Promise.all([
     getAttendanceSummary(),
-    getMonthlyAttendanceDrops(),
-    getWeeklyAttendanceTrend(),
+    getAttendanceAnalytics(),
   ])
 
   const attendedOf = (r: { presentCount: number; lateCount: number }) =>

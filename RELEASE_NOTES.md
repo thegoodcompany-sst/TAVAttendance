@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web analytics shares one request-local attendance scan for monthly comparisons
+  and weekly trends, preserving each date window, RLS, and Study Space filters.
+
 - iOS test compilation disambiguates the attendance session model from Supabase's
   auth session so retrospective-session and offline replay regressions can build together.
 
