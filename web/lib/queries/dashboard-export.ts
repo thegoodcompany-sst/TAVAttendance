@@ -32,7 +32,10 @@ export async function fetchExportRows(
   studySpaceMetadata = false,
 ): Promise<ExportRow[]> {
   const rows: ExportRow[] = []
-  for (let from = 0; ; from += PAGE_SIZE) {
+  const key = table === 'feature_flags' ? 'key' : 'id'
+  // Cursors avoid positional skips after deletes. This is not a snapshot of
+  // concurrent edits; an empty page ends the scan even with a lower hosted cap.
+  for (;;) {
     const classRelated = ['sessions', 'enrollments', 'class_tutor_assignments'].includes(table)
     const sessionRelated = ['attendance_records', 'dismissals'].includes(table)
     const relation = classRelated
@@ -45,14 +48,16 @@ export async function fetchExportRows(
     if (classRelated) query = query.eq('class.is_study_space', studySpaceMetadata)
     if (sessionRelated) query = query.eq('session.class.is_study_space', studySpaceMetadata)
     if (table === 'profiles') query = query.in('role', ['admin', 'tutor'])
+    const after = rows.at(-1)?.[key]
+    if (after !== undefined) query = query.gt(key, after)
     const { data, error } = await query
-      .order(table === 'feature_flags' ? 'key' : 'id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
+      .order(key, { ascending: true })
+      .limit(PAGE_SIZE)
       .overrideTypes<ExportRow[], { merge: false }>()
     if (error) throw new Error(`Could not export ${table}.`)
     const page = data ?? []
+    if (!page.length) return rows
     rows.push(...page)
-    if (page.length < PAGE_SIZE) return rows
   }
 }
 
