@@ -307,22 +307,20 @@ extension AttendanceService {
             .value
     }
 
-    /// Parent-safe attendance projection. The RPC returns the same nested
-    /// `session` JSON shape as the staff PostgREST query without notes, actor
-    /// identifiers, or offline mutation IDs.
+    /// Replay validates ownership and transmits with the same session snapshot.
+    @MainActor
     func syncPending(_ records: [PendingAttendanceRecord]) async throws -> (
         synced: Int, skipped: Int, blockedEndedSession: Int, skippedConflict: Int
     ) {
         if DemoMode.isActive { return try DemoStore.shared.syncPending(records) }
-        guard let currentUserId = db.auth.currentSession?.user.id else {
+        try Task.checkCancellation()
+        guard let session = db.auth.currentSession else {
             throw AppError("Cannot sync attendance without an authenticated account.")
         }
-        guard PendingAttendanceQueueCodec.recordsBelongToOwner(
-            records,
-            ownerUserId: currentUserId
-        ) else {
-            throw AppError("Pending attendance belongs to a different account.")
-        }
+        let replayClient = try SupabaseManager.shared.replayClient(
+            session: AttendanceReplaySession(ownerUserId: session.user.id, accessToken: session.accessToken),
+            records: records
+        )
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let payload = records.map { r in
@@ -342,8 +340,9 @@ extension AttendanceService {
         // and blocked_ended_session are TERMINAL — the record will never sync — so the
         // caller clears them from the store on any successful RPC, not just when
         // synced > 0. skipped_conflict defaults to 0 on servers that omit the key.
-        let result: [String: Int] = try await db
+        let result: [String: Int] = try await replayClient
             .rpc("sync_attendance", params: ["records": payload]).execute().value
+        try Task.checkCancellation()
         return (
             result["synced"] ?? 0,
             result["skipped"] ?? 0,

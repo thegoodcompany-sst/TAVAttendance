@@ -294,9 +294,11 @@ final class PendingAttendanceStore: ObservableObject {
 
     private let key = "pendingAttendance"
     private var activeOwnerUserId: UUID?
+    let replayTasks = AttendanceReplayTasks()
 
     /// Activates the authenticated account and purges legacy or foreign queues.
     func activateOwner(_ ownerUserId: UUID) {
+        if activeOwnerUserId != ownerUserId { replayTasks.cancelAll() }
         activeOwnerUserId = ownerUserId
         guard let data = UserDefaults.standard.data(forKey: key) else { return }
         if let records = decryptAndDecode(data, ownerUserId: ownerUserId) {
@@ -314,6 +316,7 @@ final class PendingAttendanceStore: ObservableObject {
     }
 
     func clear() {
+        replayTasks.cancelAll()
         activeOwnerUserId = nil
         UserDefaults.standard.removeObject(forKey: key)
     }
@@ -440,8 +443,11 @@ enum OfflineAttendanceSync {
     ) async throws {
         func submit(_ batch: [Record]) async throws {
             do {
+                try Task.checkCancellation()
                 try await send(batch)
+                try Task.checkCancellation()
             } catch {
+                try Task.checkCancellation()
                 guard isPermanent(error) else { throw error }
                 if batch.count == 1 {
                     quarantine(batch[0])
@@ -455,5 +461,34 @@ enum OfflineAttendanceSync {
         for start in stride(from: 0, to: records.count, by: 500) {
             try await submit(Array(records[start..<min(start + 500, records.count)]))
         }
+    }
+}
+
+/// Owns every drain, including tasks started by a reconnect callback. Clearing
+/// the queue cancels captured batches too, before logout performs any network IO.
+@MainActor
+final class AttendanceReplayTasks {
+    private var tasks: [UUID: Task<Void, Error>] = [:]
+
+    func run(_ operation: @escaping @MainActor () async throws -> Void) async throws {
+        try Task.checkCancellation()
+        let id = UUID()
+        let task = Task { @MainActor in
+            try Task.checkCancellation()
+            try await operation()
+            try Task.checkCancellation()
+        }
+        tasks[id] = task
+        defer { tasks.removeValue(forKey: id) }
+        try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    func cancelAll() {
+        for task in tasks.values { task.cancel() }
+        tasks.removeAll()
     }
 }
