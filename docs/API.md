@@ -823,6 +823,12 @@ Phase 2: `result_slips` and `messages` are live through shaped parent RPCs;
 `awards` remains admin-only and feature-flagged. Phase 3: `dismissals` is live
 through a shaped parent RPC; `food_polls` and `food_poll_responses` remain dormant.
 
+The web analytics page shares one request-local attendance fetch over the union
+of its monthly and weekly windows, then derives each aggregate within its own
+window. It uses the cookie-bound Supabase client (RLS) and excludes Study Space
+and inactive classes/students at source; no rows are cached across requests.
+Standalone monthly/weekly callers fetch only their own window.
+
 Web monthly and weekly analytics page attendance by ascending ID with an
 exclusive last-ID cursor. Concurrent inserts/clears cannot shift subsequent
 pages; this does not provide a snapshot of changing attendance statuses.

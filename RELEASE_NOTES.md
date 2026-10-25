@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web analytics shares one request-local attendance scan for monthly comparisons
+  and weekly trends, preserving each date window, RLS, and Study Space filters.
+
 - Web demo journals now validate tables, row shapes, counts and domain uniqueness
   before application; query expansion budgets prevent small cookies from causing
   disproportionate work. Invalid journals fall back atomically to the demo seed.

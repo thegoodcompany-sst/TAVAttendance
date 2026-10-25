@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClient } from '@/lib/supabase/server'
-import { getMonthlyAttendanceDrops, getWeeklyAttendanceTrend } from './analytics'
+import { isFeatureEnabled } from '@/lib/feature-flags'
+import { dateOffsetInTz, todayInTz } from '@/lib/date'
+import { getAttendanceAnalytics, getMonthlyAttendanceDrops, getWeeklyAttendanceTrend } from './analytics'
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }))
 vi.mock('@/lib/feature-flags', () => ({ isFeatureEnabled: vi.fn(async () => false) }))
 vi.mock('@/lib/date', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/date')>(),
-  todayInTz: () => '2026-10-22',
-  dateOffsetInTz: () => '2026-08-03',
+  todayInTz: vi.fn(() => '2026-10-22'),
+  dateOffsetInTz: vi.fn(() => '2026-08-03'),
 }))
 
 function record(id: number, date: string, status: string) {
@@ -61,7 +63,12 @@ function expectFilters(queries: ReturnType<typeof mockClient>['queries'], start:
   }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.mocked(todayInTz).mockReturnValue('2026-10-22')
+  vi.mocked(dateOffsetInTz).mockReturnValue('2026-08-03')
+  vi.mocked(isFeatureEnabled).mockResolvedValue(false)
+})
 
 describe('analytics pagination', () => {
   it('includes both months beyond the 1,000-row cap', async () => {
@@ -121,4 +128,62 @@ it.each(['delete', 'insert'])('avoids shifted pages after concurrent %s', async 
     else weeklyRows.unshift(record(0, '2026-10-05', 'absent'))
   })
   expect(await getWeeklyAttendanceTrend()).toEqual([{ weekStart: '2026-10-05', attendancePct: 66.7, totalRecords: 3 }])
+})
+
+
+describe('shared analytics scan', () => {
+  it.each([false, true])('fetches the union once and preserves monthly boundaries and test mode (%s)', async testMode => {
+    vi.mocked(isFeatureEnabled).mockResolvedValue(testMode)
+    const { from, queries } = mockClient([
+      record(1, '2026-08-03', 'absent'),
+      record(2, '2026-09-07', 'present'),
+      record(3, '2026-10-05', 'late'),
+      record(4, '2026-10-08', 'absent'),
+      record(5, '2026-10-10', 'present'),
+    ], 2)
+    const result = await getAttendanceAnalytics()
+    expect(result.drops).toEqual([{
+      studentId: 'synthetic-student', studentName: 'Test Student',
+      thisMonthPct: testMode ? 66.7 : 50, lastMonthPct: 100,
+      delta: testMode ? -33.3 : -50,
+      thisMonthSessions: testMode ? 3 : 2, lastMonthSessions: 1,
+    }])
+    expect(result.weeklyTrend).toEqual([
+      { weekStart: '2026-08-03', attendancePct: 0, totalRecords: 1 },
+      { weekStart: '2026-09-07', attendancePct: 100, totalRecords: 1 },
+      { weekStart: '2026-10-05', attendancePct: testMode ? 66.7 : 50, totalRecords: testMode ? 3 : 2 },
+    ])
+    expect(createClient).toHaveBeenCalledTimes(1)
+    expect(isFeatureEnabled).toHaveBeenCalledTimes(1)
+    expect(from).toHaveBeenCalledTimes(4) // three capped pages and the empty terminator
+    expectFilters(queries, '2026-08-03')
+  })
+
+  it('fetches the monthly window when it starts earlier, including across a year boundary', async () => {
+    vi.mocked(todayInTz).mockReturnValue('2027-01-07')
+    vi.mocked(dateOffsetInTz).mockReturnValue('2027-01-04')
+    const { queries } = mockClient([
+      record(1, '2026-12-07', 'present'), record(2, '2027-01-04', 'absent'),
+    ])
+    const result = await getAttendanceAnalytics(1)
+    expect(result.drops[0]).toMatchObject({ lastMonthPct: 100, thisMonthPct: 0, delta: -100 })
+    expect(result.weeklyTrend).toEqual([{ weekStart: '2027-01-04', attendancePct: 0, totalRecords: 1 }])
+    for (const query of queries) {
+      expect(query.gte).toHaveBeenCalledWith('session.session_date', '2026-12-01')
+      expect(query.lte).toHaveBeenCalledWith('session.session_date', '2027-01-07')
+    }
+  })
+
+  it('does not reuse attendance from an earlier request/client', async () => {
+    mockClient([record(1, '2026-10-05', 'present')])
+    expect((await getAttendanceAnalytics()).weeklyTrend).toHaveLength(1)
+    mockClient([])
+    expect(await getAttendanceAnalytics()).toEqual({ drops: [], weeklyTrend: [] })
+    expect(createClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects both aggregates if a later shared page fails', async () => {
+    mockClient([record(1, '2026-09-07', 'present'), record(2, '2026-10-05', 'absent')], 1, 1)
+    await expect(getAttendanceAnalytics()).rejects.toThrow('page unavailable')
+  })
 })

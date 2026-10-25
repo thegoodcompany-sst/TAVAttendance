@@ -146,35 +146,49 @@ export type StudentMonthlyDrop = {
  * a delta needs two comparable points — sorted biggest drop first.
  */
 export async function getMonthlyAttendanceDrops(): Promise<StudentMonthlyDrop[]> {
-  const supabase = await createClient()
   const today = todayInTz()
+  const { thisMonthStart, lastMonthStart } = monthlyWindow(today)
+  const { data, testMode } = await fetchAnalyticsAttendance(lastMonthStart, today)
+  return monthlyDrops(data, testMode, thisMonthStart, lastMonthStart)
+}
+
+function monthlyWindow(today: string) {
   const thisMonthStart = `${today.slice(0, 7)}-01`
   const [y, m] = today.split('-').map(Number)
   const lastMonthStart = m === 1
     ? `${y - 1}-12-01`
     : `${y}-${String(m - 1).padStart(2, '0')}-01`
+  return { thisMonthStart, lastMonthStart }
+}
 
-  const data = await fetchAttendancePages('getMonthlyAttendanceDrops', (after) => {
+async function fetchAnalyticsAttendance(startDate: string, today: string) {
+  // The cookie-bound client preserves RLS; rows live only in this invocation.
+  const supabase = await createClient()
+  const data = await fetchAttendancePages('fetchAnalyticsAttendance', (after) => {
     const query = supabase
       .from('attendance_records')
       .select('id, status, student_id, student:students!inner(full_name, is_active), session:sessions!inner(session_date, class:classes!inner(is_study_space, is_active))')
       .eq('session.class.is_study_space', false)
       .eq('session.class.is_active', true)
       .eq('student.is_active', true)
-      .gte('session.session_date', lastMonthStart)
+      .gte('session.session_date', startDate)
       .lte('session.session_date', today)
       .order('id', { ascending: true })
       .limit(1000)
     return after ? query.gt('id', after) : query
   })
-
   const testMode = await isFeatureEnabled('test_mode')
+  return { data, testMode }
+}
 
+type AnalyticsRecords = Awaited<ReturnType<typeof fetchAnalyticsAttendance>>['data']
+
+function monthlyDrops(data: AnalyticsRecords, testMode: boolean, thisMonthStart: string, lastMonthStart: string): StudentMonthlyDrop[] {
   type Bucket = { total: number; attended: number }
   const agg = new Map<string, { name: string; thisM: Bucket; lastM: Bucket }>()
   for (const r of (data ?? []) as any[]) {
     const date: string = r.session?.session_date ?? ''
-    if (!date) continue
+    if (!date || date < lastMonthStart) continue
     // Same rule as getDailyAttendance: hide non-tuition-day (test) records unless test_mode is ON.
     if (!testMode && !isTuitionDay(date)) continue
     const entry = agg.get(r.student_id) ?? {
@@ -212,30 +226,33 @@ export type WeeklyAttendancePoint = {
  * Weeks with no records are omitted — a % of zero sessions is meaningless.
  */
 export async function getWeeklyAttendanceTrend(weeks = 12): Promise<WeeklyAttendancePoint[]> {
-  const supabase = await createClient()
   const today = todayInTz()
   const startDate = weekStartOf(dateOffsetInTz(-7 * (weeks - 1)))
+  const { data, testMode } = await fetchAnalyticsAttendance(startDate, today)
+  return weeklyTrend(data, testMode, startDate)
+}
 
-  const data = await fetchAttendancePages('getWeeklyAttendanceTrend', (after) => {
-    const query = supabase
-      .from('attendance_records')
-      .select('id, status, student:students!inner(is_active), session:sessions!inner(session_date, class:classes!inner(is_study_space, is_active))')
-      .eq('session.class.is_study_space', false)
-      .eq('session.class.is_active', true)
-      .eq('student.is_active', true)
-      .gte('session.session_date', startDate)
-      .lte('session.session_date', today)
-      .order('id', { ascending: true })
-      .limit(1000)
-    return after ? query.gt('id', after) : query
-  })
+/** One request-local scan of the union window for both analytics page panels. */
+export async function getAttendanceAnalytics(weeks = 12): Promise<{
+  drops: StudentMonthlyDrop[]
+  weeklyTrend: WeeklyAttendancePoint[]
+}> {
+  const today = todayInTz()
+  const { thisMonthStart, lastMonthStart } = monthlyWindow(today)
+  const weekStart = weekStartOf(dateOffsetInTz(-7 * (weeks - 1)))
+  const startDate = lastMonthStart < weekStart ? lastMonthStart : weekStart
+  const { data, testMode } = await fetchAnalyticsAttendance(startDate, today)
+  return {
+    drops: monthlyDrops(data, testMode, thisMonthStart, lastMonthStart),
+    weeklyTrend: weeklyTrend(data, testMode, weekStart),
+  }
+}
 
-  const testMode = await isFeatureEnabled('test_mode')
-
+function weeklyTrend(data: AnalyticsRecords, testMode: boolean, startDate: string): WeeklyAttendancePoint[] {
   const records: Array<{ date: string; status: string }> = []
   for (const r of (data ?? []) as any[]) {
     const date: string = r.session?.session_date ?? ''
-    if (!date) continue
+    if (!date || date < startDate) continue
     if (!testMode && !isTuitionDay(date)) continue
     records.push({ date, status: r.status })
   }
