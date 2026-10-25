@@ -5,6 +5,17 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- iOS test compilation disambiguates the attendance session model from Supabase's
+  auth session so retrospective-session and offline replay regressions can build together.
+
+- Web dev tooling: pin transitive Zod to 4.6.7 to address the high-severity
+  collection-validation memory exhaustion advisory (GHSA-mrhx-c7xc-m3w5)
+  reported by the CI dependency audit.
+
+- iOS offline replay binds ownership and RPC authorization to one immutable
+  session/token snapshot. Logout and account changes cancel captured queue drains
+  so they cannot continue as a subsequent account.
+
 - Web ZIP exports now paginate by ID (or feature-flag key) until an empty page,
   preventing skipped records after concurrent deletions and truncation when the
   hosted row cap is below 1,000. Existing projections and filters are preserved.

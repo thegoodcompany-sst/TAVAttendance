@@ -579,44 +579,50 @@ struct RosterView: View {
         let started = Date()
         let pendingBefore = unsynced.count
         do {
-            try await OfflineAttendanceSync.run(unsynced.filter { !$0.isQuarantined }, send: { batch in
-                let result = try await AttendanceService.shared.syncPending(batch)
-                Analytics.shared.track(.ops, name: "sync_result", properties: [
-                    "synced": .integer(result.synced),
-                    "skipped": .integer(result.skipped),
-                    "blocked_ended_session": .integer(result.blockedEndedSession),
-                    "skipped_conflict": .integer(result.skippedConflict),
-                    "pending_before": .integer(pendingBefore),
-                    "duration_ms": Analytics.ms(since: started),
-                ])
-                // Terminal outcomes (synced, skipped, blocked, conflict) must leave
-                // the queue so they are not retried forever — but the tutor has to
-                // see that dropped marks were not saved.
-                pendingStore.markSynced(
-                    ownerUserId: ownerUserId,
-                    clientMutationIds: Set(batch.map(\.clientMutationId))
-                )
-                if result.blockedEndedSession > 0 || result.skippedConflict > 0 {
-                    self.error = AppError(
-                        "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
+            try await pendingStore.replayTasks.run {
+                try await OfflineAttendanceSync.run(unsynced.filter { !$0.isQuarantined }, send: { batch in
+                    let result = try await AttendanceService.shared.syncPending(batch)
+                    Analytics.shared.track(.ops, name: "sync_result", properties: [
+                        "synced": .integer(result.synced),
+                        "skipped": .integer(result.skipped),
+                        "blocked_ended_session": .integer(result.blockedEndedSession),
+                        "skipped_conflict": .integer(result.skippedConflict),
+                        "pending_before": .integer(pendingBefore),
+                        "duration_ms": Analytics.ms(since: started),
+                    ])
+                    // Terminal outcomes (synced, skipped, blocked, conflict) must leave
+                    // the queue so they are not retried forever — but the tutor has to
+                    // see that dropped marks were not saved.
+                    pendingStore.markSynced(
+                        ownerUserId: ownerUserId,
+                        clientMutationIds: Set(batch.map(\.clientMutationId))
                     )
-                }
-                do {
-                    roster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
-                    for record in batch where record.sessionId == session.id {
-                        localStatus.removeValue(forKey: record.studentId)
-                        localAbsenceInformed.removeValue(forKey: record.studentId)
-                        locallyCleared.remove(record.studentId)
-                        localMarkedAt.removeValue(forKey: record.studentId)
+                    if result.blockedEndedSession > 0 || result.skippedConflict > 0 {
+                        self.error = AppError(
+                            "Attendance marks were not saved. Check the website for the current register, and use paper if you still need to record them."
+                        )
                     }
-                } catch {
-                    loadError = AppError("Could not refresh roster", underlyingError: error)
-                }
-            }, quarantine: { record in
-                pendingStore.quarantine(ownerUserId: ownerUserId, clientMutationId: record.clientMutationId)
-                self.error = AppError("Attendance marks need reconciliation and remain on this device. Check the website register and use paper before signing out.")
-            })
+                    do {
+                        let refreshedRoster = try await AttendanceService.shared.fetchRoster(sessionId: session.id)
+                        try Task.checkCancellation()
+                        roster = refreshedRoster
+                        for record in batch where record.sessionId == session.id {
+                            localStatus.removeValue(forKey: record.studentId)
+                            localAbsenceInformed.removeValue(forKey: record.studentId)
+                            locallyCleared.remove(record.studentId)
+                            localMarkedAt.removeValue(forKey: record.studentId)
+                        }
+                    } catch {
+                        try Task.checkCancellation()
+                        loadError = AppError("Could not refresh roster", underlyingError: error)
+                    }
+                }, quarantine: { record in
+                    pendingStore.quarantine(ownerUserId: ownerUserId, clientMutationId: record.clientMutationId)
+                    self.error = AppError("Attendance marks need reconciliation and remain on this device. Check the website register and use paper before signing out.")
+                })
+            }
         } catch {
+            if error is CancellationError { return }
             // Unacknowledged records remain queued after transport or unknown failures.
             Analytics.shared.track(.ops, name: "sync_failure", properties: [
                 // Exception descriptions may echo submitted row values.

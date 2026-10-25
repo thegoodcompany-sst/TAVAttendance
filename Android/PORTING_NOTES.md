@@ -366,3 +366,37 @@ Sample test if a Web queue is separately introduced: submit 501 mutations with
 one rejected record; retain that record and acknowledge the valid ones.
 No Web implementation or migration is required for this fix.
 ```
+
+
+## iOS replay session binding handoffs
+
+```text
+You are assessing iOS feature parity in Android/.
+Feature summary: iOS queue replay validates ownership and sends with one captured
+session/token using a standalone PostgREST client. Clearing or switching the queue
+owner cancels captured drains, including reconnect tasks.
+iOS files changed: Core/SupabaseManager.swift, Core/PendingAttendanceStore.swift,
+Services/AttendanceService+SessionsAttendance.swift, Views/Session/RosterView.swift,
+TAVAttendanceTests/AttendanceLogicTests.swift.
+Android targets: data/service/SessionAttendanceDataSource.kt,
+data/store/PendingAttendanceStore.kt, screens/RosterScreen.kt.
+New Supabase schema: None.
+Sample test: pause request authentication after A's ownership check, switch to B,
+then resume. A's batch must never use B's token. Logout must cancel a 501-record
+drain before another batch; B's own drain must still work.
+Inspect Kotlin SDK authentication before designing a separate Android fix.
+Do not change shared migrations or assume native reproduction is verified.
+```
+
+```text
+You are assessing iOS feature parity in web/.
+Feature summary: immutable native queue replay credentials and logout cancellation.
+iOS files changed: Core/SupabaseManager.swift, Core/PendingAttendanceStore.swift,
+Services/AttendanceService+SessionsAttendance.swift, Views/Session/RosterView.swift,
+TAVAttendanceTests/AttendanceLogicTests.swift.
+Web targets: none; Web has no equivalent persisted native attendance queue.
+New Supabase schema: None.
+Sample test if a Web queue is introduced: pause A's replay, switch to B, and verify
+A's mutation cannot be authenticated as B; cancel outstanding drains on logout.
+No Web implementation or migration is required for this fix.
+```
