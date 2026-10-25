@@ -1148,3 +1148,15 @@ database was contacted and no migration was deployed.
   verify rollback/reapply of 062 locally.
 - [ ] Run the attendance/session closure flow with two staff clients, confirming
   that a mark or clear waiting behind closure is rejected and the row preserved.
+
+
+### ☐ 88. Verify iOS replay session binding on a Mac
+
+2026-10-25: the account-switch replay fix includes paused-transport and drain
+cancellation regressions. This Linux environment has neither Xcode nor Swift;
+the canonical test command failed with `xcodebuild: command not found`.
+Native build/typecheck, XCTest execution and device QA remain unverified.
+
+- [ ] Run the canonical iOS test command in `AGENTS.md`, including the replay
+  regressions in `AttendanceLogicTests`, then perform the iOS replay identity
+  and account-switch QA in `docs/KIOSK_ATTENDANCE.md` before shipping.

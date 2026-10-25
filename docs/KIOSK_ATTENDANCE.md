@@ -259,3 +259,21 @@ a quarantined mark after reconciliation and verify it receives a new mutation
 ID. While online, correct and clear quarantined marks, reopen the roster and
 verify server status appears with no stale pending override or warning. Repeat
 with a failed request and verify the pending mark remains. Sign out and confirm no queued or quarantined records appear for another user.
+
+
+### iOS replay identity and account-switch QA
+
+Each replay request validates queued owners against a captured session and uses
+that session's token through a standalone PostgREST client, without shared Auth
+adaptation. Expired tokens fail and retain unacknowledged work for retry. Logout
+clears the queue and cancels captured drains synchronously before its auth request;
+owner changes also cancel drains. Cancellation cannot undo an already accepted
+request, but that request remains attributed to its captured account.
+
+On a simulator/device with two authorized staff test accounts, queue marks as A,
+pause replay before transmission, sign out, then sign in as B and resume. Verify
+A's captured drain is cancelled, no further batches are sent, and no A mutation
+is attributed to B. Repeat with a response delayed until after logout and with
+501 queued mutations; no second batch or stale local acknowledgement should occur.
+Verify B can queue and replay its own marks normally. Run the deterministic
+`AttendanceLogicTests` replay tests alongside this manual check.

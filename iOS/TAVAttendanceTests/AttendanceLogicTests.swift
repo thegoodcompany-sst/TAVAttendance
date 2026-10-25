@@ -2,9 +2,102 @@ import AppIntents
 import XCTest
 import Security
 import CryptoKit
+import Supabase
 @testable import TAVAttendance
 
 final class AttendanceLogicTests: XCTestCase {
+
+    private actor ReplayGate {
+        private var continuation: CheckedContinuation<Void, Never>?
+
+        func pause(entered: XCTestExpectation) async {
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+                entered.fulfill()
+            }
+        }
+
+        func resume() {
+            continuation?.resume()
+            continuation = nil
+        }
+    }
+
+    @MainActor
+    func testReplayTransportRetainsSnapshotAfterAccountSwitch() async throws {
+        let ownerA = UUID()
+        var session = AttendanceReplaySession(ownerUserId: ownerA, accessToken: "synthetic-A")
+        let records = [replayRecord(owner: ownerA)]
+        let gate = ReplayGate()
+        let entered = expectation(description: "Paused before transmission")
+        let client = try session.client(records: records, url: URL(string: "https://example.invalid")!, anonKey: "synthetic") { request in
+            await gate.pause(entered: entered)
+            // Inspect the actual RPC request after the shared session has switched.
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer synthetic-A")
+            XCTAssertEqual(request.url?.path, "/rest/v1/rpc/sync_attendance")
+            return (Data("{\"synced\":1}".utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+        let replay = Task {
+            let result: [String: Int] = try await client.rpc("sync_attendance", params: ["records": records]).execute().value
+            return result
+        }
+        await fulfillment(of: [entered], timeout: 2)
+        session = AttendanceReplaySession(ownerUserId: UUID(), accessToken: "synthetic-B")
+        XCTAssertThrowsError(try session.client(records: records, url: URL(string: "https://example.invalid")!, anonKey: "synthetic") { _ in
+            XCTFail("Foreign queue reached transport")
+            throw CancellationError()
+        })
+        await gate.resume()
+        let result = try await replay.value
+        XCTAssertEqual(result["synced"], 1)
+    }
+
+    @MainActor
+    func testQueueClearAndOwnerSwitchCancelCapturedDrain() async throws {
+        // Exercise both explicit logout (clear) and an auth event switching owners.
+        for logout in [true, false] {
+            let store = PendingAttendanceStore.shared
+            let ownerA = UUID()
+            store.activateOwner(ownerA)
+            let gate = ReplayGate()
+            let entered = expectation(description: "First batch in flight")
+            var attempts = 0
+            var acknowledged = false
+            let replay = Task {
+                try await store.replayTasks.run {
+                    try await OfflineAttendanceSync.run(Array(0..<501), send: { _ in
+                        attempts += 1
+                        await gate.pause(entered: entered)
+                        // Model a transport that returns even after cancellation.
+                        try Task.checkCancellation()
+                        acknowledged = true
+                    }, quarantine: { _ in XCTFail("Cancelled marks quarantined") })
+                }
+            }
+            await fulfillment(of: [entered], timeout: 2)
+            if logout { store.clear() } else { store.activateOwner(UUID()) }
+            await gate.resume()
+            do {
+                try await replay.value
+                XCTFail("Old drain survived account transition")
+            } catch {
+                XCTAssertTrue(error is CancellationError)
+            }
+            XCTAssertEqual(attempts, 1)
+            XCTAssertFalse(acknowledged)
+            // Cancellation of an old drain must not poison the next account's task.
+            var newReplayRan = false
+            try await store.replayTasks.run { newReplayRan = true }
+            XCTAssertTrue(newReplayRan)
+            store.clear()
+        }
+    }
+
+    private func replayRecord(owner: UUID) -> PendingAttendanceRecord {
+        PendingAttendanceRecord(ownerUserId: owner, sessionId: UUID(), studentId: UUID(),
+            status: .present, notes: nil, absenceInformed: nil, clientMutationId: UUID().uuidString,
+            markedAt: Date(), isSynced: false)
+    }
 
     private enum SyncFailure: Error, Equatable { case permanent, transport }
 
