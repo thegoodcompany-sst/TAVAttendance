@@ -116,9 +116,12 @@ fractional seconds and may require manual reconciliation after a conflict.
 Only the superadmin can download the ZIP. Exports select documented columns,
 exclude Study Space at the query source, and remove related audit history from
 both old and new snapshots, including deleted records. `staff_profiles.csv`
-contains admins and tutors. Pagination has a stable unique order but is not a
-transactional snapshot across tables. Spreadsheet formula prefixes are escaped,
-including prefixes hidden behind ASCII control characters.
+contains admins and tutors. Pagination uses an `id` cursor (`key` for feature
+flags) until an empty page, so concurrent inserts/deletes cannot shift later
+pages and smaller server row caps do not truncate exports. It is not a
+transactional snapshot across tables.
+Spreadsheet formula prefixes are escaped, including prefixes hidden behind ASCII
+control characters.
 
 ## Arrival station (NFC, flag `nfc_sign_in`)
 
