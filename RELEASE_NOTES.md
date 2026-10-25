@@ -5,6 +5,10 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Web ZIP exports now paginate by ID (or feature-flag key) until an empty page,
+  preventing skipped records after concurrent deletions and truncation when the
+  hosted row cap is below 1,000. Existing projections and filters are preserved.
+
 - Web demo journals now validate tables, row shapes, counts and domain uniqueness
   before application; query expansion budgets prevent small cookies from causing
   disproportionate work. Invalid journals fall back atomically to the demo seed.
