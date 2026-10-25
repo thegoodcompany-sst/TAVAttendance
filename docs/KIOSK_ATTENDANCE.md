@@ -277,3 +277,5 @@ is attributed to B. Repeat with a response delayed until after logout and with
 501 queued mutations; no second batch or stale local acknowledgement should occur.
 Verify B can queue and replay its own marks normally. Run the deterministic
 `AttendanceLogicTests` replay tests alongside this manual check.
+The suite imports Supabase for transport coverage; attendance session fixtures use
+`TAVAttendance.Session` to distinguish them from Supabase's auth session type.

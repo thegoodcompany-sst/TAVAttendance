@@ -905,8 +905,8 @@ final class AttendanceLogicTests: XCTestCase {
 
     // MARK: retrospective sessions (migration 037)
 
-    private func retrospectiveSession(date: String) -> Session {
-        Session(id: UUID(), classId: UUID(), sessionDate: date, topic: nil,
+    private func retrospectiveSession(date: String) -> TAVAttendance.Session {
+        TAVAttendance.Session(id: UUID(), classId: UUID(), sessionDate: date, topic: nil,
                 notes: nil, startedAt: nil, endedAt: Date(), subTutorId: nil)
     }
 

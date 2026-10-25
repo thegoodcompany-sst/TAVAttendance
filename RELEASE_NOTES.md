@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- iOS test compilation disambiguates the attendance session model from Supabase's
+  auth session so retrospective-session and offline replay regressions can build together.
+
 - Web dev tooling: pin transitive Zod to 4.6.7 to address the high-severity
   collection-validation memory exhaustion advisory (GHSA-mrhx-c7xc-m3w5)
   reported by the CI dependency audit.
