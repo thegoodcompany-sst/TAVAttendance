@@ -7,6 +7,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 - Web analytics shares one request-local attendance scan for monthly comparisons
   and weekly trends, preserving each date window, RLS, and Study Space filters.
+- Web health charts now fetch all 14 displayed Singapore calendar days, including
+  early days previously shown as zero on Mondays. Comparison metrics retain their
+  current/previous calendar-week windows.
 
 - Web result-slip uploads preserve exact retry metadata after ambiguous saves,
   including failed recovery lookups. Retry recovery prevents replacement uploads

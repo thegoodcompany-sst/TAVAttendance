@@ -33,6 +33,7 @@ product direction in [ROADMAP.md](ROADMAP.md); the next implementation queue in
 | Parent attendance, result-slip upload, and centre messaging (flag-gated) | Parents |
 | Result-slip acknowledgement and parent-message replies | Admin |
 | Human-readable audit activity (actor + action + entity) | Admin |
+| Web health chart for the last 14 Singapore calendar days, with calendar-week comparisons | Admin |
 | Offline marking with automatic sync on reconnect (tutor roster only; kiosk is online-only) | Teachers |
 
 ## Stack
