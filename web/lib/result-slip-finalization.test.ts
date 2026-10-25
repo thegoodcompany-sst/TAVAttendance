@@ -12,6 +12,7 @@ const upload = { path: `${studentId}/test.pdf`, fileType: 'application/pdf', fil
 let intent: Record<string, unknown>
 let persisted: Record<string, unknown> | null
 let slots: Set<string>
+let recoveryError: boolean
 let databaseError: boolean
 const download = vi.fn(), list = vi.fn(), remove = vi.fn(), rpc = vi.fn()
 beforeEach(() => {
@@ -20,6 +21,7 @@ beforeEach(() => {
     expires_at: new Date(Date.now() + 3600000).toISOString(), finalized_at: null, finalized_result_id: null }
   persisted = null
   slots = new Set()
+  recoveryError = false
   databaseError = false
   mocks.flag.mockResolvedValue(true)
   mocks.client.mockResolvedValue({ auth: { getUser: async () => ({ data: { user: { id: 'parent' } } }) },
@@ -32,7 +34,7 @@ beforeEach(() => {
       lt: async () => ({ error: null }),
       maybeSingle: async () => ({ data: table === 'result_slip_upload_intents'
         ? (filters.actor_id === 'parent' && filters.student_id === studentId ? (intent ? { ...intent } : null) : null)
-        : (filters.student_id === studentId && filters.uploaded_by === 'parent' && filters.file_path === upload.path ? persisted : null), error: null }),
+        : (filters.student_id === studentId && filters.uploaded_by === 'parent' && filters.file_path === upload.path ? persisted : null), error: table === 'result_slips' && recoveryError ? new Error('lookup unavailable') : null }),
       insert: async ({ id }: { id: string }) => {
         if (databaseError) return { error: { code: '08006' } }
         if (slots.has(id)) return { error: { code: '23505' } }
@@ -129,4 +131,35 @@ it.each(['expired', 'missing'])('recovers only an exact persisted result with an
   expect(list).not.toHaveBeenCalled()
   expect(download).not.toHaveBeenCalled()
   expect(slots.size).toBe(0)
+})
+
+it('preserves an ambiguous commit when recovery fails and recovers the original result on retry', async () => {
+  rpc.mockImplementationOnce(async () => {
+    persisted = { id: 'result', exam_name: upload.examName, subject: null, score: null, max_score: null }
+    intent.finalized_at = new Date().toISOString()
+    intent.finalized_result_id = 'result'
+    return { error: new Error('response lost') }
+  })
+  recoveryError = true
+  expect(await finalizeResultSlipUpload(studentId, upload)).toMatchObject({ kind: 'ambiguous' })
+  recoveryError = false
+  intent.expires_at = new Date(0).toISOString()
+  expect(await finalizeResultSlipUpload(studentId, upload)).toEqual({ error: null })
+  expect(rpc).toHaveBeenCalledOnce()
+  expect(download).toHaveBeenCalledOnce()
+})
+
+it('treats a failed expired-intent recovery lookup as ambiguous', async () => {
+  intent.expires_at = new Date(0).toISOString()
+  recoveryError = true
+  expect(await finalizeResultSlipUpload(studentId, upload)).toMatchObject({ kind: 'ambiguous' })
+  expect(rpc).not.toHaveBeenCalled()
+  expect(download).not.toHaveBeenCalled()
+})
+
+it('identifies correctable metadata validation before attempting finalization', async () => {
+  expect(await finalizeResultSlipUpload(studentId, { ...upload, score: 101, maxScore: 100 }))
+    .toMatchObject({ kind: 'validation', error: 'Score cannot exceed the maximum.' })
+  expect(mocks.admin).not.toHaveBeenCalled()
+  expect(rpc).not.toHaveBeenCalled()
 })
