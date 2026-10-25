@@ -24,9 +24,11 @@ export function UploadForm({ studentId }: { studentId: string }) {
     path: string
     token: string
     uploaded: boolean
+    recoveryRequired: boolean
     editMetadata: boolean
     upload: Parameters<typeof finalizeResultSlipUpload>[1]
   } | null>(null)
+  const [recoveryRequired, setRecoveryRequired] = useState(false)
   const [metadataLocked, setMetadataLocked] = useState(false)
   const [hasAttempt, setHasAttempt] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +67,7 @@ export function UploadForm({ studentId }: { studentId: string }) {
           }
 
           attempt.current = {
-            file, path: prepared.path, token: prepared.token, uploaded: false, editMetadata: false,
+            file, path: prepared.path, token: prepared.token, uploaded: false, editMetadata: false, recoveryRequired: false,
             upload: {
               path: prepared.path, fileType: file.type, fileSize: file.size,
               examName: String(formData.get('exam_name') ?? ''),
@@ -113,15 +115,21 @@ export function UploadForm({ studentId }: { studentId: string }) {
           current.uploaded = true
         }
 
-        const { error } = await finalizeResultSlipUpload(studentId, current.upload)
+        const wasAmbiguous = current.recoveryRequired
+        // A thrown/lost action response may conceal a commit too.
+        current.recoveryRequired = true
+        setRecoveryRequired(true)
+        const result = await finalizeResultSlipUpload(studentId, current.upload)
+        const { error } = result
         if (error) {
-          // Metadata errors can be corrected on the same path; other failures
-          // can be abandoned with the explicit start-over action.
-          // Transport failures keep the original metadata for an exact retry.
-          current.editMetadata = true
-          setMetadataLocked(false)
+          // Validation of the unchanged payload proves it could never finalize.
+          current.recoveryRequired = result.kind !== 'validation' && (wasAmbiguous || result.kind === 'ambiguous')
+          setRecoveryRequired(current.recoveryRequired)
+          current.editMetadata = !current.recoveryRequired && result.kind === 'validation'
+          setMetadataLocked(!current.editMetadata)
           setError(error)
         } else {
+          setRecoveryRequired(false)
           attempt.current = null
           setHasAttempt(false)
           setMetadataLocked(false)
@@ -154,9 +162,9 @@ export function UploadForm({ studentId }: { studentId: string }) {
           disabled={isPending}
           className="inline-flex items-center gap-1 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/80 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
         >
-          {isPending ? 'Uploading…' : 'Upload slip'}
+          {isPending ? 'Uploading…' : recoveryRequired ? 'Retry recovery' : 'Upload slip'}
         </button>
-        {hasAttempt && (
+        {hasAttempt && !recoveryRequired && (
           <button
             type="button"
             disabled={isPending}

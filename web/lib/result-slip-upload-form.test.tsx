@@ -143,7 +143,7 @@ it.each([
   vi.stubGlobal('HTMLInputElement', class {})
   try {
     mocks.upload.mockResolvedValueOnce({ error: { statusCode: '409' } })
-    mocks.finalize.mockResolvedValueOnce({ error })
+    mocks.finalize.mockResolvedValueOnce({ error, kind: 'rejected' })
     let form = renderForm()
     form.props.onSubmit({ preventDefault() {}, currentTarget: {} })
     await mocks.tasks.at(-1)
@@ -162,6 +162,78 @@ it.each([
     expect(mocks.prepare).toHaveBeenCalledTimes(2)
     expect(mocks.upload).toHaveBeenLastCalledWith('student/new.pdf', 'new', replacement, { contentType: 'application/pdf' })
     expect(mocks.finalize.mock.calls[1][1].path).toBe('student/new.pdf')
+    expect(mocks.refresh).toHaveBeenCalledOnce()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it.each(['ambiguous', 'thrown'])('locks the original metadata and replacement after an %s outcome', async kind => {
+  const data = new FormData()
+  data.set('file', new File(['%PDF-test'], 'test.pdf', { type: 'application/pdf' }))
+  data.set('exam_name', 'Original exam')
+  data.set('score', '80')
+  vi.stubGlobal('FormData', class { constructor() { return data } })
+  try {
+    if (kind === 'thrown') mocks.finalize.mockRejectedValueOnce(new Error('response lost'))
+    else mocks.finalize.mockResolvedValueOnce({ error: 'Recovery unavailable', kind: 'ambiguous' })
+    // An authentication failure cannot resolve the earlier ambiguity.
+    mocks.finalize.mockResolvedValueOnce({ error: 'Not authenticated.', kind: 'rejected' })
+    const submit = async () => {
+      renderForm().props.onSubmit({ preventDefault() {}, currentTarget: {} })
+      await mocks.tasks.at(-1)
+    }
+    await submit()
+    expect(renderForm().props.children[0].props.disabled).toBe(true)
+    expect(restartButton(renderForm())).toBe(false)
+    data.set('exam_name', 'Changed exam')
+    data.set('score', '90')
+    await submit()
+    expect(renderForm().props.children[0].props.disabled).toBe(true)
+    expect(restartButton(renderForm())).toBe(false)
+    await submit()
+    expect(mocks.finalize.mock.calls[1]).toEqual(mocks.finalize.mock.calls[0])
+    expect(mocks.finalize.mock.calls[2]).toEqual(mocks.finalize.mock.calls[0])
+    expect(mocks.prepare).toHaveBeenCalledOnce()
+    expect(mocks.upload).toHaveBeenCalledOnce()
+    expect(mocks.refresh).toHaveBeenCalledOnce()
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})
+
+it.each(['validation', 'thrown'])('allows metadata correction after definite validation following %s', async initialOutcome => {
+  const data = new FormData()
+  data.set('file', new File(['%PDF-test'], 'test.pdf', { type: 'application/pdf' }))
+  data.set('exam_name', 'Exam')
+  data.set('score', '-1')
+  vi.stubGlobal('FormData', class { constructor() { return data } })
+  try {
+    if (initialOutcome === 'thrown') {
+      mocks.finalize.mockRejectedValueOnce(new Error('response lost'))
+      renderForm().props.onSubmit({ preventDefault() {}, currentTarget: {} })
+      await mocks.tasks.at(-1)
+      expect(renderForm().props.children[0].props.disabled).toBe(true)
+      expect(restartButton(renderForm())).toBe(false)
+      // Disabled fields are omitted by browser FormData; retry the saved payload.
+      data.delete('exam_name')
+      data.delete('score')
+    }
+    mocks.finalize.mockResolvedValueOnce({ error: 'Score must be zero or greater.', kind: 'validation' })
+    renderForm().props.onSubmit({ preventDefault() {}, currentTarget: {} })
+    await mocks.tasks.at(-1)
+    expect(renderForm().props.children[0].props.disabled).toBe(false)
+    expect(restartButton(renderForm()).props.disabled).toBe(false)
+    if (initialOutcome === 'thrown') {
+      expect(mocks.finalize.mock.calls[1]).toEqual(mocks.finalize.mock.calls[0])
+    }
+    data.set('exam_name', 'Exam')
+    data.set('score', '80')
+    renderForm().props.onSubmit({ preventDefault() {}, currentTarget: {} })
+    await mocks.tasks.at(-1)
+    expect(mocks.finalize.mock.calls.at(-1)?.[1]).toEqual({ ...mocks.finalize.mock.calls[0][1], score: 80 })
+    expect(mocks.prepare).toHaveBeenCalledOnce()
+    expect(mocks.upload).toHaveBeenCalledOnce()
     expect(mocks.refresh).toHaveBeenCalledOnce()
   } finally {
     vi.unstubAllGlobals()
