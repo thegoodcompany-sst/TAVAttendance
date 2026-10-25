@@ -9,6 +9,11 @@ This is the source draft for mobile release notes. Keep completed changes under
   early days previously shown as zero on Mondays. Comparison metrics retain their
   current/previous calendar-week windows.
 
+- Web result-slip uploads preserve exact retry metadata after ambiguous saves,
+  including failed recovery lookups. Retry recovery prevents replacement uploads
+  while the outcome is uncertain; definite validation of the unchanged metadata
+  unlocks correction and Start over even after a lost response.
+
 - Web demo journals now validate tables, row shapes, counts and domain uniqueness
   before application; query expansion budgets prevent small cookies from causing
   disproportionate work. Invalid journals fall back atomically to the demo seed.
