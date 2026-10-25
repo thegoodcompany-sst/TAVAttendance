@@ -586,7 +586,7 @@ struct RosterView: View {
                     "skipped": .integer(result.skipped),
                     "blocked_ended_session": .integer(result.blockedEndedSession),
                     "skipped_conflict": .integer(result.skippedConflict),
-                    "pending_before": .integer(pendingBefore),
+                    "pending_before": .integer(batch.count),
                     "duration_ms": Analytics.ms(since: started),
                 ])
                 // Terminal outcomes (synced, skipped, blocked, conflict) must leave
