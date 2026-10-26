@@ -361,7 +361,7 @@ class RosterViewModel(app: Application) : AndroidViewModel(app) {
                         put("skipped", result.skipped)
                         put("blocked_ended_session", result.blockedEndedSession)
                         put("skipped_conflict", result.skippedConflict)
-                        put("pending_before", unsynced.size)
+                        put("pending_before", batch.size)
                         put("duration_ms", System.currentTimeMillis() - startMs)
                     })
                     // RPC success is terminal for the batch (synced, skipped, blocked, or

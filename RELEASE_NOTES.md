@@ -5,6 +5,9 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- iOS and Android offline sync telemetry counts each successful batch's size,
+  preventing chunked queues from inflating the health dashboard's pending total.
+
 - Web analytics shares one request-local attendance scan for monthly comparisons
   and weekly trends, preserving each date window, RLS, and Study Space filters.
 

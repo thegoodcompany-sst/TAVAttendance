@@ -82,7 +82,10 @@ observation atomically with the write, including concurrent updates and clears.
 Device clocks are not trusted. Online saves refresh the acknowledged observation
 without fetching the whole roster. Both native clients sync all queued sessions
 owned by the signed-in account, in chunks of at most 500. Each successful chunk
-removes only its acknowledged mutation IDs. Permanent SQL permission, data and
+removes only its acknowledged mutation IDs. Each successful request's
+`sync_result.pending_before` counts only the submitted batch (including smaller
+batches after rejection splitting), so health totals do not repeatedly count the
+original queue. Permanent SQL permission, data and
 constraint rejections split the failed transaction until the rejected mutation
 is isolated. That mutation remains encrypted on the device as quarantined,
 with a reconciliation warning; later syncs skip it so other attendance proceeds.
