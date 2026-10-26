@@ -8,14 +8,65 @@ function clientFor(pages: Array<{ data: Record<string, unknown>[] | null; error:
     in: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     range: vi.fn().mockReturnThis(),
-    overrideTypes: vi.fn(),
+    gt: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    overrideTypes: vi.fn().mockResolvedValue({ data: [], error: null }),
   }
   for (const page of pages) query.overrideTypes.mockResolvedValueOnce(page)
   const from = vi.fn().mockReturnValue(query)
   return { query, from, client: { from } as unknown as Parameters<typeof fetchExportRows>[0] }
 }
 
+// Model server sorting, cursors, offsets and row caps against a mutable dataset.
+function mutableClient(rows: Record<string, string>[], cap: number, mutate: () => void) {
+  let requests = 0
+  const from = vi.fn(() => {
+    if (requests++ === 1) mutate()
+    let key = 'id'
+    let cursorKey = 'id'
+    let after: string | undefined
+    let offset = 0
+    let count = cap
+    const query = {
+      select: vi.fn().mockReturnThis(),
+      order: (column: string) => { key = column; return query },
+      gt: (column: string, value: string) => { cursorKey = column; after = value; return query },
+      limit: (limit: number) => { count = Math.min(limit, cap); return query },
+      range: (start: number, end: number) => { offset = start; count = Math.min(end - start + 1, cap); return query },
+      overrideTypes: async () => ({
+        data: rows.filter(row => after === undefined || row[cursorKey] > after)
+          .sort((a, b) => a[key].localeCompare(b[key])).slice(offset, offset + count),
+        error: null,
+      }),
+    }
+    return query
+  })
+  return { from, client: { from } as unknown as Parameters<typeof fetchExportRows>[0] }
+}
+
 describe('dashboard export queries', () => {
+  it.each([['students', 'delete'], ['students', 'insert'], ['feature_flags', 'delete'], ['feature_flags', 'insert']])('retains live %s rows after %s between pages', async (table, change) => {
+    const key = table === 'feature_flags' ? 'key' : 'id'
+    const source = Array.from({ length: 1001 }, (_, i) => ({ [key]: String(i).padStart(6, '0') }))
+    const expected = [...source]
+    const { client, from } = mutableClient(source, 1000, () => {
+      if (change === 'delete') source.splice(999, 1)
+      else source.unshift({ [key]: '-00001' })
+    })
+    const rows = await fetchExportRows(client, { table, columns: [key] })
+    expect(rows).toEqual(expected)
+    expect(new Set(rows.map(row => row[key])).size).toBe(1001)
+    expect(from).toHaveBeenCalledTimes(3)
+  })
+
+  it.each(['students', 'feature_flags'])('reads %s until empty when the server cap is below 1,000', async table => {
+    const key = table === 'feature_flags' ? 'key' : 'id'
+    const source = Array.from({ length: 5 }, (_, i) => ({ [key]: String(i) }))
+    const { client, from } = mutableClient(source, 2, () => {})
+    expect(await fetchExportRows(client, { table, columns: [key] })).toEqual(source)
+    expect(from).toHaveBeenCalledTimes(4)
+  })
+
   it('paginates using a unique order and an explicit column projection', async () => {
     const firstPage = Array.from({ length: 1000 }, (_, id) => ({ id: String(id) }))
     const { client, query } = clientFor([
@@ -27,8 +78,9 @@ describe('dashboard export queries', () => {
     expect(query.select).toHaveBeenNthCalledWith(1, 'id,full_name')
     expect(query.order).toHaveBeenNthCalledWith(1, 'id', { ascending: true })
     expect(query.order).toHaveBeenNthCalledWith(2, 'id', { ascending: true })
-    expect(query.range).toHaveBeenNthCalledWith(1, 0, 999)
-    expect(query.range).toHaveBeenNthCalledWith(2, 1000, 1999)
+    expect(query.limit).toHaveBeenCalledWith(1000)
+    expect(query.gt.mock.calls).toEqual([['id', '999'], ['id', '1000']])
+    expect(query.overrideTypes).toHaveBeenCalledTimes(3)
   })
 
   it.each([
@@ -39,8 +91,10 @@ describe('dashboard export queries', () => {
     ['attendance_records', 'session.class.is_study_space', 'id,session:sessions!inner(class:classes!inner(is_study_space))'],
     ['dismissals', 'session.class.is_study_space', 'id,session:sessions!inner(class:classes!inner(is_study_space))'],
   ])('excludes Study Space at the source for %s', async (table, filter, projection) => {
-    const { client, query } = clientFor([{ data: [], error: null }])
+    const { client, query } = clientFor([{ data: [{ id: 'first' }], error: null }])
     await fetchExportRows(client, { table, columns: ['id'] })
+    expect(query.select).toHaveBeenCalledTimes(2)
+    expect(query.eq.mock.calls).toEqual([[filter, false], [filter, false]])
     expect(query.select).toHaveBeenCalledWith(projection)
     expect(query.eq).toHaveBeenCalledWith(filter, false)
   })
@@ -74,8 +128,9 @@ describe('dashboard export queries', () => {
   })
 
   it('limits the staff export to staff roles at the source', async () => {
-    const { client, query } = clientFor([{ data: [], error: null }])
+    const { client, query } = clientFor([{ data: [{ id: 'staff' }], error: null }])
     await fetchExportRows(client, EXPORT_FILES.find(file => file.table === 'profiles')!)
+    expect(query.in).toHaveBeenCalledTimes(2)
     expect(query.in).toHaveBeenCalledWith('role', ['admin', 'tutor'])
   })
 
@@ -86,7 +141,10 @@ describe('dashboard export queries', () => {
   })
 
   it('fails the export rather than returning a partial dataset after a query error', async () => {
-    const { client } = clientFor([{ data: null, error: { message: 'database failure' } }])
+    const { client } = clientFor([
+      { data: [{ id: 'first' }], error: null },
+      { data: null, error: { message: 'database failure' } },
+    ])
     await expect(fetchExportRows(client, { table: 'students', columns: ['id'] }))
       .rejects.toThrow('Could not export students.')
   })

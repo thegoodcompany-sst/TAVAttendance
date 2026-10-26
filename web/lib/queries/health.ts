@@ -29,13 +29,16 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
   const today = todayInTz()
   const currentStart = weekStartOf(today)
   const previousStart = weekStartOf(dateOffsetInTz(-7))
+  const chartStart = dateOffsetInTz(-13)
+  // Cover the rolling chart as well as both calendar-week comparisons.
+  const dailyStart = chartStart < previousStart ? chartStart : previousStart
   const previousEnd = new Date(Date.parse(`${currentStart}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
 
   const [{ data: dailyRows, error: dailyError }, { data: syncRows, error: syncError }] = await Promise.all([
     supabase
       .from('app_events_daily')
       .select('event_date, event_type, name, event_count, duration_ms_p95')
-      .gte('event_date', previousStart)
+      .gte('event_date', dailyStart)
       .lte('event_date', today),
     supabase
       .from('app_events')

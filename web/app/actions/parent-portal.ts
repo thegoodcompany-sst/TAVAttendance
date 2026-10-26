@@ -116,33 +116,33 @@ async function fileSignatureMatches(file: Blob, mime: string) {
 export async function finalizeResultSlipUpload(
   studentId: string,
   upload: ResultSlipUpload,
-): Promise<{ error: string | null }> {
+): Promise<{ error: null } | { error: string; kind: 'validation' | 'retryable' | 'rejected' | 'ambiguous' }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not authenticated.' }
+  if (!user) return { error: 'Not authenticated.', kind: 'rejected' }
   if (!(await isFeatureEnabled('parent_portal'))) {
-    return { error: 'Parent portal is not enabled.' }
+    return { error: 'Parent portal is not enabled.', kind: 'rejected' }
   }
   if (!(await parentOwnsStudent(supabase, studentId))) {
-    return { error: 'Not authorized.' }
+    return { error: 'Not authorized.', kind: 'rejected' }
   }
 
   const examName = upload.examName.trim()
   const subject = upload.subject?.trim() || null
   const { score, maxScore } = upload
 
-  if (!examName) return { error: 'Exam name is required.' }
-  if (examName.length > 200) return { error: 'Exam name must be 200 characters or fewer.' }
-  if (subject && subject.length > 100) return { error: 'Subject must be 100 characters or fewer.' }
-  if (!isCanonicalStudentPath(studentId, upload.path)) return { error: 'Invalid upload path.' }
+  if (!examName) return { error: 'Exam name is required.', kind: 'validation' }
+  if (examName.length > 200) return { error: 'Exam name must be 200 characters or fewer.', kind: 'validation' }
+  if (subject && subject.length > 100) return { error: 'Subject must be 100 characters or fewer.', kind: 'validation' }
+  if (!isCanonicalStudentPath(studentId, upload.path)) return { error: 'Invalid upload path.', kind: 'rejected' }
   if (!Number.isSafeInteger(upload.fileSize) || upload.fileSize <= 0) {
-    return { error: 'A non-empty file is required.' }
+    return { error: 'A non-empty file is required.', kind: 'rejected' }
   }
-  if (!ALLOWED_TYPES.has(upload.fileType)) return { error: 'File must be a PDF, JPG, or PNG.' }
-  if (upload.fileSize > MAX_BYTES) return { error: 'File must be under 10MB.' }
-  if (score !== null && (!Number.isFinite(score) || score < 0)) return { error: 'Score must be zero or greater.' }
-  if (maxScore !== null && (!Number.isFinite(maxScore) || maxScore <= 0)) return { error: 'Maximum score must be greater than zero.' }
-  if (score !== null && maxScore !== null && score > maxScore) return { error: 'Score cannot exceed the maximum.' }
+  if (!ALLOWED_TYPES.has(upload.fileType)) return { error: 'File must be a PDF, JPG, or PNG.', kind: 'rejected' }
+  if (upload.fileSize > MAX_BYTES) return { error: 'File must be under 10MB.', kind: 'rejected' }
+  if (score !== null && (!Number.isFinite(score) || score < 0)) return { error: 'Score must be zero or greater.', kind: 'validation' }
+  if (maxScore !== null && (!Number.isFinite(maxScore) || maxScore <= 0)) return { error: 'Maximum score must be greater than zero.', kind: 'validation' }
+  if (score !== null && maxScore !== null && score > maxScore) return { error: 'Score cannot exceed the maximum.', kind: 'validation' }
 
   // Do not trust client-supplied size/type metadata. The Storage service has
   // already enforced the bucket limits; this existence/metadata check also
@@ -165,55 +165,60 @@ export async function finalizeResultSlipUpload(
       .eq('file_path', upload.path)
       .limit(1)
       .maybeSingle()
-    return !error && persisted && persisted.exam_name === examName && persisted.subject === subject &&
+    if (error) return null // Unknown is not evidence that no commit exists.
+    return !!persisted && persisted.exam_name === examName && persisted.subject === subject &&
       persisted.score === score && persisted.max_score === maxScore
   }
 
-  if (intentError) return { error: 'Could not verify upload authorization. Please try again.' }
+  if (intentError) return { error: 'Could not verify upload authorization. Please try again.', kind: 'retryable' }
   if (!intent || new Date(intent.expires_at).getTime() <= Date.now()) {
     // Recovery is read-only: an unavailable intent must never authorize a new
     // finalization or any Storage work, even if it changes during this request.
-    if (await recoverPersistedResult()) {
+    const recovered = await recoverPersistedResult()
+    if (recovered) {
       revalidatePath(`/parent/results/${studentId}`)
       return { error: null }
     }
-    return { error: 'Upload authorization is invalid or expired.' }
+    if (recovered === null) {
+      return { error: 'Could not confirm whether the result slip was saved. Please retry recovery.', kind: 'ambiguous' }
+    }
+    return { error: 'Upload authorization is invalid or expired.', kind: 'rejected' }
   }
   if (intent.expected_size !== upload.fileSize || intent.expected_mime !== upload.fileType) {
-    return { error: 'Upload authorization is invalid or expired.' }
+    return { error: 'Upload authorization is invalid or expired.', kind: 'rejected' }
   }
 
   if (intent.finalized_at && !intent.finalized_result_id) {
-    return { error: 'Upload authorization was already consumed.' }
+    return { error: 'Upload authorization was already consumed.', kind: 'rejected' }
   }
 
   // Finalized retries go straight to the RPC's exact-metadata retry check.
   if (!intent.finalized_at) {
     if (!(await claimResultSlipValidation(adminClient, user.id, upload.path))) {
-      return { error: 'Upload verification limit reached or unavailable. Please prepare a new upload.' }
+      return { error: 'Upload verification limit reached or unavailable. Please prepare a new upload.', kind: 'rejected' }
     }
 
     const objectName = upload.path.slice(studentId.length + 1)
     const { data: objects, error: listError } = await adminClient.storage
       .from('result-slips')
       .list(studentId, { limit: 100, search: objectName })
-    if (listError) return { error: 'Could not verify the uploaded file. Please try again.' }
+    if (listError) return { error: 'Could not verify the uploaded file. Please try again.', kind: 'retryable' }
     const object = objects?.find(candidate => candidate.id && candidate.name === objectName)
     const metadata = object?.metadata as Record<string, unknown> | undefined
     const storedSize = typeof metadata?.size === 'number' ? metadata.size : null
     const storedType = typeof metadata?.mimetype === 'string' ? metadata.mimetype : null
     if (!object || storedSize !== upload.fileSize || storedType !== upload.fileType) {
-      return { error: 'Uploaded file verification failed.' }
+      return { error: 'Uploaded file verification failed.', kind: 'rejected' }
     }
 
     const { data: storedFile, error: downloadError } = await adminClient.storage
       .from('result-slips')
       .download(upload.path)
     if (downloadError || !storedFile) {
-      return { error: 'Could not download the uploaded file. Please try again.' }
+      return { error: 'Could not download the uploaded file. Please try again.', kind: 'retryable' }
     }
     if (!(await fileSignatureMatches(storedFile, upload.fileType))) {
-      return { error: 'The file contents do not match the selected file type.' }
+      return { error: 'The file contents do not match the selected file type.', kind: 'rejected' }
     }
     // Never delete here, even on rejection: another request may have committed.
     // The intent-expiry worker safely cleans up abandoned/rejected objects.
@@ -237,7 +242,7 @@ export async function finalizeResultSlipUpload(
       revalidatePath(`/parent/results/${studentId}`)
       return { error: null }
     }
-    return { error: 'Could not save the result slip.' }
+    return { error: 'Could not save or confirm the result slip. Please retry recovery.', kind: 'ambiguous' }
   }
   revalidatePath(`/parent/results/${studentId}`)
   return { error: null }

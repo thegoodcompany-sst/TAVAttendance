@@ -8,6 +8,33 @@ This is the source draft for mobile release notes. Keep completed changes under
 - iOS and Android offline sync telemetry counts each successful batch's size,
   preventing chunked queues from inflating the health dashboard's pending total.
 
+- Web analytics shares one request-local attendance scan for monthly comparisons
+  and weekly trends, preserving each date window, RLS, and Study Space filters.
+
+- iOS test compilation disambiguates the attendance session model from Supabase's
+  auth session so retrospective-session and offline replay regressions can build together.
+
+- Web dev tooling: pin transitive Zod to 4.6.7 to address the high-severity
+  collection-validation memory exhaustion advisory (GHSA-mrhx-c7xc-m3w5)
+  reported by the CI dependency audit.
+
+- iOS offline replay binds ownership and RPC authorization to one immutable
+  session/token snapshot. Logout and account changes cancel captured queue drains
+  so they cannot continue as a subsequent account.
+
+- Web ZIP exports now paginate by ID (or feature-flag key) until an empty page,
+  preventing skipped records after concurrent deletions and truncation when the
+  hosted row cap is below 1,000. Existing projections and filters are preserved.
+
+- Web health charts now fetch all 14 displayed Singapore calendar days, including
+  early days previously shown as zero on Mondays. Comparison metrics retain their
+  current/previous calendar-week windows.
+
+- Web result-slip uploads preserve exact retry metadata after ambiguous saves,
+  including failed recovery lookups. Retry recovery prevents replacement uploads
+  while the outcome is uncertain; definite validation of the unchanged metadata
+  unlocks correction and Start over even after a lost response.
+
 - Web demo journals now validate tables, row shapes, counts and domain uniqueness
   before application; query expansion budgets prevent small cookies from causing
   disproportionate work. Invalid journals fall back atomically to the demo seed.

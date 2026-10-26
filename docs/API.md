@@ -823,6 +823,12 @@ Phase 2: `result_slips` and `messages` are live through shaped parent RPCs;
 `awards` remains admin-only and feature-flagged. Phase 3: `dismissals` is live
 through a shaped parent RPC; `food_polls` and `food_poll_responses` remain dormant.
 
+The web analytics page shares one request-local attendance fetch over the union
+of its monthly and weekly windows, then derives each aggregate within its own
+window. It uses the cookie-bound Supabase client (RLS) and excludes Study Space
+and inactive classes/students at source; no rows are cached across requests.
+Standalone monthly/weekly callers fetch only their own window.
+
 Web monthly and weekly analytics page attendance by ascending ID with an
 exclusive last-ID cursor. Concurrent inserts/clears cannot shift subsequent
 pages; this does not provide a snapshot of changing attendance statuses.
@@ -831,9 +837,17 @@ Web file uploads use actor/child-bound intents. The browser retains its prepared
 path, file, metadata and upload stage until success while the form stays mounted,
 so a lost finalization response retries the same operation without re-uploading.
 An already-present Storage object proceeds through trusted finalization checks,
-allowing recovery after a lost upload response. Parents can explicitly start over
-or change the file after a failed attempt; this releases the local reservation
-without deleting the object (the existing expiry worker handles abandoned files).
+allowing recovery after a lost upload response. Finalization errors distinguish
+metadata validation, retryable pre-finalization failures, definite rejections,
+and ambiguous commit outcomes. Only definite metadata validation failures unlock
+metadata editing. After an ambiguous or lost finalization response, the original
+metadata stays immutable and the form offers Retry recovery instead of a new
+submission. Definitive metadata validation of that unchanged payload clears
+uncertainty because it could never reach finalization; authentication and
+transient pre-finalization failures keep recovery locked.
+Parents can explicitly start over or change a rejected file when no finalization
+outcome is uncertain; this releases the local reservation without deleting the
+object (the existing expiry worker handles abandoned files).
 After ownership validation, expired/missing intents permit only a read-only
 lookup of the exact persisted actor/student/path and result metadata; they never
 authorize new finalizations or Storage work. Finalized retries bypass Storage
