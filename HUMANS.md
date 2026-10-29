@@ -441,10 +441,21 @@ will not auto-publish.
 ---
 
 ## Notes
-- Accepted/intentional advisor warnings: the `is_admin()/is_parent()/...` and the
-  `anonymise_student/erase_student/export_student_personal_data` SECURITY DEFINER functions are
-  callable by `authenticated` **by design** — each guards with `is_admin()` (or is required by RLS).
-  `rate_limit_events` has RLS on with no policy **by design** (service-role only).
+- Accepted/intentional advisor warnings (reviewed 2026-10-29, §75): helper
+  predicates (`is_admin()` / `is_parent()` / `is_tutor()` / `is_superadmin()` /
+  `is_feature_enabled()` / `parent_owns_student()` / `tutor_owns_class()` /
+  `substitute_covers_session()` / `student_is_enrolled_for_session()` /
+  `tutor_can_read_student_photo()`) and self-guarding client RPCs are
+  `SECURITY DEFINER` and executable by `authenticated` **by design** — RLS
+  policies and the Data API need them; each RPC still checks role, feature
+  flag, and ownership. `export_student_personal_data` stays on that path.
+  `anonymise_student` / `erase_student` / `wipe_operational_data` were revoked
+  from `authenticated` in 038 (service-only `_secure` replacements).
+  Service-only tables with RLS and **zero policies** (`rate_limit_events`,
+  `attendance_mutation_receipts`, `device_tokens`, `result_slip_upload_intents`,
+  `security_principals`, `student_storage_cleanup_queue`) deny
+  anon/authenticated; `service_role` uses `BYPASSRLS`. Do not add client
+  policies to "fix" lint 0008.
 - The Supabase anon key is public-by-design; rotate it via the dashboard if this repo ever goes public.
 
 ## §38 — Firebase App Distribution (Android) — one-time interactive setup
@@ -857,15 +868,49 @@ The 2026-08-17 kiosk failure came from iOS build 3 (`TAVAttendance/3` in the
 live API log), whose legacy direct `sessions` insert now receives the intended
 403. Install TestFlight 1.1.3 build 8 before completing this device check.
 
-### ☐ 75. Review the refreshed Supabase advisor baseline
+### ☑ 75. Review the refreshed Supabase advisor baseline
 
-The 2026-08-17 post-migration advisor check reported 45 findings under keys not
-present in `scripts/advisor-accepted.json`, while 19 accepted keys were no
-longer reported. Most match documented intentional boundaries (self-guarding
-`SECURITY DEFINER` RPCs and service-only tables with RLS but no policies) or
-information-level index suggestions, but they must not be accepted
-automatically. Review each finding, then run
-`node scripts/advisor-watch.mjs --accept` only after human security review.
+Completed 2026-10-29 against production advisors and
+[Advisor watch #7](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/40274878700)
+(46 NEW keys, 19 stale). No production SQL was applied. 059/NFC, Dependabot
+#72, and `supabase config push` were not touched.
+
+Each of the 46 NEW keys was reviewed against live grants, policies, and
+function bodies:
+
+- **5 `rls_enabled_no_policy`:** 038 service-only tables
+  (`attendance_mutation_receipts`, `device_tokens`,
+  `result_slip_upload_intents`, `security_principals`,
+  `student_storage_cleanup_queue`). RLS on, zero policies, table privileges
+  revoked from anon/authenticated. Same deny-by-default pattern as accepted
+  `rate_limit_events`. Adding a client policy would undo 038; a `USING (false)`
+  policy would not change access. `device_tokens` previously had
+  `owner manages own`; 038 dropped it and writes go through
+  `register_device_token`.
+- **31 `authenticated_security_definer_function_executable`:** client RPCs
+  and RLS/storage helpers. Anon `EXECUTE` is revoked. Authenticated `EXECUTE`
+  is required (Data API + RLS). Spot-checked bodies: role/feature/ownership
+  guards on RPCs; `auth.uid()`-scoped booleans on helpers, including
+  `is_superadmin()` (web `rpc('is_superadmin')` and feature-flag RLS).
+  `apply_attendance_clear` / `attendance_mutation_is_replay` are internal
+  helpers that still self-guard; hiding them from PostgREST would be a later
+  grant-tightening migration, not a current authorization hole.
+- **8 `unindexed_foreign_keys`:** INFO, same class as already accepted
+  provenance FKs. Not a security boundary.
+- **2 `unused_index`:** `idx_app_events_type_occurred_at` and
+  `idx_result_slips_student_uploaded` support planned queries; production
+  volume is still small. Do not drop.
+
+19 stale keys were pruned (parent RLS init-plan policies that 038 removed,
+PDPA RPCs no longer executable by `authenticated`, and FKs now covered by
+035 indexes). Baseline is `scripts/advisor-accepted.json` generated
+2026-10-29 (110 keys). Offline `node scripts/advisor-watch.mjs` against that
+set exits 0.
+
+Residual: leaked-password protection still needs a paid plan (§4). Optional
+later work, not a watch regression: revoke authenticated `EXECUTE` on
+`apply_attendance_clear` / `attendance_mutation_is_replay` (would also
+change `prod-security-check.sql`). Expected 059 NFC schema drift is unchanged.
 
 ### ☑ 76. Apply atomic offline attendance protection to production
 
@@ -1034,7 +1079,8 @@ entries. Categories were five RLS-without-policy notices, 31 authenticated
 SECURITY DEFINER warnings, eight unindexed foreign keys, and two unused indexes.
 The new `apply_attendance_clear` warning covers an intentionally callable helper
 that retains actor, role, scope, enrollment, and session-window guards. The
-baseline was not changed. Complete the review in §75 before accepting findings.
+baseline was not changed in that apply. The 2026-10-29 review in §75 accepted
+this key with the other 038/060 advisor findings.
 
 - [x] Apply migration 060 and verify its production definitions and security
   assertions. Do not reapply 058 afterward.
@@ -1099,10 +1145,11 @@ NFC table remain absent. Full release verification is still blocked:
   naming missing `pair_nfc_chip`, `revoke_nfc_chip_for_student`, and
   `get_student_nfc_binding`. The later structural comparison was skipped.
   Reapply 061 immediately after any future authorized 059 deployment.
-- [ ] Complete the human advisor review in §75. The refreshed
-  [Advisor watch](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/38217037326)
-  again reported `46 NEW advisor finding(s) not in the accepted baseline` and
-  19 stale accepted entries. The baseline was not changed.
+- [x] Complete the human advisor review in §75. 2026-10-29 re-baselined the
+  46 NEW keys from
+  [Advisor watch #7](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/40274878700)
+  after reviewing live grants/policies/function bodies. 19 stale keys were
+  pruned. No production SQL, 059/NFC, or Dependabot #72 changes.
 - [ ] Authorize a separate web dependency update. The
   [web audit](https://github.com/thegoodcompany-sst/TAVAttendance/actions/runs/38217009715/job/114703990393)
   failed with `4 vulnerabilities (4 high)`: `source-map-js`

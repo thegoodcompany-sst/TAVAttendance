@@ -5,6 +5,12 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Advisor watch: reviewed the 46 NEW production advisor findings from run
+  40274878700 (service-only RLS tables, self-guarding SECURITY DEFINER RPCs
+  and helpers, unindexed FKs, unused indexes), accepted them with documented
+  rationale, and pruned 19 stale baseline keys. No production schema change;
+  059/NFC was not applied.
+
 - iOS and Android offline sync telemetry counts each successful batch's size,
   preventing chunked queues from inflating the health dashboard's pending total.
 
