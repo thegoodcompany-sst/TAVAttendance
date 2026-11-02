@@ -110,3 +110,8 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # swift-crypto 5.x requires Swift tools 6.2 (Xcode 26); CI and release
+      # builds use Xcode 16.4 / Swift 6.1. Bump intentionally with the toolchain.
+      - dependency-name: "github.com/apple/swift-crypto"
+        update-types: ["version-update:semver-major"]
