@@ -51,6 +51,7 @@ station/.venv/
 station/.env
 __pycache__/
 *.py[cod]
+*.egg-info/
 .gstack/
 
 # macOS Finder duplicates
