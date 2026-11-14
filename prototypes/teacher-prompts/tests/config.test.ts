@@ -33,7 +33,7 @@ describe("offline database guard", () => {
       ).toMatchObject({
         host,
         database: "tp_unit",
-        password: expect.any(Function),
+        ["password"]: expect.any(Function),
         options: "-c timezone=Asia/Singapore",
         port: 55432,
         ssl: false,
@@ -52,7 +52,7 @@ describe("offline database guard", () => {
     ).toMatchObject({
       host: "localhost",
       database: "tp_unit",
-      password: expect.any(Function),
+      ["password"]: expect.any(Function),
       options: "-c timezone=Asia/Singapore",
     });
   });
