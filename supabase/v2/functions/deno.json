@@ -1,0 +1,5 @@
+{
+  "imports": { "pg": "npm:pg@8.16.3" },
+  "compilerOptions": { "lib": ["deno.ns", "dom", "es2023"] },
+  "tasks": { "check": "deno check teacher-prompt-dispatch/index.ts" }
+}

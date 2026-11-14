@@ -1,0 +1,755 @@
+{
+  "schema_version": 1,
+  "approved_hosts": [
+    "prompts.example.test"
+  ],
+  "urls": [
+    {
+      "name": "https",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": "40000000-0000-4000-8000-000000000001"
+    },
+    {
+      "name": "custom",
+      "input": "tava://teacher/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": "40000000-0000-4000-8000-000000000001"
+    },
+    {
+      "name": "foreign_host",
+      "input": "https://foreign.example.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "suffix_host",
+      "input": "https://prompts.example.test.evil.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "http",
+      "input": "http://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "relative",
+      "input": "/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "protocol_relative",
+      "input": "//prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "userinfo",
+      "input": "https://name@prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "password",
+      "input": "https://name:password@prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "port",
+      "input": "https://prompts.example.test:443/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "query",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001?next=/",
+      "lesson_id": null
+    },
+    {
+      "name": "empty_query",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001?",
+      "lesson_id": null
+    },
+    {
+      "name": "fragment",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001#lesson",
+      "lesson_id": null
+    },
+    {
+      "name": "empty_fragment",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001#",
+      "lesson_id": null
+    },
+    {
+      "name": "trailing_slash",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001/",
+      "lesson_id": null
+    },
+    {
+      "name": "extra_segment",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001/other",
+      "lesson_id": null
+    },
+    {
+      "name": "encoded_separator",
+      "input": "https://prompts.example.test/t/lesson%2F40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "encoded_uuid",
+      "input": "https://prompts.example.test/t/lesson/%340000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "uppercase_uuid",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-00000000000A",
+      "lesson_id": null
+    },
+    {
+      "name": "malformed_uuid",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-00000000000",
+      "lesson_id": null
+    },
+    {
+      "name": "braced_uuid",
+      "input": "https://prompts.example.test/t/lesson/{40000000-0000-4000-8000-000000000001}",
+      "lesson_id": null
+    },
+    {
+      "name": "uppercase_host",
+      "input": "https://PROMPTS.EXAMPLE.TEST/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "trailing_dot_host",
+      "input": "https://prompts.example.test./t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "custom_foreign_host",
+      "input": "tava://foreign/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "custom_wrong_path",
+      "input": "tava://teacher/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "custom_query",
+      "input": "tava://teacher/lesson/40000000-0000-4000-8000-000000000001?x=1",
+      "lesson_id": null
+    },
+    {
+      "name": "custom_fragment",
+      "input": "tava://teacher/lesson/40000000-0000-4000-8000-000000000001#x",
+      "lesson_id": null
+    },
+    {
+      "name": "custom_userinfo",
+      "input": "tava://user@teacher/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "custom_port",
+      "input": "tava://teacher:1/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "dot_segment",
+      "input": "https://prompts.example.test/x/../t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "double_slash",
+      "input": "https://prompts.example.test//t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "backslash",
+      "input": "https://prompts.example.test\\t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    },
+    {
+      "name": "whitespace",
+      "input": "https://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001 ",
+      "lesson_id": null
+    },
+    {
+      "name": "uppercase_scheme",
+      "input": "HTTPS://prompts.example.test/t/lesson/40000000-0000-4000-8000-000000000001",
+      "lesson_id": null
+    }
+  ],
+  "payloads": [
+    {
+      "name": "heads_up",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Your lesson ends soon."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "heads_up"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": "40000000-0000-4000-8000-000000000001",
+      "action": "TAKE_ATTENDANCE"
+    },
+    {
+      "name": "attendance",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": "40000000-0000-4000-8000-000000000001",
+      "action": "TAKE_ATTENDANCE"
+    },
+    {
+      "name": "follow_up",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please review your lesson."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "follow_up"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": "40000000-0000-4000-8000-000000000001",
+      "action": "TAKE_ATTENDANCE"
+    },
+    {
+      "name": "final",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Your lesson is waiting for review."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "final"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": "40000000-0000-4000-8000-000000000001",
+      "action": "TAKE_ATTENDANCE"
+    },
+    {
+      "name": "default_tap",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "com.apple.UNNotificationDefaultActionIdentifier",
+      "lesson_id": "40000000-0000-4000-8000-000000000001",
+      "action": "TAKE_ATTENDANCE"
+    },
+    {
+      "name": "snooze",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "SNOOZE_10",
+      "lesson_id": "40000000-0000-4000-8000-000000000001",
+      "action": "SNOOZE_10"
+    },
+    {
+      "name": "dismiss",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "com.apple.UNNotificationDismissActionIdentifier",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "unknown_action",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "SUBMIT",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "version_string",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": "1",
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "version_boolean",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": true,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "version_future",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 2,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "version_fraction",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1.1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "wrong_type",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "parent_notification",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "bad_kind",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "simulation"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "bad_uuid",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "invalid",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "uppercase_uuid",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-00000000000A",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "extra_root",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance",
+        "student_name": "Demo Student 01"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "missing_aps",
+      "user_info": {
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "missing_v",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "missing_type",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "missing_lesson_id",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "missing_kind",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "bad_category",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "OTHER",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "bad_thread",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:invalid"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "bad_badge",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001",
+          "badge": 1
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "bad_sound",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance."
+          },
+          "sound": "other",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "bad_alert",
+      "user_info": {
+        "aps": {
+          "alert": "message",
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    },
+    {
+      "name": "extra_alert",
+      "user_info": {
+        "aps": {
+          "alert": {
+            "title": "TAVA",
+            "body": "Please take attendance.",
+            "extra": "invalid"
+          },
+          "sound": "default",
+          "category": "TAVA_TEACHER_PROMPT",
+          "thread-id": "teacher-lesson:40000000-0000-4000-8000-000000000001"
+        },
+        "v": 1,
+        "type": "teacher_prompt",
+        "lesson_id": "40000000-0000-4000-8000-000000000001",
+        "kind": "attendance"
+      },
+      "action_identifier": "TAKE_ATTENDANCE",
+      "lesson_id": null,
+      "action": null
+    }
+  ]
+}

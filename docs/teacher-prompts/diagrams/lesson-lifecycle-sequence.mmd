@@ -1,0 +1,35 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+sequenceDiagram
+    autonumber
+    participant Calendar as Calendar service
+    participant DB as Database / RPCs
+    participant Worker as Dry-run worker (later APNs)
+    participant Phone as Teacher phone
+    participant Route as Login + lesson route
+    participant Admin as Admin outstanding list
+    Calendar->>DB: Generate 42 days ahead, roster and one lead
+    DB->>DB: Plan E-5, E, E+15, E+60, apply quiet hours
+    loop Every minute while work is outstanding
+        Worker->>DB: Refresh schedule, claim due work with lease
+        DB-->>Worker: IDs only, one stage per lesson per tick
+        Worker->>DB: Prepare with fresh clock and authority checks
+        DB-->>Worker: Generic delivery input or suppress
+        Note over Worker,Phone: Prototype records dry_run only, no real push
+        Worker-->>Phone: Future APNs: generic reminder, lesson UUID
+        Worker->>DB: Record acceptance / retry / permanent failure
+    end
+    Phone->>Route: Take attendance, retain lesson destination
+    Route->>Route: Restore login, profile and unlock
+    Route->>DB: lesson_for_prompt under current identity
+    DB-->>Route: Authorized register, revisions and optional notes
+    opt Still teaching
+        Route->>DB: Confirm snooze 10 minutes, mutation UUID
+        DB->>DB: Replan pending stages and deadline, max three snoozes
+    end
+    Route->>DB: Mark missing rows, save optional feedback with revisions
+    Route->>DB: Explicit submit, both revisions and mutation UUID
+    DB->>DB: Lock lesson, check complete, insert receipt, cancel pending work
+    DB-->>Route: Submitted receipt (replay-safe)
+    Admin->>DB: admin_missing_submissions
+    DB-->>Admin: Ended-by-clock unsubmitted work, omit submitted lesson
+    Note over DB,Phone: In-flight push can still arrive, reopening rechecks current state

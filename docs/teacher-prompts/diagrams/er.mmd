@@ -1,0 +1,90 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+erDiagram
+    auth_users ||--o| profiles : identifies
+    profiles ||--o{ timetable_rules : default_teacher
+    profiles ||--o{ lessons : accountable_teacher
+    profiles ||--o{ lesson_staff : assigned
+    classes ||--o{ timetable_rules : schedules
+    terms ||--o{ timetable_rules : bounds
+    classes o|--o{ calendar_exceptions : scopes
+    classes ||--o{ enrollments : accepts
+    students ||--o{ enrollments : enrolls
+    timetable_rules o|--o{ lessons : generates
+    classes ||--o{ lessons : contains
+    lessons ||--|{ lesson_staff : staffs
+    lessons ||--o{ lesson_roster : snapshots
+    students ||--o{ lesson_roster : joins
+    enrollments o|--o{ lesson_roster : sources
+    lesson_roster ||--o| attendance_records : marks
+    lessons ||--o| lesson_feedback : notes
+    lessons ||--o| lesson_submissions : confirms
+    profiles ||--o{ lesson_submissions : submits
+    profiles ||--o{ mutation_receipts : owns
+    lessons ||--o{ mutation_receipts : deduplicates
+    lessons o|--o{ audit_events : explains
+    profiles ||--o{ teacher_devices : registers
+    lessons ||--o{ notification_plans : plans
+    profiles ||--o{ notification_plans : receives
+    notification_plans ||--o{ notification_outbox : materializes
+    teacher_devices o|--o{ notification_outbox : targets
+    notification_outbox ||--o{ notification_deliveries : attempts
+    lessons {
+      uuid id PK
+      uuid class_id FK
+      uuid accountable_teacher_id FK
+      timestamptz scheduled_start_at
+      timestamptz scheduled_end_at
+      bigint register_revision
+      bigint plan_revision
+      timestamptz overdue_at
+    }
+    lesson_roster {
+      uuid lesson_id PK,FK
+      uuid student_id PK,FK
+    }
+    attendance_records {
+      uuid lesson_id PK,FK
+      uuid student_id PK,FK
+      text status "present / late / absent; no row = unmarked"
+      boolean absence_informed "nullable; absent only"
+      timestamptz marked_at
+    }
+    lesson_submissions {
+      uuid lesson_id FK,UK
+      bigint register_revision
+      bigint feedback_revision
+      timestamptz submitted_at
+    }
+    notification_plans {
+      uuid id PK
+      uuid lesson_id FK
+      text kind "unique lesson + kind"
+      bigint revision
+      timestamptz due_at
+    }
+    notification_outbox {
+      uuid id PK
+      uuid plan_id FK
+      uuid device_id FK "nullable for no devices"
+      bigint plan_revision
+      uuid lease_token
+      timestamptz lease_until
+    }
+    feature_flags {
+      text key PK
+      boolean enabled "defaults OFF"
+    }
+    runtime_settings {
+      boolean id PK
+      boolean demo_enabled "defaults false"
+    }
+    prompt_policy {
+      boolean id PK
+      int heads_up_minutes "-5"
+      int attendance_minutes "0"
+      int follow_up_minutes "15"
+      int final_minutes "60"
+      time quiet_start "22:00 Singapore"
+      time quiet_end "07:00 Singapore"
+      time quiet_resume "09:00 Singapore"
+    }

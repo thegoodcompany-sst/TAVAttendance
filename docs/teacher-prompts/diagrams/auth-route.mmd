@@ -1,0 +1,20 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+flowchart TD
+    Link["User opens lesson UUID link / notification"] --> Parse{"Exact allowed host, scheme,<br/>path and UUID?"}
+    Parse -->|No| Reject["Reject route without roster lookup"]
+    Parse -->|Yes| Pending["Persist pending locator · TTL 24 hours<br/>No bearer credential"]
+    Pending --> Auth{"Identity restored,<br/>profile loaded, unlocked?"}
+    Auth -->|No| Login["Web: demo selector<br/>Future real login / native unlock"]
+    Login --> Validate["Validate relative next again<br/>Never resume an external URL"]
+    Validate --> Resolve
+    Auth -->|Yes| Resolve["lesson_for_prompt<br/>Current identity + flag + DB authority"]
+    Resolve -->|Denied| Denied["This lesson is not available.<br/>Keep route for explicit account retry"]
+    Resolve -->|Network failure| Retry["Keep route; show retry"]
+    Denied --> Login
+    Retry --> Resolve
+    Resolve -->|Authorized| Ready["Consume pending route<br/>Show current register or read-only outcome"]
+    Ready --> Action{"Requested snooze?"}
+    Action -->|Yes| Confirm["Fresh foreground confirmation<br/>New mutation UUID; no offline queue"]
+    Action -->|No| Review["Review / submit explicitly"]
+    Signout["Explicit sign-out<br/>Clear route, sensitive screen and actor actions"] -.-> Pending
+    Change["Account change / expired session<br/>Clear actor actions; never replay old snooze<br/>New confirmation after authorized navigation"] -.-> Confirm

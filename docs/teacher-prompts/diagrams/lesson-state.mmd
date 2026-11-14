@@ -1,0 +1,31 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+stateDiagram-v2
+    [*] --> scheduled
+    scheduled --> in_progress: start time reached / actual start exists
+    in_progress --> awaiting_attendance: end time reached / actual end exists
+    in_progress --> submitted: explicit complete submission after start
+    awaiting_attendance --> submitted: complete register + matching revisions
+    awaiting_attendance --> overdue: effective final due + grace reached
+    overdue --> submitted: authorized late completion
+    scheduled --> cancelled: admin / calendar before work
+    in_progress --> cancelled: admin
+    awaiting_attendance --> cancelled: admin
+    overdue --> cancelled: admin
+    submitted --> [*]
+    cancelled --> [*]
+    note right of scheduled
+      Derived at read time, not a stored status.
+      Priority: cancelled, submitted, overdue,
+      awaiting attendance, in progress, scheduled.
+      A late first read may skip intermediate states.
+    end note
+    note right of awaiting_attendance
+      Snooze changes prompts and deadline only.
+      No automatic absent marks or submission.
+      Ended lesson can still be reviewed.
+    end note
+    note right of submitted
+      Register and notes immutable.
+      Submission is not child dismissal.
+      No reopen or uncancel in prototype.
+    end note
