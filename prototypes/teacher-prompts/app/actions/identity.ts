@@ -1,4 +1,5 @@
 "use server";
+import { requirePreviewAccess } from "@/lib/access";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -11,6 +12,7 @@ import { sameOrigin, secureCookie } from "@/lib/session";
 import { lessonForPrompt } from "@/lib/queries/lessons";
 export async function selectIdentity(form: FormData) {
   await sameOrigin();
+  await requirePreviewAccess();
   const identity = demoIdentity(form.get("identity"));
   if (!identity) redirect("/demo");
   const jar = await cookies();
@@ -43,6 +45,7 @@ export async function selectIdentity(form: FormData) {
 }
 export async function signOut() {
   await sameOrigin();
+  await requirePreviewAccess();
   const jar = await cookies();
   jar.delete(IDENTITY_COOKIE);
   jar.delete(PENDING_COOKIE);

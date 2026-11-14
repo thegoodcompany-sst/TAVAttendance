@@ -1,6 +1,8 @@
+import { dispatchDuePrompts } from "../_shared/prompt-dispatch.ts";
+import { DryRunSender } from "../_shared/dry-run-sender.ts";
 import { describe, expect, test } from "bun:test";
 import { createHandler } from "../teacher-prompt-dispatch/index.ts";
-import { parseLocalArgs } from "../teacher-prompt-dispatch/local.ts";
+import { parseLocalArgs, refreshBeforeDispatch } from "../teacher-prompt-dispatch/local.ts";
 import { localDatabaseConfig } from "../_shared/local-db.ts";
 import { RpcPromptDb } from "../_shared/prompt-db.ts";
 import { RestPromptDb } from "../_shared/rest-db.ts";
@@ -78,9 +80,20 @@ describe("local safety and worker RPC mapping", () => {
     }
   });
   test("reserved and malformed database names rejected", () => {
-    for (const name of ["postgres", "template0", "template1", "a-b", "../tp_b", "x".repeat(64), undefined]) {
+    for (const name of ["postgres", "template0", "template1", "template_custom", "unassigned", "tp_", "a-b", "../tp_b", "x".repeat(64), undefined]) {
       expect(() => localDatabaseConfig(`postgresql://postgres@localhost:55432/${name}`, name)).toThrow("TP_LOCAL_DATABASE_REQUIRED");
     }
+  });
+  test("refresh failure reports once and permits dispatch and next refresh", async () => {
+    const messages: string[] = [];
+    let calls = 0;
+    const db = { refresh: async () => { calls++; if (calls === 1) throw new Error("private database details"); } };
+    await refreshBeforeDispatch(db, (message) => messages.push(message));
+    const result = await dispatchDuePrompts({ db: new MemoryPromptDb(0), sender: new DryRunSender(), now: () => NOW });
+    expect(result.claimed).toBe(0);
+    await refreshBeforeDispatch(db, (message) => messages.push(message));
+    expect(calls).toBe(2); expect(messages).toHaveLength(1);
+    expect(messages[0]).not.toContain("private");
   });
   test("runner parses once/watch and permits fixed clock only with once", () => {
     expect(parseLocalArgs(["--once"])).toEqual({ watch: false });

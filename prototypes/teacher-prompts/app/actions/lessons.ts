@@ -11,6 +11,7 @@ const writes = new Set<Rpc>([
   "mark_all_present",
   "save_feedback",
   "submit_lesson",
+  "confirm_all_present_and_submit",
   "snooze_prompt",
   "simulate_prompt_now",
   "edit_lesson",

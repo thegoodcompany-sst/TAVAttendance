@@ -24,6 +24,12 @@ export function parseLocalArgs(args: string[]): { watch: boolean; fixedNow?: str
   return { watch, fixedNow };
 }
 
+/** One bounded refresh attempt per tick; sanitized health reporting, dispatch continues. */
+export async function refreshBeforeDispatch(db: { refresh(): Promise<void> }, report: (message: string) => void) {
+  try { await db.refresh(); }
+  catch { report(promptStrings.calendarRefreshFailed); }
+}
+
 export async function main(args: string[], env: Record<string, string | undefined>) {
   const options = parseLocalArgs(args);
   if (env.TEACHER_PROMPTS_DEMO !== "1") throw new Error("TP_DEMO_REQUIRED");
@@ -36,7 +42,7 @@ export async function main(args: string[], env: Record<string, string | undefine
     if (!await db.isDemo()) throw new Error("TP_DEMO_REQUIRED");
     const now = () => options.fixedNow ?? new Date().toISOString();
     do {
-      await db.refresh();
+      await refreshBeforeDispatch(db, (message) => console.error(message));
       const result = await dispatchDuePrompts({ db, sender: new DryRunSender(), now });
       console.log(JSON.stringify({ transport: "dry_run", ...result }));
       if (!options.watch || stop.signal.aborted) break;

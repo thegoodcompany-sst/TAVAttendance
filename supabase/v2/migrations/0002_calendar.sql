@@ -1,8 +1,9 @@
 BEGIN;
 CREATE FUNCTION public.validate_rule() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 BEGIN
+ PERFORM id FROM public.profiles WHERE id=NEW.default_teacher_id FOR SHARE;
  IF NOT EXISTS(SELECT FROM public.terms WHERE id=NEW.term_id AND NEW.effective_from>=starts_on AND NEW.effective_until<=ends_on)
- OR NOT EXISTS(SELECT FROM public.profiles WHERE id=NEW.default_teacher_id AND role='teacher' AND active) THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='23514'; END IF;
+ OR (NEW.active AND NOT EXISTS(SELECT FROM public.profiles WHERE id=NEW.default_teacher_id AND role='teacher' AND active)) THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='23514'; END IF;
  IF TG_OP='UPDATE' AND (to_jsonb(NEW)-'revision') IS DISTINCT FROM (to_jsonb(OLD)-'revision') THEN NEW.revision:=OLD.revision+1; END IF;
  RETURN NEW;
 END $$;
@@ -23,9 +24,13 @@ BEGIN
 END $$;
 CREATE TRIGGER validate_enrollment BEFORE INSERT OR UPDATE ON public.enrollments FOR EACH ROW EXECUTE FUNCTION public.validate_enrollment();
 CREATE FUNCTION public.validate_lesson_overlap() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE current_lesson public.lessons;
 BEGIN
- PERFORM pg_advisory_xact_lock(hashtextextended(NEW.class_id::text,3));
- IF NEW.cancelled_at IS NULL AND EXISTS(SELECT FROM public.lessons l WHERE l.class_id=NEW.class_id AND l.id<>NEW.id AND l.cancelled_at IS NULL AND tstzrange(l.scheduled_start_at,l.scheduled_end_at,'[)') && tstzrange(NEW.scheduled_start_at,NEW.scheduled_end_at,'[)')) THEN
+ -- Deferred events may contain intermediate row images; validate the final row.
+ SELECT * INTO current_lesson FROM public.lessons WHERE id=NEW.id;
+ IF NOT FOUND THEN RETURN NULL; END IF;
+ PERFORM pg_advisory_xact_lock(hashtextextended(current_lesson.class_id::text,3));
+ IF current_lesson.cancelled_at IS NULL AND EXISTS(SELECT FROM public.lessons l WHERE l.class_id=current_lesson.class_id AND l.id<>current_lesson.id AND l.cancelled_at IS NULL AND tstzrange(l.scheduled_start_at,l.scheduled_end_at,'[)') && tstzrange(current_lesson.scheduled_start_at,current_lesson.scheduled_end_at,'[)')) THEN
   RAISE EXCEPTION 'TP_CONFLICT' USING ERRCODE='P0001';
  END IF;
  RETURN NEW;
@@ -47,18 +52,30 @@ BEGIN
  IF n+m>0 THEN UPDATE public.lessons SET register_revision=register_revision+1,updated_at=clock_timestamp() WHERE id=p_id; END IF;
 END $$;
 CREATE FUNCTION public.generate_lessons(p_from date,p_until date) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE r record; d date; l public.lessons; reason text; st timestamptz; en timestamptz; c int:=0; u int:=0; x int:=0; z int:=0; oldrev bigint;
+DECLARE r record; d date; l public.lessons; reason text; st timestamptz; en timestamptz; c int:=0; u int:=0; x int:=0; z int:=0; oldrev bigint; skipped int:=0; cls uuid;
 BEGIN
  PERFORM public.require_service_or_admin();
  IF p_from IS NULL OR p_until IS NULL OR p_until<p_from OR p_until-p_from>91 THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='22023'; END IF;
  -- Lock existing lessons in UUID order before touching their plans.
  PERFORM id FROM public.lessons WHERE occurrence_date BETWEEN p_from AND p_until ORDER BY id FOR UPDATE;
+ FOR cls IN SELECT id FROM public.classes ORDER BY id LOOP
+  PERFORM pg_advisory_xact_lock(hashtextextended(cls::text,3));
+ END LOOP;
+ SET CONSTRAINTS validate_lesson_overlap DEFERRED;
  FOR r IN SELECT tr.* FROM public.timetable_rules tr JOIN public.classes cl ON cl.id=tr.class_id JOIN public.terms t ON t.id=tr.term_id WHERE tr.active AND cl.active ORDER BY tr.id LOOP
+  -- Fail closed on stale provisioning; never invent a replacement teacher.
+  PERFORM id FROM public.profiles WHERE id=r.default_teacher_id AND active AND role='teacher' FOR SHARE;
+  IF NOT FOUND THEN
+   skipped:=skipped+1;
+   INSERT INTO public.audit_events(event_code,details) VALUES('calendar_staffing_unresolved','{"reason_code":"inactive_default_teacher","counts":1}');
+   CONTINUE;
+  END IF;
   FOR d IN SELECT g::date FROM generate_series(greatest(p_from,r.effective_from)::timestamp,least(p_until,r.effective_until)::timestamp,interval '1 day') g WHERE extract(isodow FROM g)=r.iso_weekday LOOP
    st:=(d+r.local_start) AT TIME ZONE 'Asia/Singapore'; en:=st+make_interval(mins=>r.duration_minutes);
-   SELECT reason_code INTO reason FROM public.calendar_exceptions WHERE (class_id IS NULL OR class_id=r.class_id) AND d BETWEEN starts_on AND ends_on ORDER BY (reason_code='public_holiday') DESC LIMIT 1;
    SELECT * INTO l FROM public.lessons WHERE timetable_rule_id=r.id AND occurrence_date=d FOR UPDATE;
-   IF NOT FOUND THEN
+   SELECT reason_code INTO reason FROM public.calendar_exceptions WHERE (class_id IS NULL OR class_id=r.class_id)
+    AND (CASE WHEN l.schedule_overridden THEN (l.scheduled_start_at AT TIME ZONE 'Asia/Singapore')::date ELSE d END) BETWEEN starts_on AND ends_on ORDER BY (reason_code='public_holiday') DESC LIMIT 1;
+   IF l.id IS NULL THEN
     INSERT INTO public.lessons(class_id,timetable_rule_id,occurrence_date,scheduled_start_at,scheduled_end_at,source_rule_revision,accountable_teacher_id,cancelled_at,cancellation_reason,overdue_at)
     VALUES(r.class_id,r.id,d,st,en,r.revision,r.default_teacher_id,CASE WHEN reason IS NOT NULL THEN clock_timestamp() END,reason,en+interval '75 minutes') RETURNING * INTO l;
     INSERT INTO public.lesson_staff VALUES(l.id,r.default_teacher_id,'regular');
@@ -91,7 +108,8 @@ BEGIN
    UPDATE public.lessons SET cancelled_at=clock_timestamp(),cancellation_reason='rule_removed',plan_revision=plan_revision+1,updated_at=clock_timestamp() WHERE id=l.id; x:=x+1;
   ELSE INSERT INTO public.audit_events(lesson_id,event_code,details) VALUES(l.id,'calendar_conflict','{"reason_code":"worked_or_historical"}'); END IF;
  END LOOP;
- RETURN jsonb_build_object('created',c,'updated',u,'cancelled',x,'unchanged',z);
+ SET CONSTRAINTS validate_lesson_overlap IMMEDIATE;
+ RETURN jsonb_build_object('created',c,'updated',u,'cancelled',x,'unchanged',z,'staffing_skipped',skipped);
 END $$;
 CREATE FUNCTION public.lesson_state(p_lesson_id uuid,p_now timestamptz) RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE l public.lessons;

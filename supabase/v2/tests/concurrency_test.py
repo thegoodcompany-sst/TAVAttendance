@@ -7,23 +7,26 @@ are changed. Barriers observe actual pg_stat_activity lock waits, not guessed sl
 import concurrent.futures
 import json
 import os
+import re
 import subprocess
 import sys
 import time
 import uuid
+from datetime import datetime, timezone, timedelta
 
-DB = sys.argv[1] if len(sys.argv) == 2 else 'tp_a'
-if DB not in {'tp_a', 'tp_a_scratch'}:
-    raise SystemExit('Only tp_a or tp_a_scratch is permitted')
+DB = sys.argv[1] if len(sys.argv) == 2 else os.environ.get('TP_DB', '')
+if len(sys.argv) > 2 or not re.fullmatch(r'tp_[a-z0-9_]{1,60}', DB):
+    raise SystemExit('Explicit assigned tp_ database required')
 ENV = {k: v for k, v in os.environ.items() if not k.startswith('PG')}
 ENV['PGPASSFILE'] = '/dev/null'
+ENV['PGSERVICEFILE'] = '/dev/null'
 CMD = ['psql', '-X', '-qAt', '-h', 'localhost', '-p', '55432', '-U', 'postgres', '-d', DB, '-v', 'ON_ERROR_STOP=1']
 A = '10000000-0000-4000-8000-000000000011'
 B = '10000000-0000-4000-8000-000000000012'
 D = '10000000-0000-4000-8000-000000000014'
 ADMIN = '10000000-0000-4000-8000-000000000001'
 STUDENT = '20000000-0000-4000-8000-000000000001'
-N = '2001-01-01 12:00:00+08'
+N = (datetime.now(timezone.utc)-timedelta(days=1)).replace(hour=4, minute=0, second=0, microsecond=0).isoformat()
 FIXTURES = []
 CLIENTS = []
 PASSES = 0
@@ -87,8 +90,8 @@ class Session:
 
 def fixture(worker=False, teacher=A, marked=False):
     lesson, cls = uid(), uid()
-    start = "'2001-01-01 10:00+08'::timestamptz" if worker else "clock_timestamp()-interval '1 hour'"
-    end = "'2001-01-01 12:05+08'::timestamptz" if worker else "clock_timestamp()+interval '1 hour'"
+    start = f"'{N}'::timestamptz-interval '2 hours'"
+    end = f"'{N}'::timestamptz+interval '5 minutes'"
     sql(f"""BEGIN;
     INSERT INTO public.classes(id,short_label,subject) VALUES('{cls}','Demo Race {cls[:8]}','Demo');
     INSERT INTO public.lessons(id,class_id,occurrence_date,scheduled_start_at,scheduled_end_at,accountable_teacher_id,overdue_at)
@@ -156,6 +159,28 @@ def tests():
         writer.execute('COMMIT;')
         expect_conflict(future, 'stale submit rejects committed attendance revision')
     ok(sql(f"SELECT count(*) FROM public.lesson_submissions WHERE lesson_id='{lesson}';") == '0', 'no stale submission receipt')
+    stop_lesson(lesson)
+
+    # Explicit combined confirmation must share the same lock/CAS boundary.
+    lesson = fixture()
+    writer, confirmer = Session('authenticated', A), Session('authenticated', A)
+    writer.execute(f"SELECT public.mark_attendance('{lesson}','{STUDENT}','absent',true,NULL,0,'{uid()}');")
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        future = pool.submit(confirmer.execute, f"SELECT public.confirm_all_present_and_submit('{lesson}',0,0,'{uid()}');")
+        wait_for_lock(confirmer)
+        ok(not future.done(), 'atomic confirmation waits for attendance lock')
+        writer.execute('COMMIT;')
+        expect_conflict(future, 'atomic confirmation rejects a concurrently changed register')
+    ok(sql(f"SELECT status FROM public.attendance_records WHERE lesson_id='{lesson}';") == 'absent', 'atomic confirmation never overwrites concurrent absence')
+    ok(sql(f"SELECT count(*) FROM public.lesson_submissions WHERE lesson_id='{lesson}';") == '0', 'atomic confirmation conflict leaves no submission')
+    confirmer = Session('authenticated', A)
+    mutation = uid()
+    first = json.loads(confirmer.execute(f"SELECT public.confirm_all_present_and_submit('{lesson}',1,0,'{mutation}');"))
+    confirmer.execute('COMMIT;')
+    replayer = Session('authenticated', A)
+    replay = json.loads(replayer.execute(f"SELECT public.confirm_all_present_and_submit('{lesson}',1,0,'{mutation}');"))
+    ok(first['submission_id'] == replay['submission_id'] and replay['replayed'], 'atomic confirmation exact receipt survives committed replay')
+    replayer.execute('COMMIT;')
 
     # Clear/update both observed the same row. Only the first can succeed.
     lesson = fixture(marked=True)
@@ -168,6 +193,7 @@ def tests():
         clearer.execute('COMMIT;')
         expect_conflict(future, 'clear versus update CAS rejects stale update')
     ok(sql(f"SELECT count(*) FROM public.attendance_records WHERE lesson_id='{lesson}';") == '0', 'clear remains no row')
+    stop_lesson(lesson)
 
     # A prepare that began before reassignment commits must wait, then suppress.
     for action in ['substitute', 'cancel']:

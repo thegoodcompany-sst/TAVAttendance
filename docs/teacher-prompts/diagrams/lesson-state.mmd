@@ -6,7 +6,7 @@ stateDiagram-v2
     in_progress --> submitted: explicit complete submission after start
     awaiting_attendance --> submitted: complete register + matching revisions
     awaiting_attendance --> overdue: effective final due + grace reached
-    overdue --> submitted: authorized late completion
+    overdue --> submitted: teacher within seven dates or admin
     scheduled --> cancelled: admin / calendar before work
     in_progress --> cancelled: admin
     awaiting_attendance --> cancelled: admin
@@ -25,6 +25,7 @@ stateDiagram-v2
       Ended lesson can still be reviewed.
     end note
     note right of submitted
+      Explicit submit or atomic all-present confirmation.
       Register and notes immutable.
       Submission is not child dismissal.
       No reopen or uncancel in prototype.

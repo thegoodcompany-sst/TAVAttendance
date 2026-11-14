@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "max_attempts": 3,
+  "register_rpc": "register_device",
+  "unregister_rpc": "unregister_device",
+  "unregister_parameter": "p_installation_id",
+  "scenarios": [
+    {"name":"completed_opt_out","events":["on","register","off"],"failures":0,"calls":["register_device","unregister_device"],"pending":false,"has_token":false,"has_device":false},
+    {"name":"opt_out_retry_success","events":["on","register","off"],"failures":2,"calls":["register_device","unregister_device","unregister_device","unregister_device"],"pending":false,"has_token":false,"has_device":false},
+    {"name":"opt_out_retry_exhausted","events":["on","register","off"],"failures":3,"calls":["register_device","unregister_device","unregister_device","unregister_device"],"pending":true,"has_token":false,"has_device":true},
+    {"name":"foreground_recovery","events":["on","register","off","retry"],"failures":3,"calls":["register_device","unregister_device","unregister_device","unregister_device","unregister_device"],"pending":false,"has_token":false,"has_device":false},
+    {"name":"reopt_in","events":["on","register","off","on","register"],"failures":0,"calls":["register_device","unregister_device","register_device"],"pending":false,"has_token":true,"has_device":true},
+    {"name":"sign_out","events":["on","register","signout"],"failures":0,"calls":["register_device","unregister_device"],"pending":false,"has_token":false,"has_device":false},
+    {"name":"repeated_opt_out","events":["on","register","off","off"],"failures":0,"calls":["register_device","unregister_device"],"pending":false,"has_token":false,"has_device":false}
+  ]
+}

@@ -69,5 +69,43 @@ for fixture in FIXTURES["urls"]:
 for fixture in FIXTURES["payloads"]:
     setattr(FixtureTests, "test_payload_" + fixture["name"], payload_test(fixture))
 
+REGISTRATION = json.loads((Path(__file__).parent / "Tests/PromptRouterTests/Fixtures/registration-v1.json").read_text())
+
+def registration_test(row):
+    def run(self):
+        failures = row["failures"]
+        enabled = owner = token = device = pending = False
+        calls = []
+        def revoke():
+            nonlocal failures, pending, device
+            pending = True
+            for _ in range(REGISTRATION["max_attempts"]):
+                calls.append(REGISTRATION["unregister_rpc"])
+                if failures:
+                    failures -= 1
+                    continue
+                pending = device = False
+                return
+        for event in row["events"]:
+            if event == "on":
+                enabled, token = True, False
+            if event == "register" and enabled:
+                owner = token = device = True
+                calls.append(REGISTRATION["register_rpc"])
+            if event in {"off", "signout"}:
+                changed = enabled
+                enabled = token = False
+                if changed and owner:
+                    revoke()
+            if event == "retry" and pending:
+                revoke()
+        self.assertEqual(calls, row["calls"])
+        self.assertEqual((pending, token, device), (row["pending"], row["has_token"], row["has_device"]))
+        self.assertEqual(REGISTRATION["unregister_parameter"], "p_installation_id")
+    return run
+
+for fixture in REGISTRATION["scenarios"]:
+    setattr(FixtureTests, "test_registration_" + fixture["name"], registration_test(fixture))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

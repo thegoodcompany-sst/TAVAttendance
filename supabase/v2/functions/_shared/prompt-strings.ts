@@ -11,5 +11,6 @@ export const promptStrings = {
   forbidden: "Not allowed.",
   invalidRequest: "Invalid request.",
   unavailable: "Service unavailable.",
+  calendarRefreshFailed: "Calendar refresh failed. Retrying next tick.",
   workerFailed: "Worker failed.",
 } as const;

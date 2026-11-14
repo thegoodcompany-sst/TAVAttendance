@@ -2,7 +2,10 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+-- Establish the boundary even when the migration owner inherited permissive defaults.
+REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC,anon,authenticated,service_role;
+ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC,anon,authenticated,service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC,anon,authenticated,service_role;
 CREATE TABLE public.profiles (
  id uuid PRIMARY KEY REFERENCES auth.users(id), display_name text NOT NULL CHECK (display_name=btrim(display_name) AND length(display_name) BETWEEN 1 AND 80),
  role text NOT NULL CHECK(role IN ('admin','teacher','parent')), active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now()
@@ -87,12 +90,12 @@ CREATE TABLE public.teacher_devices (
 );
 CREATE TABLE public.notification_plans (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), lesson_id uuid NOT NULL REFERENCES public.lessons(id), kind text NOT NULL CHECK(kind IN ('heads_up','attendance','follow_up','final','simulation')),
- revision bigint NOT NULL, recipient_id uuid NOT NULL REFERENCES public.profiles(id), due_at timestamptz NOT NULL, status text NOT NULL CHECK(status IN ('pending','completed','cancelled')), cancel_reason text,
+ revision bigint NOT NULL, recipient_id uuid NOT NULL REFERENCES public.profiles(id), due_at timestamptz NOT NULL, status text NOT NULL CHECK(status IN ('pending','completed','cancelled','superseded')), cancel_reason text,
  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), UNIQUE(lesson_id,kind)
 );
 CREATE TABLE public.notification_outbox (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), plan_id uuid NOT NULL REFERENCES public.notification_plans(id), plan_revision bigint NOT NULL, device_id uuid REFERENCES public.teacher_devices(id), recipient_id uuid NOT NULL REFERENCES public.profiles(id),
- status text NOT NULL CHECK(status IN ('pending','claimed','sent','failed','cancelled')), available_at timestamptz NOT NULL, attempt_count int NOT NULL DEFAULT 0 CHECK(attempt_count BETWEEN 0 AND 3),
+ status text NOT NULL CHECK(status IN ('pending','claimed','sent','failed','cancelled','superseded')), available_at timestamptz NOT NULL, attempt_count int NOT NULL DEFAULT 0 CHECK(attempt_count BETWEEN 0 AND 3),
  lease_token uuid, lease_until timestamptz, accepted_at timestamptz, last_error_code text, device_seen_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE NULLS NOT DISTINCT(plan_id,plan_revision,device_id), CHECK(status<>'claimed' OR (lease_token IS NOT NULL AND lease_until IS NOT NULL))
 );
@@ -150,6 +153,11 @@ BEGIN
  IF NOT (public.is_admin() OR public.is_teacher()) THEN RAISE EXCEPTION 'TP_NOT_AVAILABLE' USING ERRCODE='42501'; END IF;
  IF NOT EXISTS(SELECT FROM public.feature_flags WHERE key='teacher_prompts' AND enabled) THEN RAISE EXCEPTION 'TP_DISABLED' USING ERRCODE='42501'; END IF;
 END $$;
+CREATE FUNCTION public.require_service() RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+BEGIN
+ -- Check the SQL caller role, never user-editable JWT metadata or DEFINER current_user.
+ IF current_setting('role',true) IS DISTINCT FROM 'service_role' THEN RAISE EXCEPTION 'TP_NOT_AVAILABLE' USING ERRCODE='42501'; END IF;
+END $$;
 CREATE FUNCTION public.require_service_or_admin() RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 BEGIN
  IF current_setting('role',true) NOT IN ('service_role','none') AND NOT public.is_admin() THEN RAISE EXCEPTION 'TP_NOT_AVAILABLE' USING ERRCODE='42501'; END IF;
@@ -175,8 +183,15 @@ BEGIN
       OR NOT EXISTS(SELECT FROM public.lesson_staff s WHERE s.lesson_id=l.id AND s.teacher_id=l.accountable_teacher_id)) THEN
   RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='23514';
  END IF;
+ IF TG_TABLE_NAME IN ('profiles','timetable_rules') THEN
+  IF EXISTS(SELECT FROM public.timetable_rules r JOIN public.profiles p ON p.id=r.default_teacher_id WHERE r.active AND (NOT p.active OR p.role<>'teacher')
+   AND ((TG_TABLE_NAME='profiles' AND p.id=NEW.id) OR (TG_TABLE_NAME='timetable_rules' AND r.id=NEW.id))) THEN
+   RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='23514';
+  END IF;
+ END IF;
  RETURN NULL;
 END $$;
+CREATE CONSTRAINT TRIGGER rule_accountable AFTER INSERT OR UPDATE ON public.timetable_rules DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.check_accountable();
 CREATE CONSTRAINT TRIGGER lesson_accountable AFTER INSERT OR UPDATE ON public.lessons DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.check_accountable();
 CREATE CONSTRAINT TRIGGER staff_accountable AFTER INSERT OR UPDATE OR DELETE ON public.lesson_staff DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.check_accountable();
 CREATE CONSTRAINT TRIGGER profile_accountable AFTER UPDATE OR DELETE ON public.profiles DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.check_accountable();

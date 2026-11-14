@@ -16,12 +16,19 @@ The earlier email proposal in the research is superseded by this contract.
   manifest-driven tests covering 34 URLs and 28 notification payload/action cases.
 - `Tests/PromptRouterTests/Fixtures/routes-v1.json`: shared, fake-only wire fixtures.
   `prompts.example.test` is an example allowlist entry, not a deployment destination.
-- `check_fixtures.py`: offline Python sanity check of all 62 fixture cases.
-- `Checks/shared-fixtures.test.ts`: 40 offline checks against the actual pure web
+- `check_fixtures.py`: offline Python sanity check of 69 fixture cases (including 7 registration scenarios).
+- `Checks/shared-fixtures.test.ts`: 47 offline checks against the actual pure web
   `pendingPath` and dispatcher `buildPromptPayload` modules, using that same manifest.
-- `Sketch/TeacherPushRegistration.swift`: gated permission/token registration,
-  account-bound `register_device`/`revoke_device` service, serialized token rotation,
-  and synchronous local cleanup before best-effort sign-out revocation.
+- `Sources/PromptRouter/TeacherPushRegistration.swift`: Foundation-only account-bound
+  `register_device`/`unregister_device` service and serialized registration lifecycle.
+  Opt-out, removed flags/profile eligibility and sign-out clear tokens/actions immediately,
+  then revoke the installation, including a completed or in-flight registration.
+- `Tests/PromptRouterTests/TeacherPushRegistrationTests.swift`: 8 additional XCTest
+  methods, including the 7 shared registration fixture scenarios and registration races.
+- `Tests/PromptRouterTests/Fixtures/registration-v1.json`: shared opt-out/retry/re-opt-in
+  fixtures. Python/Bun validate their consistency; Swift tests run the actual lifecycle.
+- `Sketch/TeacherPushRegistration.swift`: thin OS permission/token adapter; real
+  device integration stays OFF. Its lifecycle is the package implementation above.
 - `Sketch/TeacherNotificationDelegate.swift`: notification categories/delegate,
   atomic protected-file persistence, auth/unlock coordinator, explicit snooze
   confirmation seam, and outstanding-count badge refresh. These files are outside
@@ -154,10 +161,19 @@ The app already has an `AppDelegate`; extend it instead of declaring a second on
    and failure from existing AppDelegate methods. Tokens remain in memory and are
    never logged. Read the signed entitlement to select environment; do not use DEBUG.
 8. At the synchronous start of sign-out, update the coordinator to signed out, clear
-   roster/drafts/actions, and call `beginSignOut()` to clear local tokens/device ID.
+   roster/drafts/actions, and call `beginSignOut()` to clear local tokens.
    Await its best-effort revocation task before ending authentication; bound network
    calls with timeouts so an outage cannot strand sign-out. Also revoke on opt-out
-   while the owner session is available. Retain the existing attendance-queue cleanup.
+   while the owner session is available. The lifecycle calls
+   `unregister_device(p_installation_id)` after any earlier registration finishes.
+   It tries at most three times, with one- and two-second waits between attempts.
+   The session transport MUST bound each request duration. Failed revocation retains
+   device/owner recovery state, surfaces today's lessons, and never reuses a token.
+   Call `retryPendingRevocation()` on explicit foreground/network recovery. Re-opt-in
+   queues behind revocation and cannot register until pending revocation succeeds.
+   Wire `clearLocalActions` to clear queued snooze/actions synchronously on ineligibility.
+   Retain the existing attendance-queue cleanup. Server revocation cannot be guaranteed
+   while offline or after the session has ended; do not represent a failed RPC as success.
 9. Permission denial and transport failure offer today's lessons. `foreground()`
    calls `my_lessons_today()` without a date override and sets badge from
    `outstanding_count`; receiving a push never provides the count or navigates. Wire
@@ -205,10 +221,10 @@ cd docs/teacher-prompts/ios
 bun --no-env-file test ./Checks/shared-fixtures.test.ts
 ```
 
-This Linux box has no Swift executable (`swift: command not found`). The 34 XCTest
+This Linux box has no Swift executable (`swift: command not found`). The 42 XCTest
 methods are **unrun**, not passed; neither package compilation nor Apple sketch
-compilation has been established. Python: **62 passed, 0 failed**. Bun parity check:
-**40 passed, 0 failed** against the pure web/dispatcher modules available during this
+compilation has been established. Python: **69 passed, 0 failed**. Bun parity check:
+**47 passed, 0 failed** against the pure web/dispatcher modules available during this
 pass. These checks neither compile Swift nor prove auth/RLS/device behavior. They
 read no environment files and use no database or network. The fixture parity check
 normalizes only the approved literal native prefixes into web-relative paths; it does
@@ -240,8 +256,9 @@ navigation with account binding, stale-response rejection, explicit snooze confi
 - Android unit tests — reuse the JSON fixtures; no real FCM sends.
 
 ## New Supabase schema (must be consumed by Android)
-None added by Pass D. Consume CONTRACT.md v2 lesson_for_prompt, snooze_prompt,
-my_lessons_today. Device registration in v2 currently specifies APNs environments;
+G1 adds unregister_device(p_installation_id uuid) → {revoked:true}. Consume it for
+owner-bound opt-out/sign-out with at most three attempts, plus lesson_for_prompt,
+snooze_prompt and my_lessons_today. Device registration in v2 currently specifies APNs environments;
 FCM transport/token schema is a supervisor decision, not implied by this sketch.
 
 ## Sample test to write
@@ -250,6 +267,9 @@ assert(noSnoozeSent && pending.action == TAKE_ATTENDANCE)
 assert(state == unavailableAccountMismatch)
 freshTap(); resolveWithAuthorizedRPC(accountB); assert(visibleConfirmationRequired)
 Complete an old account-A request; assert(noAccountADataRendered).
+registerCompletes(); optOut(); assert(tokenCleared && unregister_device(installationID))
+optOutDuringRegister(); optIn(); assert(callOrder == [register, unregister, register])
+failUnregisterThreeTimes(); assert(recoveryPending && noFurtherAutomaticRetry)
 
 Implement only the subsequently assigned scope using Kotlin/Compose patterns.
 Do not change shared Supabase migrations or invoke production services.
@@ -262,7 +282,7 @@ You are aligning the teacher prompt web prototype in `prototypes/teacher-prompts
 Keep the current pass's assigned paths/database and local-only safety rules.
 
 ## Feature summary
-Share strict lesson UUID/path and generic payload fixtures with the iOS sketch.
+Share strict lesson UUID/path, generic payload and registration lifecycle fixtures with the iOS sketch.
 Keep web's contract-specific cookie lifecycle: 24h TTL, explicit sign-out clears it,
 wrong identity/network failure preserves it for retry, consume after authorized RPC.
 
@@ -270,6 +290,8 @@ wrong identity/network failure preserves it for retry, consume after authorized 
 - docs/teacher-prompts/ios/Tests/PromptRouterTests/Fixtures/routes-v1.json — shared cases.
 - docs/teacher-prompts/ios/Checks/shared-fixtures.test.ts — pure web/dispatcher parity.
 - docs/teacher-prompts/ios/Sources/PromptRouter/PromptRouter.swift — native policy.
+- docs/teacher-prompts/ios/Sources/PromptRouter/TeacherPushRegistration.swift — bounded, account-bound opt-out/re-registration.
+- docs/teacher-prompts/ios/Tests/PromptRouterTests/Fixtures/registration-v1.json — shared revocation scenarios.
 
 ## Web targets
 - prototypes/teacher-prompts/lib/identity.ts and tests/identity.test.ts — next validation.
@@ -278,8 +300,9 @@ wrong identity/network failure preserves it for retry, consume after authorized 
 - prototypes/teacher-prompts/e2e/authorization.spec.ts — auth return and stale data.
 
 ## New Supabase schema (must be consumed by Web)
-None added by Pass D. Consume CONTRACT.md v2 lesson_for_prompt, snooze_prompt,
-my_lessons_today. The notification payload/category/action IDs remain unchanged.
+G1 adds unregister_device(p_installation_id uuid) → {revoked:true}. Consume it for
+owner-bound opt-out/sign-out with at most three attempts, plus lesson_for_prompt,
+snooze_prompt and my_lessons_today. The notification payload/category/action IDs remain unchanged.
 
 ## Sample test to write
 Read the shared manifest; convert only approved literal native origins/scheme to
@@ -291,3 +314,8 @@ No automatic snooze/submit on notification open; confirmation creates a fresh UU
 Implement only the assigned scope; retain query/server-action seams and DB authority.
 Do not change shared Supabase migrations or invoke production services.
 ```
+
+
+G2 contract extension: `unregister_device(p_installation_id uuid)` is the new
+idempotent installation-scoped opt-out RPC supplied by G1. No SQL, Xcode project,
+real app integration, remote API or APNs calls were changed/run by this sketch pass.

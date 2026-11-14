@@ -7,7 +7,9 @@ import { NOW } from "./fixtures.ts";
 
 // Explicit opt-in only. Never take the connection target from generic database env.
 const enabled = process.env.TEACHER_PROMPTS_RUN_INTEGRATION === "1";
-const URL = "postgresql://postgres@localhost:55432/tp_b";
+const assignedDb = process.env.TP_DB;
+const URL = assignedDb ? `postgresql://postgres@localhost:55432/${assignedDb}` : undefined;
+if (enabled) localDatabaseConfig(URL, assignedDb);
 const lesson = "91000000-0000-4000-8000-000000000001";
 const classId = "91000000-0000-4000-8000-000000000002";
 const teacher = "10000000-0000-4000-8000-000000000011";
@@ -16,7 +18,7 @@ const failure: Extract<SendResult, { accepted: false }> = {
   accepted: false, error_code: "timeout", retryable: true, invalidate_device: false,
 };
 
-describe.skipIf(!enabled)("tp_b local Postgres integration (dry-run only)", () => {
+describe.skipIf(!enabled)("assigned local Postgres integration (dry-run only)", () => {
   let pool: pg.Pool;
   let db: LocalPromptDb;
   let plans: { id: string; status: string }[];
@@ -32,8 +34,8 @@ describe.skipIf(!enabled)("tp_b local Postgres integration (dry-run only)", () =
     await pool.query("DELETE FROM public.lessons WHERE id=$1", [lesson]);
   }
   beforeAll(async () => {
-    pool = new pg.Pool(localDatabaseConfig(URL, "tp_b"));
-    db = new LocalPromptDb(URL, "tp_b");
+    pool = new pg.Pool(localDatabaseConfig(URL, assignedDb));
+    db = new LocalPromptDb(URL, assignedDb);
     expect(await db.isDemo()).toBe(true);
     const state = await pool.query("SELECT anchor_date::text AS anchor FROM public.demo_seed_state");
     expect(state.rows[0].anchor).toBe("2027-01-07");
@@ -114,7 +116,7 @@ describe.skipIf(!enabled)("tp_b local Postgres integration (dry-run only)", () =
       if (now === NOW) expect(await db.claim(NOW, 1)).toHaveLength(0);
     }
     const row = (await pool.query(`SELECT o.status,o.attempt_count FROM public.notification_outbox o
-      JOIN public.notification_plans p ON p.id=o.plan_id WHERE p.lesson_id=$1 AND p.kind='heads_up'`, [lesson])).rows[0];
+      JOIN public.notification_plans p ON p.id=o.plan_id WHERE p.lesson_id=$1 AND p.kind='attendance'`, [lesson])).rows[0];
     expect(row).toEqual({ status: "failed", attempt_count: 3 });
   });
   test("410 invalidation uses prepared device version; a rotation survives", async () => {
@@ -168,6 +170,38 @@ describe.skipIf(!enabled)("tp_b local Postgres integration (dry-run only)", () =
       JOIN public.notification_outbox o ON o.id=d.outbox_id JOIN public.notification_plans p ON p.id=o.plan_id
       WHERE p.lesson_id=$1`, [lesson])).rows;
     expect(rows).toEqual([{ error_code: "transport_error", outcome: "retry" }]);
+  });
+  test("late recovery sends one final and retains superseded stage history", async () => {
+    const result = await dispatchDuePrompts({ db, sender: new DryRunSender(), now: () => "2027-01-08T02:00:00Z" });
+    expect(result).toEqual({ claimed: 1, accepted: 1, failed: 0, suppressed: 0 });
+    const rows = (await pool.query("SELECT kind,status FROM public.notification_plans WHERE lesson_id=$1 ORDER BY due_at", [lesson])).rows;
+    expect(rows).toEqual([
+      { kind: "heads_up", status: "superseded" }, { kind: "attendance", status: "superseded" },
+      { kind: "follow_up", status: "superseded" }, { kind: "final", status: "completed" },
+    ]);
+    expect(await db.claim("2027-01-08T02:01:00Z", 50)).toEqual([]);
+  });
+  test("account-bound unregister between claim and prepare prevents dry-run send", async () => {
+    const wrapped: PromptDb = {
+      claim: async (now, limit) => {
+        const claims = await db.claim(now, limit);
+        const { rows } = await pool.query("SELECT installation_id FROM public.teacher_devices WHERE id=$1", [device]);
+        const client = await pool.connect();
+        try {
+          await client.query("BEGIN"); await client.query("SET LOCAL ROLE authenticated");
+          await client.query("SELECT set_config('request.jwt.claims',$1,true)", [JSON.stringify({ sub: teacher })]);
+          await client.query("SELECT public.unregister_device($1)", [rows[0].installation_id]);
+          await client.query("COMMIT");
+        } catch (error) { await client.query("ROLLBACK"); throw error; }
+        finally { client.release(); }
+        return claims;
+      }, prepare: db.prepare.bind(db), sent: db.sent.bind(db), failed: db.failed.bind(db),
+    };
+    let sends = 0;
+    const result = await dispatchDuePrompts({ db: wrapped, now: () => NOW,
+      sender: { send: async () => { sends++; return failure; } } });
+    expect(result.suppressed).toBe(1); expect(sends).toBe(0);
+    expect((await pool.query("SELECT revoked_at IS NOT NULL AS revoked FROM public.teacher_devices WHERE id=$1", [device])).rows[0].revoked).toBe(true);
   });
   test("provider status codes survive the database allowlist", async () => {
     await dispatchDuePrompts({ db, now: () => NOW, sender: { send: async () =>

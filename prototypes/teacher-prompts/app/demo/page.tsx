@@ -1,3 +1,4 @@
+import { requirePreviewAccess } from "@/lib/access";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -10,6 +11,7 @@ export default async function Demo({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requirePreviewAccess();
   const search = await searchParams;
   const jar = await cookies();
   const next = pendingPath(search.next);

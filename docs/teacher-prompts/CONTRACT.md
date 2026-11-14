@@ -798,3 +798,111 @@ Questions for Edmund/TAVA (defaults above remain binding until contract revision
 - What existing parent/kiosk/station/privacy capabilities are mandatory at fresh-DB launch?
 - What retention/archive rules, staff notices, and real-device pilot acceptance will be signed off?
 - Edmund: approve final strings and the calendar/workflow before any release or destructive cutover.
+
+## Revision 1.1 — G1 review fixes
+
+This revision supersedes conflicting v1 requirements above, including missed-stage
+pacing and separate bulk-mark/submit-only flow. The v2 migrations have **not been
+accepted or applied anywhere**. G1 edits `0001`–`0004` in place; there is no `0005`.
+The production migration chain remains untouched. All verification uses only the
+assigned local throwaway database, fake data and dry-run sending.
+
+- **Function privileges (B1):** at the start of 0001 revoke EXECUTE on every existing
+  public function from PUBLIC, anon, authenticated and service_role. Revoke the
+  migration owner's global AND public-schema default EXECUTE grants for those roles.
+  Subsequent grants establish only the existing per-function allowlists plus the two
+  new authenticated RPCs below. Internal helpers remain private. `scheduler_tick`,
+  `prepare_prompt_delivery`, `mark_prompt_sent`, `mark_prompt_failed` and
+  `refresh_prompt_schedule` also require the actual SQL caller role `service_role`
+  inside their bodies; JWT role metadata is insufficient. The guarded cron command
+  explicitly uses `SET ROLE service_role`. Local replay deliberately installs hostile
+  named-role and PUBLIC defaults plus an existing function before the chain and tests
+  privileges afterward, including body-level denial under deliberately leaked grants.
+- **Calendar (H2–H4):** an overridden lesson's closures use its actual Singapore start
+  date, while `(rule_id,occurrence_date)` remains its identity. `edit_lesson` rejects a
+  closed destination with `TP_INVALID_INPUT`; no closure override is introduced.
+  Generation locks class scopes, defers overlap checks through the entire batch and
+  prompt hooks, then validates final current rows before returning. Actual final
+  overlaps still fail atomically with `TP_CONFLICT`. Active timetable rules must have
+  an active teacher default; deactivation/role changes require retiring or reassigning
+  their active rules in the same transaction, as well as preserving existing lesson
+  lead invariants. Inactive rules can be retired even with an inactive default.
+  Generation defensively skips any stale invalid default before inserting lessons;
+  its result adds `staffing_skipped:int` to `{created,updated,cancelled,unchanged}`.
+  Audit event `calendar_staffing_unresolved` records only
+  `{reason_code:'inactive_default_teacher',counts:1}` for each skipped rule.
+  `refresh_prompt_schedule() RETURNS void` isolates a failed generation batch and
+  records `calendar_generation_failed` with `{reason_code:'generation_failed'}`,
+  then replans existing lessons. The local worker also catches refresh-transaction
+  failures, reports fixed centralized copy, and continues dispatch; it retries once
+  on the next 60-second tick with the adapter's existing bounded query timeout.
+- **Recovery and eligibility (M1):** claim and prepare require that the accountable
+  teacher can still complete the lesson: start has arrived and at most seven
+  Singapore civil dates have elapsed since start, alongside existing flag, staffing,
+  cancellation, submission and Study Space checks. Older work remains in
+  `admin_missing_submissions`; it gets no teacher push. Planning future lessons still
+  works; before-start ticks retain its pending stages until editing opens. At a late tick, a pending stage whose later successor is already due becomes
+  `superseded`; heads_up also expires at scheduled end even if a snooze/quiet deferral
+  moved the next stage later. Prepare repeats this check. Recovery selects at most one
+  currently meaningful logical stage per lesson, with the existing per-device fanout;
+  it no longer replays missed stages five minutes apart or shifts later due times.
+  Quiet-hours calculation and normal planned stage spacing remain unchanged. Heads-up
+  payload expiry is also capped at scheduled end. Provider requests already in flight
+  remain subject to the existing best-effort race, not an exactly-once guarantee.
+  Both `notification_plans.status` and `notification_outbox.status` add terminal
+  `superseded`. Plan cancel_reason / outbox last_error_code use `superseded`, leases
+  clear, existing sent/failed rows and delivery logs remain, and claimed attempts get
+  an `unknown` delivery outcome with error_code `superseded` if no receipt exists.
+  Superseded stages never reopen on replanning. No delivery-outcome enum is added;
+  an unsent stage is not recorded as accepted. Worker delay never moves overdue_at.
+- **Explicit database assignment (M2):** SQL/concurrency runners require a database
+  argument or `TP_DB`; dispatcher integration requires `TP_DB`. Every name must match
+  `^tp_[a-z0-9_]+$` and fit PostgreSQL's 63-character identifier limit. Missing names,
+  postgres, template names, URLs and unsafe identifiers fail before connection.
+  Host/port/user are fixed to localhost:55432/postgres; local worker URL must match
+  the supplied assignment exactly. No fallback to tp_a/tp_b/tp_c or generic DB env.
+  The shared launcher validates the same name form and passes `TP_DB` to its children.
+
+New authenticated RPCs (SECURITY DEFINER, pinned search_path, no other role grants):
+
+```text
+confirm_all_present_and_submit(p_lesson_id uuid,p_expected_revision bigint,
+                              p_expected_feedback_revision bigint,p_mutation_id uuid)
+  RETURNS jsonb
+  -> {lesson_id,submission_id,submitted_at,register_revision:string,replayed:boolean}
+unregister_device(p_installation_id uuid)
+  RETURNS jsonb -> {revoked:true}
+```
+
+**Atomic confirmation (M3):** only accountable teacher/admin, with current authority
+checked before receipt replay. Under one actor/mutation lock and lesson lock, check
+flags, editable window, cancellation/submission and both revisions; fill only unmarked
+roster members as present, preserving existing present/late/absent and informed status;
+bump register_revision once only if rows were filled; require the same completeness
+and zero-roster/admin rules as `submit_lesson`; insert submission, audit and one mutation
+receipt and suppress all prompts atomically. Exact replay returns the same receipt with
+replayed=true; changed operation/lesson/arguments cannot reuse it, and other actors
+cannot replay it. Failure rolls back every effect. No client timestamp or actor is
+accepted. `submit_lesson` and `mark_all_present` remain available for separate review
+flows. This RPC is for an explicit “Confirm and submit” action after all-present review,
+never automatic marking triggered by opening a link or ordinary Submit.
+
+**Installation opt-out (M4, server portion):** unregister revokes every registration
+for the installation owned by `auth.uid()`, across environments. Repeated revocation
+preserves its timestamp; foreign or missing installations return the same constant
+acknowledgement without disclosure or mutation. NULL installation is invalid; missing
+identity is denied. Unlike registration, opt-out remains available after flags turn
+OFF or a profile becomes inactive, so loss of eligibility cannot trap a registration.
+It uses registration's token/user lock order. Claim excludes revoked devices, including
+existing retry snapshots without spending another attempt; prepare
+rechecks revocation immediately before send, so existing claimed work is suppressed.
+Re-opt-in requires explicit `register_device`; a request already past prepare can
+still be in flight. Native callers must bind revocation to the original account and
+perform it on opt-out/sign-out; native lifecycle implementation remains its owner's work.
+
+Regression homes: `tests/acl_test.sql`, `calendar_revision_test.sql`,
+`atomic_submission_test.sql`, `recovery_test.sql`, `unregister_test.sql`, updated
+`scheduler_test.sql`, `concurrency_test.py`, `runner_guard_test.py`, and dispatcher
+`functions/tests/{entry,integration}.test.ts`. `tests/hostile_acl_setup.sql` is test-only,
+never an application migration. Repeat the full local replay in UTC and
+America/Los_Angeles, concurrency, and all dispatcher unit/integration tests twice.

@@ -20,11 +20,11 @@ BEGIN
  IF NOT FOUND THEN RETURN '{"planned":0}'; END IF;
  IF NOT public.prompt_eligible(p_id) THEN PERFORM public.cancel_prompt_work(p_id,'ineligible'); RETURN '{"planned":0}'; END IF;
  SELECT * INTO pol FROM public.prompt_policy;
- -- Same revision must not undo delayed-worker pacing or rematerialize snapshots.
- IF (SELECT count(*) FROM public.notification_plans WHERE lesson_id=p_id AND kind<>'simulation')=4 AND NOT EXISTS(SELECT FROM public.notification_plans WHERE lesson_id=p_id AND kind<>'simulation' AND status<>'completed' AND revision<>l.plan_revision) THEN RETURN '{"planned":0}'; END IF;
+ -- Same revision preserves queue state and never rematerializes device snapshots.
+ IF (SELECT count(*) FROM public.notification_plans WHERE lesson_id=p_id AND kind<>'simulation')=4 AND NOT EXISTS(SELECT FROM public.notification_plans WHERE lesson_id=p_id AND kind<>'simulation' AND status NOT IN ('completed','superseded') AND revision<>l.plan_revision) THEN RETURN '{"planned":0}'; END IF;
  FOR k,off_min IN SELECT * FROM (VALUES ('heads_up',pol.heads_up_minutes),('attendance',pol.attendance_minutes),('follow_up',pol.follow_up_minutes),('final',pol.final_minutes)) v LOOP
   SELECT * INTO p FROM public.notification_plans WHERE lesson_id=p_id AND kind=k FOR UPDATE;
-  IF p.status='completed' THEN prev:=p.due_at; IF k='final' THEN final_due:=p.due_at; END IF; CONTINUE; END IF;
+  IF p.status IN ('completed','superseded') THEN prev:=p.due_at; IF k='final' THEN final_due:=p.due_at; END IF; CONTINUE; END IF;
   due:=public.defer_quiet(greatest(l.scheduled_end_at+make_interval(mins=>off_min),l.snoozed_until,prev+interval '5 minutes'));
   IF p.id IS NOT NULL THEN
    UPDATE public.notification_outbox SET status='cancelled',lease_token=NULL,lease_until=NULL,last_error_code='superseded',updated_at=clock_timestamp() WHERE plan_id=p.id AND status IN ('pending','claimed');
@@ -98,6 +98,37 @@ BEGIN
  UPDATE public.teacher_devices SET revoked_at=coalesce(revoked_at,clock_timestamp()) WHERE id=p_device_id AND user_id=auth.uid();
  RETURN jsonb_build_object('revoked',FOUND);
 END $$;
+-- Opt-out must work even after the rollout flag or profile eligibility is removed.
+CREATE FUNCTION public.unregister_device(p_installation_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+BEGIN
+ IF auth.uid() IS NULL THEN RAISE EXCEPTION 'TP_NOT_AVAILABLE' USING ERRCODE='42501'; END IF;
+ IF p_installation_id IS NULL THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='22023'; END IF;
+ -- Same lock order as registration; no lesson/outbox locks are needed for revocation.
+ PERFORM pg_advisory_xact_lock(70424319);
+ PERFORM pg_advisory_xact_lock(hashtextextended(auth.uid()::text,4));
+ UPDATE public.teacher_devices SET revoked_at=coalesce(revoked_at,clock_timestamp()) WHERE installation_id=p_installation_id AND user_id=auth.uid();
+ -- Constant acknowledgement does not disclose a foreign installation's existence.
+ RETURN '{"revoked":true}'::jsonb;
+END $$;
+CREATE FUNCTION public.teacher_window_open(p_id uuid,p_now timestamptz) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+ SELECT EXISTS(SELECT FROM public.lessons WHERE id=p_id AND p_now>=scheduled_start_at
+  AND (p_now AT TIME ZONE 'Asia/Singapore')::date-(scheduled_start_at AT TIME ZONE 'Asia/Singapore')::date<=7)
+$$;
+CREATE FUNCTION public.supersede_prompt_stages(p_id uuid,p_now timestamptz) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE p public.notification_plans; l public.lessons;
+BEGIN
+ SELECT * INTO l FROM public.lessons WHERE id=p_id FOR UPDATE;
+ FOR p IN SELECT a.* FROM public.notification_plans a WHERE a.lesson_id=p_id AND a.status='pending' AND a.kind<>'simulation'
+  AND ((a.kind='heads_up' AND p_now>=l.scheduled_end_at) OR EXISTS(
+   SELECT FROM public.notification_plans b WHERE b.lesson_id=p_id AND b.kind<>'simulation' AND b.due_at<=p_now
+    AND array_position(ARRAY['heads_up','attendance','follow_up','final'],b.kind)>array_position(ARRAY['heads_up','attendance','follow_up','final'],a.kind))) ORDER BY a.id FOR UPDATE LOOP
+  -- An in-flight/expired send may have reached the provider. Preserve that uncertainty.
+  INSERT INTO public.notification_deliveries(outbox_id,attempt_no,lease_token,transport,outcome,error_code,attempted_at)
+  SELECT id,attempt_count,lease_token,'none','unknown','superseded',p_now FROM public.notification_outbox WHERE plan_id=p.id AND status='claimed' ON CONFLICT DO NOTHING;
+  UPDATE public.notification_outbox SET status='superseded',lease_token=NULL,lease_until=NULL,last_error_code='superseded',updated_at=p_now WHERE plan_id=p.id AND status IN ('pending','claimed');
+  UPDATE public.notification_plans SET status='superseded',cancel_reason='superseded',updated_at=p_now WHERE id=p.id;
+ END LOOP;
+END $$;
 CREATE FUNCTION public.complete_prompt_plan(p_plan uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 BEGIN
  UPDATE public.notification_plans p SET status='completed',updated_at=clock_timestamp() WHERE p.id=p_plan AND p.status='pending'
@@ -111,15 +142,20 @@ CREATE FUNCTION public.scheduler_tick(p_now timestamptz,p_limit int DEFAULT 50)
 RETURNS TABLE(outbox_id uuid,plan_id uuid,lesson_id uuid,kind text,recipient_id uuid,device_id uuid,plan_revision text,lease_token uuid,lease_until timestamptz,attempt_no int)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 #variable_conflict use_column
-DECLARE l public.lessons; p public.notification_plans; o public.notification_outbox; later record; n int:=0; paced timestamptz; deferred timestamptz;
+DECLARE l public.lessons; p public.notification_plans; o public.notification_outbox; n int:=0; deferred timestamptz;
 BEGIN
+ PERFORM public.require_service();
  IF p_now IS NULL OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='22023'; END IF;
  IF NOT public.dispatch_enabled() THEN RETURN; END IF;
  -- Lesson lock first; a competing worker skips the whole lesson, never waits on a plan.
  FOR l IN SELECT a.* FROM public.lessons a WHERE EXISTS(SELECT FROM public.notification_plans np WHERE np.lesson_id=a.id AND np.kind<>'simulation' AND np.status='pending' AND np.due_at<=p_now)
  ORDER BY (SELECT min(np.due_at) FROM public.notification_plans np WHERE np.lesson_id=a.id AND np.kind<>'simulation' AND np.status='pending'),a.id LIMIT p_limit FOR UPDATE OF a SKIP LOCKED LOOP
   IF NOT public.prompt_eligible(l.id) THEN PERFORM public.cancel_prompt_work(l.id,'ineligible'); CONTINUE; END IF;
+  -- An early policy offset may precede start; retain later work until editing opens.
+  IF p_now<l.scheduled_start_at THEN CONTINUE; END IF;
+  IF NOT public.teacher_window_open(l.id,p_now) THEN PERFORM public.cancel_prompt_work(l.id,'ineligible'); CONTINUE; END IF;
   PERFORM public.replan_lesson(l.id);
+  PERFORM public.supersede_prompt_stages(l.id,p_now);
   SELECT * INTO p FROM public.notification_plans np WHERE np.lesson_id=l.id AND np.kind<>'simulation' AND np.status='pending' AND np.due_at<=p_now ORDER BY np.due_at,np.id LIMIT 1 FOR UPDATE SKIP LOCKED;
   IF NOT FOUND THEN CONTINUE; END IF;
   -- A revision takes a single device snapshot, including the explicit no-device result.
@@ -138,14 +174,15 @@ BEGIN
     END IF;
    END IF;
   END IF;
-  -- One logical stage per tick. Delay subsequent stages without moving overdue_at.
-  paced:=p_now;
-  FOR later IN SELECT * FROM public.notification_plans np WHERE np.lesson_id=l.id AND np.id<>p.id AND np.kind<>'simulation' AND np.status='pending' AND np.due_at>=p.due_at ORDER BY np.due_at,np.id FOR UPDATE LOOP
-   paced:=public.defer_quiet(greatest(later.due_at,paced+interval '5 minutes'));
-   UPDATE public.notification_plans SET due_at=paced,updated_at=p_now WHERE id=later.id;
-   UPDATE public.notification_outbox SET available_at=greatest(available_at,paced) WHERE notification_outbox.plan_id=later.id AND status='pending';
-  END LOOP;
   FOR o IN SELECT b.* FROM public.notification_outbox b WHERE b.plan_id=p.id AND b.plan_revision=p.revision AND ((b.status='pending' AND b.available_at<=p_now) OR (b.status='claimed' AND b.lease_until<=p_now)) ORDER BY b.available_at,b.id FOR UPDATE SKIP LOCKED LOOP
+   -- Revocation after the snapshot must also suppress retries before claiming.
+   IF NOT EXISTS(SELECT FROM public.teacher_devices WHERE id=o.device_id AND user_id=o.recipient_id AND revoked_at IS NULL AND last_seen_at>=p_now-interval '90 days') THEN
+    IF o.status='claimed' THEN
+     INSERT INTO public.notification_deliveries(outbox_id,attempt_no,lease_token,transport,outcome,error_code,attempted_at) VALUES(o.id,o.attempt_count,o.lease_token,'none','unknown','suppressed',p_now) ON CONFLICT DO NOTHING;
+    END IF;
+    UPDATE public.notification_outbox SET status='cancelled',lease_token=NULL,lease_until=NULL,last_error_code='suppressed',updated_at=p_now WHERE id=o.id;
+    PERFORM public.complete_prompt_plan(p.id); CONTINUE;
+   END IF;
    IF o.status='claimed' THEN
     INSERT INTO public.notification_deliveries(outbox_id,attempt_no,lease_token,transport,outcome,error_code,attempted_at) VALUES(o.id,o.attempt_count,o.lease_token,'none','unknown','lease_expired',p_now) ON CONFLICT DO NOTHING;
     IF o.attempt_count>=3 THEN
@@ -177,12 +214,17 @@ END $$;
 CREATE FUNCTION public.prepare_prompt_delivery(p_outbox_id uuid,p_lease_token uuid,p_now timestamptz) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE o public.notification_outbox; p public.notification_plans; l public.lessons; d public.teacher_devices; expiry timestamptz; deferred timestamptz;
 BEGIN
+ PERFORM public.require_service();
  o:=public.lock_prompt_outbox(p_outbox_id);
  IF p_now IS NULL OR o.id IS NULL OR o.status<>'claimed' OR o.lease_token IS DISTINCT FROM p_lease_token OR o.lease_until<=p_now THEN RETURN NULL; END IF;
+ SELECT lesson_id INTO l.id FROM public.notification_plans WHERE id=o.plan_id;
+ PERFORM public.supersede_prompt_stages(l.id,p_now);
+ SELECT * INTO o FROM public.notification_outbox WHERE id=p_outbox_id;
+ IF o.status<>'claimed' THEN RETURN NULL; END IF;
  SELECT * INTO p FROM public.notification_plans WHERE id=o.plan_id;
  SELECT * INTO l FROM public.lessons WHERE id=p.lesson_id;
  SELECT * INTO d FROM public.teacher_devices WHERE id=o.device_id FOR UPDATE;
- IF NOT public.dispatch_enabled() OR NOT public.prompt_eligible(l.id) OR p.status<>'pending' OR p.revision<>o.plan_revision OR l.accountable_teacher_id<>o.recipient_id OR p.recipient_id<>o.recipient_id OR d.id IS NULL OR d.user_id<>o.recipient_id OR d.revoked_at IS NOT NULL OR d.last_seen_at<p_now-interval '90 days' THEN
+ IF NOT public.dispatch_enabled() OR NOT public.prompt_eligible(l.id) OR NOT public.teacher_window_open(l.id,p_now) OR p.status<>'pending' OR p.revision<>o.plan_revision OR l.accountable_teacher_id<>o.recipient_id OR p.recipient_id<>o.recipient_id OR d.id IS NULL OR d.user_id<>o.recipient_id OR d.revoked_at IS NOT NULL OR d.last_seen_at<p_now-interval '90 days' THEN
   UPDATE public.notification_outbox SET status='cancelled',lease_token=NULL,lease_until=NULL,last_error_code='suppressed',updated_at=p_now WHERE id=o.id;
   INSERT INTO public.notification_deliveries(outbox_id,attempt_no,lease_token,transport,outcome,error_code,attempted_at) VALUES(o.id,o.attempt_count,o.lease_token,'none','suppressed','suppressed',p_now) ON CONFLICT DO NOTHING;
   PERFORM public.complete_prompt_plan(p.id); RETURN NULL;
@@ -194,11 +236,13 @@ BEGIN
  END IF;
  UPDATE public.notification_outbox SET device_seen_at=d.last_seen_at WHERE id=o.id;
  SELECT least(p_now+interval '1 hour',min(due_at)) INTO expiry FROM public.notification_plans WHERE lesson_id=l.id AND id<>p.id AND kind<>'simulation' AND status='pending' AND due_at>p_now;
+ IF p.kind='heads_up' THEN expiry:=least(expiry,l.scheduled_end_at); END IF;
  RETURN jsonb_build_object('outbox_id',o.id,'lesson_id',l.id,'kind',p.kind,'token',d.token,'environment',d.environment,'collapse_id','tp:'||l.id,'thread_id','teacher-lesson:'||l.id,'expires_at',expiry,'mode',CASE WHEN (SELECT demo_enabled FROM public.runtime_settings) THEN 'dry_run' ELSE 'apns' END);
 END $$;
 CREATE FUNCTION public.mark_prompt_sent(p_outbox_id uuid,p_lease_token uuid,p_provider_id uuid,p_transport text,p_now timestamptz) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE o public.notification_outbox;
 BEGIN
+ PERFORM public.require_service();
  o:=public.lock_prompt_outbox(p_outbox_id);
  IF p_now IS NULL OR o.id IS NULL OR o.status<>'claimed' OR o.lease_token IS DISTINCT FROM p_lease_token OR o.lease_until<=p_now THEN RETURN false; END IF;
  IF p_provider_id IS NULL OR p_transport IS NULL OR p_transport NOT IN ('dry_run','apns') OR ((SELECT demo_enabled FROM public.runtime_settings) AND p_transport<>'dry_run') OR o.device_seen_at IS NULL THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='22023'; END IF;
@@ -210,6 +254,7 @@ END $$;
 CREATE FUNCTION public.mark_prompt_failed(p_outbox_id uuid,p_lease_token uuid,p_error_code text,p_retryable boolean,p_invalidate_device boolean,p_now timestamptz) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE o public.notification_outbox; code text; retry boolean;
 BEGIN
+ PERFORM public.require_service();
  o:=public.lock_prompt_outbox(p_outbox_id);
  IF p_now IS NULL OR o.id IS NULL OR o.status<>'claimed' OR o.lease_token IS DISTINCT FROM p_lease_token OR o.lease_until<=p_now THEN RETURN false; END IF;
  code:=CASE WHEN p_error_code IN ('timeout','network_error','transport_error','rate_limited','server_error','bad_device_token','unregistered','forbidden','bad_request','provider_error','BadDeviceToken','Unregistered') THEN p_error_code ELSE 'provider_error' END;
@@ -225,7 +270,13 @@ END $$;
 CREATE FUNCTION public.refresh_prompt_schedule() RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE d date:=(clock_timestamp() AT TIME ZONE 'Asia/Singapore')::date; l record;
 BEGIN
- PERFORM public.generate_lessons(d,d+42);
+ PERFORM public.require_service();
+ BEGIN
+  PERFORM public.generate_lessons(d,d+42);
+ EXCEPTION WHEN OTHERS THEN
+  -- Roll back the entire failed calendar batch, retain a sanitized health signal.
+  INSERT INTO public.audit_events(event_code,details) VALUES('calendar_generation_failed','{"reason_code":"generation_failed"}');
+ END;
  FOR l IN SELECT id FROM public.lessons WHERE cancelled_at IS NULL AND NOT EXISTS(SELECT FROM public.lesson_submissions WHERE lesson_id=lessons.id) ORDER BY id FOR UPDATE LOOP PERFORM public.replan_lesson(l.id); END LOOP;
 END $$;
 CREATE FUNCTION public.simulate_prompt_now(p_lesson_id uuid,p_mutation_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
@@ -241,13 +292,13 @@ BEGIN
  INSERT INTO public.notification_deliveries(outbox_id,attempt_no,lease_token,transport,outcome,provider_id,attempted_at) VALUES(o.id,1,gen_random_uuid(),'dry_run','accepted',o.id,n);
  RETURN public.mutation_finish(l.id,p_mutation_id,'simulate_prompt_now',args,jsonb_build_object('lesson_id',l.id,'outbox_id',o.id,'transport','dry_run','kind','attendance','path','/t/lesson/'||l.id));
 END $$;
-GRANT EXECUTE ON FUNCTION public.snooze_prompt(uuid,int,uuid),public.register_device(uuid,text,text),public.revoke_device(uuid),public.simulate_prompt_now(uuid,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.snooze_prompt(uuid,int,uuid),public.register_device(uuid,text,text),public.revoke_device(uuid),public.unregister_device(uuid),public.simulate_prompt_now(uuid,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.plan_prompts(uuid) TO authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.scheduler_tick(timestamptz,int),public.prepare_prompt_delivery(uuid,uuid,timestamptz),public.mark_prompt_sent(uuid,uuid,uuid,text,timestamptz),public.mark_prompt_failed(uuid,uuid,text,boolean,boolean,timestamptz),public.refresh_prompt_schedule(),public.defer_quiet(timestamptz) TO service_role;
 -- Hosted installation is separate; no network, invocation secrets, or extension install here.
 DO $$ BEGIN
  IF EXISTS(SELECT FROM pg_extension WHERE extname='pg_cron') THEN
-  PERFORM cron.schedule('teacher-prompts-plan','* * * * *','SELECT public.refresh_prompt_schedule()');
+  PERFORM cron.schedule('teacher-prompts-plan','* * * * *','SET ROLE service_role; SELECT public.refresh_prompt_schedule()');
  END IF;
 END $$;
 NOTIFY pgrst,'reload schema';

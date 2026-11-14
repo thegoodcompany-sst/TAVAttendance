@@ -61,12 +61,14 @@ erDiagram
       text kind "unique lesson + kind"
       bigint revision
       timestamptz due_at
+      text status "pending / completed / cancelled / superseded"
     }
     notification_outbox {
       uuid id PK
       uuid plan_id FK
       uuid device_id FK "nullable for no devices"
       bigint plan_revision
+      text status "pending / claimed / sent / failed / cancelled / superseded"
       uuid lease_token
       timestamptz lease_until
     }

@@ -3,7 +3,10 @@ flowchart TD
     Link["User opens lesson UUID link / notification"] --> Parse{"Exact allowed host, scheme,<br/>path and UUID?"}
     Parse -->|No| Reject["Reject route without roster lookup"]
     Parse -->|Yes| Pending["Persist pending locator · TTL 24 hours<br/>No bearer credential"]
-    Pending --> Auth{"Identity restored,<br/>profile loaded, unlocked?"}
+    Pending --> Gate{"Web preview access required?"}
+    Gate -->|Yes| Code["Access code → signed eight-hour cookie<br/>Server checks routes and actions<br/>Fake identities only"]
+    Code --> Auth
+    Gate -->|No / already admitted| Auth{"Identity restored,<br/>profile loaded, unlocked?"}
     Auth -->|No| Login["Web: demo selector<br/>Future real login / native unlock"]
     Login --> Validate["Validate relative next again<br/>Never resume an external URL"]
     Validate --> Resolve
@@ -18,3 +21,4 @@ flowchart TD
     Action -->|No| Review["Review / submit explicitly"]
     Signout["Explicit sign-out<br/>Clear route, sensitive screen and actor actions"] -.-> Pending
     Change["Account change / expired session<br/>Clear actor actions; never replay old snooze<br/>New confirmation after authorized navigation"] -.-> Confirm
+    Revoke["Opt-out / sign-out: unregister_device<br/>Original account, bounded cleanup<br/>Re-opt-in registers after cleanup"] -.-> Signout

@@ -9,4 +9,5 @@ flowchart LR
     S["Remind me in 10<br/>At most three; capped at E+60<br/>Pending stages only; minimum 5-minute spacing"] -.-> B
     S -.-> F
     X["Submit / cancel<br/>Stop pending plans and delivery attempts"] -.-> C
-    N["Worker delay / no devices / retries<br/>Never extend overdue deadline<br/>At most one stage per lesson per tick"] -.-> G
+    N["Worker delay / no devices / retries<br/>Never extend overdue deadline<br/>Coalesce missed stages into one current request<br/>Older stages become superseded; heads-up expires at end"] -.-> G
+    W["Teacher dispatch window<br/>Start reached through seven Singapore dates<br/>Older work stays with admin, no teacher push"] -.-> N

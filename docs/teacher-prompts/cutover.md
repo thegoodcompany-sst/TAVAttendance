@@ -171,6 +171,35 @@ a separately tested recovery operation, not an instant fallback. Do not equate
 ## Evidence still required
 
 No live backend, cutover, archive, real login, APNs, associated-domain or physical
-phone verification was performed by Pass E. All live gates above remain open.
+phone verification was performed by these local prototype passes. All live gates above remain open.
 The supervisor owns root release notes and human-only follow-ups; this pass edits
 only its assigned documentation and local runner.
+
+## Revision 1.1 rehearsal additions
+
+Replay the fresh chain against hostile global and public-schema EXECUTE defaults
+and a pre-existing function, then verify explicit per-function grants, private
+helpers and service-role checks inside worker RPC bodies. Run only the assigned
+throwaway database with explicit `TP_DB`; use the SQL runner in both UTC and
+America/Los_Angeles and retain the concurrency/recovery evidence. This local proof
+is not evidence about any hosted backend's actual privileges.
+
+Verify recovery coalesces missed stages into one current request, records terminal
+`superseded` stages without reopening them, expires heads-up at scheduled end and
+stops teacher pushes after the seven-Singapore-date editing window. Retain admin
+follow-up and historical delivery records. Exercise reschedule closure checks on
+the actual Singapore date, final-batch overlap checks and inactive rule teachers.
+
+All clients must deliberately consume `confirm_all_present_and_submit` for the
+confirmed all-present flow and `unregister_device` for installation opt-out/sign-out.
+The atomic confirmation must preserve existing late/absent marks, reject stale
+register/feedback revisions and cancel prompts together with submission. Native
+revocation must remain bound to the original account, cover in-flight registration,
+and expose failed cleanup after bounded retries; test re-opt-in and flag-off cases.
+Fixture parity does not prove native runtime or real APNs behavior.
+
+The code-gated preview is for fake identities only. Its remote database opt-in,
+startup demo-marker check and entry code are not production authentication or a
+hosted bootstrap. Jeremy's [preview instructions](preview-deploy.md) keep the
+throwaway backend separate. None of this closes the parent/kiosk/station/privacy,
+archive, restore or human authorization gates above.

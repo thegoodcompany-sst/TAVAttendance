@@ -7,7 +7,7 @@ umask 077
 usage() {
   cat <<'USAGE'
 Usage: scripts/teacher-prompts-local.sh --db <assigned_db> [--reset] [--fixed-week] [--check]
-  --db          Required supervisor-assigned throwaway database (Pass E: tp_e).
+  --db          Required supervisor-assigned throwaway database (Pass H: tp_h or tp_h2).
   --reset       Drop/recreate ONLY that local database; default preserves it.
   --fixed-week  Do not shift demo dates to today (combine with reset for Jan 2027).
   --check       Run SQL/concurrency/package unit tests, without starting web.
@@ -27,7 +27,7 @@ while (($#)); do
     *) fail 'unknown option; use --help' ;;
   esac
 done
-[[ "$db_name" =~ ^[a-z][a-z0-9_]{0,62}$ ]] || fail 'explicit valid --db is required'
+[[ "$db_name" =~ ^tp_[a-z0-9_]{1,60}$ ]] || fail 'explicit valid --db is required'
 case "$db_name" in postgres|template0|template1) fail 'reserved database name' ;; esac
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
 web_dir="$repo_root/prototypes/teacher-prompts"
@@ -71,7 +71,7 @@ required=['supabase/v2/local/supabase_shim.sql',
 if check:
  required += ['supabase/v2/tests/'+name+'_test.sql' for name in
   ('schema','calendar','rls','attendance','submission','scheduler','devices','demo')]
- required += ['supabase/v2/tests/concurrency_test.py']
+ required += ['supabase/v2/tests/concurrency_test.py', 'supabase/v2/tests/hostile_acl_setup.sql', 'supabase/v2/tests/runner_guard_test.py']
 missing=[p for p in required if not (root/p).is_file()]
 if missing:
  print('Integration inputs not ready:\n'+'\n'.join(missing), file=sys.stderr); sys.exit(1)
@@ -128,6 +128,9 @@ PY
 marker="teacher-prompts-local:v1:$fingerprint"
 if ((new_database)); then
   psql_local -q -f "$repo_root/supabase/v2/local/supabase_shim.sql"
+  if ((check)); then
+    psql_local -q -f "$repo_root/supabase/v2/tests/hostile_acl_setup.sql"
+  fi
   for migration in "$repo_root"/supabase/v2/migrations/*.sql; do
     printf 'Applying %s\n' "${migration##*/}"
     psql_local -q -f "$migration"
@@ -154,11 +157,12 @@ if ((!fixed_week && !check)); then
 fi
 
 app_env=("${clean_env[@]}" "TEACHER_PROMPTS_DATABASE_URL=postgresql://postgres@localhost:55432/$db_name"
-  "TEACHER_PROMPTS_DB_NAME=$db_name" TEACHER_PROMPTS_DEMO=1)
+  "TEACHER_PROMPTS_DB_NAME=$db_name" "TP_DB=$db_name" TEACHER_PROMPTS_DEMO=1)
 for package_dir in "$worker_dir" "$web_dir"; do
   (cd -- "$package_dir" && "${clean_env[@]}" bun --no-env-file install --frozen-lockfile)
 done
 if ((check)); then
+  "${clean_env[@]}" python3 "$repo_root/supabase/v2/tests/runner_guard_test.py"
   for sql_test in "$repo_root"/supabase/v2/tests/*_test.sql; do
     [[ ${sql_test##*/} == schema_test.sql ]] && continue
     printf 'Checking %s\n' "${sql_test##*/}"

@@ -21,6 +21,12 @@ export const calls = {
     "p_expected_feedback_revision",
     "p_mutation_id",
   ],
+  confirm_all_present_and_submit: [
+    "p_lesson_id",
+    "p_expected_revision",
+    "p_expected_feedback_revision",
+    "p_mutation_id",
+  ],
   submit_lesson: [
     "p_lesson_id",
     "p_expected_revision",

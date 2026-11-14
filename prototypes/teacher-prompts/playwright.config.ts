@@ -1,4 +1,6 @@
 import { defineConfig } from "@playwright/test";
+import { assignedDatabase } from "./lib/config";
+const assigned = assignedDatabase(process.env.TP_DB);
 export default defineConfig({
   testDir: "./e2e",
   testIgnore: "screenshots.spec.ts",
@@ -15,14 +17,17 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "bun run build && bun run start",
+    command: "bun --no-env-file run build && bun --no-env-file run start",
     url: "http://127.0.0.1:3100/demo",
     reuseExistingServer: false,
     timeout: 120000,
     env: {
-      TEACHER_PROMPTS_DATABASE_URL:
-        "postgresql://postgres@localhost:55432/tp_c",
-      TEACHER_PROMPTS_DB_NAME: "tp_c",
+      TEACHER_PROMPTS_DATABASE_URL: `postgresql://postgres@localhost:55432/${assigned}`,
+      TEACHER_PROMPTS_DB_NAME: assigned,
+      TP_DB: assigned,
+      DATABASE_URL: "",
+      TP_ALLOW_REMOTE_PREVIEW_DB: "",
+      TP_PREVIEW_ACCESS_CODE: "e2e-local-code",
       TEACHER_PROMPTS_DEMO: "1",
       NEXT_TELEMETRY_DISABLED: "1",
     },

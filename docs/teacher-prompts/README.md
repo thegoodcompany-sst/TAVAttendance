@@ -2,42 +2,48 @@
 
 ## For Edmund
 
-**Edmund's t466u brief — verbatim quotation pending.** The supplied pass prompt and
-[contract](CONTRACT.md) refer to the brief but do not contain its original words.
-Please supply the original text before this section is treated as an approved brief.
-The following is a verbatim quotation of the contract's scope, not of Edmund:
+**Edmund's t466u brief, verbatim** (including the supplied bracketed omission note):
 
-> Build an interactive, local, fake-data prototype for a January 2027 fresh database:
-> calendar-backed lessons → generic phone reminder → authenticated attendance review
-> → optional feedback → explicit submission → admin view of outstanding work.
-> Submission means the register was reviewed; it does not mean children went home.
-> No parent notification, dismissal, payment, behavioural scoring, or email workflow.
+> i just spoke to the person in charge of tava and they've actually had some suggestions. i've spoken to them and it's quite interesting. it's going to cause us to have to rethink our product a lot but i trust that you are smart enough and we can burn enough codex to get it done.
+>
+> the primary issue here is that literally just no one wants to do the attendance taking after the end of the class or before the class. things just fall apart. the concept is that maybe with a notification to their phone, we do something so that the teachers are prompted to do things like take attendance and then give notes and feedback. we can do it based on the session timing: they receive the notification because they don't have to do it immediately after getting the notification. they can then wait 10, 15 minutes in case they are not done wrapping up and then do the final feedback.
+>
+> i think the thing is teachers aren't really reading their emails yet so we need to send a ping to iphone. can we just continue to draft this up because it's a very rushed schedule for both of us? we aren't really able to meet but when we meet, it's just to get the ui done and fix up the entire scheduling and stuff. we need to draw out this schedule or we need to draw out this prototype, get a ui done, maybe post-plan it, or just build up the basic ui. let me play with it.
+>
+> i want you to get this done, get this tested, run in full loops, use a bunch of codex, and prototype what this could be like. draw out some diagrams on how you think we should do it. now it's one of our last chances if you want to migrate dbs because we're going to drop the current entire db if you want, wipe it, and replace it with the new thing. the plan starts for tava attendance is the new year so if you really want to do some crazy shit, now's the time to do it. all right. [closing expletive omitted]
 
-A teacher should be able to open a reminder, reach the correct lesson even after
-signing in, review each child's attendance, optionally add a short lesson note,
-and press Submit. Staff should see which lessons still need that review. Teachers
-who cannot receive push should find the same work in their lesson list.
+### How a 19:00–21:00 class works
 
-The calendar creates lessons ahead of time. A lesson no longer disappears from
-staff's view simply because nobody opened it in the app. One named lead teacher
-or substitute is responsible for submitting it. Assistants can read their assigned
-lesson but do not complete the accountable teacher's review.
+The calendar puts the lesson on the responsible teacher's list ahead of time.
+At **20:55** the phone gives a heads-up; at **21:00** it asks the teacher to take
+attendance. If the register is still unfinished, there is a **21:15** follow-up.
+The final reminder would fall at 22:00, inside quiet hours, so it waits until
+**09:00 the next morning**. At **09:15**, unresolved work is overdue for admin
+follow-up; there is no extra push. Admin can already see unfinished lessons after
+their scheduled end.
 
-Try the local demo by choosing Demo Teacher D, opening today's Mathematics lesson,
-and selecting the simulated reminder. Review the register, mark the remaining
-entries, optionally add notes, then submit. Switch to Demo Admin and check that
-it no longer appears in missing submissions. Demo Teacher B should not be able to
-open D's substituted lesson. The demo contains invented people only.
+Still wrapping up? **Remind me in 10** postpones reminders by ten minutes, up to
+three times. For an all-present class, completion takes **three taps from the
+reminder**: **Take attendance → All present → Confirm and submit**. The final
+confirmation fills only unmarked rows and submits in one transaction; existing
+late/absent marks stay intact. Notes are optional. Separate marking and submission
+remain available when the teacher needs to review individual entries.
 
-“Not Here Yet” means nobody has recorded a status. It never automatically becomes
-absent. “Submitted” means the teacher reviewed a complete register. Neither a
-notification, an elapsed deadline, nor submission says a child has left safely.
+“Not Here Yet” means no attendance row. It never becomes absent automatically.
+Submission records a reviewed register, not a child's departure. Keep arrival,
+kiosk and dismissal checks; this end-of-lesson flow does not replace them.
 
-This is a **local prototype**, not a release. Push is dry-run only; the selector is
-not real authentication. APNs, physical-device permissions, associated domains,
-real-login routing and production operation have not been verified here. The iOS
-work is an isolated routing sketch, not a change to the shipping app. Edmund's
-final wording is pending in [strings.md](strings.md).
+Try **Demo Teacher A** for a clean all-present example, or **Demo Teacher D** for
+Mathematics with existing late/absent marks. Every seeded teacher has a lesson
+ending soon, an earlier lesson to review and a submitted lesson today. Switch to
+Demo Admin to see unfinished work. Teacher B cannot open D's substituted lesson.
+All people are invented; all sends are dry-run.
+
+This is a local prototype. The preview access code protects entry to the fake
+identity selector; it is not real teacher authentication. APNs, physical-device
+permissions, associated domains, real-login routing and production operation have
+not been verified here. The iOS work remains an isolated sketch. Edmund owns final
+wording; [strings.md](strings.md) inventories the actual source strings.
 
 ## Problem and scope
 
@@ -73,7 +79,10 @@ normative; diagrams and this explanation are companions, not competing interface
 Generated lessons are unique by `(timetable_rule_id, occurrence_date)`, not
 class/day. A reschedule preserves the lesson UUID and original occurrence identity,
 updates scheduled instants, refreshes the unworked roster using the new Singapore
-date, and replans pending prompts. Two nonoverlapping lessons on one day are allowed.
+date, and replans pending prompts. Closure checks use the actual rescheduled Singapore
+date. Calendar batches validate final overlaps atomically, and active rules require
+an active teacher; unresolved staffing is audited without stopping existing
+reminders. Two nonoverlapping lessons on one day are allowed.
 Class overlaps are rejected under a database lock. A closure retains a cancelled
 occurrence for explanation. Removing a closure does not silently resurrect it.
 
@@ -92,7 +101,11 @@ Study Space is excluded at the source of every list, report and prompt.
 All writes serialize on the lesson row. Attendance uses expected register revision
 and observed server `marked_at`, including observed-empty rows. Mutation UUIDs are
 bound to actor, operation and arguments. Mark-all-present touches only unmarked
-rows, preserving explicit absent/late records. Feedback has its own revision and
+rows, preserving explicit absent/late records. Revision 1.1 adds
+`confirm_all_present_and_submit`: after an explicit confirmation it validates both
+revisions, fills only missing marks and submits atomically. Any failure rolls back
+marks, submission and receipt together. Ordinary `submit_lesson` does not fill
+missing rows. Feedback has its own revision and
 may be blank. Submit checks both revisions and requires a complete register;
 only admins may submit a zero-member roster. After submission, attendance, notes
 and roster are immutable. A later correction needs a separately designed audited
@@ -119,9 +132,18 @@ For scheduled finish **E**:
 Quiet hours are `[22:00,07:00)`; deferred prompts resume at 09:00. Exactly 07:00 is
 allowed; exactly 22:00 is quiet. Defer each stage through quiet hours, then space
 successive stages at least five minutes apart. A 20:00 finish has its final at
-21:00 that day. A delayed worker sends at most one stage per lesson per tick and
-paces later stages; delay, delivery failure and lack of devices never extend the
-overdue deadline.
+21:00 that day. Revision 1.1 coalesces missed stages: when a later stage is already
+due, older pending stages become terminal `superseded`. Heads-up expires at the
+scheduled end, even if the next stage was snoozed. Recovery sends at most one
+currently meaningful stage per lesson, with per-device fanout; it does not replay
+old stages five minutes apart. Superseded stages never reopen, sent/failed history
+is retained, and a claimed attempt without a receipt is recorded as `unknown`.
+Worker delay, delivery failure and lack of devices never extend the overdue deadline.
+
+Both claim and prepare require that lesson start has arrived and the teacher can
+still complete it: at most seven Singapore dates since its start. Older work stays
+on the admin list without teacher pushes. Future lessons may be planned in advance;
+they are not dispatchable yet.
 
 “Remind me in 10” postpones pending reminders, at most three accepted requests.
 It is available from E−5, extends from the later of now/current snooze, and is
@@ -143,7 +165,7 @@ a newly registered device. The teacher's list and backlog remain available.
 
 Claims use a 120-second lease and `SKIP LOCKED`; the transaction commits before any
 network request. Immediately before sending, preparation rechecks current lease,
-revision, lead teacher, flags, device ownership, lesson completion and quiet hours.
+revision, lead teacher, flags, device ownership, lesson completion, teacher completion window, superseded stage and quiet hours.
 Submission, cancellation and substitution invalidate pending work atomically. A
 request already in flight may still arrive after that change; opening it rechecks
 current authority and state.
@@ -159,13 +181,20 @@ The future APNs adapter uses HTTP/2, ES256 token authentication, environment-spe
 Apple hosts, a ten-second timeout, stable outbox UUID request IDs and one collapse
 ID per lesson. Payload contains generic text, category, kind and lesson UUID only:
 no names, class labels, counts, status, notes, tokens or authentication URLs. It
-expires by the next stage or one hour, whichever comes first. The app recomputes
+expires by the next stage or one hour, whichever comes first; heads-up also
+expires at scheduled end. The app recomputes
 its badge from outstanding lessons rather than accepting a stale push badge.
 
 Registration follows authenticated active teacher/admin identity, opt-in and flags.
-Use the new `register_device`, never the old parent-only RPC. Sign-out tries to
-revoke the device before ending auth and always clears local sensitive state and
-actor-bound actions. Phone permission denial or offline delivery cannot block
+Use `register_device` and installation-scoped `unregister_device`, not the old
+parent-only RPC. Opt-out/sign-out revokes that account's installation across APNs
+environments, including registrations still in flight. Revocation remains available
+when flags turn OFF or a profile becomes inactive; foreign/missing installations
+return the same acknowledgement. Claim and prepare exclude revoked devices.
+The native sketch clears local tokens/actions, binds cleanup to the original
+account and makes at most three revoke attempts before exposing recovery.
+Re-opt-in waits for cleanup, then explicitly registers again. An already in-flight
+provider request can still arrive. Phone permission denial or offline delivery cannot block
 manual access to the list. APNs is best effort and expired alerts may never appear.
 
 The prototype does not implement offline web submission or background snooze.
@@ -195,8 +224,14 @@ resume and resolves `lesson_for_prompt` under the chosen identity before consumi
 the route. Wrong identity shows a neutral unavailable state with an explicit
 account retry; a network failure keeps the route. It never jumps to a default
 list before trying the requested lesson. The demo identity cookie is allowlisted,
-HttpOnly and SameSite=Lax. Hosted use needs Secure cookies and a protected entry
-boundary; the local selector deliberately allows selection of Demo Admin.
+HttpOnly and SameSite=Lax. The implemented `/preview` access-code gate protects
+remote preview entry and can also be enabled locally with `TP_PREVIEW_ACCESS_CODE`.
+It uses an eight-hour HMAC-signed, HttpOnly, SameSite cookie (Secure over forwarded HTTPS or with a remote database),
+with server-side checks on identity/RPC actions and the demo capture route as well
+as the route proxy. The gate preserves a valid lesson destination through entry.
+The local selector deliberately allows selection of Demo Admin; the code grants
+access to fake identities, not real staff authentication. See the preview guide
+for the remaining hosted database bootstrap gate.
 
 The iOS sketch waits for auth restoration, profile load and biometric unlock,
 retaining a pending locator across process restart. Both notification actions
@@ -228,79 +263,88 @@ disappear. Staff can assign a substitute, cancel, or reschedule eligible unworke
 future lessons through guarded RPCs. Removing the old lead immediately removes
 review authority unless separately retained as a read-only assistant.
 
-## Run and verify locally
+## Run locally
 
-Prerequisites: Bash, Python 3, Bun matching the prototype lockfiles, PostgreSQL 17
-client tools (`psql`, `createdb`, `dropdb`, `pg_isready`), and PostgreSQL 17 server
-binaries on PATH or at `/workspace/tav-teacher-prompts/pgbin/package/native/bin`.
-The runner never installs global services, reads `.env` files or uses inherited
-DB/APNs credentials. It requires only local Postgres plus pgcrypto; no pgTAP/cron.
-Use only your supervisor-assigned database; Pass E uses `tp_e`.
-
-```bash
-scripts/teacher-prompts-local.sh --db tp_e --reset
-```
-
-First run creates the named throwaway database; `--reset` explicitly drops/recreates
-only that database. Without reset, reuse requires a matching schema fingerprint and
-demo marker. Shim, sorted V2 migrations and fake seed run only on new/reset DBs.
-The default shifts demo dates so Mathematics is today; `--fixed-week` leaves dates
-unchanged (use it with reset to restore January 1–7, 2027). It is not a frozen clock:
-UI mutations still use server time. Before today's demo start, marking is unavailable.
-Use simulation to inspect the notification independently, or the E2E fixture for a
-complete flow at any time of day.
-
-The runner installs both frozen lockfiles, starts the dry-run worker and web on
-`127.0.0.1:3100`, prints `/demo`, `/` and `/admin`, and stops child processes on exit.
-It keeps Postgres running because other passes may share the local server. It does
-not stop another process occupying port 3100; that is a startup error.
+Use PostgreSQL 17 on `localhost:55432` with trust-auth user `postgres`, Python 3,
+Bun and the checked-in lockfiles. Browser checks need the installed Playwright
+Chrome channel. Neither pg_cron nor pgTAP is required. No `.env` file is loaded;
+the launcher refuses automatic environment files in application/ancestor paths.
+The assigned databases for this pass are **tp_h** and **tp_h2** only.
 
 ```bash
-scripts/teacher-prompts-local.sh --db tp_e --reset --fixed-week --check
+# Fresh fixed-week replay and shared SQL/concurrency/package checks:
+scripts/teacher-prompts-local.sh --db tp_h --reset --fixed-week --check
+# Fresh, now-relative demo, web + dry-run worker; Ctrl-C stops both:
+scripts/teacher-prompts-local.sh --db tp_h --reset
 ```
 
-`--check` runs SQL regressions (schema OFF defaults before seed), the concurrency
-suite and each package's unit-test script without starting web. On an existing DB
-it requires explicit `--reset`; check mode leaves the fixtures in their canonical
-week so calendar assertions remain repeatable. For browser checks, stop the runner, reset as above,
-then let the prototype's Playwright configuration manage its local server:
+Open `http://127.0.0.1:3100/demo`. The runner sets **TP_DB explicitly** for all
+children and accepts only `tp_` names up to 63 characters. Local adapters fix the
+host/port/user and require any supplied URL to match the assignment. Never point
+these commands at a remote database. The runner strips inherited credentials,
+checks demo mode and real-push OFF, and fingerprints the shim/migrations/seed
+before reusing a database. `--check` includes the hostile-default-ACL fixture
+before migrations and checks OFF defaults before fake seed enables the workflow.
+
+The fixed seed stays in January 2027. Default startup calls `demo_shift_to_today`:
+it retains canonical lessons and adds eleven ad hoc examples so each of four
+teachers has today's ongoing, awaiting-review and submitted scenarios. The existing
+substituted Mathematics UUID remains today's only Mathematics occurrence. Current
+lessons end at the next five-minute boundary, normally starting 115–120 minutes
+ago. Near midnight earlier slots and current duration compress to stay today;
+ends clamp just before next midnight. The earlier pending examples get a demo-only
+future review deadline so they remain reviewable rather than overdue. A same-day
+repeat is a no-op and preserves work; use `--reset` for fresh unfinished examples.
+These synthetic timings do not change normal scheduling policy or real holidays.
+
+Stop the runner before destructive browser tests. From the repository root:
 
 ```bash
-cd prototypes/teacher-prompts
-TEACHER_PROMPTS_DATABASE_URL=postgresql://postgres@localhost:55432/tp_e \
-TEACHER_PROMPTS_DB_NAME=tp_e TEACHER_PROMPTS_DEMO=1 \
-  bun --no-env-file run test:e2e
+bash supabase/v2/tests/run.sh tp_h2 UTC
+bash supabase/v2/tests/run.sh tp_h2 America/Los_Angeles
+TP_DB=tp_h python3 supabase/v2/tests/concurrency_test.py tp_h
 ```
 
-Do not run the same assigned database concurrently with destructive fixture tests.
-E2E uses fake fixtures, mobile Chromium and desktop admin, and blocks external
-requests. The supervisor combines owner-specific test evidence; a build is not
-proof of a teacher completing a flow.
+From `supabase/v2/functions`:
 
-## Local verification snapshot (Pass E)
+```bash
+TP_DB=tp_h bun --no-env-file test tests/dispatch.test.ts tests/payload.test.ts tests/apns-sender.test.ts tests/entry.test.ts
+TP_DB=tp_h TEACHER_PROMPTS_RUN_INTEGRATION=1 bun --no-env-file test tests/integration.test.ts
+```
 
-These results describe the local working files during parallel implementation, not
-a release or production state. Commands used only the assigned `tp_e` database.
+From `prototypes/teacher-prompts` (each browser suite resets only `TP_DB`):
 
-| Check | Result |
-|---|---|
-| `bash -n scripts/teacher-prompts-local.sh` | Passed. |
-| Runner argument validation | 12 passed, 0 failed; malformed/remote/reserved DB arguments rejected before connection. |
-| Six `npx mmdc -p puppeteer.json -b white -s 2` renders | 6 passed, 0 failed on final render; all PNGs opened and each exceeds 10 KB. README embeds exactly match the sources. |
-| `--db tp_e --reset --fixed-week --check` SQL suites | 219 assertions passed, 0 failed across 8 files; schema OFF-default tests run before seed. |
-| Same runner's concurrency step | Blocked with `Only tp_a or tp_a_scratch is permitted`; 0 concurrency cases ran on `tp_e`. Pass A must allow the explicit assigned DB argument before this integration command can pass. |
-| Worker package `bun --no-env-file run test`, run separately | 76 passed, 0 failed, 13 skipped (owner-specific DB integration suite). |
-| Web package `bun --no-env-file run test`, run separately | 36 passed, 0 failed. These unit tests do not prove a browser flow. |
-| Local worker `--once --now 2027-01-07T13:05:00Z` on canonical fixtures | 1 claimed, 1 dry-run accepted, 0 failed, 0 suppressed; no APNs request. |
-| Default runner date shift | Passed; Mathematics moved to the server's Singapore date. |
-| Full runner web startup | Initially failed `TP_DATABASE_NOT_ASSIGNED` (web hard-coded `tp_c`); Pass C subsequently accepts the supplied DB name. Latest startup stopped because port 3100 was occupied by another process; that process was left untouched. Browser/manual QA remains unrun by Pass E. |
-| Cold PostgreSQL startup | Unrun; existing local PostgreSQL 17 server used. No shared server restart attempted. |
+```bash
+TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 bun --no-env-file run test
+TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 bun --no-env-file run test:e2e
+TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 bun --no-env-file run screenshots
+```
 
-The installed Bun used for these checks was 1.4.4; contract/package-manager target
-is 1.3.14. Lockfiles were installed with `--frozen-lockfile`. Repeat the final
-integration check with the agreed runtime after the owners finish their files.
-Real login, APNs, native permissions, associated domains, hosted preview and all
-cutover gates remain unrun. The exact t466u quotation is still awaiting its source.
+Playwright builds/starts its own loopback server, blocks external browser requests
+and exercises the code gate with a fixed test-only code. Screenshots replace stale
+PNGs in `/workspace/tav-teacher-prompts/screens/`. Do not share a database between
+concurrent destructive tests. Python and Bun iOS fixture checks are documented in
+[ios/README.md](ios/README.md); they do not execute Swift.
+
+## Verification
+
+Pass H ran the complete local loop **twice** using only `tp_h` and `tp_h2`.
+Per loop: SQL/runner/concurrency replay **401 passed, 0 failed** in each timezone
+(UTC and America/Los_Angeles); standalone concurrency **17/0**; dispatcher unit
+**77/0**, integration **15/0**; web unit **82/0**; browser E2E **18 passed, 2 failed**;
+screenshot scenarios **2/0**; iOS Python fixtures **69/0**, Bun parity **47/0**.
+Both lint commands and browser production builds passed. Screenshots were regenerated
+(34 PNGs); six diagrams rendered successfully, all above 10 KB. Source/document
+consistency checks passed **18/18**. Runtime: Bun 1.4.4 (target 1.3.14), Postgres 17.12.
+
+The two E2E failures are ambiguous “Send me a ping now” selectors: each teacher now
+has two unfinished lessons. A patch to scope those selectors to the intended lesson
+is prepared, pending permission to edit the two web test files outside Pass H's
+ownership. The three-tap test therefore remains unverified by these runs. The full
+results, commands, repeated-check accounting and patch are recorded in
+`/workspace/tav-teacher-prompts/RESULTS.md`; these loops are **not all-green**.
+Native compilation/XCTest (Swift unavailable), real login, APNs, physical devices,
+hosted preview and cutover remain unrun. No production claim is made.
 
 ## Fresh database cutover
 
@@ -313,13 +357,13 @@ Old writes are frozen only at an approved switchover. Retain the old environment
 and an approved encrypted archive through the recovery window; deleting the old
 database ends that rollback path. No cutover is authorized or performed here.
 
-For a phone review link, see [preview-deploy.md](preview-deploy.md). Publishing the
-selectable-admin prototype unchanged is blocked; that guide
-identifies the protected preview adapter work and a local, fake-data alternative.
+For a phone review link, see [preview-deploy.md](preview-deploy.md). The access-code gate and explicit remote-preview opt-in are implemented; that
+guide records exact local commands, future hosting settings and the still-required
+throwaway database bootstrap. No preview is deployed by this pass.
 
 ## Open decisions for Edmund and TAVA
 
-1. Supply the original t466u brief and approve the stand-in copy.
+1. Approve the stand-in copy against the brief above.
 2. Confirm one accountable lead/substitute and read-only assistants.
 3. Try four prompts, three snoozes and the quiet-hours defaults; decide whether
    fewer reminders would help teachers more.
@@ -417,12 +461,14 @@ erDiagram
       text kind "unique lesson + kind"
       bigint revision
       timestamptz due_at
+      text status "pending / completed / cancelled / superseded"
     }
     notification_outbox {
       uuid id PK
       uuid plan_id FK
       uuid device_id FK "nullable for no devices"
       bigint plan_revision
+      text status "pending / claimed / sent / failed / cancelled / superseded"
       uuid lease_token
       timestamptz lease_until
     }
@@ -464,28 +510,38 @@ sequenceDiagram
     DB->>DB: Plan E-5, E, E+15, E+60, apply quiet hours
     loop Every minute while work is outstanding
         Worker->>DB: Refresh schedule, claim due work with lease
-        DB-->>Worker: IDs only, one stage per lesson per tick
-        Worker->>DB: Prepare with fresh clock and authority checks
+        DB-->>Worker: IDs only, one current stage, obsolete stages superseded
+        Worker->>DB: Prepare: authority, teacher window, current stage, device
         DB-->>Worker: Generic delivery input or suppress
         Note over Worker,Phone: Prototype records dry_run only, no real push
         Worker-->>Phone: Future APNs: generic reminder, lesson UUID
         Worker->>DB: Record acceptance / retry / permanent failure
     end
-    Phone->>Route: Take attendance, retain lesson destination
-    Route->>Route: Restore login, profile and unlock
+    Phone->>Route: Tap 1: Take attendance, retain lesson destination
+    Route->>Route: Web preview code gate, then identity, native auth/profile/unlock
     Route->>DB: lesson_for_prompt under current identity
     DB-->>Route: Authorized register, revisions and optional notes
     opt Still teaching
         Route->>DB: Confirm snooze 10 minutes, mutation UUID
         DB->>DB: Replan pending stages and deadline, max three snoozes
     end
-    Route->>DB: Mark missing rows, save optional feedback with revisions
-    Route->>DB: Explicit submit, both revisions and mutation UUID
+    alt Three-tap all-present path
+        Phone->>Route: Tap 2: All present, inspect confirmation
+        Phone->>Route: Tap 3: Confirm and submit
+        Route->>DB: confirm_all_present_and_submit, both revisions, mutation UUID
+        DB->>DB: Fill missing rows only, preserve late and absent
+    else Individual review
+        Route->>DB: Mark rows, save optional notes, explicit submit_lesson
+    end
     DB->>DB: Lock lesson, check complete, insert receipt, cancel pending work
     DB-->>Route: Submitted receipt (replay-safe)
     Admin->>DB: admin_missing_submissions
     DB-->>Admin: Ended-by-clock unsubmitted work, omit submitted lesson
     Note over DB,Phone: In-flight push can still arrive, reopening rechecks current state
+    opt Opt-out or sign-out
+        Route->>DB: unregister_device, original account installation
+        DB->>DB: Revoke devices, claim and prepare suppress delivery
+    end
 ```
 
 ### Derived lesson states
@@ -501,7 +557,7 @@ stateDiagram-v2
     in_progress --> submitted: explicit complete submission after start
     awaiting_attendance --> submitted: complete register + matching revisions
     awaiting_attendance --> overdue: effective final due + grace reached
-    overdue --> submitted: authorized late completion
+    overdue --> submitted: teacher within seven dates or admin
     scheduled --> cancelled: admin / calendar before work
     in_progress --> cancelled: admin
     awaiting_attendance --> cancelled: admin
@@ -520,6 +576,7 @@ stateDiagram-v2
       Ended lesson can still be reviewed.
     end note
     note right of submitted
+      Explicit submit or atomic all-present confirmation.
       Register and notes immutable.
       Submission is not child dismissal.
       No reopen or uncancel in prototype.
@@ -542,7 +599,8 @@ flowchart LR
     S["Remind me in 10<br/>At most three; capped at E+60<br/>Pending stages only; minimum 5-minute spacing"] -.-> B
     S -.-> F
     X["Submit / cancel<br/>Stop pending plans and delivery attempts"] -.-> C
-    N["Worker delay / no devices / retries<br/>Never extend overdue deadline<br/>At most one stage per lesson per tick"] -.-> G
+    N["Worker delay / no devices / retries<br/>Never extend overdue deadline<br/>Coalesce missed stages into one current request<br/>Older stages become superseded; heads-up expires at end"] -.-> G
+    W["Teacher dispatch window<br/>Start reached through seven Singapore dates<br/>Older work stays with admin, no teacher push"] -.-> N
 ```
 
 ### Preserving the lesson route
@@ -555,7 +613,10 @@ flowchart TD
     Link["User opens lesson UUID link / notification"] --> Parse{"Exact allowed host, scheme,<br/>path and UUID?"}
     Parse -->|No| Reject["Reject route without roster lookup"]
     Parse -->|Yes| Pending["Persist pending locator · TTL 24 hours<br/>No bearer credential"]
-    Pending --> Auth{"Identity restored,<br/>profile loaded, unlocked?"}
+    Pending --> Gate{"Web preview access required?"}
+    Gate -->|Yes| Code["Access code → signed eight-hour cookie<br/>Server checks routes and actions<br/>Fake identities only"]
+    Code --> Auth
+    Gate -->|No / already admitted| Auth{"Identity restored,<br/>profile loaded, unlocked?"}
     Auth -->|No| Login["Web: demo selector<br/>Future real login / native unlock"]
     Login --> Validate["Validate relative next again<br/>Never resume an external URL"]
     Validate --> Resolve
@@ -570,6 +631,7 @@ flowchart TD
     Action -->|No| Review["Review / submit explicitly"]
     Signout["Explicit sign-out<br/>Clear route, sensitive screen and actor actions"] -.-> Pending
     Change["Account change / expired session<br/>Clear actor actions; never replay old snooze<br/>New confirmation after authorized navigation"] -.-> Confirm
+    Revoke["Opt-out / sign-out: unregister_device<br/>Original account, bounded cleanup<br/>Re-opt-in registers after cleanup"] -.-> Signout
 ```
 
 ### Delivery, retries and suppression
@@ -580,16 +642,22 @@ flowchart TD
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
 flowchart TD
     Tick["Local timer / future reviewed scheduler"] --> Refresh["Refresh calendar and plans"]
+    Refresh -->|Generation failed: audit and continue existing work| Flag
     Refresh --> Flag{"teacher_prompts enabled?"}
     Flag -->|No| Stop["No claims"]
-    Flag -->|Yes| Claim["Lock lesson → plan → outbox → device<br/>SKIP LOCKED; due work; one stage per lesson"]
+    Flag -->|Yes| Window{"Started and within seven<br/>Singapore dates of start?"}
+    Window -->|Not started| Wait["Keep future plans pending"]
+    Window -->|Too old| Admin["Admin follow-up only; no teacher push"]
+    Window -->|Yes| Coalesce["Supersede obsolete stages<br/>Heads-up expires at lesson end<br/>Choose one meaningful stage"]
+    Coalesce --> Claim["Lock lesson → plan → outbox → device<br/>SKIP LOCKED; due work; one stage per lesson"]
     Claim --> Devices{"Eligible recent devices?"}
     Devices -->|None| Missing["Terminal no_devices<br/>Admin still sees outstanding lesson"]
     Devices -->|Newest five| Lease["Snapshot device IDs; unique outbox keys<br/>120-second lease; commit before network"]
-    Lease --> Prepare["Prepare each send with fresh clock<br/>Lease, revision, recipient, flags, lesson, device"]
+    Lease --> Prepare["Prepare each send with fresh clock<br/>Lease, revision, recipient, flags, lesson, device<br/>Teacher window and superseded stages again"]
     Prepare -->|Quiet hours| Quiet["Defer; release unused attempt<br/>No delivery log for unused attempt"]
     Quiet --> Tick
-    Prepare -->|Stale / completed / cancelled| Suppress["Suppress; never send"]
+    Prepare -->|Stale / completed / cancelled / revoked| Suppress["Suppress; never send"]
+    Prepare -->|Later stage due or heads-up expired| Superseded["Terminal superseded; no reopen<br/>Clear lease; retain sent and failed history<br/>Claim without receipt: unknown outcome"]
     Prepare -->|Valid| Mode{"Delivery mode"}
     Mode -->|Demo only| Dry["DryRunSender<br/>No network; provider ID = outbox ID"]
     Mode -->|Future separately authorized| APNs["APNs HTTP/2 · generic payload<br/>10-second timeout; stable ID; lesson collapse ID"]
@@ -600,4 +668,5 @@ flowchart TD
     Retry --> Tick
     Ack -->|Permanent / exhausted| Failed["Terminal failed; normalized code only<br/>410 / BadDeviceToken: revoke matching token version"]
     Crash["Lease expired / crash after acceptance<br/>Unknown outcome; retry may duplicate push"] -.-> Retry
+    OptOut["Opt-out / sign-out<br/>unregister_device for original account installation"] -.-> Prepare
 ```

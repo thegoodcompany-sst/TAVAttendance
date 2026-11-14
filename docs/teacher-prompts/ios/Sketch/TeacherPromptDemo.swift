@@ -1,6 +1,7 @@
 // In-memory demonstration of registrar injection. No Supabase or APNs transport.
 #if canImport(UIKit) && canImport(UserNotifications)
 import Foundation
+import PromptRouter
 
 @MainActor
 final class FakeTeacherSessionRPC: TeacherSessionRPC {
@@ -18,7 +19,7 @@ final class FakeTeacherSessionRPC: TeacherSessionRPC {
             registrationCount += 1
             object = ["device_id": "50000000-0000-4000-8000-000000000001",
                       "last_seen_at": "2027-01-07T13:05:00Z", "environment": "sandbox"]
-        case "revoke_device":
+        case "unregister_device":
             revocationCount += 1
             object = ["revoked": true]
         default: throw Failure.unexpectedRPC

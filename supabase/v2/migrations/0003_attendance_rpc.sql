@@ -126,6 +126,22 @@ BEGIN
  INSERT INTO public.lesson_submissions(lesson_id,register_revision,feedback_revision,submitted_by,submitted_at,mutation_id) VALUES(l.id,l.register_revision,rev,auth.uid(),clock_timestamp(),p_mutation_id) RETURNING * INTO s;
  RETURN public.mutation_finish(l.id,p_mutation_id,'submit_lesson',args,jsonb_build_object('lesson_id',l.id,'submission_id',s.id,'submitted_at',s.submitted_at,'register_revision',l.register_revision::text));
 END $$;
+CREATE FUNCTION public.confirm_all_present_and_submit(p_lesson_id uuid,p_expected_revision bigint,p_expected_feedback_revision bigint,p_mutation_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+DECLARE args jsonb:=jsonb_build_array(p_expected_revision,p_expected_feedback_revision); result jsonb; l public.lessons; s public.lesson_submissions; rev bigint; n int;
+BEGIN
+ result:=public.mutation_begin(p_lesson_id,p_mutation_id,'confirm_all_present_and_submit',args); IF result IS NOT NULL THEN RETURN result; END IF;
+ PERFORM public.require_editable(p_lesson_id);
+ SELECT * INTO l FROM public.lessons WHERE id=p_lesson_id;
+ SELECT coalesce((SELECT revision FROM public.lesson_feedback WHERE lesson_id=p_lesson_id),0) INTO rev;
+ IF p_expected_revision IS DISTINCT FROM l.register_revision OR p_expected_feedback_revision IS DISTINCT FROM rev THEN RAISE EXCEPTION 'TP_CONFLICT' USING ERRCODE='P0001'; END IF;
+ INSERT INTO public.attendance_records(lesson_id,student_id,status,marked_by,marked_at,mutation_id)
+ SELECT l.id,r.student_id,'present',auth.uid(),clock_timestamp(),p_mutation_id FROM public.lesson_roster r WHERE lesson_id=l.id ON CONFLICT DO NOTHING;
+ GET DIAGNOSTICS n=ROW_COUNT;
+ IF n>0 THEN UPDATE public.lessons SET register_revision=register_revision+1,updated_at=clock_timestamp() WHERE id=l.id RETURNING * INTO l; END IF;
+ IF (NOT public.is_admin() AND NOT EXISTS(SELECT FROM public.lesson_roster WHERE lesson_id=l.id)) OR EXISTS(SELECT FROM public.lesson_roster r WHERE lesson_id=l.id AND NOT EXISTS(SELECT FROM public.attendance_records a WHERE a.lesson_id=r.lesson_id AND a.student_id=r.student_id)) THEN RAISE EXCEPTION 'TP_INCOMPLETE' USING ERRCODE='P0001'; END IF;
+ INSERT INTO public.lesson_submissions(lesson_id,register_revision,feedback_revision,submitted_by,submitted_at,mutation_id) VALUES(l.id,l.register_revision,rev,auth.uid(),clock_timestamp(),p_mutation_id) RETURNING * INTO s;
+ RETURN public.mutation_finish(l.id,p_mutation_id,'confirm_all_present_and_submit',args,jsonb_build_object('lesson_id',l.id,'submission_id',s.id,'submitted_at',s.submitted_at,'register_revision',l.register_revision::text));
+END $$;
 CREATE FUNCTION public.require_admin_lesson(p_id uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 BEGIN
  PERFORM id FROM public.lessons WHERE id=p_id FOR UPDATE;
@@ -140,6 +156,7 @@ BEGIN
  SELECT * INTO l FROM public.lessons WHERE id=p_lesson_id;
  IF l.cancelled_at IS NOT NULL OR l.started_at IS NOT NULL OR l.scheduled_start_at<=clock_timestamp() OR public.lesson_has_work(l.id) THEN RAISE EXCEPTION 'TP_LOCKED' USING ERRCODE='P0001'; END IF;
  IF p_start_at IS NULL OR p_end_at IS NULL OR p_start_at<=clock_timestamp() OR p_end_at<=p_start_at OR p_end_at>p_start_at+interval '4 hours' THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='22023'; END IF;
+ IF EXISTS(SELECT FROM public.calendar_exceptions WHERE (class_id IS NULL OR class_id=l.class_id) AND (p_start_at AT TIME ZONE 'Asia/Singapore')::date BETWEEN starts_on AND ends_on) THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='22023'; END IF;
  UPDATE public.lessons SET scheduled_start_at=p_start_at,scheduled_end_at=p_end_at,schedule_overridden=true,plan_revision=plan_revision+1,updated_at=clock_timestamp() WHERE id=l.id;
  PERFORM public.refresh_roster(l.id,(p_start_at AT TIME ZONE 'Asia/Singapore')::date);
  INSERT INTO public.audit_events(actor_id,lesson_id,event_code) VALUES(auth.uid(),l.id,'rescheduled');
@@ -181,6 +198,6 @@ BEGIN
  FROM public.lessons l JOIN public.classes c ON c.id=l.class_id WHERE NOT c.is_study_space AND l.cancelled_at IS NULL AND l.scheduled_end_at<=now() AND (l.scheduled_start_at AT TIME ZONE 'Asia/Singapore')::date BETWEEN p_from AND p_until AND NOT EXISTS(SELECT FROM public.lesson_submissions WHERE lesson_id=l.id);
  RETURN jsonb_build_object('server_now',now(),'from',p_from,'until',p_until,'lessons',rows);
 END $$;
-GRANT EXECUTE ON FUNCTION public.my_lessons_today(date),public.lesson_for_prompt(uuid),public.mark_attendance(uuid,uuid,text,boolean,timestamptz,bigint,uuid),public.mark_all_present(uuid,bigint,uuid),public.save_feedback(uuid,text,bigint,uuid),public.submit_lesson(uuid,bigint,bigint,uuid),public.admin_missing_submissions(date,date),public.edit_lesson(uuid,timestamptz,timestamptz),public.assign_lesson_teacher(uuid,uuid,boolean),public.cancel_lesson(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.my_lessons_today(date),public.lesson_for_prompt(uuid),public.mark_attendance(uuid,uuid,text,boolean,timestamptz,bigint,uuid),public.mark_all_present(uuid,bigint,uuid),public.save_feedback(uuid,text,bigint,uuid),public.submit_lesson(uuid,bigint,bigint,uuid),public.confirm_all_present_and_submit(uuid,bigint,bigint,uuid),public.admin_missing_submissions(date,date),public.edit_lesson(uuid,timestamptz,timestamptz),public.assign_lesson_teacher(uuid,uuid,boolean),public.cancel_lesson(uuid) TO authenticated;
 NOTIFY pgrst,'reload schema';
 COMMIT;

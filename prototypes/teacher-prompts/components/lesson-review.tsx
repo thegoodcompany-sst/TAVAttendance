@@ -7,6 +7,7 @@ import { s } from "@/lib/strings";
 import { day, time, localInput } from "@/lib/format";
 import type { Detail, Student, Status } from "@/lib/types";
 import type { Rpc } from "@/lib/rpc";
+import { ConfirmDialog } from "./confirm-dialog";
 import { NotificationBanner } from "./notification-banner";
 export function LessonReview({
   initial,
@@ -19,11 +20,14 @@ export function LessonReview({
   const [draft, setDraft] = useState(initial.feedback.body);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  const [confirmAll, setConfirmAll] = useState(false);
+  const [confirmAll, setConfirmAll] = useState<"submit" | "mark" | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [notification, setNotification] = useState(false);
   const lesson = data.lesson;
   const remaining = lesson.roster_count - lesson.marked_count;
+  const alreadyMarked = data.roster.filter(
+    (row) => row.status === "late" || row.status === "absent",
+  ).length;
   const dirty = draft !== data.feedback.body;
   function run(name: Rpc, args: Record<string, unknown>, success?: () => void) {
     setMessage("");
@@ -163,44 +167,64 @@ export function LessonReview({
             <p className="muted small">{s.cycleHint}</p>
             <button
               className="quiet full"
-              disabled={pending || remaining === 0}
-              onClick={() => setConfirmAll(true)}
+              disabled={pending || dirty}
+              onClick={() => {
+                setMessage("");
+                setConfirmAll("submit");
+              }}
             >
               {s.allPresent}
+            </button>
+            <button
+              className="text-button full"
+              disabled={pending || remaining === 0}
+              onClick={() => {
+                setMessage("");
+                setConfirmAll("mark");
+              }}
+            >
+              {s.markPresentOnly}
             </button>
           </>
         ) : (
           <p className="muted">{s.readOnly}</p>
         )}
         {confirmAll && (
-          <section
-            className="notice stack"
-            role="dialog"
-            aria-label={s.confirmAll}
+          <ConfirmDialog
+            title={confirmAll === "submit" ? s.confirmAllSubmit : s.confirmAll}
+            pending={pending}
+            confirmLabel={
+              confirmAll === "submit" ? s.confirmAndSubmit : s.confirm
+            }
+            onCancel={() => setConfirmAll(null)}
+            onConfirm={() =>
+              run(
+                confirmAll === "submit"
+                  ? "confirm_all_present_and_submit"
+                  : "mark_all_present",
+                {
+                  p_expected_revision: lesson.register_revision,
+                  ...(confirmAll === "submit"
+                    ? { p_expected_feedback_revision: data.feedback.revision }
+                    : {}),
+                  p_mutation_id: mutation(),
+                },
+                () => {
+                  setConfirmAll(null);
+                  setNotification(false);
+                },
+              )
+            }
           >
-            <strong>{s.confirmAll}</strong>
+            <p>
+              {s.presentSummary(
+                lesson.roster_count - alreadyMarked,
+                alreadyMarked,
+              )}
+            </p>
             <p>{s.confirmAllHelp}</p>
-            <div className="row">
-              <button
-                disabled={pending}
-                onClick={() =>
-                  run(
-                    "mark_all_present",
-                    {
-                      p_expected_revision: lesson.register_revision,
-                      p_mutation_id: mutation(),
-                    },
-                    () => setConfirmAll(false),
-                  )
-                }
-              >
-                {s.confirm}
-              </button>
-              <button className="quiet" onClick={() => setConfirmAll(false)}>
-                {s.cancel}
-              </button>
-            </div>
-          </section>
+            {message && <p role="status">{message}</p>}
+          </ConfirmDialog>
         )}
         <ul className="roster">
           {data.roster.map((student, index) => (
@@ -390,29 +414,24 @@ export function LessonReview({
           <button
             className="quiet full"
             disabled={pending}
-            onClick={() => setConfirmCancel(true)}
+            onClick={() => {
+              setMessage("");
+              setConfirmCancel(true);
+            }}
           >
             {s.cancelLesson}
           </button>
           {confirmCancel && (
-            <div
-              className="notice stack"
-              role="dialog"
-              aria-label={s.confirmCancel}
+            <ConfirmDialog
+              title={s.confirmCancel}
+              pending={pending}
+              onCancel={() => setConfirmCancel(false)}
+              onConfirm={() =>
+                run("cancel_lesson", {}, () => setConfirmCancel(false))
+              }
             >
-              <strong>{s.confirmCancel}</strong>
-              <button
-                disabled={pending}
-                onClick={() =>
-                  run("cancel_lesson", {}, () => setConfirmCancel(false))
-                }
-              >
-                {s.confirm}
-              </button>
-              <button className="quiet" onClick={() => setConfirmCancel(false)}>
-                {s.cancel}
-              </button>
-            </div>
+              {message && <p role="status">{message}</p>}
+            </ConfirmDialog>
           )}
         </details>
       )}

@@ -36,7 +36,10 @@ are needed. User-facing stand-in copy is in `_shared/prompt-strings.ts`.
   `dry_run`; incompatible SQL delivery mode fails closed.
 - `teacher-prompt-dispatch/local.ts`: isolated local worker, once or every sixty
   seconds, with clean SIGINT/SIGTERM shutdown and count-only stdout. It calls
-  `refresh_prompt_schedule` before each tick. No schema installation on startup.
+  `refresh_prompt_schedule` before each tick. Generation errors are audited in SQL;
+  a failed refresh transaction reports only a fixed string, then dispatch proceeds.
+  One bounded refresh attempt per minute provides retries without stopping the worker.
+  No schema installation on startup.
 
 Provider classifications: 410 → `unregistered` and invalidate; 400 BadDeviceToken
 → `bad_device_token` and invalidate; other 4xx → permanent `bad_request` or
@@ -66,27 +69,21 @@ The standard run is offline and uses an in-memory adapter with the contract wire
 shapes. Scheduler behavior in that double proves dispatcher orchestration, not
 SQL correctness. Integration tests are skipped unless explicitly opted in.
 
-For Pass B only, create **tp_b** on the assigned local Postgres 17 server, then
-apply the complete fresh chain and canonical seed (do not apply to an existing
-schema). These commands never inspect other databases or credentials:
+Supply the supervisor-assigned database explicitly; G1 uses `tp_g1`. From the repo
+root (the SQL runner recreates ONLY the named local database):
 
 ```sh
-createdb -h localhost -p 55432 -U postgres tp_b
-psql -X -h localhost -p 55432 -U postgres -d tp_b -v ON_ERROR_STOP=1 \
-  -f supabase/v2/local/supabase_shim.sql \
-  -f supabase/v2/migrations/0001_core.sql \
-  -f supabase/v2/migrations/0002_calendar.sql \
-  -f supabase/v2/migrations/0003_attendance_rpc.sql \
-  -f supabase/v2/migrations/0004_prompt_scheduler.sql \
-  -f supabase/v2/seed/demo_week.sql
-TEACHER_PROMPTS_RUN_INTEGRATION=1 bun test supabase/v2/functions/tests
+supabase/v2/tests/run.sh tp_g1 UTC
+TP_DB=tp_g1 TEACHER_PROMPTS_RUN_INTEGRATION=1 bun --no-env-file test supabase/v2/functions/tests
 ```
 
-Integration hardcodes `tp_b`, requires canonical unshifted demo fixtures, uses a
-dedicated fake lesson, and restores canonical plan/device state afterward. Run
-without another worker using that database. It covers actual receipts, retry
-pacing, submission hook suppression, quiet hours, stale leases, concurrent claims,
-version-safe invalidation, flags, no devices, and sanitized database error codes.
+Integration requires `TP_DB` matching `^tp_[a-z0-9_]+$` (at most 63 characters),
+constructs only the exact passwordless localhost:55432 URL, and never falls back to
+another pass's DB or a generic connection variable. It requires canonical unshifted
+demo fixtures, creates a dedicated fake lesson, and restores plan/device state.
+Run without another worker using that database. It covers actual receipts, retries,
+submission suppression, quiet hours, stale leases, concurrent claims, version-safe
+invalidation, flags, no devices, sanitized codes, coalesced recovery and opt-out.
 The submission-race fixture inserts a submission as the local owner to test the
 dispatch hook; A's role/attendance suites own user-facing submission authorization.
 
@@ -96,8 +93,8 @@ After shim/migrations/seed, from the repository root:
 
 ```sh
 TEACHER_PROMPTS_DEMO=1 \
-TEACHER_PROMPTS_DB_NAME=tp_b \
-TEACHER_PROMPTS_DATABASE_URL=postgresql://postgres@localhost:55432/tp_b \
+TEACHER_PROMPTS_DB_NAME=tp_g1 \
+TEACHER_PROMPTS_DATABASE_URL=postgresql://postgres@localhost:55432/tp_g1 \
 bun supabase/v2/functions/teacher-prompt-dispatch/local.ts --once --now 2027-01-07T13:05:00Z
 ```
 
@@ -110,7 +107,7 @@ This environment's `bun` command is a shell wrapper: a supervisor must signal th
 actual Bun child or its process group, not only that wrapper's PID. The worker
 itself exits with code 0 on both SIGINT and SIGTERM.
 
-## Verification recorded for this pass
+## Historical Pass B verification (before Revision 1.1)
 
 - Fresh shim + four migrations + seed replay in `tp_b`: passed.
 - Combined Bun run with integration enabled: **89 passed, 0 failed, 0 skipped**
@@ -146,3 +143,11 @@ remain unrun. No production-state or delivery-readiness claim is made.
 
 Pass B documentation is kept here because the task forbids edits to root release
 documents. No commits, pushes, branches, PRs, deployments, or remote DB calls.
+
+## Revision 1.1 G1 verification
+
+`TP_DB=tp_g1 TEACHER_PROMPTS_RUN_INTEGRATION=1 bun --no-env-file test supabase/v2/functions/tests`
+passed twice: **92 passed, 0 failed, 0 skipped** each (77 unit + 15 local integration).
+`bun --no-env-file run typecheck` passed. Both runs used only the assigned local
+Postgres and dry-run/injected senders. Database regressions and exact replay commands
+are recorded in [tests/README.md](../tests/README.md).

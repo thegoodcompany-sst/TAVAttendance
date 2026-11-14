@@ -1,3 +1,4 @@
+import { ensureDemoDatabase } from "@/lib/db";
 import type { Metadata } from "next";
 import { s } from "@/lib/strings";
 import "./globals.css";
@@ -6,7 +7,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 export const dynamic = "force-dynamic";
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default async function Layout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  await ensureDemoDatabase();
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

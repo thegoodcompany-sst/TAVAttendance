@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { RpcPromptDb, type WorkerRpc } from "./prompt-db.ts";
 
 export function localDatabaseConfig(rawUrl: string | undefined, assignedName: string | undefined) {
-  if (!assignedName || !/^[a-z][a-z0-9_]{0,62}$/.test(assignedName) ||
+  if (!assignedName || !/^tp_[a-z0-9_]{1,60}$/.test(assignedName) ||
     ["postgres", "template0", "template1"].includes(assignedName) ||
     rawUrl !== `postgresql://postgres@localhost:55432/${assignedName}`) {
     throw new Error("TP_LOCAL_DATABASE_REQUIRED");

@@ -31,15 +31,15 @@ DO $$ DECLARE a uuid; b uuid; rev bigint; times timestamptz[]; BEGIN
 END $$;
 -- Cancel seed plans that policy updates intentionally replanned.
 UPDATE public.notification_plans SET status='cancelled';
-DO $$ DECLARE l uuid; n timestamptz:='2027-01-07 20:55+08'; c record; c2 record; delivery jsonb; deadline timestamptz; total int; BEGIN
+DO $$ DECLARE l uuid; n timestamptz:='2027-01-07 21:00+08'; c record; c2 record; delivery jsonb; deadline timestamptz; total int; BEGIN
  l:=pg_temp.fixture('Demo Scheduler Leases','2027-01-07 19:00+08','2027-01-07 21:00+08');
  SELECT overdue_at INTO deadline FROM public.lessons WHERE id=l;
  SET LOCAL ROLE service_role;
  SELECT * INTO c FROM public.scheduler_tick(n,50) WHERE lesson_id=l;
- PERFORM pg_temp.ok(c.attempt_no=1 AND c.kind='heads_up' AND c.lease_until=n+interval '120 seconds','scheduler first claim shape');
+ PERFORM pg_temp.ok(c.attempt_no=1 AND c.kind='attendance' AND c.lease_until=n+interval '120 seconds','scheduler first claim shape');
  PERFORM pg_temp.ok((SELECT count(*)=0 FROM public.scheduler_tick(n,50)),'scheduler double tick does not duplicate');
  delivery:=public.prepare_prompt_delivery(c.outbox_id,c.lease_token,n);
- PERFORM pg_temp.ok(delivery->>'mode'='dry_run' AND delivery->>'collapse_id'='tp:'||l AND (delivery->>'expires_at')::timestamptz='2027-01-07 21:00+08','scheduler prepared bounded dry-run input');
+ PERFORM pg_temp.ok(delivery->>'mode'='dry_run' AND delivery->>'collapse_id'='tp:'||l AND (delivery->>'expires_at')::timestamptz='2027-01-07 21:15+08','scheduler prepared bounded dry-run input');
  PERFORM pg_temp.ok(public.mark_prompt_failed(c.outbox_id,c.lease_token,'timeout',true,false,n),'scheduler retry first attempt');
  PERFORM pg_temp.ok((SELECT available_at=n+interval '1 minute' AND status='pending' FROM public.notification_outbox WHERE id=c.outbox_id),'scheduler first retry one minute');
  SELECT * INTO c2 FROM public.scheduler_tick(n+interval '1 minute',50) WHERE lesson_id=l;
@@ -72,7 +72,7 @@ DO $$ DECLARE l uuid; n timestamptz:='2027-01-07 20:55+08'; c record; c2 record;
  RESET ROLE; PERFORM public.cancel_prompt_work(l,'test');
 END $$;
 DO $$ DECLARE l uuid; n timestamptz:='2027-01-07 21:59:30+08'; c record; c2 record; deadline timestamptz; BEGIN
- l:=pg_temp.fixture('Demo Scheduler Quiet Prepare','2027-01-07 20:00+08','2027-01-07 22:00+08');
+ l:=pg_temp.fixture('Demo Scheduler Quiet Prepare','2027-01-07 20:00+08','2027-01-07 21:50+08');
  SELECT overdue_at INTO deadline FROM public.lessons WHERE id=l;
  SET LOCAL ROLE service_role;
  SELECT * INTO c FROM public.scheduler_tick(n,50) WHERE lesson_id=l;
@@ -82,7 +82,7 @@ DO $$ DECLARE l uuid; n timestamptz:='2027-01-07 21:59:30+08'; c record; c2 reco
  PERFORM pg_temp.ok(NOT EXISTS(SELECT FROM public.notification_deliveries WHERE outbox_id=c.outbox_id),'scheduler unused attempt not logged');
  PERFORM pg_temp.ok((SELECT count(*)=0 FROM public.scheduler_tick('2027-01-07 22:01+08',50)),'scheduler quiet retry never claims');
  SELECT * INTO c2 FROM public.scheduler_tick('2027-01-08 09:00+08',50) WHERE lesson_id=l;
- PERFORM pg_temp.ok(c2.outbox_id=c.outbox_id AND c2.attempt_no=1,'scheduler quiet work retained next morning');
+ PERFORM pg_temp.ok(c2.kind='follow_up' AND c2.attempt_no=1 AND (SELECT status='superseded' FROM public.notification_outbox WHERE id=c.outbox_id),'scheduler quiet recovery coalesces to meaningful stage');
  PERFORM pg_temp.ok((SELECT overdue_at=deadline FROM public.lessons WHERE id=l),'scheduler quiet worker delay keeps deadline');
  RESET ROLE; PERFORM public.cancel_prompt_work(l,'test');
 END $$;
@@ -92,7 +92,7 @@ DO $$ DECLARE l uuid; n timestamptz:='2027-01-08 10:00+08'; c record; deadline t
  SET LOCAL ROLE service_role;
  SELECT * INTO c FROM public.scheduler_tick(n,50) WHERE lesson_id=l;
  PERFORM pg_temp.ok((SELECT count(*)=1 FROM public.notification_outbox WHERE plan_id IN (SELECT id FROM public.notification_plans WHERE lesson_id=l)),'scheduler delayed tick materializes only one stage');
- PERFORM pg_temp.ok((SELECT array_agg(due_at ORDER BY due_at)=ARRAY[n+interval '5 minutes',n+interval '10 minutes',n+interval '15 minutes'] FROM public.notification_plans WHERE lesson_id=l AND id<>c.plan_id),'scheduler delayed stages paced without burst');
+ PERFORM pg_temp.ok(c.kind='final' AND (SELECT count(*)=3 FROM public.notification_plans WHERE lesson_id=l AND status='superseded'),'scheduler delayed stages superseded without burst');
  PERFORM pg_temp.ok((SELECT overdue_at=deadline FROM public.lessons WHERE id=l),'scheduler delayed stages do not extend overdue');
  RESET ROLE; PERFORM public.cancel_prompt_work(l,'test');
 END $$;
@@ -217,7 +217,7 @@ DO $$ DECLARE l uuid; c record; n timestamptz:='2027-01-07 21:59:30+08'; BEGIN
  PERFORM pg_temp.ok((SELECT available_at='2027-01-08 09:00+08' FROM public.notification_outbox WHERE id=c.outbox_id),'scheduler retry crossing quiet hours deferred');
  RESET ROLE; PERFORM public.cancel_prompt_work(l,'test');
 END $$;
-DO $$ DECLARE l uuid; n timestamptz:='2027-01-07 20:55+08'; c record; BEGIN
+DO $$ DECLARE l uuid; n timestamptz:='2027-01-07 21:00+08'; c record; BEGIN
  l:=pg_temp.fixture('Demo Scheduler Expired Exhaustion','2027-01-07 19:00+08','2027-01-07 21:00+08');
  SET LOCAL ROLE service_role;
  SELECT * INTO c FROM public.scheduler_tick(n,50) WHERE lesson_id=l;

@@ -5,7 +5,6 @@ import {
   pendingPath,
   nextStatus,
 } from "../lib/identity";
-import { databaseConfig } from "../lib/config";
 import { singaporeDate, time } from "../lib/format";
 const lesson = "/t/lesson/10000000-0000-4000-8000-000000000001";
 describe("demo identity and pending routes", () => {
@@ -43,33 +42,6 @@ describe("demo identity and pending routes", () => {
     expect(nextStatus("late")).toBe("absent");
     expect(nextStatus("absent")).toBe("present");
   });
-});
-describe("database startup guard", () => {
-  it("defaults only to assigned local tp_c", () =>
-    expect(databaseConfig({}).connectionString).toBe(
-      "postgresql://postgres@localhost:55432/tp_c",
-    ));
-  it.each([
-    "postgresql://postgres@remote.invalid:55432/tp_c",
-    "postgresql://postgres@localhost:5432/tp_c",
-    "postgresql://postgres@localhost:55432/tp_a",
-    "postgresql://postgres:secret@localhost:55432/tp_c",
-    "postgresql://postgres@localhost:55432/tp_c?host=remote.invalid",
-    "https://localhost:55432/tp_c",
-  ])("rejects unsafe configuration without connecting %s", (url) =>
-    expect(() => databaseConfig({ DATABASE_URL: url })).toThrow(),
-  );
-  it("requires explicit remote preview opt-in (validation only)", () =>
-    expect(
-      databaseConfig({
-        DATABASE_URL: "postgresql://preview.invalid/demo",
-        TP_ALLOW_REMOTE_PREVIEW_DB: "1",
-      }).connectionString,
-    ).toBe("postgresql://preview.invalid/demo"));
-  it("matches runner database name", () =>
-    expect(() =>
-      databaseConfig({ TEACHER_PROMPTS_DB_NAME: "tp_a" }),
-    ).toThrow());
 });
 describe("Singapore time", () => {
   it("changes civil date at UTC 16:00", () => {

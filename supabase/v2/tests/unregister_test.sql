@@ -1,0 +1,67 @@
+\set ON_ERROR_STOP on
+BEGIN;
+\ir helpers.sql
+UPDATE public.notification_plans SET status='cancelled';
+DO $$ DECLARE l uuid; c record; installation uuid; old_revoked timestamptz; r jsonb; BEGIN
+ SELECT installation_id INTO installation FROM public.teacher_devices WHERE id='80000000-0000-4000-8000-000000000011';
+ l:=pg_temp.fixture('Demo Opt Out','2027-01-07 19:00+08','2027-01-07 21:00+08');
+ SET LOCAL ROLE service_role;
+ SELECT * INTO c FROM public.scheduler_tick('2027-01-07 21:05+08',50) WHERE lesson_id=l;
+ RESET ROLE;
+ PERFORM pg_temp.claims('10000000-0000-4000-8000-000000000012'); SET LOCAL ROLE authenticated;
+ PERFORM pg_temp.ok(public.unregister_device(installation)='{"revoked":true}'::jsonb AND public.unregister_device(gen_random_uuid())='{"revoked":true}'::jsonb,'unregister foreign and missing installation indistinguishable');
+ RESET ROLE;
+ PERFORM pg_temp.ok((SELECT revoked_at IS NULL FROM public.teacher_devices WHERE id=c.device_id),'unregister cannot revoke another account');
+ PERFORM pg_temp.claims('10000000-0000-4000-8000-000000000011'); SET LOCAL ROLE authenticated;
+ r:=public.unregister_device(installation);
+ PERFORM pg_temp.ok(r='{"revoked":true}'::jsonb,'unregister own installation returns no device material');
+ RESET ROLE;
+ SELECT revoked_at INTO old_revoked FROM public.teacher_devices WHERE id=c.device_id;
+ SET LOCAL ROLE authenticated;
+ PERFORM public.unregister_device(installation);
+ RESET ROLE;
+ PERFORM pg_temp.ok((SELECT revoked_at=old_revoked FROM public.teacher_devices WHERE id=c.device_id),'unregister replay retains revocation timestamp');
+ SET LOCAL ROLE service_role;
+ PERFORM pg_temp.ok(public.prepare_prompt_delivery(c.outbox_id,c.lease_token,'2027-01-07 21:05+08') IS NULL,'unregister after claim suppresses worker immediately');
+ PERFORM pg_temp.ok((SELECT count(*)=0 FROM public.scheduler_tick('2027-01-07 21:15+08',50) WHERE lesson_id=l),'unregister before next claim prevents materializing device');
+ RESET ROLE;
+ SET LOCAL ROLE authenticated;
+ PERFORM public.register_device(installation,repeat('d4',32),'sandbox');
+ RESET ROLE;
+ PERFORM pg_temp.ok((SELECT revoked_at IS NULL FROM public.teacher_devices WHERE id=c.device_id),'unregister explicit re-opt-in can register again');
+ PERFORM public.cancel_prompt_work(l,'test');
+ l:=pg_temp.fixture('Demo Opt Out Retry','2027-01-07 19:00+08','2027-01-07 21:00+08');
+ SET LOCAL ROLE service_role;
+ SELECT * INTO c FROM public.scheduler_tick('2027-01-07 21:05+08',50) WHERE lesson_id=l;
+ PERFORM public.prepare_prompt_delivery(c.outbox_id,c.lease_token,'2027-01-07 21:05+08');
+ PERFORM public.mark_prompt_failed(c.outbox_id,c.lease_token,'timeout',true,false,'2027-01-07 21:05+08');
+ RESET ROLE; SET LOCAL ROLE authenticated;
+ PERFORM public.unregister_device(installation);
+ RESET ROLE; SET LOCAL ROLE service_role;
+ PERFORM pg_temp.ok((SELECT count(*)=0 FROM public.scheduler_tick('2027-01-07 21:06+08',50) WHERE lesson_id=l),'unregister existing retry snapshot never reclaimed');
+ PERFORM pg_temp.ok((SELECT status='cancelled' AND attempt_count=1 FROM public.notification_outbox WHERE id=c.outbox_id),'unregister retry retains history without extra attempt');
+ RESET ROLE;
+ UPDATE public.feature_flags SET enabled=false WHERE key='teacher_prompts';
+ SET LOCAL ROLE authenticated;
+ PERFORM pg_temp.ok(public.unregister_device(installation)->>'revoked'='true','unregister permitted while feature disabled');
+ PERFORM pg_temp.throws('SELECT public.unregister_device(NULL)','TP_INVALID_INPUT','unregister requires installation');
+ PERFORM pg_temp.claims('');
+ PERFORM pg_temp.throws(format('SELECT public.unregister_device(%L)',installation),'TP_NOT_AVAILABLE','unregister missing identity denied');
+ RESET ROLE;
+ SET LOCAL ROLE anon;
+ PERFORM pg_temp.throws(format('SELECT public.unregister_device(%L)',installation),'42501','unregister anonymous execute denied');
+ RESET ROLE;
+END $$;
+DO $$ DECLARE teacher uuid:=gen_random_uuid(); installation uuid:=gen_random_uuid(); BEGIN
+ INSERT INTO auth.users(id) VALUES(teacher);
+ INSERT INTO public.profiles(id,display_name,role) VALUES(teacher,'Demo Opt Out Inactive','teacher');
+ INSERT INTO public.teacher_devices(user_id,installation_id,token,environment,last_seen_at) VALUES
+ (teacher,installation,repeat('d6',32),'sandbox',now()),(teacher,installation,repeat('d7',32),'production',now());
+ UPDATE public.profiles SET active=false WHERE id=teacher;
+ SET CONSTRAINTS ALL IMMEDIATE;
+ PERFORM pg_temp.claims(teacher::text); SET LOCAL ROLE authenticated;
+ PERFORM pg_temp.ok(public.unregister_device(installation)->>'revoked'='true','unregister inactive original account can opt out');
+ RESET ROLE;
+ PERFORM pg_temp.ok((SELECT count(*)=2 AND bool_and(revoked_at IS NOT NULL) FROM public.teacher_devices WHERE user_id=teacher),'unregister installation revokes both environments');
+END $$;
+ROLLBACK;

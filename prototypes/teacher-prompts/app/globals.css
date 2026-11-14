@@ -676,3 +676,15 @@ footer {
 .card-preview {
   padding: 2px 12px 8px;
 }
+
+.confirm-sheet {
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+}
+.confirm-sheet::backdrop { background: #0f172a99; }

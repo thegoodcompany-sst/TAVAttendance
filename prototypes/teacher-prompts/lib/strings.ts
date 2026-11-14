@@ -1,4 +1,7 @@
 export const s = {
+  previewAccess: "Enter preview",
+  accessCode: "Access code",
+  invalidAccessCode: "Check the access code.",
   title: "TAVA · Teacher prompts",
   brand: "TAVA",
   demo: "Demo · fake data",
@@ -30,7 +33,12 @@ export const s = {
   informed: "Informed absence",
   clear: "Clear",
   cycleHint: "Tap a status to change it. Clear returns it to Not Here Yet.",
-  allPresent: "Mark remaining present",
+  allPresent: "All present",
+  markPresentOnly: "Mark present without submitting",
+  confirmAndSubmit: "Confirm and submit",
+  confirmAllSubmit: "Review and submit?",
+  presentSummary: (present: number, marked: number) =>
+    `${present} present, ${marked} already marked late/absent`,
   confirmAll: "Mark all unmarked students present?",
   confirmAllHelp: "Existing late and absent marks stay as they are.",
   confirm: "Confirm",

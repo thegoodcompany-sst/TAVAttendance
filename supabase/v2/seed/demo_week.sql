@@ -53,12 +53,18 @@ BEGIN
  INSERT INTO public.demo_seed_state VALUES(true,'2027-01-07');
 END $$;
 CREATE OR REPLACE FUNCTION public.demo_shift_to_today() RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE anchor date; today date:=(clock_timestamp() AT TIME ZONE 'Asia/Singapore')::date; days int; delta interval; l record;
+DECLARE anchor date; demo_now timestamptz:=clock_timestamp(); today date:=(demo_now AT TIME ZONE 'Asia/Singapore')::date;
+ days int; delta interval; l record; teacher_no int; scenario int; teacher_id uuid; demo_class_id uuid; demo_lesson_id uuid;
+ midnight timestamptz:=today::timestamp AT TIME ZONE 'Asia/Singapore';
+ rounded_now timestamptz:=date_bin(interval '5 minutes',demo_now,timestamptz '2000-01-01 00:00+08');
+ current_start timestamptz; current_end timestamptz; earlier_span interval; slot int; slot_start timestamptz; slot_end timestamptz;
 BEGIN
  IF NOT EXISTS(SELECT FROM public.runtime_settings WHERE demo_enabled) THEN RAISE EXCEPTION 'TP_NOT_AVAILABLE' USING ERRCODE='42501'; END IF;
  SELECT anchor_date INTO STRICT anchor FROM public.demo_seed_state WHERE id FOR UPDATE;
  days:=today-anchor; delta:=days*interval '24 hours';
- IF days=0 THEN RETURN jsonb_build_object('anchor_date',today,'shift_days',0); END IF;
+ IF days=0 AND EXISTS(SELECT FROM public.lessons WHERE id='a0000000-0000-4000-8000-000000000111') THEN
+  RETURN jsonb_build_object('anchor_date',today,'shift_days',0);
+ END IF;
  PERFORM id FROM public.lessons ORDER BY id FOR UPDATE;
  SET CONSTRAINTS validate_lesson_overlap,validate_term DEFERRED;
  -- Expand term first so immediate rule-boundary validation stays meaningful.
@@ -76,6 +82,73 @@ BEGIN
  UPDATE public.notification_outbox SET status='cancelled',lease_token=NULL,lease_until=NULL,last_error_code='superseded' WHERE status IN ('pending','claimed');
  UPDATE public.notification_plans SET due_at=due_at+delta WHERE status<>'pending';
  FOR l IN SELECT id FROM public.lessons ORDER BY id LOOP UPDATE public.lessons SET plan_revision=plan_revision+1 WHERE id=l.id; END LOOP;
+
+ -- Demo-only, now-relative examples. Keep the canonical substitute Mathematics
+ -- UUID as the only Mathematics occurrence today (also used by browser fixtures).
+ -- Other examples are ad hoc, so calendar refresh cannot rewrite their timing.
+ -- Near midnight compress the earlier slots into the first half of elapsed time;
+ -- positive sub-second slots are valid and never invent work on yesterday's date.
+ earlier_span:=least(interval '1 hour',(demo_now-midnight)/2);
+ IF earlier_span<=interval '0 seconds' THEN earlier_span:=interval '1 microsecond'; END IF;
+ current_start:=greatest(midnight+earlier_span,rounded_now-interval '115 minutes');
+ current_end:=least(rounded_now+interval '5 minutes',midnight+interval '1 day'-interval '1 microsecond');
+ FOR teacher_no IN 11..14 LOOP
+  teacher_id:=('10000000-0000-4000-8000-'||lpad(teacher_no::text,12,'0'))::uuid;
+  -- A: English, B: Science, C: Reading, D: existing substituted Mathematics.
+  demo_class_id:=('30000000-0000-4000-8000-'||lpad((CASE teacher_no WHEN 11 THEN 1 WHEN 12 THEN 4 WHEN 13 THEN 3 ELSE 2 END)::text,12,'0'))::uuid;
+  FOR scenario IN 1..3 LOOP
+   IF teacher_no=14 AND scenario=1 THEN
+    SELECT id INTO STRICT demo_lesson_id FROM public.lessons
+     WHERE timetable_rule_id='50000000-0000-4000-8000-000000000002' AND occurrence_date=today;
+    UPDATE public.lessons SET scheduled_start_at=current_start,scheduled_end_at=current_end,
+     started_at=current_start,ended_at=NULL,schedule_overridden=true,snoozed_until=NULL,snooze_count=0,
+     plan_revision=plan_revision+1 WHERE id=demo_lesson_id;
+    UPDATE public.attendance_records SET marked_at=least(demo_now,current_end) WHERE public.attendance_records.lesson_id=demo_lesson_id;
+    UPDATE public.lesson_feedback SET updated_at=demo_now WHERE public.lesson_feedback.lesson_id=demo_lesson_id;
+    CONTINUE;
+   END IF;
+   demo_lesson_id:=('a0000000-0000-4000-8000-'||lpad((teacher_no*10+scenario)::text,12,'0'))::uuid;
+   IF scenario=1 THEN
+    slot_start:=current_start; slot_end:=current_end;
+   ELSE
+    -- D's earlier examples use Science, leaving Mathematics unique today.
+    -- Science has four disjoint earlier slots; the other classes need only two.
+    slot:=(CASE WHEN teacher_no=14 THEN 2 ELSE 0 END)+(CASE WHEN scenario=3 THEN 0 ELSE 1 END);
+    slot_start:=current_start-earlier_span+earlier_span*slot/4;
+    slot_end:=current_start-earlier_span+earlier_span*(slot+1)/4;
+   END IF;
+   INSERT INTO public.lessons(id,class_id,occurrence_date,scheduled_start_at,scheduled_end_at,
+    accountable_teacher_id,schedule_overridden,staffing_overridden,started_at,ended_at,overdue_at)
+   VALUES(demo_lesson_id,CASE WHEN teacher_no=14 THEN '30000000-0000-4000-8000-000000000004'::uuid ELSE demo_class_id END,
+    today,slot_start,slot_end,teacher_id,true,true,slot_start,CASE WHEN scenario<>1 THEN slot_end END,current_end+interval '75 minutes')
+   ON CONFLICT(id) DO UPDATE SET occurrence_date=today,scheduled_start_at=EXCLUDED.scheduled_start_at,
+    scheduled_end_at=EXCLUDED.scheduled_end_at,started_at=EXCLUDED.started_at,ended_at=EXCLUDED.ended_at,
+    plan_revision=public.lessons.plan_revision+1;
+   INSERT INTO public.lesson_staff VALUES(demo_lesson_id,teacher_id,'regular') ON CONFLICT DO NOTHING;
+   INSERT INTO public.lesson_roster(lesson_id,student_id,enrollment_id)
+    SELECT demo_lesson_id,e.student_id,e.id FROM public.enrollments e
+    WHERE e.class_id=CASE WHEN teacher_no=14 THEN '30000000-0000-4000-8000-000000000004'::uuid ELSE demo_class_id END
+     AND e.starts_on<=today AND (e.ends_on IS NULL OR e.ends_on>=today)
+    ON CONFLICT DO NOTHING;
+   IF scenario=2 THEN
+    -- A synthetic pending review with a future deadline, even when today's
+    -- compressed earlier lesson would normally already be overdue. No policy change.
+    UPDATE public.lessons SET overdue_at=greatest(overdue_at,current_end+interval '75 minutes') WHERE id=demo_lesson_id;
+   ELSIF scenario=3 THEN
+    INSERT INTO public.attendance_records(lesson_id,student_id,status,marked_by,marked_at,mutation_id)
+     SELECT demo_lesson_id,r.student_id,'present',teacher_id,slot_end,gen_random_uuid()
+     FROM public.lesson_roster r WHERE r.lesson_id=demo_lesson_id ON CONFLICT DO NOTHING;
+    IF NOT EXISTS(SELECT FROM public.lesson_submissions sub WHERE sub.lesson_id=demo_lesson_id) THEN
+     UPDATE public.lessons SET register_revision=register_revision+1 WHERE id=demo_lesson_id;
+     INSERT INTO public.lesson_submissions(lesson_id,register_revision,feedback_revision,submitted_by,submitted_at,mutation_id)
+      SELECT demo_lesson_id,register_revision,0,teacher_id,slot_end,gen_random_uuid() FROM public.lessons WHERE id=demo_lesson_id;
+    ELSE
+     UPDATE public.lesson_submissions SET submitted_at=slot_end WHERE public.lesson_submissions.lesson_id=demo_lesson_id;
+     UPDATE public.attendance_records SET marked_at=slot_end WHERE public.attendance_records.lesson_id=demo_lesson_id;
+    END IF;
+   END IF;
+  END LOOP;
+ END LOOP;
  UPDATE public.demo_seed_state SET anchor_date=today;
  SET CONSTRAINTS validate_lesson_overlap,validate_term IMMEDIATE;
  RETURN jsonb_build_object('anchor_date',today,'shift_days',days);

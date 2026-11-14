@@ -1,145 +1,195 @@
-# Edmund's phone preview — fake data, dry-run push
+# Edmund's phone preview — Jeremy's setup guide
 
-For Jeremy. These are future steps, not actions performed or authorized by this
-pass. Do not point any preview at TAVA's existing backend, reuse credentials,
-import student data, send real pushes, or enable public demo-admin access.
+These are instructions for a later human-run preview, **not a deployment performed
+by Pass H**. Use invented fixtures and dry-run sending only. Never use TAVA's
+project, credentials, Auth accounts or student data. Do not set any APNs secrets.
 
-**The current prototype cannot be deployed unchanged to Vercel or Cloudflare.**
-The contract requires an assigned loopback-only database guard, its listener
-binds to `127.0.0.1`, and its demo identity selector intentionally lets a local
-reviewer choose Admin. Any in-progress `TP_ALLOW_REMOTE_PREVIEW_DB` opt-in is not
-a protected preview adapter and is not authorization to connect a remote backend. A hosted preview needs a separately reviewed isolated
-backend adapter and access boundary. Keep these checks; do not weaken the local
-URL guard merely to make a deployment work.
+The implemented access-code gate now protects the demo identity selector, lesson
+routes, admin routes and server actions. `/preview` accepts a code and issues an
+eight-hour HMAC-signed, HttpOnly, SameSite cookie. HTTPS-forwarded requests and
+remote-database mode use Secure cookies. Static framework assets remain public;
+they contain no roster. Anyone admitted can select **Demo Admin**: this is a shared
+fake-data preview, not real staff login. Use a fresh, strong code and rotate it to
+invalidate all existing preview cookies. Keep the URL and code separate.
 
-## First prove the local preview
+## What you need
 
-Use only the database assigned to this pass (`tp_e`); another operator must obtain
-an assignment before using a different name. Required files must be integrated.
+- The supervisor-integrated revision, Bun matching `packageManager`, the lockfiles,
+  Python 3, Postgres 17 + pgcrypto, and the existing local Postgres binaries.
+- A dedicated **throwaway database**. The runnable recipe below uses the assigned
+  local `tp_h` at `localhost:55432`, user `postgres`, with no password. Stop all tests
+  using it first. A different operator needs their own explicit `tp_` assignment.
+- A terminal that can keep the app running, an installed `cloudflared` executable
+  for the Cloudflare option, and a fresh preview access code. No `.env` file.
+- An agreed review expiry and a private human channel for Edmund's URL/code.
 
-```bash
-scripts/teacher-prompts-local.sh --db tp_e --reset --fixed-week --check
-scripts/teacher-prompts-local.sh --db tp_e --reset
-```
+The alternative hosted option needs a **new empty Supabase or Neon project**, never
+TAVA's project, plus a database named `tp_…`. The current adapter checks the actual
+URL database name; a default database called `postgres` or `neondb` is rejected.
+Use verified TLS and new credentials scoped to that disposable backend. Its hosted
+bootstrap still requires separate review; the local seed intentionally refuses
+remote execution. Creating a project alone does not make it ready to run this app.
 
-Open `http://127.0.0.1:3100/demo`. Verify Teacher D can review the substituted lesson,
-Teacher B cannot, Admin sees outstanding work, and simulated reminders never contact
-APNs. Before the seeded lesson's start, the register is intentionally not editable;
-use the E2E fixture for a time-independent completion test. Save the test counts
-and source revision for the preview reviewer.
+## Option A — Cloudflare link to the code-gated local preview
 
-A phone's `localhost` is the phone, not this computer. A phone link therefore needs
-an explicit private forwarding or hosted preview setup. Neither a public tunnel nor
-binding to all interfaces alone provides an access boundary. The repository runner
-continues to bind loopback and provides no tunnel/deployment command.
+This option uses the tested loopback database/app adapters. The tunnel exposes only
+the app; Postgres stays local. It needs no remote database, Vercel deployment or
+Cloudflare Workers adapter. The tunnel itself and physical-phone flow remain
+unverified by this pass. Cloudflare documents the command and temporary URL
+lifetime in [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
 
-## Gate A — implement the protected preview adapter
+1. From the repository root, initialize and verify the assigned disposable DB:
 
-These are concrete implementation prerequisites for a later authorized change;
-this pass does not own or implement them. Stop here until each is reviewed.
+   ```bash
+   scripts/teacher-prompts-local.sh --db tp_h --reset --fixed-week --check
+   env -i PATH="$PATH" PGPASSFILE=/dev/null PGSERVICEFILE=/dev/null \
+     psql -X -w -h localhost -p 55432 -U postgres -d tp_h \
+     -v ON_ERROR_STOP=1 \
+     -c 'BEGIN; SET LOCAL ROLE service_role; SELECT public.demo_shift_to_today(); COMMIT;'
+   ```
 
-1. Add an explicit preview mode separate from the local runner. Require a
-   single allowlisted throwaway backend identifier/host, TLS and a dedicated
-   restricted connection identity. No fallback to generic `DATABASE_URL`, live
-   Supabase config or inherited environment. Keep the local adapter's strict
-   loopback validation unchanged.
-2. Provision only invented fixtures in the isolated backend. For a plain Postgres
-   preview, adapt the local Auth shim deliberately for the isolated environment;
-   do not upload a local-only shim blindly. For a fresh throwaway Supabase project,
-   use its native Auth schema and a separately reviewed fake-account provisioner;
-   the local seed may assume shim-owned Auth rows and is not a hosted provisioning
-   script. Apply the separate V2 schema only after reviewing that compatibility.
-3. Put authenticated preview access in front of **every route, asset/API surface and
-   server action**, including `/demo`, `/admin`, lesson URLs and alternate hostnames.
-   Allow only Jeremy and Edmund; use a host access service or an application gate
-   with server-side session verification. Do not rely on an obscure URL, robots.txt,
-   or a client-side password. Verify unauthenticated requests cannot choose Admin.
-4. Use Secure, HttpOnly, SameSite cookies, exact HTTPS origins and no-store pages.
-   Keep route validation and DB authorization on every request. A gateway login
-   grants entry to the fake demo; it does not replace lesson-level DB checks.
-5. Separate owner-only fixture/bootstrap access from runtime web access. Runtime
-   DB role must be able to enter `authenticated` with scoped claims, not act as a
-   table owner/BYPASSRLS identity for domain queries. Any startup demo-marker check
-   needs a narrowly reviewed interface. Keep worker service access separate.
-6. Force `demo_enabled=true`, `teacher_prompts=true`, `teacher_prompt_push=false`.
-   Force only `DryRunSender`; reject non-demo backends and real APNs mode at startup.
-   Provide **no APNs key, token-signing configuration or parent sender configuration**.
-   A visible simulated notification is enough for Edmund's phone review.
-7. Choose whether hosted simulation is on-demand only. Vercel request runtimes must
-   not be assumed to run `local.ts --watch` forever. A separately protected preview
-   scheduler can be added later if automatic dry-run stages are needed. Cloudflare
-   would require an explicitly tested Next/runtime/database adapter; this guide
-   does not claim that the current Node/pg app can run there unchanged.
-8. Add preview tests for gateway bypasses, forged identities/actions, TLS/origin
-   validation, wrong database, non-demo backend, token leakage and attempted real
-   push. Re-run role/RLS and mobile-browser flow tests. Record the results.
+   Keep the live runner stopped. It clears inherited environment values, so it
+   does not forward your access code. The direct start below does. The shift creates
+   today's three scenarios per teacher; reset again before a later fresh review.
 
-## Gate B — Vercel preview recipe after Gate A is merged
+2. Start a dedicated shell with only the intended settings; do not inherit database,
+   Supabase or APNs configuration:
 
-These steps intentionally stop rather than invent commands for an adapter that
-does not yet exist. The maintainer must add that adapter's exact bootstrap command,
-server-only setting names and deployment tests to this document before execution.
-No current hosting plan, access-control availability or pricing is assumed here;
-Jeremy must verify those in the selected host before proceeding.
+   ```bash
+   env -i PATH="$PATH" LANG=C.UTF-8 \
+     TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 NEXT_TELEMETRY_DISABLED=1 \
+     bash --noprofile --norc
+   ```
 
-1. Create a new, empty **preview-only** hosting project, separate from TAVA's live
-   project/team configuration. Do not import live environment settings or attach a
-   live domain. Use the supervisor-integrated source revision, not another pass's
-   incomplete working files. No commit/push/PR is performed as part of this guide.
-2. Set project root to `prototypes/teacher-prompts`, framework Next.js and the Bun
-   version matching `packageManager`. Install with `bun install --frozen-lockfile`;
-   build with `bun run build`. Keep the sibling
-   `supabase/v2/functions/_shared/` files available because the prototype imports
-   the pure push payload module; verify the host build includes those files.
-   If the host cannot build with this repository layout, fix the build packaging
-   in the preview change rather than copy stale payload code.
-3. Attach only the Gate A throwaway backend via the approved preview adapter's
-   server-only environment configuration. Enter new throwaway credentials through
-   the host's protected settings, never browser/public variables, source or this
-   document. Scope settings only to this preview project/environment. Do not use
-   `TEACHER_PROMPTS_DATABASE_URL` to bypass the local adapter's guard.
-4. Before publishing, enable the tested preview access gate for all deployment
-   URLs, including generated aliases. Disable indexing/analytics and require
-   HTTPS. Confirm both Jeremy and Edmund can pass the gate on their phones.
-5. Provision the empty backend with the Gate A hosted bootstrap, reviewed V2
-   migrations and invented fixtures. Check the demo marker and OFF real-push flag.
-   Keep any dry-run worker disabled until the web smoke test passes; if needed,
-   start it only through the dedicated reviewed preview scheduler.
-6. Create one preview deployment using the host's **Preview** deployment path;
-   do not promote it to Production or change TAVA's domain. Inspect build/runtime
-   logs for errors without logging credentials, device material or child data.
-7. From a signed-out browser, test the protected root, `/demo`, `/admin`, a direct
-   lesson URL and direct server actions. Stop/share nothing if any bypass works.
-   From an allowed phone, select the demo teacher and complete the flow below.
-8. Give Edmund the protected preview `/demo` URL and its expiry through the agreed
-   human channel. Do not put passwords/tokens/names in URLs. The agent does not
-   send messages or publish links as part of this task.
+   In that shell, enter the new code without echoing it or putting it in history,
+   then install, build and start:
 
-A current copy-paste hosted deployment command is **unfinished pending Gate A**.
-Running the local app on Vercel now should fail its database guard; that failure is
-expected and must not be worked around by enabling production access.
+   ```bash
+   read -r -s -p 'New preview access code: ' TP_PREVIEW_ACCESS_CODE
+   export TP_PREVIEW_ACCESS_CODE
+   cd /workspace/tav-tp/prototypes/teacher-prompts
+   bun --no-env-file install --frozen-lockfile
+   bun --no-env-file run build
+   bun --no-env-file run start
+   ```
+
+   Use the clone's actual absolute path if it differs. `start` checks the database
+   demo marker before listening on `127.0.0.1:3100`. No dispatcher is needed for
+   “Send me a ping now”; that action records an on-demand dry-run notification.
+   Do not start APNs or a hosted cron job for this review.
+
+3. In another terminal, confirm a fresh browser at `http://127.0.0.1:3100/demo`
+   receives the code gate. Wrong codes must fail; without entry, a direct lesson,
+   `/admin`, or a forged demo identity must not reveal a register. Then start the
+   temporary link:
+
+   ```bash
+   cloudflared tunnel --url http://127.0.0.1:3100
+   ```
+
+   Keep both processes running. Do not add an HTTP Host rewrite: same-origin server
+   actions compare the browser Origin with Host. The forwarded HTTPS protocol must
+   be retained so cookies are Secure. Check these properties through the generated
+   HTTPS URL before sharing it. The random URL is not the access control; the
+   server-checked code is. No live data belongs in this demo even behind that gate.
+
+4. Jeremy opens `<generated HTTPS URL>/demo` in a private phone browser, checks the
+   code gate and completes the checklist below. If cookies, actions or the gate
+   fail, stop the tunnel and fix the forwarding boundary; do not remove the gate.
+   Share only after this succeeds. Edmund opens the same URL in Safari on his phone,
+   enters the separately supplied code and selects a fake teacher. His phone does
+   not use `localhost`. No app installation or push permission is required.
+
+## Environment settings and hosted alternative
+
+All values are server-only; none use `NEXT_PUBLIC_`.
+
+| Variable | Local phone preview | Hosted disposable database |
+|---|---|---|
+| `TP_DB` | `tp_h`, explicitly assigned | Exact assigned `tp_…` database name, at most 63 characters |
+| `TEACHER_PROMPTS_DEMO` | `1` | `1` |
+| `TP_PREVIEW_ACCESS_CODE` | Fresh code, required for sharing | Fresh code, mandatory for remote mode |
+| `TEACHER_PROMPTS_DATABASE_URL` | Omit; derived from `TP_DB` and fixed loopback settings | Dedicated disposable Postgres URL, entered in protected host settings |
+| `TEACHER_PROMPTS_DB_NAME` | Omit, or exactly `tp_h` | Omit, or exactly match `TP_DB` |
+| `TP_ALLOW_REMOTE_PREVIEW_DB` | Unset | `1`, explicit opt-in to a separately approved fake backend |
+| `DATABASE_URL` | Unset | Prefer unset; adapter accepts it, but rejects conflicting URL values |
+| `NEXT_TELEMETRY_DISABLED` | `1` | `1` |
+
+The remote adapter requires the opt-in plus nonempty access code, validates the
+`tp_` database name, rejects URL query/fragment options, uses verified TLS, and checks
+`runtime_settings.demo_enabled`. It does **not** allowlist a provider/project hostname
+or prove that a database contains only fake data. Jeremy must independently verify
+the disposable project's identity. No local worker or test runner accepts remote DBs.
+
+For a later **Vercel Preview**, use the supported Next.js integration documented by
+[Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs). The following records
+configuration steps, not successful hosted validation:
+
+1. Provision the new empty throwaway backend and obtain review of its bootstrap.
+   Apply the V2 chain alone with its required Auth/role interfaces. A plain Postgres
+   host needs compatible `auth.users`, `auth.uid()`, `auth.jwt()` and roles; Supabase
+   has native Auth which must not be replaced with the local shim. Provide fake Auth
+   identities, minimal profiles/students/calendar, demo marker and fake device rows
+   through a reviewed hosted fixture loader. The runtime login needs only the
+   reviewed role memberships for `authenticated` requests and the `service_role`
+   demo-marker check. Verify RLS/ACLs in the actual target, including hostile defaults.
+   **There is no checked-in hosted fixture loader yet. Do not run the local seed,
+   remove its host guard, or upload the local shim blindly.** Use Option A until this
+   prerequisite has a reviewed, executable procedure and recorded results.
+2. Verify fake-data mode and flags from the disposable target:
+   `demo_enabled=true`, `teacher_prompts=true`, `teacher_prompt_push=false`.
+   Arrange a reviewed equivalent of today's demo setup in that hosted loader.
+   Never reuse real device tokens, student data or existing TAVA credentials.
+3. Create a separate Vercel project from the integrated clone. Root directory:
+   `prototypes/teacher-prompts`; framework: Next.js. Include files outside that root
+   so imports from `supabase/v2/functions/_shared/` resolve. Install command:
+   `bun --no-env-file install --frozen-lockfile`; build command:
+   `bun --no-env-file run build`. Vercel runs the framework output, not the local
+   loopback `start` script. Keep configuration scoped to this disposable preview.
+4. Enter the hosted column's server settings through protected host settings. Keep
+   all automatic environment files absent. Do not copy live project settings, attach
+   TAVA's domain, or promote this to its production deployment. Do not supply APNs
+   keys or schedule the local watch worker on a request runtime.
+5. Create the Preview deployment only after the bootstrap gate passes. Verify every
+   generated alias redirects unauthenticated users to `/preview`, direct actions
+   cannot bypass it, cookies are Secure, and wrong identities reveal no roster.
+   The layout/RPC checks must verify demo mode even though Vercel bypasses `start`.
+   Run the phone checklist before sharing the HTTPS `/demo` link and separate code.
+
+Cloudflare **Workers** hosting of this Node/`pg` app is not established here. Option A
+is a Cloudflare Tunnel to the existing app, not a claim of Workers compatibility.
 
 ## Phone review checklist
 
-- Show the persistent fake-data/dry-run explanation and current demo identity.
-- Choose Teacher D and open today's Mathematics lesson; check text and tap targets.
-- Simulate a generic reminder. “Take attendance” opens its lesson. “Remind me in
-  10” is an explicit authenticated mutation, stays incomplete and respects limits.
-- Open a valid lesson URL signed out: after allowed preview entry and identity
-  selection, return to that lesson. Wrong identity shows no roster or class data.
-- Mark remaining students deliberately; bulk present preserves existing late and
-  absent entries. Leave feedback blank or use a short invented lesson note.
-- Submit once; reload/retry; confirm a single receipt and read-only register.
-  Switch to Admin and verify the missing-submission row is gone.
-- Exercise cancelled/submitted lessons, substitute change and failed/no-device
-  delivery. Use the outstanding list when simulated push is unavailable.
-- Recheck after account change that previous roster, notes and pending actions
-  are cleared. Do not interpret this as real login/APNs/universal-link device QA.
+- Choose Demo Teacher A: today has an ongoing lesson ending within five minutes,
+  one earlier pending review and one submitted lesson. Near midnight timings shorten
+  to fit today. Choose D for existing late/absent Mathematics marks.
+- On the intended lesson, simulate a generic reminder. Count **Take attendance →
+  All present → Confirm and submit** as three taps from the reminder. Confirm that
+  existing late/absent marks remain and the submitted register becomes read-only.
+- On another unfinished lesson, use “Remind me in 10”; it stays incomplete. Notes
+  remain optional. No actual phone push arrives; this is an on-screen simulation.
+- Open a valid lesson URL signed out: pass the code gate, choose the correct demo
+  identity and return to that lesson. A wrong teacher sees a neutral unavailable
+  state. Switching identities must clear the previous roster and unsaved actions.
+- As Admin, verify submitted work disappears from missing submissions, while the
+  other unfinished lesson stays. Try cancellation/substitution on eligible fixtures.
+- Close/reopen the phone tab and retry a submission; verify a single receipt. Check
+  large controls, keyboard focus, light/dark modes and notes without real personal
+  information. Record Edmund's wording and workflow feedback separately from tests.
 
-## Close the preview
+## Tear down
 
-Jeremy records Edmund's wording/workflow feedback, disables the preview scheduler,
-revokes access, removes preview deployment/aliases and deletes the throwaway backend
-when review is complete. Delete its dedicated credentials and any fake fixture
-exports per the agreed preview expiry. No old/live database is touched. Keep only
-sanitized test evidence and approved design feedback in the repository.
+At the agreed expiry Jeremy stops `cloudflared` first; its temporary URL stops
+working. Stop the app, unset `TP_PREVIEW_ACCESS_CODE`, and close the dedicated shell.
+After all testing using this assigned DB has stopped, delete only the throwaway DB:
+
+```bash
+env -i PATH="$PATH" PGPASSFILE=/dev/null PGSERVICEFILE=/dev/null \
+  dropdb -w -h localhost -p 55432 -U postgres --if-exists tp_h
+```
+
+For a hosted alternative, remove the preview deployment/project and every alias,
+stop any separately approved preview scheduler, delete the disposable backend and
+revoke its dedicated credentials. Retain only sanitized results and approved
+feedback. Do not touch TAVA's existing database or any other pass's assignment.

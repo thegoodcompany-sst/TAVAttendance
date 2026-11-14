@@ -12,7 +12,7 @@ import {
 import { resetDatabase } from "../scripts/database";
 const folder = "/workspace/tav-teacher-prompts/screens";
 for (const mode of ["light", "dark"] as const) {
-  test(`capture every screen in ${mode}`, async ({ page }) => {
+  test(`capture every screen in ${mode}`, async ({ page, context }) => {
     const lessonId = await resetDatabase();
     await mkdir(folder, { recursive: true });
     await blockExternal(page);
@@ -25,7 +25,13 @@ for (const mode of ["light", "dark"] as const) {
         animations: "disabled",
       });
     };
+    await context.clearCookies();
     await page.goto("/demo");
+    await expect(page.getByLabel(s.accessCode, { exact: true })).toBeVisible();
+    await capture("00-preview-access");
+    await page.getByLabel(s.accessCode, { exact: true }).fill("e2e-local-code");
+    await page.getByRole("button", { name: s.continue, exact: true }).click();
+    await expect(page.getByLabel(s.selectIdentity)).toBeVisible();
     await capture("00-identity");
     await login(page);
     await capture("01-today");
