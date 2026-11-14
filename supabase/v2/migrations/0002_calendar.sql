@@ -57,7 +57,9 @@ BEGIN
  PERFORM public.require_service_or_admin();
  IF p_from IS NULL OR p_until IS NULL OR p_until<p_from OR p_until-p_from>91 THEN RAISE EXCEPTION 'TP_INVALID_INPUT' USING ERRCODE='22023'; END IF;
  -- Lock existing lessons in UUID order before touching their plans.
- PERFORM id FROM public.lessons WHERE occurrence_date BETWEEN p_from AND p_until ORDER BY id FOR UPDATE;
+ PERFORM id FROM public.lessons WHERE occurrence_date BETWEEN p_from AND p_until
+  OR (schedule_overridden AND (scheduled_start_at AT TIME ZONE 'Asia/Singapore')::date BETWEEN p_from AND p_until)
+  ORDER BY id FOR UPDATE;
  FOR cls IN SELECT id FROM public.classes ORDER BY id LOOP
   PERFORM pg_advisory_xact_lock(hashtextextended(cls::text,3));
  END LOOP;
@@ -70,7 +72,15 @@ BEGIN
    INSERT INTO public.audit_events(event_code,details) VALUES('calendar_staffing_unresolved','{"reason_code":"inactive_default_teacher","counts":1}');
    CONTINUE;
   END IF;
-  FOR d IN SELECT g::date FROM generate_series(greatest(p_from,r.effective_from)::timestamp,least(p_until,r.effective_until)::timestamp,interval '1 day') g WHERE extract(isodow FROM g)=r.iso_weekday LOOP
+  -- Include original identities of moved lessons whose actual date enters this window.
+  -- UNION visits each identity once even when both dates are in range.
+  FOR d IN
+   SELECT g::date FROM generate_series(greatest(p_from,r.effective_from)::timestamp,least(p_until,r.effective_until)::timestamp,interval '1 day') g WHERE extract(isodow FROM g)=r.iso_weekday
+   UNION
+   SELECT a.occurrence_date FROM public.lessons a WHERE a.timetable_rule_id=r.id AND a.schedule_overridden
+    AND (a.scheduled_start_at AT TIME ZONE 'Asia/Singapore')::date BETWEEN p_from AND p_until
+    AND a.occurrence_date BETWEEN r.effective_from AND r.effective_until AND extract(isodow FROM a.occurrence_date)=r.iso_weekday
+   ORDER BY 1 LOOP
    st:=(d+r.local_start) AT TIME ZONE 'Asia/Singapore'; en:=st+make_interval(mins=>r.duration_minutes);
    SELECT * INTO l FROM public.lessons WHERE timetable_rule_id=r.id AND occurrence_date=d FOR UPDATE;
    SELECT reason_code INTO reason FROM public.calendar_exceptions WHERE (class_id IS NULL OR class_id=r.class_id)
@@ -103,7 +113,7 @@ BEGIN
   END LOOP;
  END LOOP;
  FOR l IN SELECT a.* FROM public.lessons a JOIN public.timetable_rules tr ON tr.id=a.timetable_rule_id JOIN public.classes cl ON cl.id=a.class_id
-   WHERE a.occurrence_date BETWEEN p_from AND p_until AND a.cancelled_at IS NULL AND (NOT tr.active OR NOT cl.active OR a.occurrence_date NOT BETWEEN tr.effective_from AND tr.effective_until OR extract(isodow FROM a.occurrence_date)<>tr.iso_weekday) ORDER BY a.id FOR UPDATE OF a LOOP
+   WHERE (a.occurrence_date BETWEEN p_from AND p_until OR (a.schedule_overridden AND (a.scheduled_start_at AT TIME ZONE 'Asia/Singapore')::date BETWEEN p_from AND p_until)) AND a.cancelled_at IS NULL AND (NOT tr.active OR NOT cl.active OR a.occurrence_date NOT BETWEEN tr.effective_from AND tr.effective_until OR extract(isodow FROM a.occurrence_date)<>tr.iso_weekday) ORDER BY a.id FOR UPDATE OF a LOOP
   IF l.scheduled_start_at>clock_timestamp() AND l.started_at IS NULL AND NOT public.lesson_has_work(l.id) THEN
    UPDATE public.lessons SET cancelled_at=clock_timestamp(),cancellation_reason='rule_removed',plan_revision=plan_revision+1,updated_at=clock_timestamp() WHERE id=l.id; x:=x+1;
   ELSE INSERT INTO public.audit_events(lesson_id,event_code,details) VALUES(l.id,'calendar_conflict','{"reason_code":"worked_or_historical"}'); END IF;

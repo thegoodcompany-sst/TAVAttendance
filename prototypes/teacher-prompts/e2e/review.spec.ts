@@ -23,7 +23,11 @@ test("all-present completion takes at most three taps from notification", async 
     [lessonId],
   );
   await login(page);
-  await page.getByRole("button", { name: s.ping }).click();
+  await page
+    .locator("section")
+    .filter({ has: page.locator(`a[href="/t/lesson/${lessonId}"]`) })
+    .getByRole("button", { name: s.ping })
+    .click();
   let taps = 0;
   await page
     .getByTestId("notification")

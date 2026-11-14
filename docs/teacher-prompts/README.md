@@ -328,23 +328,47 @@ concurrent destructive tests. Python and Bun iOS fixture checks are documented i
 
 ## Verification
 
-Pass H ran the complete local loop **twice** using only `tp_h` and `tp_h2`.
-Per loop: SQL/runner/concurrency replay **401 passed, 0 failed** in each timezone
-(UTC and America/Los_Angeles); standalone concurrency **17/0**; dispatcher unit
-**77/0**, integration **15/0**; web unit **82/0**; browser E2E **18 passed, 2 failed**;
-screenshot scenarios **2/0**; iOS Python fixtures **69/0**, Bun parity **47/0**.
-Both lint commands and browser production builds passed. Screenshots were regenerated
-(34 PNGs); six diagrams rendered successfully, all above 10 KB. Source/document
-consistency checks passed **18/18**. Runtime: Bun 1.4.4 (target 1.3.14), Postgres 17.12.
+Pass J completed the full local loop **twice**, on **15 November 2026, SGT**,
+using only `tp_j` and `tp_j2` at localhost:55432. Each loop passed:
 
-The two E2E failures are ambiguous “Send me a ping now” selectors: each teacher now
-has two unfinished lessons. A patch to scope those selectors to the intended lesson
-is prepared, pending permission to edit the two web test files outside Pass H's
-ownership. The three-tap test therefore remains unverified by these runs. The full
-results, commands, repeated-check accounting and patch are recorded in
-`/workspace/tav-teacher-prompts/RESULTS.md`; these loops are **not all-green**.
-Native compilation/XCTest (Swift unavailable), real login, APNs, physical devices,
-hosted preview and cutover remain unrun. No production claim is made.
+| Check | Passed | Failed | Skipped |
+|---|---:|---:|---:|
+| Fresh SQL replay, UTC (includes runner guards/concurrency) | 412 | 0 | 0 |
+| Fresh SQL replay, America/Los_Angeles (same coverage) | 412 | 0 | 0 |
+| Standalone concurrency | 17 | 0 | 0 |
+| Dispatcher unit / integration | 77 / 15 | 0 | 0 |
+| Web unit / browser E2E / screenshot scenarios | 99 / 21 / 2 | 0 | 0 |
+| iOS Python / Bun fixture checks | 69 / 47 | 0 | 0 |
+| Exact launcher `--db tp_j --reset --fixed-week --check`: SQL+guards+concurrency / worker / web | 412 / 77 / 99 | 0 | 17* |
+
+Lint, typecheck, and production builds passed in both loops. All **34 PNGs** were
+regenerated under `/workspace/tav-teacher-prompts/screens/`; the light lesson list
+and dark confirmation sheet were visually inspected. The three-tap submission and
+both formerly ambiguous selectors now pass. Preview tests cover 100 rapid wrong
+code attempts, pre-DB throttling, mandatory database assignment, remote configuration
+gates and fail-closed marker verification. Calendar tests cover moved lessons whose
+original dates fall outside the refresh window, using explicit Singapore dates.
+
+*The launcher does not enable dispatcher integration: Bun reports 17 skipped entries
+(15 integration cases plus two hooks). All 15 cases run and pass separately in each
+loop. No required integration coverage was skipped. This is repeated coverage, not
+a count of unique tests. The first screenshot attempt used an obsolete short fixture
+code and failed both themes; corrected before both completed loops. A process exit
+143 interrupted the second browser run; its full rerun passed 21/21. Exact commands,
+SGT timestamps, logs, counts and these preliminary failures are recorded in
+`/workspace/tav-teacher-prompts/RESULTS.md`.
+
+Web configuration now always requires `TP_DB`; its sole optional URL variable is
+`TP_DATABASE_URL`, whose database name must match. Remote preview also requires
+`TP_ALLOW_REMOTE_PREVIEW_DB=1`, `TEACHER_PROMPTS_DEMO=1`, a random access code of at
+least 24 characters and `sslmode=require`; the pool verifies the DB demo marker
+before serving request queries. Remote guards used fake configuration/mocks only.
+See [preview-deploy.md](preview-deploy.md) for proxy trust, throttle limits and the
+shared perimeter limiter required before multi-instance hosting.
+
+Native compilation/XCTest (Swift unavailable; zero executed), real login, APNs,
+physical devices, hosted preview and cutover remain unrun. No remote database,
+production API or real push was used. No commit, push, branch, PR or deployment.
 
 ## Fresh database cutover
 

@@ -19,3 +19,16 @@ export async function verifyDemoMarker(pool: Pick<Pool, "connect">) {
     client.release();
   }
 }
+
+/** Never publish a request pool until the demo marker succeeds. Close on failure. */
+export async function verifiedDemoPool<T extends Pick<Pool, "connect" | "end">>(
+  pool: T,
+): Promise<T> {
+  try {
+    await verifyDemoMarker(pool);
+    return pool;
+  } catch {
+    await pool.end().catch(() => {});
+    throw new Error("TP_DEMO_REQUIRED");
+  }
+}

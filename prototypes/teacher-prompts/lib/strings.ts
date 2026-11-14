@@ -1,7 +1,7 @@
 export const s = {
   previewAccess: "Enter preview",
   accessCode: "Access code",
-  invalidAccessCode: "Check the access code.",
+  invalidAccessCode: "Unable to continue. Try again later.",
   title: "TAVA · Teacher prompts",
   brand: "TAVA",
   demo: "Demo · fake data",

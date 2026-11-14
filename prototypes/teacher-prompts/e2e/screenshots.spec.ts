@@ -29,7 +29,7 @@ for (const mode of ["light", "dark"] as const) {
     await page.goto("/demo");
     await expect(page.getByLabel(s.accessCode, { exact: true })).toBeVisible();
     await capture("00-preview-access");
-    await page.getByLabel(s.accessCode, { exact: true }).fill("e2e-local-code");
+    await page.getByLabel(s.accessCode, { exact: true }).fill("e2e-local-code-at-least-24-characters");
     await page.getByRole("button", { name: s.continue, exact: true }).click();
     await expect(page.getByLabel(s.selectIdentity)).toBeVisible();
     await capture("00-identity");

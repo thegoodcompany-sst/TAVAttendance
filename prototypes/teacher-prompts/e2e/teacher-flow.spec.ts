@@ -15,7 +15,11 @@ test("teacher completes notification → attendance → optional notes → submi
 }) => {
   await login(page);
   await expect(page.getByRole("heading", { name: s.today })).toBeVisible();
-  await page.getByRole("button", { name: s.ping }).click();
+  await page
+    .locator("section")
+    .filter({ has: page.locator(`a[href="/t/lesson/${lessonId}"]`) })
+    .getByRole("button", { name: s.ping })
+    .click();
   const banner = page.getByTestId("notification");
   await expect(banner).toBeVisible();
   await expect(banner).not.toContainText("Demo Student");

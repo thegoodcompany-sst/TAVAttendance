@@ -9,7 +9,7 @@ export const test = base.extend<{ lessonId: string; previewAccess: void }>({
       await context.addCookies([
         {
           name: PREVIEW_COOKIE,
-          value: previewCookie("e2e-local-code"),
+          value: previewCookie("e2e-local-code-at-least-24-characters"),
           domain: "127.0.0.1",
           path: "/",
           httpOnly: true,

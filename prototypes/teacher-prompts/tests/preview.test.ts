@@ -20,19 +20,27 @@ vi.mock("next/navigation", () => ({
 vi.mock("../lib/db", () => ({
   ensureDemoDatabase: vi.fn().mockResolvedValue(undefined),
 }));
+import { createPreviewLimiter, previewAttempts } from "../lib/preview-attempts";
 import { requirePreviewAccess } from "../lib/access";
 import { enterPreview } from "../app/actions/preview";
 import { selectIdentity } from "../app/actions/identity";
 import { ensureDemoDatabase } from "../lib/db";
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
+  vi.spyOn(previewAttempts, "take").mockImplementation(
+    createPreviewLimiter().take,
+  );
   vi.stubEnv("TEACHER_PROMPTS_DEMO", "1");
   vi.stubEnv("TP_DB", "tp_unit");
   vi.stubEnv("TEACHER_PROMPTS_DB_NAME", "");
   vi.stubEnv("TEACHER_PROMPTS_DATABASE_URL", undefined);
-  vi.stubEnv("DATABASE_URL", "postgresql://preview.invalid/tp_unit");
+  vi.stubEnv(
+    "TP_DATABASE_URL",
+    "postgresql://preview.invalid/tp_unit?sslmode=require",
+  );
   vi.stubEnv("TP_ALLOW_REMOTE_PREVIEW_DB", "1");
-  vi.stubEnv("TP_PREVIEW_ACCESS_CODE", "fake-code");
+  vi.stubEnv("TP_PREVIEW_ACCESS_CODE", "fake-code-with-at-least-24-characters");
   jar.get.mockReturnValue(undefined);
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -64,7 +72,9 @@ it("accepts signed cookie, rejects forged cookie and gates POST too", () => {
   expect(
     proxy(
       new NextRequest("https://preview.invalid/demo", {
-        headers: { cookie: `${PREVIEW_COOKIE}=${previewCookie("fake-code")}` },
+        headers: {
+          cookie: `${PREVIEW_COOKIE}=${previewCookie("fake-code-with-at-least-24-characters")}`,
+        },
       }),
     ).status,
   ).toBe(200);
@@ -90,11 +100,11 @@ it("rejects wrong code without issuing any cookie", async () => {
     "REDIRECT:/preview?invalid=1",
   );
   expect(jar.set).not.toHaveBeenCalled();
-  expect(ensureDemoDatabase).toHaveBeenCalledOnce();
+  expect(ensureDemoDatabase).not.toHaveBeenCalled();
 });
 it("correct code issues secure HttpOnly cookie and preserves only valid lesson destination", async () => {
   const form = new FormData();
-  form.set("code", "fake-code");
+  form.set("code", "fake-code-with-at-least-24-characters");
   form.set("next", "https://elsewhere.invalid");
   await expect(enterPreview(form)).rejects.toThrow("REDIRECT:/demo");
   expect(jar.set).toHaveBeenCalledWith(
@@ -115,12 +125,12 @@ it("refuses preview entry if the database is not marked demo", async () => {
     new Error("TP_DEMO_REQUIRED"),
   );
   const form = new FormData();
-  form.set("code", "fake-code");
+  form.set("code", "fake-code-with-at-least-24-characters");
   await expect(enterPreview(form)).rejects.toThrow("TP_DEMO_REQUIRED");
   expect(jar.set).not.toHaveBeenCalled();
 });
 it("local explicit demo requires no shared code unless configured", async () => {
-  vi.stubEnv("DATABASE_URL", undefined);
+  vi.stubEnv("TP_DATABASE_URL", undefined);
   vi.stubEnv("TP_PREVIEW_ACCESS_CODE", undefined);
   expect(proxy(new NextRequest("http://127.0.0.1:3100/demo")).status).toBe(200);
   await expect(requirePreviewAccess()).resolves.toBeUndefined();
@@ -129,7 +139,7 @@ it("local explicit demo requires no shared code unless configured", async () => 
 it("stores the valid pending lesson before redirecting from the code form", async () => {
   const next = "/t/lesson/10000000-0000-4000-8000-000000000001";
   const form = new FormData();
-  form.set("code", "fake-code");
+  form.set("code", "fake-code-with-at-least-24-characters");
   form.set("next", next);
   await expect(enterPreview(form)).rejects.toThrow(
     "REDIRECT:/demo?next=" + encodeURIComponent(next),
@@ -139,4 +149,34 @@ it("stores the valid pending lesson before redirecting from the code form", asyn
     next,
     expect.objectContaining({ httpOnly: true, secure: true }),
   );
+});
+
+it("100 rapid wrong guesses are throttled before any database work", async () => {
+  const form = new FormData();
+  form.set("code", "incorrect");
+  let blocked = 0;
+  for (let i = 0; i < 100; i++) {
+    try {
+      await enterPreview(form);
+    } catch (error) {
+      const message = String(error);
+      expect(message).toContain("REDIRECT:/preview?invalid=1");
+      if (message.includes("&retry=")) blocked++;
+    }
+  }
+  expect(blocked).toBe(95);
+  expect(ensureDemoDatabase).not.toHaveBeenCalled();
+  expect(jar.set).not.toHaveBeenCalled();
+  form.set("code", "fake-code-with-at-least-24-characters");
+  await expect(enterPreview(form)).rejects.toThrow("&retry=");
+  expect(ensureDemoDatabase).not.toHaveBeenCalled();
+});
+it("valid code cannot issue a cookie if the marker check fails", async () => {
+  vi.mocked(ensureDemoDatabase).mockRejectedValueOnce(
+    new Error("TP_DEMO_REQUIRED"),
+  );
+  const form = new FormData();
+  form.set("code", "fake-code-with-at-least-24-characters");
+  await expect(enterPreview(form)).rejects.toThrow("TP_DEMO_REQUIRED");
+  expect(jar.set).not.toHaveBeenCalled();
 });

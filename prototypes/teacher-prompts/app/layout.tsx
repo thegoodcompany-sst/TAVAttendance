@@ -1,4 +1,3 @@
-import { ensureDemoDatabase } from "@/lib/db";
 import type { Metadata } from "next";
 import { s } from "@/lib/strings";
 import "./globals.css";
@@ -12,7 +11,6 @@ export default async function Layout({
 }: {
   children: React.ReactNode;
 }) {
-  await ensureDemoDatabase();
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

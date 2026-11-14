@@ -15,13 +15,15 @@ test("shared code gates identity selection and resumes the lesson after admissio
   await page.getByRole("button", { name: s.continue, exact: true }).click();
   await expect(page.getByRole("status")).toHaveText(s.invalidAccessCode);
   await expect(page.getByLabel(s.selectIdentity)).toHaveCount(0);
-  await page.getByLabel(s.accessCode, { exact: true }).fill("e2e-local-code");
+  await page
+    .getByLabel(s.accessCode, { exact: true })
+    .fill("e2e-local-code-at-least-24-characters");
   await page.getByRole("button", { name: s.continue, exact: true }).click();
   await expect(page.getByLabel(s.selectIdentity)).toBeVisible();
   const cookie = (await context.cookies()).find((c) => c.name === "tp-preview");
   expect(cookie?.httpOnly).toBe(true);
   expect(cookie?.sameSite).toBe("Lax");
-  expect(cookie?.value).not.toContain("e2e-local-code");
+  expect(cookie?.value).not.toContain("e2e-local-code-at-least-24-characters");
   await page.getByRole("button", { name: s.continue, exact: true }).click();
   await expect(page).toHaveURL("/t/lesson/" + lessonId);
   await expect(
@@ -48,4 +50,43 @@ test("forged access cookie and seeded admin identity cannot bypass page gate", a
     ).toBeVisible();
     await expect(page.getByLabel(s.selectIdentity)).toHaveCount(0);
   }
+});
+
+test("100 wrong guesses through /preview hit backoff and cannot enter", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/preview");
+  const action = await page
+    .locator('input[name^="$ACTION_ID_"]')
+    .getAttribute("name");
+  expect(action).toBeTruthy();
+  let throttled = 0;
+  for (let i = 0; i < 100; i++) {
+    const response = await context.request.post("/preview", {
+      headers: { origin: "http://127.0.0.1:3100" },
+      multipart: { [action!]: "", code: `incorrect-${i}`, next: "" },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(303);
+    const location = response.headers().location;
+    expect(location).toContain("invalid=1");
+    if (location.includes("retry=")) throttled++;
+  }
+  expect(throttled).toBeGreaterThanOrEqual(95);
+  const response = await context.request.post("/preview", {
+    headers: { origin: "http://127.0.0.1:3100" },
+    multipart: {
+      [action!]: "",
+      code: "e2e-local-code-at-least-24-characters",
+      next: "",
+    },
+    maxRedirects: 0,
+  });
+  expect(response.headers().location).toContain("retry=");
+  expect((await context.cookies()).some((c) => c.name === "tp-preview")).toBe(
+    false,
+  );
+  await page.goto(response.headers().location);
+  await expect(page.getByRole("status")).toHaveText(s.invalidAccessCode);
 });

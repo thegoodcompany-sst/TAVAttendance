@@ -1,7 +1,7 @@
 # Edmund's phone preview — Jeremy's setup guide
 
 These are instructions for a later human-run preview, **not a deployment performed
-by Pass H**. Use invented fixtures and dry-run sending only. Never use TAVA's
+by Pass J**. Use invented fixtures and dry-run sending only. Never use TAVA's
 project, credentials, Auth accounts or student data. Do not set any APNs secrets.
 
 The implemented access-code gate now protects the demo identity selector, lesson
@@ -9,7 +9,7 @@ routes, admin routes and server actions. `/preview` accepts a code and issues an
 eight-hour HMAC-signed, HttpOnly, SameSite cookie. HTTPS-forwarded requests and
 remote-database mode use Secure cookies. Static framework assets remain public;
 they contain no roster. Anyone admitted can select **Demo Admin**: this is a shared
-fake-data preview, not real staff login. Use a fresh, strong code and rotate it to
+fake-data preview, not real staff login. Use a randomly generated code of at least 24 characters and rotate it to
 invalidate all existing preview cookies. Keep the URL and code separate.
 
 ## What you need
@@ -17,7 +17,7 @@ invalidate all existing preview cookies. Keep the URL and code separate.
 - The supervisor-integrated revision, Bun matching `packageManager`, the lockfiles,
   Python 3, Postgres 17 + pgcrypto, and the existing local Postgres binaries.
 - A dedicated **throwaway database**. The runnable recipe below uses the assigned
-  local `tp_h` at `localhost:55432`, user `postgres`, with no password. Stop all tests
+  local `tp_j` at `localhost:55432`, user `postgres`, with no password. Stop all tests
   using it first. A different operator needs their own explicit `tp_` assignment.
 - A terminal that can keep the app running, an installed `cloudflared` executable
   for the Cloudflare option, and a fresh preview access code. No `.env` file.
@@ -41,9 +41,9 @@ lifetime in [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started
 1. From the repository root, initialize and verify the assigned disposable DB:
 
    ```bash
-   scripts/teacher-prompts-local.sh --db tp_h --reset --fixed-week --check
+   scripts/teacher-prompts-local.sh --db tp_j --reset --fixed-week --check
    env -i PATH="$PATH" PGPASSFILE=/dev/null PGSERVICEFILE=/dev/null \
-     psql -X -w -h localhost -p 55432 -U postgres -d tp_h \
+     psql -X -w -h localhost -p 55432 -U postgres -d tp_j \
      -v ON_ERROR_STOP=1 \
      -c 'BEGIN; SET LOCAL ROLE service_role; SELECT public.demo_shift_to_today(); COMMIT;'
    ```
@@ -57,7 +57,7 @@ lifetime in [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started
 
    ```bash
    env -i PATH="$PATH" LANG=C.UTF-8 \
-     TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 NEXT_TELEMETRY_DISABLED=1 \
+     TP_DB=tp_j TEACHER_PROMPTS_DEMO=1 NEXT_TELEMETRY_DISABLED=1 \
      bash --noprofile --norc
    ```
 
@@ -106,20 +106,52 @@ All values are server-only; none use `NEXT_PUBLIC_`.
 
 | Variable | Local phone preview | Hosted disposable database |
 |---|---|---|
-| `TP_DB` | `tp_h`, explicitly assigned | Exact assigned `tp_…` database name, at most 63 characters |
+| `TP_DB` | `tp_j`, explicitly assigned | Exact assigned `tp_…` database name, at most 63 characters |
 | `TEACHER_PROMPTS_DEMO` | `1` | `1` |
-| `TP_PREVIEW_ACCESS_CODE` | Fresh code, required for sharing | Fresh code, mandatory for remote mode |
-| `TEACHER_PROMPTS_DATABASE_URL` | Omit; derived from `TP_DB` and fixed loopback settings | Dedicated disposable Postgres URL, entered in protected host settings |
-| `TEACHER_PROMPTS_DB_NAME` | Omit, or exactly `tp_h` | Omit, or exactly match `TP_DB` |
+| `TP_PREVIEW_ACCESS_CODE` | Random code of at least 24 characters, required for sharing | Random code of at least 24 characters, mandatory |
+| `TP_DATABASE_URL` | Omit to derive the fixed local URL, or supply matching `postgresql://postgres@localhost:55432/tp_j` | Dedicated disposable Postgres URL ending in `/<TP_DB>?sslmode=require`, entered in protected host settings |
 | `TP_ALLOW_REMOTE_PREVIEW_DB` | Unset | `1`, explicit opt-in to a separately approved fake backend |
-| `DATABASE_URL` | Unset | Prefer unset; adapter accepts it, but rejects conflicting URL values |
+| `TP_TRUST_PREVIEW_PROXY` | Unset unless a verified proxy overwrites `X-Forwarded-For` with one client IP | Set `1` only behind that verified proxy; otherwise all clients share the conservative unknown-IP bucket |
 | `NEXT_TELEMETRY_DISABLED` | `1` | `1` |
 
-The remote adapter requires the opt-in plus nonempty access code, validates the
-`tp_` database name, rejects URL query/fragment options, uses verified TLS, and checks
-`runtime_settings.demo_enabled`. It does **not** allowlist a provider/project hostname
-or prove that a database contains only fake data. Jeremy must independently verify
-the disposable project's identity. No local worker or test runner accepts remote DBs.
+`TP_DB` is always required, must match `^tp_[a-z0-9_]+$` (at most 63
+characters), and must equal the URL database name. `TP_DATABASE_URL` is the only
+URL setting read by the web adapter. Generic `DATABASE_URL` and the old
+`TEACHER_PROMPTS_DATABASE_URL` / `TEACHER_PROMPTS_DB_NAME` are ignored; they cannot
+supply an assignment. The existing local worker/launcher still use their separate
+legacy URL settings internally, always constrained to the assigned loopback DB.
+
+Local URLs require localhost/127.0.0.1:55432, postgres, no password or URL options.
+Remote mode requires all three gates: `TP_ALLOW_REMOTE_PREVIEW_DB=1`,
+`TEACHER_PROMPTS_DEMO=1`, and a code with at least 24 non-padding characters.
+The only remote URL query allowed is exactly `?sslmode=require`; certificate
+verification stays enabled. Fragments and other driver options are refused.
+The application pool is withheld until the service-role demo-marker check succeeds,
+and is closed on failure; subsequent data operations recheck the marker. The local
+`start` script additionally checks it before listening. The code-entry page and
+rejected guesses do no database work, including during redirect rendering.
+These checks do not prove that the backend contains only fake data: Jeremy must
+independently verify the disposable project's identity. No local worker/test runner
+accepts remote DBs. Pass J tested remote configuration and failure handling with
+fake values/mocks only; no remote connection was made.
+
+Preview attempts are checked synchronously before code comparison or database work:
+five attempts per IP and 30 attempts globally per process in a 60-second window.
+Repeated exhausted windows double backoff up to 15 minutes; rejected requests do
+not extend an existing cooldown. After 30 idle minutes the penalty resets. Codes
+are compared using constant-time fixed-size hashes and are never logged. Wrong and
+throttled guesses show the same generic error; a numeric retry hint carries no code.
+Unknown/untrusted addresses share one bucket. IP keys are hashed in bounded,
+ephemeral memory. Only enable proxy trust after verifying the proxy replaces, rather
+than appends to or forwards, the caller's `X-Forwarded-For` header with one valid IP.
+
+This in-process limiter survives requests, not restarts or separate replicas.
+**Before any multi-instance/serverless preview**, configure and verify a shared
+perimeter limit for every POST route (actions can be posted to `/preview` or another
+route), with both per-IP and aggregate limits no weaker than the application limits.
+Do not expose alternate aliases that bypass that perimeter. A single controlled
+process can use the built-in limiter; hosted multi-instance protection remains a
+human setup/verification gate.
 
 For a later **Vercel Preview**, use the supported Next.js integration documented by
 [Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs). The following records
@@ -153,7 +185,7 @@ configuration steps, not successful hosted validation:
 5. Create the Preview deployment only after the bootstrap gate passes. Verify every
    generated alias redirects unauthenticated users to `/preview`, direct actions
    cannot bypass it, cookies are Secure, and wrong identities reveal no roster.
-   The layout/RPC checks must verify demo mode even though Vercel bypasses `start`.
+   The verified request pool/RPC checks must verify demo mode even though Vercel bypasses `start`; the shared perimeter limit above must already be active.
    Run the phone checklist before sharing the HTTPS `/demo` link and separate code.
 
 Cloudflare **Workers** hosting of this Node/`pg` app is not established here. Option A
@@ -186,7 +218,7 @@ After all testing using this assigned DB has stopped, delete only the throwaway 
 
 ```bash
 env -i PATH="$PATH" PGPASSFILE=/dev/null PGSERVICEFILE=/dev/null \
-  dropdb -w -h localhost -p 55432 -U postgres --if-exists tp_h
+  dropdb -w -h localhost -p 55432 -U postgres --if-exists tp_j
 ```
 
 For a hosted alternative, remove the preview deployment/project and every alias,

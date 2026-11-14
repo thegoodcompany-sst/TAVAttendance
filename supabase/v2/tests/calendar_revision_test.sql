@@ -24,6 +24,74 @@ DO $$ DECLARE d date:=(clock_timestamp() AT TIME ZONE 'Asia/Singapore')::date+10
  PERFORM public.generate_lessons(d,d+1);
  PERFORM pg_temp.ok((SELECT cancellation_reason='centre_closed' FROM public.lessons WHERE id=l),'calendar closure on actual date cancels makeup');
 END $$;
+-- Moving-window regression: original date is excluded; actual SGT date must be visited.
+DO $$ DECLARE d date:=(clock_timestamp() AT TIME ZONE 'Asia/Singapore')::date+10; t uuid; c uuid; r uuid; l uuid; st timestamptz; rev bigint; result jsonb; BEGIN
+ INSERT INTO public.classes(short_label,subject) VALUES('Demo Moving Window','Demo') RETURNING id INTO c;
+ INSERT INTO public.terms(label,starts_on,ends_on) VALUES('Demo Moving Term',d,d+70) RETURNING id INTO t;
+ INSERT INTO public.timetable_rules(class_id,term_id,iso_weekday,local_start,duration_minutes,effective_from,effective_until,default_teacher_id)
+ VALUES(c,t,extract(isodow FROM d),'19:00',60,d,d+70,'10000000-0000-4000-8000-000000000011') RETURNING id INTO r;
+ PERFORM public.generate_lessons(d,d);
+ SELECT id INTO l FROM public.lessons WHERE timetable_rule_id=r AND occurrence_date=d;
+ st:=(d+1+time '00:30') AT TIME ZONE 'Asia/Singapore';
+ PERFORM pg_temp.claims('10000000-0000-4000-8000-000000000001'); SET LOCAL ROLE authenticated;
+ PERFORM public.edit_lesson(l,st,st+interval '1 hour');
+ RESET ROLE;
+ INSERT INTO public.enrollments(student_id,class_id,starts_on) SELECT id,c,d+1 FROM public.students ORDER BY id LIMIT 1;
+ PERFORM public.generate_lessons(d+1,d+1);
+ PERFORM pg_temp.ok((SELECT count(*)=1 FROM public.lesson_roster WHERE lesson_id=l),'moving window refreshes roster on actual Singapore date');
+ PERFORM pg_temp.ok((SELECT occurrence_date=d AND scheduled_start_at=st AND schedule_overridden AND cancelled_at IS NULL FROM public.lessons WHERE id=l),'moving window preserves natural identity and override');
+ INSERT INTO public.calendar_exceptions(class_id,starts_on,ends_on,kind,reason_code) VALUES(c,d+1,d+1,'closure','centre_closed');
+ result:=public.generate_lessons(d+1,d+42);
+ PERFORM pg_temp.ok(result->>'cancelled'='1' AND (SELECT cancellation_reason='centre_closed' FROM public.lessons WHERE id=l),'moving window cancels closed destination without original date');
+ PERFORM pg_temp.ok(NOT EXISTS(SELECT FROM public.notification_plans WHERE lesson_id=l AND status='pending'),'moving window cancellation suppresses prompts');
+ SELECT plan_revision INTO rev FROM public.lessons WHERE id=l;
+ DELETE FROM public.calendar_exceptions WHERE class_id=c;
+ PERFORM public.generate_lessons(d+1,d+42);
+ PERFORM pg_temp.ok((SELECT cancelled_at IS NOT NULL AND plan_revision=rev FROM public.lessons WHERE id=l),'moving window never resurrects cancelled override');
+ SET LOCAL ROLE service_role;
+ PERFORM pg_temp.ok(NOT EXISTS(SELECT FROM public.scheduler_tick(st+interval '55 minutes',100) WHERE lesson_id=l),'moving window closed lesson never dispatches');
+ RESET ROLE;
+END $$;
+-- Real refresh entry point: original identity outside today..today+42.
+DO $$ DECLARE today date:=(clock_timestamp() AT TIME ZONE 'Asia/Singapore')::date; d date:=today+50; t uuid; c uuid; r uuid; l uuid; st timestamptz; BEGIN
+ INSERT INTO public.classes(short_label,subject) VALUES('Demo Refresh Moved','Demo') RETURNING id INTO c;
+ INSERT INTO public.terms(label,starts_on,ends_on) VALUES('Demo Refresh Term',today-7,today+70) RETURNING id INTO t;
+ INSERT INTO public.timetable_rules(class_id,term_id,iso_weekday,local_start,duration_minutes,effective_from,effective_until,default_teacher_id)
+ VALUES(c,t,extract(isodow FROM d),'19:00',60,today-7,today+70,'10000000-0000-4000-8000-000000000011') RETURNING id INTO r;
+ PERFORM public.generate_lessons(d,d);
+ SELECT id INTO l FROM public.lessons WHERE timetable_rule_id=r AND occurrence_date=d;
+ st:=(today+1+time '00:30') AT TIME ZONE 'Asia/Singapore';
+ PERFORM pg_temp.claims('10000000-0000-4000-8000-000000000001'); SET LOCAL ROLE authenticated;
+ PERFORM public.edit_lesson(l,st,st+interval '1 hour');
+ RESET ROLE;
+ -- Model time passing after an authorized move; preserve ISO recurrence identity.
+ UPDATE public.lessons SET occurrence_date=d-56 WHERE id=l;
+ INSERT INTO public.calendar_exceptions(class_id,starts_on,ends_on,kind,reason_code) VALUES(c,today+1,today+1,'closure','centre_closed');
+ SET LOCAL ROLE service_role;
+ PERFORM public.refresh_prompt_schedule();
+ RESET ROLE;
+ PERFORM pg_temp.ok((SELECT occurrence_date<today AND cancellation_reason='centre_closed' FROM public.lessons WHERE id=l),'refresh cancels moved lesson whose original date has passed');
+ PERFORM pg_temp.ok(NOT EXISTS(SELECT FROM public.notification_plans WHERE lesson_id=l AND status='pending'),'refresh cannot replan cancelled makeup');
+ DELETE FROM public.calendar_exceptions WHERE class_id=c;
+ PERFORM public.generate_lessons(d,d);
+ SELECT id INTO l FROM public.lessons WHERE timetable_rule_id=r AND occurrence_date=d;
+ SET LOCAL ROLE authenticated;
+ PERFORM public.edit_lesson(l,st+interval '2 hours',st+interval '3 hours');
+ RESET ROLE;
+ UPDATE public.lessons SET started_at=clock_timestamp() WHERE id=l;
+ INSERT INTO public.calendar_exceptions(class_id,starts_on,ends_on,kind,reason_code) VALUES(c,today+1,today+1,'closure','centre_closed');
+ SET LOCAL ROLE service_role;
+ PERFORM public.refresh_prompt_schedule();
+ RESET ROLE;
+ PERFORM pg_temp.ok((SELECT cancelled_at IS NULL AND started_at IS NOT NULL FROM public.lessons WHERE id=l),'refresh preserves started moved lesson');
+ PERFORM pg_temp.ok(EXISTS(SELECT FROM public.audit_events WHERE lesson_id=l AND event_code='calendar_conflict'),'refresh audits moved work conflict');
+ UPDATE public.lessons SET started_at=NULL WHERE id=l;
+ UPDATE public.timetable_rules SET active=false WHERE id=r;
+ SET LOCAL ROLE service_role;
+ PERFORM public.refresh_prompt_schedule();
+ RESET ROLE;
+ PERFORM pg_temp.ok((SELECT cancellation_reason='rule_removed' FROM public.lessons WHERE id=l),'refresh retires moved override when its rule is removed');
+END $$;
 DO $$ DECLARE d date:=(clock_timestamp() AT TIME ZONE 'Asia/Singapore')::date+12; t uuid; c uuid; a uuid; b uuid; BEGIN
  INSERT INTO public.classes(short_label,subject) VALUES('Demo Batch Regression','Demo') RETURNING id INTO c;
  INSERT INTO public.terms(label,starts_on,ends_on) VALUES('Demo Batch Term',d,d+14) RETURNING id INTO t;
