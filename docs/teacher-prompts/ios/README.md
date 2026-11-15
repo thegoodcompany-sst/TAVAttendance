@@ -116,6 +116,14 @@ Unicode scalars and remain in memory only. Submit is disabled while notes are un
 Network failures keep the screen. Explicit retry reuses the same attendance/feedback/
 submit mutation and captured arguments; conflicts reload and retain the notes draft.
 Snooze is never queued or automatically retried. Server denials clear sensitive data.
+Snooze confirmation outcomes, submitted state and inline errors use a top safe-area
+banner outside the lazy List, so they remain visible at the current scroll offset.
+The submitted identifier belongs only to the heading Text, with no decorative image.
+Outcome changes post VoiceOver announcements using existing `PromptStrings` copy.
+Interactive sheet dismissal is disabled during an unsaved All present review, dirty
+notes, an in-flight write or retained retry; Back to lessons remains an explicit exit.
+Submission/save clears the relevant protection; notes still resist swipe dismissal
+if another device submitted while a local draft was dirty. Auth invalidation clears drafts.
 The new screens use blue/teal/indigo/neutral styles, Dynamic Type and labeled controls.
 All native copy is centralized in `PromptStrings.swift` and inventoried in
 [strings.md](../strings.md), pending Edmund's approval.
@@ -141,15 +149,19 @@ Pass 2: package **42 passed / 0 failed**; Python fixtures **69 / 0**; Bun parity
 methods passed in a temporary Linux domain harness with Apple/Supabase adapters
 stubbed, covering both submit branches, exact lost-response replay, partial conflicts,
 sign-out between writes, notes/clear gating and demo routing with failed device storage.
-This is **not** an iOS build or native runtime verification. The supplied pass-1 macos-15
-CI result was 107 passing unit tests (14 teacher-prompt tests); pass-2 native tests and
-screenshots require a fresh macOS run. `/tmp/gitleaks dir . --config .gitleaks.toml
+This is **not** an iOS build or native runtime verification. The supplied pass-2 macos-15
+CI result was 113 passing unit tests (20 teacher-prompt tests), with Secrets passing.
+Its optional screenshot job failed after navigation; see the pass-3 diagnosis below.
+`/tmp/gitleaks dir . --config .gitleaks.toml
 --redact=100` passed with no leaks; no global scanner rules were changed.
 
 `TeacherPromptScreenshotTests` launches the real app in Debug demo mode and retains
 six attachments per appearance: lessons list, attendance before, after All present,
 snooze confirmation, after snooze, and submitted. Light and dark run as independent
-cases, with navigation/readiness predicates and bounded list scrolling. The separate optional `ios-screenshots` CI job runs only
+cases, with navigation/readiness predicates and bounded list scrolling. Content above
+is sought toward the top first, using short drags inside the list. Snooze/submitted
+outcomes must be visible without any further scrolling; submitted is queried as
+StaticText, and may not also identify an Image. The separate optional `ios-screenshots` CI job runs only
 those tests with `TAVAttendanceLayout`, exports xcresult attachments and uploads the
 result bundle. It uses placeholders, no secrets, and cannot block CI.
 
@@ -160,7 +172,33 @@ button. The attachments do not include the underlying Keychain status. The worki
 already contained a late pass-1 launch-time ephemeral-store bypass; pass 2 additionally
 selects ephemeral routing on entry into demo state, rebuilds a failed router, and tests
 that transition using an explicitly failing device store. Production persistence still
-fails closed. A new native screenshot run is required to confirm the CI symptom is gone.
+fails closed. The supplied pass-2 screenshots confirm that navigation now succeeds.
+
+Pass 3 diagnosis from `ci-shots/run2/teacher-prompt-ios-screenshots/teacher-prompt-attachments/`:
+light reached captures 01–04; `760B037A-…txt` includes the presented Attendance
+navigation bar and `teacher.attendanceList` after the underlying My lessons tree.
+The snoozed row was above the viewport and absent from the lazy List's accessibility
+tree. Dark reached 01–05; `48B52AFA-…txt` resolves `teacher.submitted` to an Image
+labeled “Selected” at y=294.3. `939EF161-…txt` and `E06C0476-…txt` show the same
+identifier on both Image and StaticText; `.firstMatch` picked the decorative image.
+The pinned banner and text-only identifier fix those two implementation defects;
+the tests retain all six captures per theme and require visible outcomes.
+
+Pass-3 local results: `swift test --package-path docs/teacher-prompts/ios` **42/0**;
+`python3 docs/teacher-prompts/ios/check_fixtures.py` **69/0**;
+`bun --no-env-file test --cwd docs/teacher-prompts/ios Checks` **47/0**;
+`swiftc -parse` on the four changed Swift files passed. The refreshed temporary
+Linux harness ran `swift test --package-path /tmp/teacher-domain-check`: **22/0**,
+including the two new draft-protection regressions. Apple/Supabase adapters remain
+stubbed; the model and XCTest sources are copied unchanged from this worktree.
+The colour scan found no forbidden/custom colour matches in the changed Swift files;
+`/tmp/gitleaks dir . --config .gitleaks.toml --redact=100` found no leaks, and
+`git diff --check` passed.
+
+Pass-3 native XCTest, both screenshot cases, VoiceOver announcements, large Dynamic
+Type, and swipe-draft protection still require macOS/device verification. This Linux
+host cannot establish a passing optional screenshot job. No new stand-in strings,
+schema/API changes, commits, pushes or deployments are included.
 
 XcodeGen was run with the supplied Linux 2.44.1 binary. Demo file re-IDs are expected.
 A pre-existing spec/project Supabase minimum mismatch was aligned to the existing
@@ -182,6 +220,8 @@ You are porting the gated iOS teacher-prompt flow to Android/ in a separate revi
 Master OFF + shared workflow/push flags; authenticated My lessons/backlog; explicit
 snooze confirmation; preserve existing marks with All present, adjust, submit;
 account-bound navigation/retries and device opt-out. Push is optional.
+Keep snooze/submit/error feedback visible above the scrolling register, announce
+outcomes, and protect unsaved review/notes from gesture dismissal with an explicit exit.
 
 ## iOS files changed
 - iOS/TAVAttendance/Core/TeacherPromptCoordinator.swift — route/auth/lock lifecycle.
@@ -207,6 +247,9 @@ allPresent(); adjustLate(); submit(); assert(perStudentMarksThenSubmit)
 submitNetworkFailure(); retry(); assert(sameMutationAndRevisions)
 snoozeTap(A); signOut(); signIn(B); assert(noWrite && requiresFreshRoute)
 submitSuccess(); assert(deliveredLessonAlertsRemoved && badgeRefreshed)
+scrollToBottom(); snooze(); assert(outcomeVisibleWithoutScroll && announced)
+submitSuccess(); assert(doneTextVisible && decorativeIconHasNoStateIdentifier)
+reviewOrDirtyNotes(); attemptGestureDismissal(); assert(draftRetained)
 gateOff(); openPush(); assert(noV2Calls)
 
 Match Kotlin/Compose patterns. Reuse shared JSON route fixtures. Keep new UI neutral/
@@ -222,10 +265,14 @@ Read web/AGENTS.md first; prototypes/teacher-prompts is a reference, not product
 ## Feature summary
 Shared flags OFF, real authenticated My lessons/backlog, online review with revision
 CAS, optional bounded notes, explicit snooze and submit; push is a convenience.
+Keep snooze/submit/errors visible while scrolling, announce outcomes through a live
+region, and protect unsaved review/notes from accidental dismissal with an explicit exit.
 
 ## iOS files changed
 - iOS/TAVAttendance/Services/TeacherPromptService.swift — RPC names/parameters.
 - iOS/TAVAttendance/Views/TeacherPrompts/TeacherLessonModel.swift — mutation/retry policy.
+- iOS/TAVAttendance/Views/TeacherPrompts/TeacherPromptViews.swift — pinned status and accessible text.
+- iOS/TAVAttendanceUITests/TeacherPromptScreenshotTests.swift — visible outcomes in light/dark.
 - docs/teacher-prompts/ios/Tests/PromptRouterTests/Fixtures/ — canonical route/action cases.
 
 ## Web targets
@@ -243,6 +290,8 @@ allPresent(); submit(); assert(oneAtomicConfirmation && stopsPrompts)
 allPresent(); adjustLate(); submit(); assert(perStudentMarksThenSubmit && receiptRevisions)
 conflict(); assert(freshRegister && notesDraftRetained)
 snoozeLimit(); assert(disabledButton)
+scrollToBottom(); snoozeOrSubmit(); assert(outcomeVisibleWithoutScroll && announced)
+reviewOrDirtyNotes(); attemptDismissal(); assert(draftRetained)
 gateOff(); assert(noV2Calls)
 
 Keep web's explicit-sign-out cookie rule (clears route), unlike native's locator

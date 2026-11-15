@@ -1226,10 +1226,27 @@ receipt revisions and exact retry requests. Local checks: 42 package, 69 Python,
 20 stubbed app-domain tests, Swift parse and gitleaks pass. Native pass-2 unit/UI tests
 are still unrun on this Linux host. No commit, push, remote API/DB, real push or deploy.
 
+Pass 3: supplied pass-2 macos-15 CI passed 113 native unit tests (20 teacher-prompt
+tests) and Secrets. Optional screenshots reached light 01–04 and dark 01–05:
+light's snoozed List row was offscreen; dark's submitted identifier matched both
+the checkmark Image and its text, with `firstMatch` selecting the image. Outcomes
+and errors now use a pinned top banner with text identifiers and VoiceOver
+announcements. Unsaved review/notes and pending writes disable swipe dismissal;
+Back to lessons remains available. Two new regressions cover draft protection.
+Local package/fixture/parse checks pass, plus 22 app-domain tests in the temporary
+Linux harness (Apple/Supabase adapters stubbed). This does not verify native UI.
+No new copy, commit, push, remote API/DB, real push or deploy.
+
 - [ ] Supervisor: commit/push the reviewed changes; inspect the macos-15 iOS build
   and XCTest results, then optional `ios-screenshots` artifacts (six states × two
   themes). Run Dynamic Type/VoiceOver, iPad, foreground/background/privacy-lock,
   stale/network/expired-session and account-switch flows on the actual SDK/device.
+- [ ] Pass-3 UI QA: in both themes scroll away from the top, confirm snooze and
+  submit, and verify each outcome is visible immediately and announced by VoiceOver.
+  Trigger an offline error from a lower row and verify its message/retry stays visible.
+  Verify large Dynamic Type does not clip the banner, downward drags retain unsaved
+  review/notes, and Back to lessons still exits. The screenshot job must retain
+  captures 01–06 for each theme; pass-3 native unit/UI tests remain unrun on Linux.
 - [ ] Obtain Edmund's approval for all native stand-in copy in
   `docs/teacher-prompts/strings.md`; test All present → optional adjustments →
   Confirm and submit with staff (atomic RPC without adjustments, individual marks

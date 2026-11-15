@@ -24,7 +24,7 @@ final class TeacherPromptScreenshotTests: XCTestCase {
         capture(app, "\(theme)-02-attendance")
         all.tap()
         let review = app.staticTexts["teacher.allPresentReview"]
-        XCTAssertTrue(review.waitForExistence(timeout: 10))
+        reveal(review, in: app, direction: .towardTop)
         capture(app, "\(theme)-03-all-present")
 
         let snooze = app.buttons["teacher.snooze"]
@@ -32,24 +32,30 @@ final class TeacherPromptScreenshotTests: XCTestCase {
         waitUntilReady(snooze)
         snooze.tap()
         let confirmation = app.buttons["teacher.confirmSnooze"]
-        reveal(confirmation, in: app, up: false)
+        reveal(confirmation, in: app, direction: .towardTop)
         waitUntilReady(confirmation)
-        XCTAssertTrue(app.staticTexts["teacher.snoozeConfirmation"].exists)
+        let confirmationTitle = app.staticTexts["teacher.snoozeConfirmation"]
+        reveal(confirmationTitle, in: app, direction: .towardTop)
+        waitUntilReady(confirmation)
         capture(app, "\(theme)-04-snooze-confirmation")
         confirmation.tap()
         let snoozed = app.staticTexts["teacher.snoozed"]
-        XCTAssertTrue(snoozed.waitForExistence(timeout: 10))
-        reveal(snoozed, in: app, up: false)
+        // Pinned outcomes must become visible without a compensating scroll.
+        waitUntilVisible(snoozed)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "teacher.snoozed").count, 1)
         XCTAssertFalse(confirmation.exists)
         capture(app, "\(theme)-05-after-snooze")
 
         let submit = app.buttons["teacher.submit"]
         reveal(submit, in: app)
         waitUntilReady(submit)
+        waitUntilVisible(snoozed) // Still pinned after scrolling to the submit button.
         submit.tap()
-        let done = app.descendants(matching: .any)["teacher.submitted"].firstMatch
-        reveal(done, in: app, up: false)
-        XCTAssertTrue(done.waitForExistence(timeout: 10))
+        let done = app.staticTexts["teacher.submitted"]
+        waitUntilVisible(done)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "teacher.submitted").count, 1)
+        XCTAssertFalse(app.images["teacher.submitted"].exists)
+        XCTAssertFalse(snoozed.exists)
         XCTAssertFalse(app.buttons["teacher.submit"].exists)
         capture(app, "\(theme)-06-submitted")
     }
@@ -60,24 +66,35 @@ final class TeacherPromptScreenshotTests: XCTestCase {
             object: element)
         XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed, file: file, line: line)
     }
+    private func waitUntilVisible(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        // Static outcomes need to be visible; enabled is meaningful for action buttons.
+        let visible = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND hittable == true"), object: element)
+        XCTAssertEqual(XCTWaiter.wait(for: [visible], timeout: 15), .completed, file: file, line: line)
+    }
     private func capture(_ app: XCUIApplication, _ name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
     }
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication, up: Bool = true,
+    private enum ScrollDirection { case towardTop, towardBottom }
+
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication, direction: ScrollDirection = .towardBottom,
                         file: StaticString = #filePath, line: UInt = #line) {
         let list = app.collectionViews["teacher.attendanceList"]
         XCTAssertTrue(list.waitForExistence(timeout: 10), file: file, line: line)
         for _ in 0..<10 {
             if element.exists && element.isHittable { return }
-            // Short drags within the list avoid pulling the sheet's dismissal handle.
-            let upper = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-            let lower = list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
-            if up { lower.press(forDuration: 0.05, thenDragTo: upper) }
-            else { upper.press(forDuration: 0.05, thenDragTo: lower) }
+            // Scroll only inside the list, away from the sheet handle and row controls.
+            // Content above is sought towardTop first; review also disables swipe dismissal.
+            let upper = list.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.35))
+            let lower = list.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.65))
+            switch direction {
+            case .towardTop: upper.press(forDuration: 0.05, thenDragTo: lower)
+            case .towardBottom: lower.press(forDuration: 0.05, thenDragTo: upper)
+            }
         }
-        waitUntilReady(element, file: file, line: line)
+        waitUntilVisible(element, file: file, line: line)
     }
 }

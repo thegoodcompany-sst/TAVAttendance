@@ -15,7 +15,12 @@ This is the source draft for mobile release notes. Keep completed changes under
   atomic confirmation when unchanged; adjustments use individual marks then submit
   with exact retries. Demo routing recovers independently of device storage. Screenshot
   tests cover six states separately in light/dark; configuration names avoid a scanner
-  false positive without changing secret rules.
+  false positive without changing secret rules. Snooze/submit outcomes and inline
+  errors now stay above the scrolling register, with VoiceOver announcements and
+  a text-only submitted accessibility target. Unsaved reviews/notes and pending
+  writes resist swipe dismissal; Back to lessons remains available. Screenshot
+  assertions require visible outcomes without scrolling to find them. Native
+  screenshot and accessibility verification of this follow-up remains pending.
 
 - Advisor watch: reviewed the 46 NEW production advisor findings from run
   40274878700 (service-only RLS tables, self-guarding SECURITY DEFINER RPCs

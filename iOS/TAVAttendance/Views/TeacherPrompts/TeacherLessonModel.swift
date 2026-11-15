@@ -39,6 +39,10 @@ final class TeacherLessonModel: ObservableObject, Identifiable {
     var canSnooze: Bool { valid && allowed() && !busy && !submitted && !snoozeLimited && projection?.lesson.can_snooze == true }
     var hasRetry: Bool { retryWrite != nil }
     var notesDirty: Bool { notes != projection?.feedback.body }
+    // Back to lessons remains an explicit exit; a scroll gesture must not discard work.
+    var preventsInteractiveDismissal: Bool {
+        valid && projection != nil && (notesDirty || (!submitted && (reviewingAllPresent || busy || hasRetry)))
+    }
     var canSubmit: Bool {
         canEdit && !notesDirty && (reviewingAllPresent
             ? roster.allSatisfy { $0.status != nil } && (!roster.isEmpty || projection?.lesson.can_submit == true)

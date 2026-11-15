@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PromptRouter
 
 struct TeacherLessonsView: View {
@@ -102,28 +103,10 @@ struct TeacherLessonView: View {
     @ObservedObject var model: TeacherLessonModel
     var body: some View {
         List {
-            if let message = model.message {
-                Section {
-                    Text(message).foregroundStyle(.secondary)
-                        .accessibilityIdentifier(message == PromptStrings.snoozed ? "teacher.snoozed" : "teacher.message")
-                    if model.projection != nil && message != PromptStrings.snoozed {
-                        Button(PromptStrings.retry) { Task { await model.retry() } }
-                            .disabled(model.busy)
-                    }
-                }
-            }
             if let p = model.projection {
                 Section {
                     Text(p.lesson.class_label).font(.title2.bold())
                     Text(TeacherPromptFormat.state(p.lesson.state)).foregroundStyle(.indigo)
-                }
-                if model.submitted {
-                    Section {
-                        Label(PromptStrings.done, systemImage: "checkmark.circle.fill")
-                            .font(.title2).foregroundStyle(.teal)
-                            .accessibilityIdentifier("teacher.submitted")
-                        Text(PromptStrings.doneHelp)
-                    }
                 }
                 if model.confirmingSnooze {
                     Section {
@@ -208,9 +191,46 @@ struct TeacherLessonView: View {
             }
         }
         .accessibilityIdentifier("teacher.attendanceList")
+        .safeAreaInset(edge: .top, spacing: 0) {
+            // Outside the lazy List: outcomes and errors remain visible at any offset.
+            if model.submitted || model.message != nil {
+                statusBanner
+            }
+        }
+        .interactiveDismissDisabled(model.preventsInteractiveDismissal)
+        .onChange(of: model.message) { _, message in
+            if let message { UIAccessibility.post(notification: .announcement, argument: message) }
+        }
+        .onChange(of: model.submitted) { _, submitted in
+            if submitted { UIAccessibility.post(notification: .announcement, argument: PromptStrings.done) }
+        }
         .navigationTitle(PromptStrings.attendance)
         .navigationBarTitleDisplayMode(.inline)
         .tint(.blue)
+    }
+
+    private var statusBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if model.submitted {
+                // Identify the actual text, never a Label's decorative SF Symbol.
+                Text(PromptStrings.done)
+                    .font(.title2).foregroundStyle(.teal)
+                    .accessibilityIdentifier("teacher.submitted")
+                Text(PromptStrings.doneHelp).foregroundStyle(.secondary)
+            }
+            if let message = model.message, !model.submitted || message != PromptStrings.snoozed {
+                Text(message).foregroundStyle(.secondary)
+                    .accessibilityIdentifier(message == PromptStrings.snoozed ? "teacher.snoozed" : "teacher.message")
+                if model.projection != nil && message != PromptStrings.snoozed {
+                    Button(PromptStrings.retry) { Task { await model.retry() } }
+                        .disabled(model.busy)
+                }
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(.regularMaterial)
     }
 }
 

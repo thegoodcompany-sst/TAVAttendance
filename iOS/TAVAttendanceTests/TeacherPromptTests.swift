@@ -425,6 +425,51 @@ final class TeacherPromptTests: XCTestCase {
         await m.submit(); XCTAssertTrue(s.confirmations.isEmpty); XCTAssertTrue(s.submissions.isEmpty)
     }
 
+    func testReviewRemainsProtectedThroughSnoozeAndFailedSubmit() async throws {
+        let s = PromptServiceSpy(), c = make(s), m = try await open(c)
+        XCTAssertFalse(m.preventsInteractiveDismissal)
+        await m.allPresent()
+        XCTAssertTrue(m.preventsInteractiveDismissal)
+        m.confirmingSnooze = true; await m.confirmSnooze()
+        XCTAssertEqual(m.message, PromptStrings.snoozed)
+        XCTAssertFalse(m.confirmingSnooze)
+        XCTAssertTrue(m.reviewingAllPresent)
+        XCTAssertTrue(m.preventsInteractiveDismissal)
+
+        s.submitFailure = .network
+        await m.submit()
+        XCTAssertFalse(m.submitted)
+        XCTAssertEqual(m.message, PromptStrings.networkError)
+        XCTAssertTrue(m.preventsInteractiveDismissal)
+        s.submitFailure = nil
+        await m.retry()
+        XCTAssertTrue(m.submitted)
+        XCTAssertNil(m.message)
+        XCTAssertFalse(m.preventsInteractiveDismissal)
+    }
+
+    func testNotesDraftProtectsSheetUntilSavedOrInvalidated() async throws {
+        let s = PromptServiceSpy(), c = make(s), m = try await open(c)
+        m.notes = "draft"
+        XCTAssertTrue(m.preventsInteractiveDismissal)
+        await m.saveNotes()
+        XCTAssertFalse(m.preventsInteractiveDismissal)
+        m.notes = "unsaved"
+        XCTAssertTrue(m.preventsInteractiveDismissal)
+        // Learning that another device submitted must not silently drop this notes draft.
+        let p = try XCTUnwrap(m.projection)
+        try await s.demo.confirmAllPresentAndSubmit(TeacherSubmitMutation(p_lesson_id: m.lessonID,
+            p_expected_revision: p.lesson.register_revision,
+            p_expected_feedback_revision: p.feedback.revision, p_mutation_id: UUID()))
+        await m.reload()
+        XCTAssertTrue(m.submitted)
+        XCTAssertEqual(m.notes, "unsaved")
+        XCTAssertTrue(m.preventsInteractiveDismissal)
+        m.invalidate()
+        XCTAssertFalse(m.preventsInteractiveDismissal)
+        XCTAssertEqual(m.notes, "")
+    }
+
     func testCategoryActionsRequireForegroundAuthentication() async {
         let category = TeacherNotificationDelegate.category
         XCTAssertEqual(category.identifier, "TAVA_TEACHER_PROMPT")
