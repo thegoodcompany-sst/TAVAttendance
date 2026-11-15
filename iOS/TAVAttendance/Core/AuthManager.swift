@@ -170,15 +170,13 @@ final class AuthManager: ObservableObject {
     }
 
     func signOut() async throws {
+        // Clear synchronously before either revocation or auth can suspend.
         PendingAttendanceStore.shared.clear()
         await TeacherPromptCoordinator.shared.beginSignOut()?.value
         if DemoMode.isActive {
             exitDemoMode()
             return
         }
-        // Clear synchronously before the auth request so no stale queue survives an
-        // offline/failed sign-out or becomes visible to a subsequent account.
-        PendingAttendanceStore.shared.clear()
         try await supabase.auth.signOut()
     }
 }

@@ -47,16 +47,16 @@ struct TAVAttendanceApp: App {
                                 if teacherPrompts.gate.workflow {
                                     TeacherLessonsView(coordinator: teacherPrompts)
                                 } else {
-                                switch signedInDestination(forRole: authManager.currentProfile?.role) {
-                                case .admin:
-                                    AdminTabView()
-                                case .parent:
-                                    ParentDashboardView()
-                                case .arrivalStation:
-                                    ArrivalStationLockedView()
-                                case .tutor:
-                                    TutorTabView()
-                                }
+                                    switch signedInDestination(forRole: authManager.currentProfile?.role) {
+                                    case .admin:
+                                        AdminTabView()
+                                    case .parent:
+                                        ParentDashboardView()
+                                    case .arrivalStation:
+                                        ArrivalStationLockedView()
+                                    case .tutor:
+                                        TutorTabView()
+                                    }
                                 }
                             }
                             // Rebuilds every screen when demo data is reset.

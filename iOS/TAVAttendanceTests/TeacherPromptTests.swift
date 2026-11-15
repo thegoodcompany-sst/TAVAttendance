@@ -3,10 +3,14 @@ import PromptRouter
 import UserNotifications
 @testable import TAVAttendance
 
-private final class PromptMemory: PendingRoutePersistence {
+private class PromptMemory: PendingRoutePersistence {
     var data: Data?
     func load() throws -> Data? { data }
     func save(_ data: Data) throws { self.data = data }
+}
+private final class FailingPromptMemory: PromptMemory {
+    override func load() throws -> Data? { throw TeacherPromptError.unavailable }
+    override func save(_ data: Data) throws { throw TeacherPromptError.unavailable }
 }
 @MainActor
 private final class PromptEffectsSpy: TeacherPromptNotificationEffects {
@@ -23,6 +27,12 @@ private final class PromptServiceSpy: TeacherPromptServing {
     var lists = 0
     var snoozes: [UUID] = []
     var submissions: [TeacherSubmitMutation] = []
+    var confirmations: [TeacherSubmitMutation] = []
+    var bulkMarks = 0
+    var loseConfirmationResponse = false
+    var loseMarkResponse = false
+    var markFailureAt: Int?
+    var afterMark: (() -> Void)?
     var marks: [TeacherMark] = []
     var submitFailure: TeacherPromptError?
     var readFailure: TeacherPromptError?
@@ -37,8 +47,21 @@ private final class PromptServiceSpy: TeacherPromptServing {
         if let readFailure { throw readFailure }
         return try await demo.lesson(id)
     }
-    func allPresent(_ m: TeacherRegisterMutation) async throws { try await demo.allPresent(m) }
-    func mark(_ m: TeacherMark) async throws { marks.append(m); try await demo.mark(m) }
+    func allPresent(_ m: TeacherRegisterMutation) async throws { bulkMarks += 1; try await demo.allPresent(m) }
+    @discardableResult func mark(_ m: TeacherMark) async throws -> TeacherMarkReceipt {
+        marks.append(m)
+        if markFailureAt == marks.count { throw TeacherPromptError.conflict }
+        let receipt = try await demo.mark(m)
+        afterMark?()
+        if loseMarkResponse { loseMarkResponse = false; throw TeacherPromptError.network }
+        return receipt
+    }
+    func confirmAllPresentAndSubmit(_ m: TeacherSubmitMutation) async throws {
+        confirmations.append(m)
+        if let submitFailure { throw submitFailure }
+        try await demo.confirmAllPresentAndSubmit(m)
+        if loseConfirmationResponse { loseConfirmationResponse = false; throw TeacherPromptError.network }
+    }
     func feedback(_ m: TeacherFeedbackMutation) async throws { try await demo.feedback(m) }
     func submit(_ m: TeacherSubmitMutation) async throws {
         submissions.append(m)
@@ -65,7 +88,17 @@ private final class PromptRPCSpy: TeacherSessionRPC {
         } else if name == "unregister_device" { data = Data("{\"revoked\":true}".utf8) }
         else if name == "my_lessons_today" { data = try JSONEncoder().encode(try await DemoTeacherPromptService().lessons()) }
         else if name == "lesson_for_prompt" { data = try JSONEncoder().encode(DemoTeacherPromptService().projection) }
-        else { data = Data("{\"lesson_id\":\"40000000-0000-4000-8000-000000000001\",\"replayed\":false}".utf8) }
+        else {
+            data = try JSONSerialization.data(withJSONObject: [
+                "lesson_id": DemoTeacherPromptService.lessonID.uuidString, "replayed": false,
+                "student_id": "20000000-0000-4000-8000-000000000001", "status": "present",
+                "absence_informed": NSNull(), "marked_at": "2027-01-07T13:05:00.123456Z",
+                "changed_count": 2, "register_revision": "4", "feedback_revision": "1",
+                "submission_id": "50000000-0000-4000-8000-000000000001",
+                "submitted_at": "2027-01-07T13:05:00Z", "snoozed_until": "2027-01-07T13:15:00Z",
+                "next_prompt_at": "2027-01-07T13:15:00Z", "overdue_at": "2027-01-08T01:15:00Z"
+            ])
+        }
         return try JSONDecoder().decode(R.self, from: data)
     }
 }
@@ -167,14 +200,18 @@ final class TeacherPromptTests: XCTestCase {
         let m = try await open(c)
         let original = try XCTUnwrap(m.projection)
         await m.allPresent()
-        XCTAssertEqual(m.projection?.roster.map(\.status), [.present, .late, .absent, .present])
-        XCTAssertEqual(m.projection?.roster[2].absence_informed, true)
+        XCTAssertEqual(m.roster.map(\.status), [.present, .late, .absent, .present])
+        XCTAssertEqual(m.roster[2].absence_informed, true)
         await m.mark(original.roster[1], status: .present)
-        XCTAssertEqual(s.marks.first?.p_observed_marked_at, "2027-01-07T13:00:00.123456Z")
-        let revision = try XCTUnwrap(m.projection?.lesson.register_revision)
+        XCTAssertTrue(s.marks.isEmpty) // Preview edits are local until confirmation.
         await m.submit()
+        XCTAssertEqual(s.marks.first(where: { $0.p_student_id == original.roster[1].id })?.p_observed_marked_at,
+                       "2027-01-07T13:00:00.123456Z")
+        XCTAssertEqual(s.marks.count, 3)
+        XCTAssertTrue(s.confirmations.isEmpty)
+        XCTAssertEqual(s.bulkMarks, 0)
         XCTAssertTrue(m.submitted)
-        XCTAssertEqual(s.submissions.first?.p_expected_revision, revision)
+        XCTAssertEqual(s.submissions.first?.p_expected_revision, s.demo.projection.lesson.register_revision)
         XCTAssertEqual(s.submissions.first?.p_expected_feedback_revision, "0")
         XCTAssertNotNil(s.submissions.first?.p_mutation_id)
         XCTAssertTrue(fx.removed.contains(id)); XCTAssertEqual(fx.badges.last, 0)
@@ -191,7 +228,7 @@ final class TeacherPromptTests: XCTestCase {
         XCTAssertFalse(m.submitted); XCTAssertTrue(m.hasRetry); XCTAssertNotNil(m.projection)
         s.submitFailure = nil
         await m.retry()
-        XCTAssertEqual(s.submissions.count, 2); XCTAssertEqual(s.submissions[0], s.submissions[1])
+        XCTAssertEqual(s.confirmations.count, 2); XCTAssertEqual(s.confirmations[0], s.confirmations[1])
         XCTAssertTrue(m.submitted)
         let s2 = PromptServiceSpy(), c2 = make(s2), m2 = try await open(c2)
         await m2.allPresent(); m2.notes = "lesson draft"
@@ -260,6 +297,8 @@ final class TeacherPromptTests: XCTestCase {
             XCTAssertNotEqual(TeacherPromptsGate.tokenPath(master: master, role: "teacher", teacherRequest: false), .parent)
         }
         XCTAssertEqual(TeacherPromptsGate.tokenPath(master: false, role: "parent", teacherRequest: false), .parent)
+        XCTAssertEqual(TeacherPromptsGate.tokenPath(master: true, role: nil, teacherRequest: false), .ignored)
+        XCTAssertEqual(TeacherPromptsGate.tokenPath(master: true, role: nil, teacherRequest: true), .teacher)
     }
     func testExactRPCNamesNullableParametersAndServiceGate() async throws {
         let rpc = PromptRPCSpy()
@@ -275,13 +314,117 @@ final class TeacherPromptTests: XCTestCase {
             p_absence_informed: nil, p_observed_marked_at: nil, p_expected_revision: "3", p_mutation_id: UUID()))
         try await service.feedback(TeacherFeedbackMutation(p_lesson_id: id, p_body: "", p_expected_feedback_revision: "0", p_mutation_id: UUID()))
         try await service.submit(TeacherSubmitMutation(p_lesson_id: id, p_expected_revision: "4", p_expected_feedback_revision: "1", p_mutation_id: UUID()))
+        try await service.confirmAllPresentAndSubmit(TeacherSubmitMutation(p_lesson_id: id,
+            p_expected_revision: "2", p_expected_feedback_revision: "0", p_mutation_id: UUID()))
         try await service.snooze(id, mutationID: UUID())
-        XCTAssertEqual(rpc.calls, ["my_lessons_today", "lesson_for_prompt", "mark_all_present", "mark_attendance", "save_feedback", "submit_lesson", "snooze_prompt"])
+        XCTAssertEqual(rpc.calls, ["my_lessons_today", "lesson_for_prompt", "mark_all_present", "mark_attendance", "save_feedback", "submit_lesson", "confirm_all_present_and_submit", "snooze_prompt"])
         XCTAssertTrue(rpc.bodies[0].isEmpty)
         XCTAssertTrue(rpc.bodies[3]["p_absence_informed"] is NSNull)
         XCTAssertTrue(rpc.bodies[3]["p_observed_marked_at"] is NSNull)
-        XCTAssertEqual(rpc.bodies[6]["p_minutes"] as? Int, 10)
+        XCTAssertEqual(rpc.bodies[7]["p_minutes"] as? Int, 10)
     }
+
+    func testDemoListRouteRecoversFromUnavailableDeviceStorage() async throws {
+        let s = PromptServiceSpy(), c = make(s, storage: FailingPromptMemory())
+        var gate = enabled(); gate.demo = true
+        c.update(authentication: .signedIn(PromptAccount(id: s.accountID, role: .teacher)), gate: gate, service: s)
+        await c.loadLessons()
+        let lesson = try XCTUnwrap(c.lessons?.lessons.first)
+        c.openLesson(lesson.id); await c.waitForResolution()
+        XCTAssertTrue(c.presented)
+        XCTAssertNil(c.message)
+        XCTAssertEqual(c.lessonModel?.lessonID, lesson.id)
+        XCTAssertEqual(c.lessonModel?.canEdit, true)
+        gate.demo = false
+        c.update(authentication: .signedIn(PromptAccount(id: s.accountID, role: .teacher)), gate: gate, service: s)
+        c.openLesson(lesson.id); await c.waitForResolution()
+        XCTAssertNil(c.lessonModel); XCTAssertFalse(c.presented)
+        XCTAssertEqual(c.message, PromptStrings.storageUnavailable) // Live storage still fails closed.
+    }
+    func testUnadjustedAllPresentUsesOnlyAtomicConfirmation() async throws {
+        let s = PromptServiceSpy(), fx = PromptEffectsSpy(), c = make(s, effects: fx)
+        let m = try await open(c)
+        await m.allPresent()
+        XCTAssertTrue(m.canSubmit)
+        XCTAssertEqual(s.demo.projection.roster.filter { $0.status == nil }.count, 2)
+        XCTAssertEqual(s.bulkMarks, 0); XCTAssertTrue(s.marks.isEmpty)
+        // Snooze's projection reload must preserve the uncommitted review.
+        m.confirmingSnooze = true; await m.confirmSnooze()
+        XCTAssertTrue(m.reviewingAllPresent)
+        s.loseConfirmationResponse = true
+        await m.submit()
+        XCTAssertTrue(m.hasRetry); XCTAssertFalse(m.submitted)
+        XCTAssertNotNil(s.demo.projection.submission)
+        await m.retry()
+        XCTAssertEqual(s.confirmations.count, 2)
+        XCTAssertEqual(s.confirmations[0], s.confirmations[1])
+        XCTAssertTrue(s.submissions.isEmpty)
+        XCTAssertTrue(s.marks.isEmpty); XCTAssertTrue(m.submitted)
+        XCTAssertEqual(s.confirmations.first?.p_expected_revision, "2")
+        XCTAssertEqual(s.confirmations.first?.p_expected_feedback_revision, "0")
+        XCTAssertEqual(s.demo.projection.roster.map(\.status), [.present, .late, .absent, .present])
+        XCTAssertEqual(s.demo.projection.roster[2].absence_informed, true)
+        XCTAssertTrue(fx.removed.contains(id)); XCTAssertEqual(fx.badges.last, 0)
+        try await s.demo.confirmAllPresentAndSubmit(XCTUnwrap(s.confirmations.first))
+    }
+    func testAdjustedSubmissionRetriesLostMarkResponseAndSubmitExactly() async throws {
+        let s = PromptServiceSpy(), c = make(s), m = try await open(c)
+        await m.allPresent(); await m.mark(m.roster[0], status: .late)
+        s.loseMarkResponse = true
+        await m.submit()
+        XCTAssertTrue(m.hasRetry); XCTAssertFalse(m.submitted)
+        s.submitFailure = .network
+        await m.retry()
+        XCTAssertEqual(s.marks.count, 3)
+        XCTAssertEqual(s.marks[0], s.marks[1])
+        XCTAssertTrue(m.hasRetry)
+        s.submitFailure = nil
+        await m.retry()
+        XCTAssertEqual(s.marks.count, 3) // Completed rows are not sent again.
+        XCTAssertEqual(s.submissions.count, 2)
+        XCTAssertEqual(s.submissions[0], s.submissions[1])
+        XCTAssertTrue(s.confirmations.isEmpty); XCTAssertTrue(m.submitted)
+    }
+    func testConflictDiscardsReviewAndNeverSilentlySubmits() async throws {
+        let s = PromptServiceSpy(), c = make(s), m = try await open(c)
+        await m.allPresent(); m.notes = "keep draft"
+        await m.saveNotes()
+        try await s.demo.mark(TeacherMark(p_lesson_id: id, p_student_id: m.roster[0].id,
+            p_status: .late, p_absence_informed: nil, p_observed_marked_at: nil,
+            p_expected_revision: "2", p_mutation_id: UUID()))
+        await m.submit()
+        XCTAssertFalse(m.submitted); XCTAssertFalse(m.hasRetry)
+        XCTAssertFalse(m.reviewingAllPresent); XCTAssertFalse(m.canSubmit)
+        XCTAssertEqual(m.notes, "keep draft"); XCTAssertEqual(m.message, PromptStrings.stale)
+        XCTAssertEqual(s.demo.projection.roster[3].status, nil)
+    }
+    func testAdjustedPartialConflictAndSignOutStopRemainingWrites() async throws {
+        for signOut in [false, true] {
+            let s = PromptServiceSpy(), c = make(s), m = try await open(c)
+            await m.allPresent(); await m.mark(m.roster[0], status: .late)
+            if signOut { s.afterMark = { _ = c.beginSignOut() } }
+            else { s.markFailureAt = 2 }
+            await m.submit()
+            XCTAssertTrue(s.submissions.isEmpty); XCTAssertTrue(s.confirmations.isEmpty)
+            XCTAssertFalse(m.submitted); XCTAssertFalse(m.hasRetry)
+            XCTAssertEqual(s.marks.count, signOut ? 1 : 2)
+            if !signOut { XCTAssertFalse(m.reviewingAllPresent); XCTAssertEqual(m.message, PromptStrings.stale) }
+        }
+    }
+    func testReviewRequiresSavedNotesAndClearBlocksConfirmation() async throws {
+        let s = PromptServiceSpy(), c = make(s), m = try await open(c)
+        await m.submit(); XCTAssertTrue(s.submissions.isEmpty)
+        m.notes = "draft"; await m.allPresent()
+        XCTAssertFalse(m.reviewingAllPresent)
+        await m.saveNotes(); await m.allPresent()
+        XCTAssertTrue(m.canSubmit)
+        m.notes = "unsaved"; XCTAssertFalse(m.canSubmit)
+        m.notes = "draft"
+        await m.mark(m.roster[0], status: nil)
+        XCTAssertFalse(m.canSubmit)
+        await m.submit(); XCTAssertTrue(s.confirmations.isEmpty); XCTAssertTrue(s.submissions.isEmpty)
+    }
+
     func testCategoryActionsRequireForegroundAuthentication() async {
         let category = TeacherNotificationDelegate.category
         XCTAssertEqual(category.identifier, "TAVA_TEACHER_PROMPT")

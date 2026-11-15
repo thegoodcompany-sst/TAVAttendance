@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         Task { @MainActor in
             let prompts = TeacherPromptCoordinator.shared
             switch TeacherPromptsGate.tokenPath(master: TeacherPromptsGate.masterEnabled,
-                role: PushManager.currentRole, teacherRequest: PushManager.teacherTokenRequested) {
+                role: TeacherPromptsGate.masterEnabled ? prompts.currentRole : PushManager.currentRole, teacherRequest: PushManager.teacherTokenRequested) {
             case .teacher:
                 prompts.registration?.didRegister(deviceToken)
             case .ignored:
@@ -42,6 +42,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
+        #if DEBUG
+        print("PushManager: registration failed (\(type(of: error)))")
+        #endif
         Task { @MainActor in
             TeacherPromptCoordinator.shared.registration?.lifecycle.didFailToRegister()
         }
@@ -55,9 +58,14 @@ enum PushManager {
     /// Requests notification authorization and registers for remote notifications,
     /// but only when the push_notifications flag is enabled.
     static func registerIfEnabled() async {
-        if TeacherPromptsGate.masterEnabled && (currentRole == "teacher" || currentRole == "admin") {
-            await TeacherPromptCoordinator.shared.requestRegistration()
-            return
+        if TeacherPromptsGate.masterEnabled {
+            let prompts = TeacherPromptCoordinator.shared
+            if prompts.currentRole == "teacher" || prompts.currentRole == "admin" {
+                await prompts.requestRegistration()
+                return
+            }
+            // Never use a previous account's cached parent role during profile loading.
+            guard prompts.currentRole == "parent" else { return }
         }
         guard currentRole != "teacher" else { return }
         guard !DemoMode.isActive, FeatureFlagStore.shared.isEnabled(.pushNotifications) else { return }

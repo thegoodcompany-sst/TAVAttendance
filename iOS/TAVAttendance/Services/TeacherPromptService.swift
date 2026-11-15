@@ -8,9 +8,10 @@ protocol TeacherPromptServing {
     func lessons() async throws -> TeacherLessons
     func lesson(_ id: UUID) async throws -> TeacherLessonProjection
     func allPresent(_ mutation: TeacherRegisterMutation) async throws
-    func mark(_ mutation: TeacherMark) async throws
+    @discardableResult func mark(_ mutation: TeacherMark) async throws -> TeacherMarkReceipt
     func feedback(_ mutation: TeacherFeedbackMutation) async throws
     func submit(_ mutation: TeacherSubmitMutation) async throws
+    func confirmAllPresentAndSubmit(_ mutation: TeacherSubmitMutation) async throws
     func snooze(_ lessonID: UUID, mutationID: UUID) async throws
 }
 
@@ -68,20 +69,23 @@ final class TeacherPromptService: TeacherPromptServing {
         return try await call("lesson_for_prompt", Parameters(p_lesson_id: id), TeacherLessonProjection.self)
     }
     func allPresent(_ mutation: TeacherRegisterMutation) async throws {
-        _ = try await call("mark_all_present", mutation, TeacherMutationReceipt.self)
+        _ = try await call("mark_all_present", mutation, TeacherAllPresentReceipt.self)
     }
-    func mark(_ mutation: TeacherMark) async throws {
-        _ = try await call("mark_attendance", mutation, TeacherMutationReceipt.self)
+    @discardableResult func mark(_ mutation: TeacherMark) async throws -> TeacherMarkReceipt {
+        try await call("mark_attendance", mutation, TeacherMarkReceipt.self)
     }
     func feedback(_ mutation: TeacherFeedbackMutation) async throws {
-        _ = try await call("save_feedback", mutation, TeacherMutationReceipt.self)
+        _ = try await call("save_feedback", mutation, TeacherFeedbackReceipt.self)
     }
     func submit(_ mutation: TeacherSubmitMutation) async throws {
-        _ = try await call("submit_lesson", mutation, TeacherMutationReceipt.self)
+        _ = try await call("submit_lesson", mutation, TeacherSubmitReceipt.self)
+    }
+    func confirmAllPresentAndSubmit(_ mutation: TeacherSubmitMutation) async throws {
+        _ = try await call("confirm_all_present_and_submit", mutation, TeacherSubmitReceipt.self)
     }
     func snooze(_ lessonID: UUID, mutationID: UUID) async throws {
         struct Parameters: Encodable { let p_lesson_id: UUID; let p_minutes: Int; let p_mutation_id: UUID }
         _ = try await call("snooze_prompt", Parameters(p_lesson_id: lessonID, p_minutes: 10,
-                                                      p_mutation_id: mutationID), TeacherMutationReceipt.self)
+                                                      p_mutation_id: mutationID), TeacherSnoozeReceipt.self)
     }
 }

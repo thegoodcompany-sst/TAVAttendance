@@ -112,8 +112,38 @@ struct TeacherSubmitMutation: Encodable, Equatable {
     let p_expected_feedback_revision: String
     let p_mutation_id: UUID
 }
-struct TeacherMutationReceipt: Decodable {
+struct TeacherMarkReceipt: Decodable {
     let lesson_id: UUID
+    let student_id: UUID
+    let status: TeacherAttendanceStatus?
+    let absence_informed: Bool?
+    let marked_at: String?
+    let register_revision: String
+    let replayed: Bool
+}
+struct TeacherAllPresentReceipt: Decodable {
+    let lesson_id: UUID
+    let changed_count: Int
+    let register_revision: String
+    let replayed: Bool
+}
+struct TeacherFeedbackReceipt: Decodable {
+    let lesson_id: UUID
+    let feedback_revision: String
+    let replayed: Bool
+}
+struct TeacherSubmitReceipt: Decodable {
+    let lesson_id: UUID
+    let submission_id: UUID
+    let submitted_at: String
+    let register_revision: String
+    let replayed: Bool
+}
+struct TeacherSnoozeReceipt: Decodable {
+    let lesson_id: UUID
+    let snoozed_until: String
+    let next_prompt_at: String?
+    let overdue_at: String
     let replayed: Bool
 }
 

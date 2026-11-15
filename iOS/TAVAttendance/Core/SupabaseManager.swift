@@ -8,6 +8,8 @@ final class SupabaseManager {
     private let anonKey: String
 
     private init() {
+        // Close the demo transport gate before Auth can start restoring a session.
+        if TeacherPromptsGate.demoLaunch { DemoMode.setActive(true, persist: false) }
         // A missing or malformed Config.xcconfig must not crash the app: the
         // on-device demo needs no server, and a real sign-in then fails with a
         // visible connection error instead of a launch crash.

@@ -3,13 +3,24 @@ import Combine
 import Supabase
 import PromptRouter
 
+private final class TeacherPromptEphemeralRoute: PendingRoutePersistence {
+    private var data: Data?
+    func load() throws -> Data? { data }
+    func save(_ data: Data) throws { self.data = data }
+}
+
 @MainActor
 final class TeacherPromptCoordinator: ObservableObject {
     static let shared = TeacherPromptCoordinator(
         masterEnabled: TeacherPromptsGate.masterEnabled,
-        persistence: TeacherPromptKeychain("route-v1"),
+        persistence: defaultPersistence(),
         approvedHosts: TeacherPromptsGate.approvedHosts,
         effects: TeacherPromptSystemNotifications())
+
+    private static func defaultPersistence() -> any PendingRoutePersistence {
+        if TeacherPromptsGate.demoLaunch { return TeacherPromptEphemeralRoute() }
+        return TeacherPromptKeychain("route-v1")
+    }
 
     @Published private(set) var gate = TeacherPromptsGate()
     @Published private(set) var state: PromptRouterState = .idle
@@ -21,7 +32,7 @@ final class TeacherPromptCoordinator: ObservableObject {
     @Published private(set) var listBusy = false
     @Published private(set) var optedIn = false
     private(set) var authentication: PromptAuthentication = .restoring
-    private(set) var unlocked = false
+    @Published private(set) var unlocked = false
     private(set) var registration: TeacherPushRegistration?
     private(set) var service: (any TeacherPromptServing)?
     private let masterEnabled: Bool
@@ -29,6 +40,7 @@ final class TeacherPromptCoordinator: ObservableObject {
     private let approvedHosts: Set<String>
     private var effects: any TeacherPromptNotificationEffects
     private var router: PromptRouter?
+    private var demoPersistence: TeacherPromptEphemeralRoute?
     private var resolutionTask: Task<Void, Never>?
     private var resolvingID: UUID?
     private var generation = UUID()
@@ -51,7 +63,11 @@ final class TeacherPromptCoordinator: ObservableObject {
     }
     private func ensureRouter() {
         guard masterEnabled, router == nil else { return }
-        do { router = try PromptRouter(approvedHosts: approvedHosts, persistence: persistence, now: Date()) }
+        do {
+            router = try PromptRouter(approvedHosts: approvedHosts,
+                persistence: demoPersistence ?? persistence, now: Date())
+            message = nil
+        }
         catch { message = PromptStrings.storageUnavailable }
     }
 
@@ -116,6 +132,12 @@ final class TeacherPromptCoordinator: ObservableObject {
             invalidatePresentation()
             lessons = nil
             if changedAccount { completed = [] }
+        }
+        // Demo routing must never depend on Keychain, including entry after launch
+        // or recovery from a failed device-store initialization on unsigned simulators.
+        if self.gate.demo != gate.demo {
+            router = nil
+            demoPersistence = gate.demo ? TeacherPromptEphemeralRoute() : nil
         }
         self.authentication = authentication
         self.gate = gate
@@ -273,8 +295,8 @@ final class TeacherPromptCoordinator: ObservableObject {
             guard let self else { return }
             do {
                 let projection = try await service.lesson(request.lessonID)
-                guard !Task.isCancelled, generation == started, router.state == .resolving(request),
-                      projection.lesson.id == request.lessonID else { return }
+                guard !Task.isCancelled, generation == started, router.state == .resolving(request) else { return }
+                guard projection.lesson.id == request.lessonID else { throw TeacherPromptError.unavailable }
                 try router.complete(request, outcome: .authorized, now: Date())
                 guard case .ready(let ready) = router.state else { drive(); return }
                 state = router.state
@@ -286,6 +308,10 @@ final class TeacherPromptCoordinator: ObservableObject {
                 if projection.submission != nil || projection.lesson.state == "submitted" { await submitted(request.lessonID) }
             } catch {
                 guard !Task.isCancelled, generation == started else { return }
+                if router.state == .unavailable(.persistence) {
+                    state = router.state; message = PromptStrings.storageUnavailable
+                    return
+                }
                 let error = error as? TeacherPromptError ?? .network
                 let outcome: PromptResolutionOutcome = error == .sessionExpired ? .sessionExpired :
                     (error == .unavailable || error == .disabled ? .denied : .networkFailure)

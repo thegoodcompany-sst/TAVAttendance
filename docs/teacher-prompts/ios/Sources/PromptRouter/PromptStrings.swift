@@ -29,6 +29,8 @@ public enum PromptStrings {
     public static let informed = "Informed absence"
     public static let clear = "Clear"
     public static let allPresent = "All present"
+    public static let confirmAndSubmit = "Confirm and submit"
+    public static let allPresentReview = "Review these marks, make any adjustments, then confirm and submit."
     public static let allPresentHelp = "Existing late and absent marks stay as they are."
     public static let notes = "Lesson notes"
     public static let notesHelp = "Lesson notes only. Leave out personal details."

@@ -42,7 +42,8 @@ All people are invented; all sends are dry-run.
 This is a local prototype. The preview access code protects entry to the fake
 identity selector; it is not real teacher authentication. APNs, physical-device
 permissions, associated domains, real-login routing and production operation have
-not been verified here. The iOS work remains an isolated sketch. Edmund owns final
+not been verified here. The iOS router is now linked into the real app behind an OFF build master and shared
+flags; see [native integration](ios/README.md). Edmund owns final
 wording; [strings.md](strings.md) inventories the actual source strings.
 
 ## Problem and scope
@@ -191,7 +192,7 @@ parent-only RPC. Opt-out/sign-out revokes that account's installation across APN
 environments, including registrations still in flight. Revocation remains available
 when flags turn OFF or a profile becomes inactive; foreign/missing installations
 return the same acknowledgement. Claim and prepare exclude revoked devices.
-The native sketch clears local tokens/actions, binds cleanup to the original
+The native lifecycle clears local tokens/actions, binds cleanup to the original
 account and makes at most three revoke attempts before exposing recovery.
 Re-opt-in waits for cleanup, then explicitly registers again. An already in-flight
 provider request can still arrive. Phone permission denial or offline delivery cannot block
@@ -233,7 +234,7 @@ The local selector deliberately allows selection of Demo Admin; the code grants
 access to fake identities, not real staff authentication. See the preview guide
 for the remaining hosted database bootstrap gate.
 
-The iOS sketch waits for auth restoration, profile load and biometric unlock,
+The gated iOS integration waits for auth restoration, profile load and biometric unlock,
 retaining a pending locator across process restart. Both notification actions
 require foreground authentication. `TAKE_ATTENDANCE` opens the lesson;
 `SNOOZE_10` opens it and asks for fresh confirmation. Sign-out clears route and
@@ -366,8 +367,10 @@ before serving request queries. Remote guards used fake configuration/mocks only
 See [preview-deploy.md](preview-deploy.md) for proxy trust, throttle limits and the
 shared perimeter limiter required before multi-instance hosting.
 
-Native compilation/XCTest (Swift unavailable; zero executed), real login, APNs,
-physical devices, hosted preview and cutover remain unrun. No remote database,
+Pass J did not execute Swift tests. The later gated iOS integration passed 42
+Foundation package tests and the shared fixtures; see [native verification](ios/README.md).
+Actual iOS SDK builds/XCTest, screenshots, real login, APNs, physical devices,
+hosted preview and cutover remain unrun here. No remote database,
 production API or real push was used. No commit, push, branch, PR or deployment.
 
 ## Fresh database cutover

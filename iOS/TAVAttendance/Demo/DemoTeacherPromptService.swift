@@ -71,8 +71,9 @@ final class DemoTeacherPromptService: TeacherPromptServing {
         if changed { bump() }
         try record(m.p_mutation_id, m)
     }
-    func mark(_ m: TeacherMark) async throws {
-        if try replay(m.p_mutation_id, m) { return }
+    private var markReceipts: [UUID: TeacherMarkReceipt] = [:]
+    @discardableResult func mark(_ m: TeacherMark) async throws -> TeacherMarkReceipt {
+        if try replay(m.p_mutation_id, m), let receipt = markReceipts[m.p_mutation_id] { return receipt }
         try editable(m.p_lesson_id, revision: m.p_expected_revision)
         guard let i = projection.roster.firstIndex(where: { $0.id == m.p_student_id }) else { throw TeacherPromptError.invalid }
         guard projection.roster[i].marked_at == m.p_observed_marked_at else { throw TeacherPromptError.conflict }
@@ -80,6 +81,12 @@ final class DemoTeacherPromptService: TeacherPromptServing {
         projection.roster[i].absence_informed = m.p_status == .absent ? m.p_absence_informed : nil
         projection.roster[i].marked_at = m.p_status == nil ? nil : instant
         bump(); try record(m.p_mutation_id, m)
+        let row = projection.roster[i]
+        let receipt = TeacherMarkReceipt(lesson_id: m.p_lesson_id, student_id: row.id, status: row.status,
+            absence_informed: row.absence_informed, marked_at: row.marked_at,
+            register_revision: projection.lesson.register_revision, replayed: false)
+        markReceipts[m.p_mutation_id] = receipt
+        return receipt
     }
     func feedback(_ m: TeacherFeedbackMutation) async throws {
         if try replay(m.p_mutation_id, m) { return }
@@ -101,6 +108,22 @@ final class DemoTeacherPromptService: TeacherPromptServing {
         projection.lesson.state = "submitted"; projection.lesson.submitted_at = instant
         projection.lesson.can_edit = false; projection.lesson.can_submit = false; projection.lesson.can_snooze = false
         projection.lesson.next_prompt_at = nil
+        try record(m.p_mutation_id, m)
+    }
+    func confirmAllPresentAndSubmit(_ m: TeacherSubmitMutation) async throws {
+        if try replay(m.p_mutation_id, m) { return }
+        try editable(m.p_lesson_id, revision: m.p_expected_revision)
+        guard projection.feedback.revision == m.p_expected_feedback_revision else { throw TeacherPromptError.conflict }
+        // Validate before filling; a failed atomic confirmation changes nothing.
+        guard !projection.roster.isEmpty else { throw TeacherPromptError.incomplete }
+        var changed = false
+        for i in projection.roster.indices where projection.roster[i].status == nil {
+            projection.roster[i].status = .present; projection.roster[i].marked_at = instant; changed = true
+        }
+        if changed { bump() }
+        try await submit(TeacherSubmitMutation(p_lesson_id: m.p_lesson_id,
+            p_expected_revision: projection.lesson.register_revision,
+            p_expected_feedback_revision: m.p_expected_feedback_revision, p_mutation_id: m.p_mutation_id))
         try record(m.p_mutation_id, m)
     }
     func snooze(_ lessonID: UUID, mutationID: UUID) async throws {

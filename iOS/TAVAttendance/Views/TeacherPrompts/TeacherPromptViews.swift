@@ -46,7 +46,7 @@ struct TeacherLessonsView: View {
                 }
             }
             .refreshable { await coordinator.foreground() }
-            .task { await coordinator.loadLessons() }
+            .task(id: coordinator.unlocked) { await coordinator.loadLessons() }
         }
         .tint(.blue)
     }
@@ -105,7 +105,8 @@ struct TeacherLessonView: View {
             if let message = model.message {
                 Section {
                     Text(message).foregroundStyle(.secondary)
-                    if model.projection != nil {
+                        .accessibilityIdentifier(message == PromptStrings.snoozed ? "teacher.snoozed" : "teacher.message")
+                    if model.projection != nil && message != PromptStrings.snoozed {
                         Button(PromptStrings.retry) { Task { await model.retry() } }
                             .disabled(model.busy)
                     }
@@ -137,11 +138,15 @@ struct TeacherLessonView: View {
                 Section(PromptStrings.attendance) {
                     if !model.submitted {
                         Button(PromptStrings.allPresent) { Task { await model.allPresent() } }
-                            .disabled(!model.canEdit)
+                            .disabled(!model.canEdit || model.notesDirty)
                             .accessibilityIdentifier("teacher.allPresent")
                         Text(PromptStrings.allPresentHelp).font(.footnote).foregroundStyle(.secondary)
                     }
-                    ForEach(p.roster) { student in
+                    if model.reviewingAllPresent {
+                        Text(PromptStrings.allPresentReview).font(.footnote).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("teacher.allPresentReview")
+                    }
+                    ForEach(model.roster) { student in
                         VStack(alignment: .leading, spacing: 10) {
                             Text(student.display_name).font(.headline)
                             HStack {
@@ -150,7 +155,10 @@ struct TeacherLessonView: View {
                                 Spacer()
                                 Menu {
                                     ForEach(TeacherAttendanceStatus.allCases, id: \.self) { status in
-                                        Button(status.label) { Task { await model.mark(student, status: status) } }
+                                        Button(status.label) {
+                                            Task { await model.mark(student, status: status,
+                                                informed: status == .absent ? student.absence_informed : nil) }
+                                        }
                                     }
                                     Button(PromptStrings.clear) { Task { await model.mark(student, status: nil) } }
                                 } label: {
@@ -174,7 +182,7 @@ struct TeacherLessonView: View {
                 }
                 if !model.submitted {
                     Section {
-                        Button(PromptStrings.submit) { Task { await model.submit() } }
+                        Button(model.reviewingAllPresent ? PromptStrings.confirmAndSubmit : PromptStrings.submit) { Task { await model.submit() } }
                             .disabled(!model.canSubmit)
                             .accessibilityIdentifier("teacher.submit")
                         Button(PromptStrings.snoozeTen) { model.confirmingSnooze = true }
@@ -199,6 +207,7 @@ struct TeacherLessonView: View {
                 }
             }
         }
+        .accessibilityIdentifier("teacher.attendanceList")
         .navigationTitle(PromptStrings.attendance)
         .navigationBarTitleDisplayMode(.inline)
         .tint(.blue)

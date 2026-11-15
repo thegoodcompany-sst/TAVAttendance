@@ -16,6 +16,10 @@ final class TeacherLessonModel: ObservableObject, Identifiable {
     private let allowed: () -> Bool
     private let didSubmit: (UUID) async -> Void
     private let sessionExpired: (UUID) -> Void
+    @Published private(set) var reviewingAllPresent = false
+    @Published private var draft: [TeacherRosterStudent]?
+    private var adjusted = false
+    var roster: [TeacherRosterStudent] { draft ?? projection?.roster ?? [] }
     private var valid = true
     private var retryWrite: (() async throws -> Void)?
     private var retryIsSubmission = false
@@ -35,22 +39,46 @@ final class TeacherLessonModel: ObservableObject, Identifiable {
     var canSnooze: Bool { valid && allowed() && !busy && !submitted && !snoozeLimited && projection?.lesson.can_snooze == true }
     var hasRetry: Bool { retryWrite != nil }
     var notesDirty: Bool { notes != projection?.feedback.body }
-    var canSubmit: Bool { canEdit && !notesDirty && projection?.lesson.can_submit == true }
+    var canSubmit: Bool {
+        canEdit && !notesDirty && (reviewingAllPresent
+            ? roster.allSatisfy { $0.status != nil } && (!roster.isEmpty || projection?.lesson.can_submit == true)
+            : projection?.lesson.can_submit == true)
+    }
+    private func clearReview() { draft = nil; reviewingAllPresent = false; adjusted = false }
+    private func accept(_ fresh: TeacherLessonProjection) {
+        if fresh.lesson.register_revision != projection?.lesson.register_revision || fresh.submission != nil {
+            clearReview()
+        }
+        projection = fresh
+    }
     func invalidate() {
+        clearReview()
         valid = false; projection = nil; notes = ""; message = nil
         confirmingSnooze = false; retryWrite = nil
     }
     func allPresent() async {
         guard canEdit, let p = projection else { return }
-        let m = TeacherRegisterMutation(p_lesson_id: lessonID, p_expected_revision: p.lesson.register_revision, p_mutation_id: UUID())
-        await write { [service] in try await service.allPresent(m) }
+        guard !notesDirty else { return }
+        // Review only: no server mutation until the explicit confirmation.
+        draft = p.roster.map { student in
+            var row = student
+            if row.status == nil { row.status = .present }
+            return row
+        }
+        reviewingAllPresent = true; adjusted = false; message = nil
     }
     func mark(_ student: TeacherRosterStudent, status: TeacherAttendanceStatus?, informed: Bool? = nil) async {
         guard canEdit, let p = projection else { return }
+        if reviewingAllPresent, let index = draft?.firstIndex(where: { $0.id == student.id }) {
+            draft?[index].status = status
+            draft?[index].absence_informed = status == .absent ? informed : nil
+            adjusted = true
+            return
+        }
         let m = TeacherMark(p_lesson_id: lessonID, p_student_id: student.id, p_status: status,
             p_absence_informed: status == .absent ? informed : nil, p_observed_marked_at: student.marked_at,
             p_expected_revision: p.lesson.register_revision, p_mutation_id: UUID())
-        await write { [service] in try await service.mark(m) }
+        await write { [service] in _ = try await service.mark(m) }
     }
     func saveNotes() async {
         guard canEdit, let p = projection else { return }
@@ -63,7 +91,42 @@ final class TeacherLessonModel: ObservableObject, Identifiable {
         guard canSubmit, let p = projection else { return }
         let m = TeacherSubmitMutation(p_lesson_id: lessonID, p_expected_revision: p.lesson.register_revision,
             p_expected_feedback_revision: p.feedback.revision, p_mutation_id: UUID())
-        await write(submission: true) { [service] in try await service.submit(m) }
+        if reviewingAllPresent && !adjusted {
+            await write(submission: true) { [service] in try await service.confirmAllPresentAndSubmit(m) }
+        } else if reviewingAllPresent {
+            let changes = roster.filter { row in
+                guard let old = p.roster.first(where: { $0.id == row.id }) else { return false }
+                return row.status != old.status || row.absence_informed != old.absence_informed
+            }
+            // The closure retains its cursor and current request for exact replay after
+            // a lost response. Revisions come from receipts, never a guessed increment.
+            var index = 0
+            var revision = p.lesson.register_revision
+            var current: TeacherMark?
+            var submission: TeacherSubmitMutation?
+            await write(submission: true) { [weak self, service] in
+                while index < changes.count {
+                    guard let self, self.valid, self.allowed() else { throw CancellationError() }
+                    let row = changes[index]
+                    if current == nil {
+                        current = TeacherMark(p_lesson_id: p.lesson.id, p_student_id: row.id,
+                            p_status: row.status, p_absence_informed: row.absence_informed,
+                            p_observed_marked_at: row.marked_at, p_expected_revision: revision, p_mutation_id: UUID())
+                    }
+                    let receipt = try await service.mark(current!)
+                    revision = receipt.register_revision
+                    index += 1; current = nil
+                }
+                guard let self, self.valid, self.allowed() else { throw CancellationError() }
+                if submission == nil {
+                    submission = TeacherSubmitMutation(p_lesson_id: p.lesson.id, p_expected_revision: revision,
+                        p_expected_feedback_revision: p.feedback.revision, p_mutation_id: UUID())
+                }
+                try await service.submit(submission!)
+            }
+        } else {
+            await write(submission: true) { [service] in try await service.submit(m) }
+        }
     }
     private func write(submission: Bool = false, feedback: Bool = false,
                        operation: @escaping () async throws -> Void) async {
@@ -76,19 +139,24 @@ final class TeacherLessonModel: ObservableObject, Identifiable {
             guard valid, allowed() else { return }
             retryWrite = nil
             if submission {
+                clearReview()
                 submitted = true; confirmingSnooze = false
+                projection?.lesson.state = "submitted"
+                projection?.lesson.can_edit = false
+                projection?.lesson.can_submit = false
+                projection?.lesson.can_snooze = false
                 await didSubmit(lessonID)
             }
             let fresh = try await service.lesson(lessonID)
             guard valid, allowed() else { return }
-            projection = fresh
+            accept(fresh)
             if feedback { notes = fresh.feedback.body }
         } catch {
             guard valid, allowed() else { return }
             let failure = error as? TeacherPromptError ?? .network
             if failure != .network { retryWrite = nil }
             handle(failure)
-            if failure == .conflict || failure == .locked { await reload(keepNotes: true) }
+            if failure == .conflict || failure == .locked { clearReview(); await reload(keepNotes: true) }
         }
     }
     func retry() async {
@@ -101,7 +169,7 @@ final class TeacherLessonModel: ObservableObject, Identifiable {
         do {
             let fresh = try await service.lesson(lessonID)
             guard valid, allowed() else { return }
-            projection = fresh
+            accept(fresh)
             if !keepNotes { notes = fresh.feedback.body }
             if fresh.submission != nil || fresh.lesson.state == "submitted" {
                 submitted = true; confirmingSnooze = false; retryWrite = nil
@@ -130,6 +198,7 @@ final class TeacherLessonModel: ObservableObject, Identifiable {
     private func handle(_ error: TeacherPromptError) {
         message = error.message
         if error == .unavailable || error == .disabled {
+            clearReview()
             valid = false; projection = nil; notes = ""; confirmingSnooze = false; retryWrite = nil
         }
         if error == .snoozeLimit || error == .noPrompt { snoozeLimited = true; confirmingSnooze = false }

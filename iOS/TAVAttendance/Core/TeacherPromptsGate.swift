@@ -21,19 +21,22 @@ struct TeacherPromptsGate: Equatable {
         return false
         #endif
     }
+    private static let workflowSetting = "TEACHER_PROMPTS_V2_ENABLED"
+    private static let hostsSetting = "TEACHER_PROMPTS_APPROVED_HOSTS"
+
     static var masterEnabled: Bool {
-        demoLaunch || (Bundle.main.object(forInfoDictionaryKey: "TEACHER_PROMPTS_V2_ENABLED") as? String) == "YES"
+        demoLaunch || (Bundle.main.object(forInfoDictionaryKey: workflowSetting) as? String) == "YES"
     }
     // TODO: HUMANS.md teacher-prompt pilot: approve host + Associated Domains/AASA.
     static var approvedHosts: Set<String> {
-        Set((Bundle.main.object(forInfoDictionaryKey: "TEACHER_PROMPTS_APPROVED_HOSTS") as? [String]) ?? [])
+        Set((Bundle.main.object(forInfoDictionaryKey: hostsSetting) as? [String]) ?? [])
     }
 
     enum TokenPath: Equatable { case teacher, parent, ignored }
     /// A v2 teacher can never reach the old parent RPC, even with the master OFF.
     static func tokenPath(master: Bool, role: String?, teacherRequest: Bool) -> TokenPath {
         if master && teacherRequest { return .teacher }
-        if role == "teacher" || (master && role == "admin") { return .ignored }
+        if role == "teacher" || (master && role != "parent") { return .ignored }
         return .parent
     }
 }
