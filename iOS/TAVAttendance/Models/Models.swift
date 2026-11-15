@@ -54,9 +54,10 @@ struct Profile: Codable, Identifiable {
     let fullName: String
     let role: String
     let phone: String?
+    var active: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, phone, role
+        case id, phone, role, active
         case fullName = "full_name"
     }
 }

@@ -28,6 +28,7 @@ func signedInDestination(forRole role: String?) -> SignedInDestination {
 struct TAVAttendanceApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var authManager = AuthManager()
+    @StateObject private var teacherPrompts = TeacherPromptCoordinator.shared
     @StateObject private var featureFlags = FeatureFlagStore.shared
     @AppStorage("biometricUnlockEnabled") private var biometricUnlockEnabled = false
     @State private var isBioUnlocked = false
@@ -43,6 +44,9 @@ struct TAVAttendanceApp: App {
                     } else if authManager.isAuthenticated {
                         ZStack {
                             Group {
+                                if teacherPrompts.gate.workflow {
+                                    TeacherLessonsView(coordinator: teacherPrompts)
+                                } else {
                                 switch signedInDestination(forRole: authManager.currentProfile?.role) {
                                 case .admin:
                                     AdminTabView()
@@ -53,10 +57,11 @@ struct TAVAttendanceApp: App {
                                 case .tutor:
                                     TutorTabView()
                                 }
+                                }
                             }
                             // Rebuilds every screen when demo data is reset.
                             .id(authManager.demoDataGeneration)
-                            if DemoMode.isActive {
+                            if DemoMode.isActive && !teacherPrompts.gate.workflow {
                                 DemoModeOverlay()
                             }
                             if biometricUnlockEnabled && !isBioUnlocked && !DemoMode.isActive {
@@ -67,6 +72,7 @@ struct TAVAttendanceApp: App {
                         .environmentObject(featureFlags)
                         .task {
                             // PROD-02: register for push once flags are loaded (no-op while off).
+                            PushManager.currentRole = authManager.currentProfile?.role
                             await PushManager.registerIfEnabled()
                             // Analytics: start timer/observers + emit app_launch (no-op unless flag on).
                             Analytics.shared.start()
@@ -85,13 +91,61 @@ struct TAVAttendanceApp: App {
                         .transition(.identity)
                 }
             }
+            .sheet(isPresented: Binding(get: { teacherPrompts.presented }, set: { value in
+                if !value && teacherPrompts.presented { teacherPrompts.close() }
+            })) {
+                TeacherPromptRouteView(coordinator: teacherPrompts)
+            }
+            .preferredColorScheme(teacherDemoColorScheme)
+            .onChange(of: teacherPrompts.needsSignIn) { _, needed in
+                if needed {
+                    teacherPrompts.needsSignIn = false
+                    Task { await authManager.requireTeacherSignIn() }
+                }
+            }
+            .onOpenURL { teacherPrompts.open(url: $0) }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                if let url = activity.webpageURL { teacherPrompts.open(url: url) }
+            }
+            .task { updateTeacherUnlock() }
+            .onChange(of: isBioUnlocked) { _, _ in updateTeacherUnlock() }
+            .onChange(of: biometricUnlockEnabled) { _, _ in updateTeacherUnlock() }
+            .onChange(of: featureFlags.flags) { _, _ in
+                teacherPrompts.configure(profile: authManager.currentProfile)
+            }
+            .onChange(of: authManager.currentProfile?.id) { _, _ in
+                PushManager.currentRole = authManager.currentProfile?.role
+                updateTeacherUnlock()
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .background {
                     isBioUnlocked = false
                     KioskSecurityState.shared.relockIfConfigured()
                 }
+                updateTeacherUnlock()
+                if phase == .active && TeacherPromptsGate.masterEnabled {
+                    Task {
+                        await FeatureFlagStore.shared.load()
+                        teacherPrompts.configure(profile: authManager.currentProfile)
+                        await teacherPrompts.foreground()
+                    }
+                }
             }
         }
+    }
+
+    private var teacherDemoColorScheme: ColorScheme? {
+        #if DEBUG
+        if TeacherPromptsGate.demoLaunch {
+            return ProcessInfo.processInfo.arguments.contains("--teacher-prompts-dark") ? .dark : .light
+        }
+        #endif
+        return nil
+    }
+
+    private func updateTeacherUnlock() {
+        teacherPrompts.setUnlocked(scenePhase == .active &&
+            (!biometricUnlockEnabled || isBioUnlocked || DemoMode.isActive))
     }
 }
 

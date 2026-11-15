@@ -7,33 +7,64 @@ import UserNotifications
 /// feature flag; does nothing until the flag is on (and real APNs entitlements +
 /// keys are configured — see HUMANS.md).
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    private var teacherDelegate: TeacherNotificationDelegate?
+
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        if TeacherPromptsGate.masterEnabled {
+            let delegate = TeacherNotificationDelegate()
+            teacherDelegate = delegate
+            UNUserNotificationCenter.current().delegate = delegate
+        }
+        return true
+    }
     func application(
         _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
-        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
-        Task { try? await AttendanceService.shared.registerDeviceToken(token, platform: "ios") }
+        Task { @MainActor in
+            let prompts = TeacherPromptCoordinator.shared
+            switch TeacherPromptsGate.tokenPath(master: TeacherPromptsGate.masterEnabled,
+                role: PushManager.currentRole, teacherRequest: PushManager.teacherTokenRequested) {
+            case .teacher:
+                prompts.registration?.didRegister(deviceToken)
+            case .ignored:
+                break
+            case .parent:
+                guard !DemoMode.isActive else { return }
+                let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+                try? await AttendanceService.shared.registerDeviceToken(token, platform: "ios")
+            }
+        }
     }
 
     func application(
         _ application: UIApplication,
         didFailToRegisterForRemoteNotificationsWithError error: Error
     ) {
-        #if DEBUG
-        print("PushManager: registration failed (\(type(of: error)))")
-        #endif
+        Task { @MainActor in
+            TeacherPromptCoordinator.shared.registration?.lifecycle.didFailToRegister()
+        }
     }
 }
 
 @MainActor
 enum PushManager {
+    static var currentRole: String?
+    static var teacherTokenRequested = false
     /// Requests notification authorization and registers for remote notifications,
     /// but only when the push_notifications flag is enabled.
     static func registerIfEnabled() async {
+        if TeacherPromptsGate.masterEnabled && (currentRole == "teacher" || currentRole == "admin") {
+            await TeacherPromptCoordinator.shared.requestRegistration()
+            return
+        }
+        guard currentRole != "teacher" else { return }
         guard !DemoMode.isActive, FeatureFlagStore.shared.isEnabled(.pushNotifications) else { return }
         let center = UNUserNotificationCenter.current()
         let granted = (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) ?? false
         guard granted else { return }
+        teacherTokenRequested = false
         UIApplication.shared.registerForRemoteNotifications()
     }
 }

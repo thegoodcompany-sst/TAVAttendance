@@ -34,6 +34,23 @@ final class SupabaseManager {
         )
     }
 
+    /// Immutable Auth snapshot: requests cannot adopt a later account. No token logging.
+    func teacherPromptClient(accessToken: String) -> PostgrestClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 10
+        configuration.protocolClasses = [DemoNetworkGuard.self] + (configuration.protocolClasses ?? [])
+        let transport = URLSession(configuration: configuration)
+        return PostgrestClient(
+            url: projectURL.appendingPathComponent("rest/v1"),
+            headers: ["apikey": anonKey, "Authorization": "Bearer \(accessToken)"],
+            fetch: { request in
+                try Task.checkCancellation()
+                return try await transport.data(for: request)
+            }
+        )
+    }
+
     func replayClient(session: AttendanceReplaySession, records: [PendingAttendanceRecord]) throws -> PostgrestClient {
         let transport = DemoNetworkGuard.guardedSession()
         return try session.client(records: records, url: projectURL, anonKey: anonKey) {
