@@ -8,6 +8,8 @@ final class SupabaseManager {
     private let anonKey: String
 
     private init() {
+        // Close the demo transport gate before Auth can start restoring a session.
+        if TeacherPromptsGate.demoLaunch { DemoMode.setActive(true, persist: false) }
         // A missing or malformed Config.xcconfig must not crash the app: the
         // on-device demo needs no server, and a real sign-in then fails with a
         // visible connection error instead of a launch crash.
@@ -31,6 +33,23 @@ final class SupabaseManager {
             supabaseURL: url,
             supabaseKey: anonKey,
             options: SupabaseClientOptions(global: .init(session: DemoNetworkGuard.guardedSession()))
+        )
+    }
+
+    /// Immutable Auth snapshot: requests cannot adopt a later account. No token logging.
+    func teacherPromptClient(accessToken: String) -> PostgrestClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 10
+        configuration.protocolClasses = [DemoNetworkGuard.self] + (configuration.protocolClasses ?? [])
+        let transport = URLSession(configuration: configuration)
+        return PostgrestClient(
+            url: projectURL.appendingPathComponent("rest/v1"),
+            headers: ["apikey": anonKey, "Authorization": "Bearer \(accessToken)"],
+            fetch: { request in
+                try Task.checkCancellation()
+                return try await transport.data(for: request)
+            }
         )
     }
 

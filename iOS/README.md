@@ -4,6 +4,17 @@ SwiftUI app (iOS 17+) for TAVA's attendance system: the iPad sign-in kiosk,
 tutor roster marking with offline sync, admin tools, and the flag-gated parent
 portal.
 
+## Teacher prompts (ships OFF)
+
+The actual app now includes the v2 teacher lesson list, attendance/notes/submit and
+push/deep-link flow. `TEACHER_PROMPTS_V2_ENABLED=NO` remains the build master in
+Debug and Release/TestFlight; shared `teacher_prompts` / `teacher_prompt_push` flags
+and explicit push opt-in provide runtime gates. Debug-only `--teacher-prompts-demo`
+opens fake data without a network; add `--teacher-prompts-dark` for dark screenshots.
+The v2 schema is a separate future backend, not an extension installed over production.
+See [native integration, checks and port handoffs](../docs/teacher-prompts/ios/README.md)
+and `HUMANS.md` §89. No APNs entitlement or Associated Domain was added.
+
 ## Project is XcodeGen-managed
 
 `TAVAttendance.xcodeproj` is **generated** — never hand-edit it. Edit

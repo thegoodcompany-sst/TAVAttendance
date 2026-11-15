@@ -18,6 +18,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.1.3</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.tava.teacher-lessons</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tava</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>8</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
@@ -30,6 +41,12 @@
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_PROJECT_URL</key>
 	<string>$(SUPABASE_PROJECT_URL)</string>
+	<key>TEACHER_PROMPTS_APNS_ENVIRONMENT</key>
+	<string>$(TEACHER_PROMPTS_APNS_ENVIRONMENT)</string>
+	<key>TEACHER_PROMPTS_APPROVED_HOSTS</key>
+	<array/>
+	<key>TEACHER_PROMPTS_V2_ENABLED</key>
+	<string>$(TEACHER_PROMPTS_V2_ENABLED)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

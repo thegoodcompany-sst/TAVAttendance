@@ -153,25 +153,76 @@ Source: [supabase/v2/functions/_shared/prompt-strings.ts](../../supabase/v2/func
 | `calendarRefreshFailed` | Calendar refresh failed. Retrying next tick. | [teacher-prompt-dispatch/local](../../supabase/v2/functions/teacher-prompt-dispatch/local.ts) |
 | `workerFailed` | Worker failed. | [teacher-prompt-dispatch/local](../../supabase/v2/functions/teacher-prompt-dispatch/local.ts) |
 
-## iOS sketch
+## iOS app and shared router
 
-Source: [docs/teacher-prompts/ios/Sources/PromptRouter/PromptStrings.swift](../../docs/teacher-prompts/ios/Sources/PromptRouter/PromptStrings.swift). **14 entries.**
+Source: [PromptStrings.swift](ios/Sources/PromptRouter/PromptStrings.swift). All values
+below are **stand-in copy; Edmund approval pending**. New native keys reuse existing
+web copy where suitable. UI strings are never authored in view/service files.
 
-| Key | Stand-in text | Where shown |
+| Key | Stand-in text | Approval |
 |---|---|---|
-| `title` | TAVA | **Lock-screen visible:** notification/action title; Reserved in source; no current call site |
-| `takeAttendance` | Take attendance | **Lock-screen visible:** notification/action title; [Sketch/TeacherNotificationDelegate](../../docs/teacher-prompts/ios/Sketch/TeacherNotificationDelegate.swift) |
-| `snoozeTen` | Remind me in 10 | **Lock-screen visible:** notification/action title; [Sketch/TeacherNotificationDelegate](../../docs/teacher-prompts/ios/Sketch/TeacherNotificationDelegate.swift) |
-| `confirmSnooze` | Remind you in 10 minutes? | Reserved in source; no current call site |
-| `cancel` | Cancel | Reserved in source; no current call site |
-| `signIn` | Sign in to view your lesson. | Reserved in source; no current call site |
-| `unlock` | Unlock to view your lesson. | Reserved in source; no current call site |
-| `loading` | Loading lesson. | Reserved in source; no current call site |
-| `unavailable` | This lesson is not available. | Reserved in source; no current call site |
-| `retry` | Try again | Reserved in source; no current call site |
-| `chooseAccount` | Choose account | Reserved in source; no current call site |
-| `todaysLessons` | Today's lessons | Reserved in source; no current call site |
-| `pushUnavailable` | Open today's lessons to continue. | [Sketch/TeacherNotificationDelegate](../../docs/teacher-prompts/ios/Sketch/TeacherNotificationDelegate.swift), [Sources/PromptRouter/TeacherPushRegistration](../../docs/teacher-prompts/ios/Sources/PromptRouter/TeacherPushRegistration.swift) |
-| `storageUnavailable` | Open the lesson link again. | [Sketch/TeacherNotificationDelegate](../../docs/teacher-prompts/ios/Sketch/TeacherNotificationDelegate.swift), [Sources/PromptRouter/PromptRouter](../../docs/teacher-prompts/ios/Sources/PromptRouter/PromptRouter.swift) |
+| `title` | TAVA | Pending |
+| `takeAttendance` | Take attendance | Pending |
+| `snoozeTen` | Remind me in 10 | Pending |
+| `confirmSnooze` | Remind you in 10 minutes? | Pending |
+| `cancel` | Cancel | Pending |
+| `signIn` | Sign in to view your lesson. | Pending |
+| `unlock` | Unlock to view your lesson. | Pending |
+| `loading` | Loading lesson. | Pending |
+| `unavailable` | This lesson is not available. | Pending |
+| `retry` | Try again | Pending |
+| `chooseAccount` | Choose account | Pending |
+| `todaysLessons` | Today's lessons | Pending |
+| `pushUnavailable` | Open today's lessons to continue. | Pending |
+| `storageUnavailable` | Open the lesson link again. | Pending |
+| `demo` | Demo · fake data | Pending |
+| `myLessons` | My lessons | Pending |
+| `backlog` | Still to review | Pending |
+| `outstanding` | to review | Pending |
+| `empty` | No lessons for this date. | Pending |
+| `noDevices` | Reminders are optional. Your lesson list always works. | Pending |
+| `enableReminders` | Lesson reminders | Pending |
+| `attendance` | Attendance | Pending |
+| `notMarked` | Not Here Yet | Pending |
+| `present` | Present | Pending |
+| `late` | Late | Pending |
+| `absent` | Absent | Pending |
+| `informed` | Informed absence | Pending |
+| `clear` | Clear | Pending |
+| `allPresent` | All present | Pending |
+| `confirmAndSubmit` | Confirm and submit | Pending |
+| `allPresentReview` | Review these marks, make any adjustments, then confirm and submit. | Pending |
+| `allPresentHelp` | Existing late and absent marks stay as they are. | Pending |
+| `notes` | Lesson notes | Pending |
+| `notesHelp` | Lesson notes only. Leave out personal details. | Pending |
+| `saveNotes` | Save notes | Pending |
+| `submit` | Submit lesson | Pending |
+| `done` | Lesson submitted | Pending |
+| `doneHelp` | Your register has been reviewed. | Pending |
+| `readOnly` | This lesson is read-only. | Pending |
+| `back` | Back to lessons | Pending |
+| `snoozed` | Reminder moved by 10 minutes. | Pending |
+| `networkError` | Something went wrong. Try again. | Pending |
+| `stale` | This lesson changed. Review the latest register. Your unsaved notes are kept here. | Pending |
+| `incomplete` | Mark every student before submitting. | Pending |
+| `tooEarly` | This lesson has not started. | Pending |
+| `tooOld` | Ask an admin to review this lesson. | Pending |
+| `snoozeLimit` | No more reminders can be postponed. | Pending |
+| `noPrompt` | There is no pending reminder. | Pending |
+| `refreshLesson` | Refresh the lesson and try again. | Pending |
+| `invalid` | Check the details and try again. | Pending |
+| `disabled` | Lesson review is turned off. | Pending |
+| `scheduled` | Scheduled | Pending |
+| `inProgress` | In progress | Pending |
+| `awaitingAttendance` | Ready for review | Pending |
+| `overdue` | Needs review | Pending |
+| `submitted` | Submitted | Pending |
+| `cancelled` | Cancelled | Pending |
+| `signOut` | Sign out | Pending |
+| `demoClass` | Demo Mathematics | Pending |
+| `demoTeacher` | Demo Teacher | Pending |
+| `demoStudentPrefix` | Demo Student | Pending |
+| `feedbackLimit` | Use 1000 characters or fewer. | Pending |
+| `optional` | Optional | Pending |
 
-Web reuses the dispatcher’s title/body strings for the simulated notification; it does not define another push-copy source. Native identifiers such as `TAKE_ATTENDANCE`, `SNOOZE_10` and category IDs are protocol values, not display copy.
+`takeAttendance` and `snoozeTen` are lock-screen-visible action titles. Payload bodies remain in the dispatcher source above. Protocol action/category identifiers are not copy.

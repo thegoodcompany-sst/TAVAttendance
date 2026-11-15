@@ -5,6 +5,23 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- iOS teacher prompts now run in the real app behind an OFF build master and shared
+  runtime flags: authenticated lessons/backlog, attendance review, optional notes,
+  explicit submit/snooze, account-bound links and teacher device registration.
+  Reuses the Foundation router package; includes deterministic offline demo, XCTest
+  regressions and an optional CI screenshot job. Release/TestFlight remain OFF;
+  no schema, capability, production rollout or cutover change. Native SDK/device QA
+  remains pending (`HUMANS.md` §89). All present now previews attendance and uses
+  atomic confirmation when unchanged; adjustments use individual marks then submit
+  with exact retries. Demo routing recovers independently of device storage. Screenshot
+  tests cover six states separately in light/dark; configuration names avoid a scanner
+  false positive without changing secret rules. Snooze/submit outcomes and inline
+  errors now stay above the scrolling register, with VoiceOver announcements and
+  a text-only submitted accessibility target. Unsaved reviews/notes and pending
+  writes resist swipe dismissal; Back to lessons remains available. Screenshot
+  assertions require visible outcomes without scrolling to find them. Native
+  screenshot and accessibility verification of this follow-up remains pending.
+
 - Advisor watch: reviewed the 46 NEW production advisor findings from run
   40274878700 (service-only RLS tables, self-guarding SECURITY DEFINER RPCs
   and helpers, unindexed FKs, unused indexes), accepted them with documented

@@ -627,12 +627,25 @@ on network failure or wrong identity for explicit retry; never redirect to a def
 dashboard before trying it. Explicit sign-out clears stored route; a new external link
 while signed out creates a new pending route. No external request on a link GET.
 
-## 10. iOS sketch (not linked into the app)
+## 10. iOS router and gated app integration
 
 Swift Package core imports Foundation only; `swift test --package-path
-docs/teacher-prompts/ios` runs on Linux/macOS. UIKit/UserNotifications sketch files live
-outside package Sources, guarded for platform availability; no Xcode/project edits.
-All native stand-in text in PromptStrings.swift, not scattered literals.
+docs/teacher-prompts/ios` runs on Linux/macOS. The 2026-11-15 native integration links
+this same package into `iOS/TAVAttendance` and `TAVLayoutLab` via XcodeGen. Historical
+UIKit/UserNotifications `Sketch/` files remain outside package/app sources; promoted
+adapters live in the app's Core/Services, with real SwiftUI lesson screens.
+All native stand-in text remains in PromptStrings.swift, not scattered literals.
+
+Integration deviation note: the separately authorized app task supersedes the original
+sketch-only scope. Build master defaults NO (including Release/TestFlight), with shared
+workflow/push flags and opt-in gates. All present stages a review; unchanged confirmation
+uses revision 1.1's `confirm_all_present_and_submit`. Adjusted review writes changed
+students through `mark_attendance` using receipt revisions, then `submit_lesson`.
+Retries retain each failed request's mutation ID and arguments; conflicts discard the
+preview and require fresh review. Device-only Keychain backs router/installation persistence;
+the APNs environment is an explicit build value matching future signed provisioning.
+The approved HTTPS host and Apple capabilities remain human TODOs. See
+[ios/README.md](ios/README.md) for implementation, verification limits and handoffs.
 Pure router accepts URL/payload, stores `PendingRoute(lessonID,receivedAt,action)` with
 24h TTL through an injected persistence protocol, and accepts auth/profile/flag/lock
 events. States: idle, awaitingSignIn, awaitingUnlock, resolving, ready, unavailable.

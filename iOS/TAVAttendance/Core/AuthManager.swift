@@ -13,7 +13,7 @@ final class AuthManager: ObservableObject {
 
     init() {
         // A relaunch inside demo mode stays in demo mode (with freshly seeded data).
-        if DemoMode.wasActiveOnLastLaunch {
+        if TeacherPromptsGate.demoLaunch || DemoMode.wasActiveOnLastLaunch {
             enterDemoMode()
         }
         Task {
@@ -47,6 +47,7 @@ final class AuthManager: ObservableObject {
         demoDataGeneration = UUID()
         isAuthenticated = true
         isLoading = false
+        TeacherPromptCoordinator.shared.configure(profile: currentProfile)
     }
 
     /// Throws away every change made during the demo and reseeds it.
@@ -54,6 +55,8 @@ final class AuthManager: ObservableObject {
         guard DemoMode.isActive else { return }
         DemoStore.shared.reset()
         DemoMode.resetKiosk()
+        _ = TeacherPromptCoordinator.shared.beginSignOut()
+        TeacherPromptCoordinator.shared.configure(profile: currentProfile)
         demoDataGeneration = UUID()
     }
 
@@ -89,6 +92,7 @@ final class AuthManager: ObservableObject {
                 }
                 isLoading = false
             case .signedOut:
+                _ = TeacherPromptCoordinator.shared.beginSignOut()
                 PendingAttendanceStore.shared.clear()
                 isAuthenticated = false
                 currentProfile = nil
@@ -103,6 +107,8 @@ final class AuthManager: ObservableObject {
                     isAuthenticated = false
                 }
                 isLoading = false
+            case .tokenRefreshed:
+                if TeacherPromptsGate.masterEnabled, let userId = session?.user.id { await fetchProfile(userId: userId) }
             default:
                 break
             }
@@ -111,22 +117,28 @@ final class AuthManager: ObservableObject {
 
     private func fetchProfile(userId: UUID) async {
         guard !DemoMode.isActive else { return }
+        TeacherPromptCoordinator.shared.loadingProfile(userId)
         // Role drives which UI is shown (admin/parent/tutor). A nil profile silently
         // falls through to the tutor UI — an admin/parent would land in the wrong app.
         // Retry a few times, then sign out rather than route them incorrectly.
         for attempt in 1...3 {
             do {
-                let profile: Profile = try await supabase
-                    .from("profiles")
-                    .select()
-                    .eq("id", value: userId)
-                    .single()
-                    .execute()
-                    .value
+                let profile: Profile
+                if TeacherPromptsGate.masterEnabled {
+                    let v2: TeacherProfile = try await supabase.from("profiles")
+                        .select("id, display_name, role, active").eq("id", value: userId)
+                        .single().execute().value
+                    profile = Profile(id: v2.id, fullName: v2.display_name, role: v2.role, phone: nil, active: v2.active)
+                } else {
+                    profile = try await supabase.from("profiles").select()
+                        .eq("id", value: userId).single().execute().value
+                }
+                PushManager.currentRole = profile.role
                 currentProfile = profile
                 Analytics.shared.role = profile.role
                 // Refresh feature flags once we have an authenticated session.
                 await FeatureFlagStore.shared.load()
+                TeacherPromptCoordinator.shared.configure(profile: profile)
                 return
             } catch {
                 #if DEBUG
@@ -150,14 +162,21 @@ final class AuthManager: ObservableObject {
         try await supabase.auth.signIn(email: email, password: password)
     }
 
+    func requireTeacherSignIn() async {
+        guard TeacherPromptsGate.masterEnabled else { return }
+        // An expired v2 snapshot must expose login even when remote sign-out fails.
+        currentProfile = nil; isAuthenticated = false; isLoading = false
+        try? await signOut()
+    }
+
     func signOut() async throws {
+        // Clear synchronously before either revocation or auth can suspend.
+        PendingAttendanceStore.shared.clear()
+        await TeacherPromptCoordinator.shared.beginSignOut()?.value
         if DemoMode.isActive {
             exitDemoMode()
             return
         }
-        // Clear synchronously before the auth request so no stale queue survives an
-        // offline/failed sign-out or becomes visible to a subsequent account.
-        PendingAttendanceStore.shared.clear()
         try await supabase.auth.signOut()
     }
 }

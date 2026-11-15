@@ -5,6 +5,8 @@ import Supabase
 /// Flags ship OFF; an admin flips them when a feature is ready. Read once after
 /// sign-in and exposed app-wide via `@EnvironmentObject`.
 enum FeatureFlag: String {
+    case teacherPrompts = "teacher_prompts"
+    case teacherPromptPush = "teacher_prompt_push"
     case parentPortal       = "parent_portal"
     case pushNotifications  = "push_notifications"
     case studentPhotos      = "student_photos"
@@ -40,7 +42,10 @@ final class FeatureFlagStore: ObservableObject {
                 .value
             flags = Dictionary(rows.map { ($0.key, $0.enabled) }, uniquingKeysWith: { _, last in last })
         } catch {
-            // Fail closed: an unreachable flag table leaves every feature OFF.
+            // Fail closed for the new workflow even after a previously successful load.
+            flags[FeatureFlag.teacherPrompts.rawValue] = false
+            flags[FeatureFlag.teacherPromptPush.rawValue] = false
+            // Preserve the existing production flag-cache behavior.
             #if DEBUG
             print("FeatureFlagStore: flag load failed (\(type(of: error)))")
             #endif
@@ -50,6 +55,10 @@ final class FeatureFlagStore: ObservableObject {
     /// Demo mode uses a fixed local flag set and never reads `feature_flags`.
     func applyDemoFlags() {
         flags = DemoMode.featureFlags
+        if TeacherPromptsGate.masterEnabled {
+            flags[FeatureFlag.teacherPrompts.rawValue] = true
+            flags[FeatureFlag.teacherPromptPush.rawValue] = false
+        }
     }
 
     /// Drops cached flags (used when leaving demo mode).

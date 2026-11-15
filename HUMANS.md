@@ -1207,3 +1207,65 @@ Native build/typecheck, XCTest execution and device QA remain unverified.
 - [ ] Run the canonical iOS test command in `AGENTS.md`, including the replay
   regressions in `AttendanceLogicTests`, then perform the iOS replay identity
   and account-switch QA in `docs/KIOSK_ATTENDANCE.md` before shipping.
+
+
+### ☐ 89. Verify the gated iOS teacher-prompt flow before any pilot
+
+2026-11-15: the real iOS app now links the existing Foundation router and consumes
+v2 RPCs behind `TEACHER_PROMPTS_V2_ENABLED=NO` plus the shared workflow/push flags.
+Linux package tests passed 42/42, Python/Bun fixtures 69/69 and 47/47. Fourteen app
+domain tests passed in a temporary Linux harness with Apple/Supabase adapters stubbed;
+this is not a simulator build. No remote services, Apple push, secrets, deployment,
+cutover or production state verification was performed.
+
+Pass 2: supplied pass-1 CI passed 107 native unit tests, but the screenshot hierarchy
+showed a route-storage error before navigation. Demo routing now rebuilds with memory
+storage on demo entry; light/dark cases independently request all six screenshots.
+The atomic all-present submit now matches contract 1.1; adjusted submission retains
+receipt revisions and exact retry requests. Local checks: 42 package, 69 Python, 47 Bun,
+20 stubbed app-domain tests, Swift parse and gitleaks pass. Native pass-2 unit/UI tests
+are still unrun on this Linux host. No commit, push, remote API/DB, real push or deploy.
+
+Pass 3: supplied pass-2 macos-15 CI passed 113 native unit tests (20 teacher-prompt
+tests) and Secrets. Optional screenshots reached light 01–04 and dark 01–05:
+light's snoozed List row was offscreen; dark's submitted identifier matched both
+the checkmark Image and its text, with `firstMatch` selecting the image. Outcomes
+and errors now use a pinned top banner with text identifiers and VoiceOver
+announcements. Unsaved review/notes and pending writes disable swipe dismissal;
+Back to lessons remains available. Two new regressions cover draft protection.
+Local package/fixture/parse checks pass, plus 22 app-domain tests in the temporary
+Linux harness (Apple/Supabase adapters stubbed). This does not verify native UI.
+No new copy, commit, push, remote API/DB, real push or deploy.
+
+- [ ] Supervisor: commit/push the reviewed changes; inspect the macos-15 iOS build
+  and XCTest results, then optional `ios-screenshots` artifacts (six states × two
+  themes). Run Dynamic Type/VoiceOver, iPad, foreground/background/privacy-lock,
+  stale/network/expired-session and account-switch flows on the actual SDK/device.
+- [ ] Pass-3 UI QA: in both themes scroll away from the top, confirm snooze and
+  submit, and verify each outcome is visible immediately and announced by VoiceOver.
+  Trigger an offline error from a lower row and verify its message/retry stays visible.
+  Verify large Dynamic Type does not clip the banner, downward drags retain unsaved
+  review/notes, and Back to lessons still exits. The screenshot job must retain
+  captures 01–06 for each theme; pass-3 native unit/UI tests remain unrun on Linux.
+- [ ] Obtain Edmund's approval for all native stand-in copy in
+  `docs/teacher-prompts/strings.md`; test All present → optional adjustments →
+  Confirm and submit with staff (atomic RPC without adjustments, individual marks
+  then submit with adjustments). Submission is review, never dismissal.
+- [ ] Keep Release/TestFlight master NO until a separate pilot is approved. Verify
+  fresh v2 backend compatibility, identities, active teacher/admin profiles and OFF
+  runtime flags through the cutover/security runbooks before dependent rollout.
+  Current production classes/kiosk/parent/station parity is not supplied by this flow.
+- [ ] Paid-team capability TODO (also §38): add signed `aps-environment` only when
+  provisioning supports Push Notifications. Set `TEACHER_PROMPTS_APNS_ENVIRONMENT`
+  to that exact signed value (`development` or `production`); empty fails closed.
+  Exercise permission deny/allow/settings, token rotation, opt-out/sign-out/re-opt-in,
+  failed bounded revocation, app termination and both APNs environments. Real push
+  requires both runtime flags plus teacher/admin active role and explicit opt-in.
+- [ ] Associated Domains TODO: approve the HTTPS host, add it to
+  `TEACHER_PROMPTS_APPROVED_HOSTS`, configure signed Associated Domains and host AASA.
+  Test both URL forms while signed out, cold-launched, locked and on the wrong account.
+  No fixture host is approved for real traffic.
+- [ ] Test multiple devices, delivered-notification removal and foreground badge/backlog
+  refresh after submit. In-flight provider requests can still arrive. Push failure
+  must leave My lessons usable. Follow the full QA/handoff notes in
+  `docs/teacher-prompts/ios/README.md` and the existing cutover gates.
