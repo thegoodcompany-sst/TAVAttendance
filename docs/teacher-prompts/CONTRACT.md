@@ -1,9 +1,15 @@
 # Teacher prompts — implementation contract v1
 
-Status: prototype contract, 2026-11-14. Owner: Edmund; integration: supervisor.
+Status of the historical SQL specification: prototype contract, 2026-11-14. Owner: Edmund; integration: supervisor.
 Normative words MUST/SHOULD describe implementation requirements, not live state.
 The five implementation passes consume this file independently. Do not silently
 rename interfaces; report necessary deviations to the supervisor before integration.
+
+## Convex implementation amendment
+
+The new-year backend is `backend/convex/`. The attendance, staffing, calendar, time-window, privacy, snooze and submission rules below, including revision 1.1, are the behaviour baseline. Use the [Convex client contract](CONVEX_API.md) for wire endpoints and the [backend guide](CONVEX.md) for authorization, operations and deployment settings.
+
+Convex Auth links a provisioned staff profile to its password account on one-time activation. Public functions grant accountable teachers and admins the review surface. Table access, SQL grants, service-role worker calls, the fake identity selector, simulated push RPC, fixed-week demo and assigned database instructions below belong to the historical prototype. Internal Convex functions and indexed serializable transactions implement provisioning, planning, receipts and leases. Timestamps have millisecond precision, and public UUIDs and decimal revision strings remain stable. The worker retries explicit throttling and server errors, and records ambiguous in-flight outcomes without resending that stage to the device. Current demo seed and release procedures live in the backend guide and [cutover plan](cutover.md).
 
 ## 1. Scope, evidence, and safety
 

@@ -1,11 +1,6 @@
 # Fresh database cutover: January 2027 target
 
-This is a plan for a later, explicitly authorized human operation. None of these
-live actions are authorized by the prototype task, and none have been performed.
-The V2 prototype is not yet a complete replacement for TAVA Attendance. Use the
-[contract](CONTRACT.md) for schema/client interfaces and the repository's production
-schema, deployment and mobile-release runbooks when that later work is authorized.
-Dates below are stages, not a promised release date.
+The target is a fresh Convex deployment for the new-year backend. The current Supabase system continues serving existing clients pending an authorized switchover. This plan covers a future production release. The verified dev workflow and client contract are documented in [CONVEX.md](CONVEX.md) and [CONVEX_API.md](CONVEX_API.md).
 
 ## Gate 0 — agree what must survive
 
@@ -33,60 +28,35 @@ Owner: Edmund, operations lead, maintainer and DPO.
 obligations have owners and approval. **No-go:** required child-accounting or privacy
 capabilities remain missing, or retained records would be silently destroyed.
 
-## Gate 1 — complete and rehearse the replacement
+## Gate 1 — rehearse on a separate deployment
 
-Owner: maintainer, independent reviewer and operations tester.
+Run `npm ci && npm run typecheck && npx vitest run` in `backend/` at the reviewed revision. Rehearse activation, refresh, all lesson RPCs, missing submissions, moved lessons, permission changes, token rotation and dry-run delivery with invented data. Verify export and restoration into an isolated deployment. Review access to backups and the decision for each legacy workflow with the operations lead. The archived PostgreSQL prototype remains available for comparison.
 
-1. Finish required client/backend parity and tests. Teacher prompts alone do not
-   implement parent, station, dismissal or complete PDPA workflows.
-2. Replay the separate V2 chain into an empty throwaway Postgres 17 database.
-   Locally only: shim, `0001_core`, `0002_calendar`, `0003_attendance_rpc`,
-   `0004_prompt_scheduler`, then fake seed. Append later accepted migrations;
-   never modify historical production migrations or mix both schema chains.
-3. Run SQL role/RLS, calendar, concurrency, submission, scheduler and device tests;
-   dispatcher/unit tests; mobile-browser E2E; and native router tests. Verify
-   Study Space exclusion, no-row attendance, stale mutation rejection, and
-   immutable submissions. Test all roles and revoked/replaced teachers.
-4. Rehearse a hosted fresh backend separately with its real Auth schema. Never
-   install `local/supabase_shim.sql`, `seed/demo_week.sql`, `demo_shift_to_today`,
-   demo identity switching or fake device registrations into the real destination.
-5. Verify schema before dependent clients; verify OFF flags and non-demo runtime.
-   Rehearse restoration into an isolated environment, endpoint rollback, queue
-   clearing and reconciliation of records written after a simulated switchover.
-6. Record exact source revision, migration hashes, test counts, browser/device
-   evidence, restore evidence and unresolved issues. Local tests do not establish
-   live state; later authorized live checks must use the protected repository gates.
+## Gate 2 — install the reviewed production backend
 
-**Go:** required automated tests pass, representative workflows pass, independent
-review passes and recovery is demonstrated. **No-go:** any authorization/privacy
-failure, unreliable record mapping, or untested restoration path.
+The authorized deployer selects the intended Convex project, production region and plan with the centre, records the expected HTTPS cloud/site hosts, and injects its **production deploy key** as `CONVEX_DEPLOY_KEY` through secret storage. Use a clean checkout of the approved revision. Set `TAVA_RELEASE_SITE` to that production HTTPS site origin (public configuration). Keep all signing material outside source control and shell history.
 
-## Gate 2 — prepare the fresh backend with flags OFF
+For the **first installation** run these commands. The key bootstrap checks the deployment named in the production key against the site origin and pipes an independent keypair to the CLI. For later releases preserve the deployment's existing keypair and omit the bootstrap command.
 
-Owner: authorized backend operator, with the production-schema runbook.
+```sh
+cd backend
+npm ci
+npm run typecheck
+npx vitest run
+node scripts/auth-keys.mjs release "$TAVA_RELEASE_SITE"
+npx convex deploy
+npx convex run settings:initialize '{}'
+```
 
-1. Provision an intentionally separate Singapore-region backend/Auth environment;
-   confirm its identity independently before any operation. Do not repurpose the
-   old database or run `supabase db reset` / `db push` against production.
-2. Apply only exact reviewed V2 migrations in order through the approved workflow.
-   Use hosted Auth, not the local shim. Reload PostgREST after function changes;
-   verify schema, grants, RLS, security-invoker views if any, drift and advisors.
-3. Keep `teacher_prompts=false`, `teacher_prompt_push=false`, `demo_enabled=false`.
-   Verify values from the destination itself, not repository defaults.
-4. Provision approved staff identities and reviewed role mappings. Configure new
-   term, timetable, holidays/closures, classes, accountable teachers and enrollment
-   under the separately approved data-entry/import plan. Review counts and spot
-   checks without putting child names in logs.
-5. Generate planned lessons and compare timetable, dates, rosters and leads with
-   the operational plan. Confirm cancelled lessons have no active prompts and
-   Study Space is absent from reports/prompts.
-6. Install a reviewed worker wakeup and dedicated invocation secret; the optional
-   planning cron alone does not dispatch. Keep real push disabled. Configure APNs
-   credentials only in approved secret storage, never source or shared logs.
+The bootstrap sets `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL` and `APNS_DRY_RUN=true`. Convex supplies `CONVEX_SITE_URL`. Deployment registers the daily calendar and minute dispatch crons automatically. Verify the actual production function inventory, both crons, issuer/JWKS discovery, OFF flags and `demoEnabled=false` at the destination. Query only the operational settings:
 
-**Go:** measured schema/security evidence, counts, calendar review and OFF flags
-are signed off. **No-go:** prototype/demo endpoints, authentication shortcuts,
-unreviewed import, missing roles or unproven least privilege remain.
+```sh
+npx convex run --inline-query 'return {flags:(await ctx.db.query("feature_flags").collect()).map(f=>({key:f.key,enabled:f.enabled})),demo:(await ctx.db.query("runtime_settings").first()).demoEnabled}'
+```
+
+Provision the approved staff profiles, classes, dates, rules, exceptions and enrolments. Run `npx convex run calendar:generate_lessons '{}'` and reconcile counts, accountable teachers, actual dates and roster snapshots. Verify staff access with the approved pilot account, including denial for a replaced teacher. Retain only redacted verification evidence.
+
+For a later physical-device pilot, configure `APNS_KEY_P8`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` and `APNS_ENV` in the deployment's secret settings. For a secret-manager pipe, `npx convex env set APNS_KEY_P8` accepts the value on stdin. Keep `APNS_DRY_RUN=true` until real sending is approved. Real sending requires explicit approval of the master and push flags, the matching APNs environment and the dry-run setting. Keep the master OFF until the agreed pilot or switchover.
 
 ## Gate 3 — prepare all clients and a human pilot
 
@@ -170,36 +140,4 @@ a separately tested recovery operation, not an instant fallback. Do not equate
 
 ## Evidence still required
 
-No live backend, cutover, archive, real login, APNs, associated-domain or physical
-phone verification was performed by these local prototype passes. All live gates above remain open.
-The supervisor owns root release notes and human-only follow-ups; this pass edits
-only its assigned documentation and local runner.
-
-## Revision 1.1 rehearsal additions
-
-Replay the fresh chain against hostile global and public-schema EXECUTE defaults
-and a pre-existing function, then verify explicit per-function grants, private
-helpers and service-role checks inside worker RPC bodies. Run only the assigned
-throwaway database with explicit `TP_DB`; use the SQL runner in both UTC and
-America/Los_Angeles and retain the concurrency/recovery evidence. This local proof
-is not evidence about any hosted backend's actual privileges.
-
-Verify recovery coalesces missed stages into one current request, records terminal
-`superseded` stages without reopening them, expires heads-up at scheduled end and
-stops teacher pushes after the seven-Singapore-date editing window. Retain admin
-follow-up and historical delivery records. Exercise reschedule closure checks on
-the actual Singapore date, final-batch overlap checks and inactive rule teachers.
-
-All clients must deliberately consume `confirm_all_present_and_submit` for the
-confirmed all-present flow and `unregister_device` for installation opt-out/sign-out.
-The atomic confirmation must preserve existing late/absent marks, reject stale
-register/feedback revisions and cancel prompts together with submission. Native
-revocation must remain bound to the original account, cover in-flight registration,
-and expose failed cleanup after bounded retries; test re-opt-in and flag-off cases.
-Fixture parity does not prove native runtime or real APNs behavior.
-
-The code-gated preview is for fake identities only. Its remote database opt-in,
-startup demo-marker check and entry code are not production authentication or a
-hosted bootstrap. Jeremy's [preview instructions](preview-deploy.md) keep the
-throwaway backend separate. None of this closes the parent/kiosk/station/privacy,
-archive, restore or human authorization gates above.
+Dev verification covers real password activation, sign-in, token refresh, the teacher API, registration and an accepted dry-run delivery. Production deployment, approved client migration, real-device receipt, data restoration, archive reconciliation and operational sign-off remain human release gates. The code-gated SQL preview uses invented identities and has a separate [preview guide](preview-deploy.md).
