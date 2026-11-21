@@ -52,8 +52,9 @@ Device builds sign with the `DEVELOPMENT_TEAM` set in `project.yml`. Push
 Notifications is enabled on the `com.tava.TAVAttendance` App ID (2026-11-21), and
 the app is signed with `aps-environment` from `APS_ENVIRONMENT`: `development`
 (sandbox APNs) for Debug, `production` for Release/TestFlight. Release signs
-manually with the "TAVAttendance App Store Push 20261121" profile; older App Store
-profiles were invalidated when Push was enabled.
+manually with the "TAVAttendance App Store Push 20261121" profile and Debug with
+"TAVAttendance Development Push 20261121" (both need to be installed locally);
+older profiles were invalidated when Push was enabled.
 
 Backend settings come from `Config/Debug.xcconfig` and `Config/Release.xcconfig`,
 which include the gitignored `Config.xcconfig` and an optional gitignored
@@ -67,8 +68,6 @@ Debug build of the teacher-prompt flow on a registered iPhone (the server
 xcodegen generate
 xcodebuild -project TAVAttendance.xcodeproj -scheme TAVAttendance \
   -configuration Debug -destination 'id=<device-udid>' \
-  -allowProvisioningUpdates -authenticationKeyPath <AuthKey.p8> \
-  -authenticationKeyID <key-id> -authenticationKeyIssuerID <issuer-id> \
   TEACHER_PROMPTS_V2_ENABLED=YES build
 ```
 

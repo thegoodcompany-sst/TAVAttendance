@@ -84,6 +84,13 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: "DUU8J39BA7"
       configs:
+        Debug:
+          # Device builds sign manually with a Push-enabled development profile
+          # (ASC 2J3JBNJ6BV). Add a device: register it, then regenerate this
+          # profile through the App Store Connect API under the same name.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Development"
+          PROVISIONING_PROFILE_SPECIFIER: "TAVAttendance Development Push 20261121"
         Release:
           TEACHER_PROMPTS_V2_ENABLED: "NO"
           APS_ENVIRONMENT: production
