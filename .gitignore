@@ -45,6 +45,7 @@ iOS/TAVAttendance.xcodeproj/-Xcc/
 # Credentials — never commit live keys
 # Copy Config.xcconfig.example → Config.xcconfig and fill in values.
 iOS/Config.xcconfig
+iOS/Config.*.local.xcconfig
 Android/secrets.properties
 station/config.toml
 station/.venv/
