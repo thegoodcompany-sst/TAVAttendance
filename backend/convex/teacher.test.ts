@@ -4,6 +4,21 @@ import { fixture, now } from "../tests/fixture";
 import { day, minute } from "./lib/common";
 
 afterEach(() => vi.useRealTimers());
+it("exposes only the signed-in staff profile and rollout flags during opt-out", async () => {
+  const { t, lead, detail } = await fixture();
+  const own = () => lead.client.query(api.teacher.my_profile, {});
+  expect(await own()).toEqual({
+    id: lead.uuid, display_name: "lead", role: "teacher", active: true,
+    teacher_prompts: true, teacher_prompt_push: false,
+  });
+  await t.mutation(internal.settings.setFlag, { key: "teacher_prompts", enabled: false });
+  expect((await own()).teacher_prompts).toBe(false);
+  await expect(detail()).rejects.toThrow("TP_DISABLED");
+  await t.run((ctx) => ctx.db.patch(lead.id, { active: false }));
+  expect((await own()).active).toBe(false);
+  await expect(detail()).rejects.toThrow("TP_NOT_AVAILABLE");
+  await expect(t.query(api.teacher.my_profile, {})).rejects.toThrow("sessionExpired");
+});
 it("limits today, deep links and writes to the current lead and admin", async () => {
   const { lead, other, admin, t, base, mutation } = await fixture();
   expect(

@@ -46,9 +46,11 @@ Send the same bearer authorization and JSON content type to either interface.
 
 | Name | JSON arguments | JSON result |
 |---|---|---|
-| `my_profile` | `{}` | `{id,display_name,role,active}` |
+| `my_profile` | `{}` | `{id,display_name,role,active,teacher_prompts,teacher_prompt_push}` |
 | `my_lessons_today` | `{}`, `{"p_date":null}` or `{"p_date":"2027-01-07"}` | `{server_now,date,lessons:[Summary],outstanding_count,backlog:[Summary]}` |
 | `lesson_for_prompt` | `{"p_lesson_id":"<lesson UUID>"}` | `{server_now,lesson:Summary,roster:[Student],feedback:{body,revision},submission:Submission|null}` |
+
+An authenticated staff member can read their own profile and both rollout flags during disablement or deactivation so their installation can be revoked. Lesson access still requires an active profile and the workflow flag.
 
 A `Summary` has the following wire shape. The values here illustrate a 19:00–21:00 class.
 

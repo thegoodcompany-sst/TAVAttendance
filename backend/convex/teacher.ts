@@ -8,6 +8,8 @@ import {
   digest,
   editError,
   fail,
+  flag,
+  profile,
   iso,
   midnight,
   minute,
@@ -26,8 +28,16 @@ const id = { p_lesson_id: v.string() },
 export const my_profile = query({
   args: {},
   handler: async (ctx) => {
-    const p = await actor(ctx);
-    return { id: p.uuid, display_name: p.name, role: p.role, active: p.active };
+    // The original owner still needs to identify their installation for opt-out.
+    const p = await profile(ctx);
+    return {
+      id: p.uuid,
+      display_name: p.name,
+      role: p.role,
+      active: p.active,
+      teacher_prompts: await flag(ctx, "teacher_prompts"),
+      teacher_prompt_push: await flag(ctx, "teacher_prompt_push"),
+    };
   },
 });
 export const my_lessons_today = query({
