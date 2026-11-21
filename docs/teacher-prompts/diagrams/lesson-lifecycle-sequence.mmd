@@ -1,0 +1,45 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+sequenceDiagram
+    autonumber
+    participant Calendar as Calendar service
+    participant DB as Database / RPCs
+    participant Worker as Dry-run worker (later APNs)
+    participant Phone as Teacher phone
+    participant Route as Login + lesson route
+    participant Admin as Admin outstanding list
+    Calendar->>DB: Generate 42 days ahead, roster and one lead
+    DB->>DB: Plan E-5, E, E+15, E+60, apply quiet hours
+    loop Every minute while work is outstanding
+        Worker->>DB: Refresh schedule, claim due work with lease
+        DB-->>Worker: IDs only, one current stage, obsolete stages superseded
+        Worker->>DB: Prepare: authority, teacher window, current stage, device
+        DB-->>Worker: Generic delivery input or suppress
+        Note over Worker,Phone: Prototype records dry_run only, no real push
+        Worker-->>Phone: Future APNs: generic reminder, lesson UUID
+        Worker->>DB: Record acceptance / retry / permanent failure
+    end
+    Phone->>Route: Tap 1: Take attendance, retain lesson destination
+    Route->>Route: Web preview code gate, then identity, native auth/profile/unlock
+    Route->>DB: lesson_for_prompt under current identity
+    DB-->>Route: Authorized register, revisions and optional notes
+    opt Still teaching
+        Route->>DB: Confirm snooze 10 minutes, mutation UUID
+        DB->>DB: Replan pending stages and deadline, max three snoozes
+    end
+    alt Three-tap all-present path
+        Phone->>Route: Tap 2: All present, inspect confirmation
+        Phone->>Route: Tap 3: Confirm and submit
+        Route->>DB: confirm_all_present_and_submit, both revisions, mutation UUID
+        DB->>DB: Fill missing rows only, preserve late and absent
+    else Individual review
+        Route->>DB: Mark rows, save optional notes, explicit submit_lesson
+    end
+    DB->>DB: Lock lesson, check complete, insert receipt, cancel pending work
+    DB-->>Route: Submitted receipt (replay-safe)
+    Admin->>DB: admin_missing_submissions
+    DB-->>Admin: Ended-by-clock unsubmitted work, omit submitted lesson
+    Note over DB,Phone: In-flight push can still arrive, reopening rechecks current state
+    opt Opt-out or sign-out
+        Route->>DB: unregister_device, original account installation
+        DB->>DB: Revoke devices, claim and prepare suppress delivery
+    end

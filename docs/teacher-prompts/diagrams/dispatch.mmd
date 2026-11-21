@@ -1,0 +1,30 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+flowchart TD
+    Tick["Local timer / future reviewed scheduler"] --> Refresh["Refresh calendar and plans"]
+    Refresh -->|Generation failed: audit and continue existing work| Flag
+    Refresh --> Flag{"teacher_prompts enabled?"}
+    Flag -->|No| Stop["No claims"]
+    Flag -->|Yes| Window{"Started and within seven<br/>Singapore dates of start?"}
+    Window -->|Not started| Wait["Keep future plans pending"]
+    Window -->|Too old| Admin["Admin follow-up only; no teacher push"]
+    Window -->|Yes| Coalesce["Supersede obsolete stages<br/>Heads-up expires at lesson end<br/>Choose one meaningful stage"]
+    Coalesce --> Claim["Lock lesson → plan → outbox → device<br/>SKIP LOCKED; due work; one stage per lesson"]
+    Claim --> Devices{"Eligible recent devices?"}
+    Devices -->|None| Missing["Terminal no_devices<br/>Admin still sees outstanding lesson"]
+    Devices -->|Newest five| Lease["Snapshot device IDs; unique outbox keys<br/>120-second lease; commit before network"]
+    Lease --> Prepare["Prepare each send with fresh clock<br/>Lease, revision, recipient, flags, lesson, device<br/>Teacher window and superseded stages again"]
+    Prepare -->|Quiet hours| Quiet["Defer; release unused attempt<br/>No delivery log for unused attempt"]
+    Quiet --> Tick
+    Prepare -->|Stale / completed / cancelled / revoked| Suppress["Suppress; never send"]
+    Prepare -->|Later stage due or heads-up expired| Superseded["Terminal superseded; no reopen<br/>Clear lease; retain sent and failed history<br/>Claim without receipt: unknown outcome"]
+    Prepare -->|Valid| Mode{"Delivery mode"}
+    Mode -->|Demo only| Dry["DryRunSender<br/>No network; provider ID = outbox ID"]
+    Mode -->|Future separately authorized| APNs["APNs HTTP/2 · generic payload<br/>10-second timeout; stable ID; lesson collapse ID"]
+    Dry --> Ack["Record result only with matching lease token"]
+    APNs --> Ack
+    Ack -->|Accepted| Sent["Terminal sent<br/>Acceptance is not read or submission"]
+    Ack -->|Timeout / 429 / 5xx| Retry["Retry after 1 min, then 5 min<br/>Quiet-hour deferral; at most 3 attempts"]
+    Retry --> Tick
+    Ack -->|Permanent / exhausted| Failed["Terminal failed; normalized code only<br/>410 / BadDeviceToken: revoke matching token version"]
+    Crash["Lease expired / crash after acceptance<br/>Unknown outcome; retry may duplicate push"] -.-> Retry
+    OptOut["Opt-out / sign-out<br/>unregister_device for original account installation"] -.-> Prepare

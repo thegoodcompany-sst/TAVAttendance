@@ -1,0 +1,696 @@
+# Teacher prompts: review every lesson
+
+## For Edmund
+
+**Edmund's t466u brief, verbatim** (including the supplied bracketed omission note):
+
+> i just spoke to the person in charge of tava and they've actually had some suggestions. i've spoken to them and it's quite interesting. it's going to cause us to have to rethink our product a lot but i trust that you are smart enough and we can burn enough codex to get it done.
+>
+> the primary issue here is that literally just no one wants to do the attendance taking after the end of the class or before the class. things just fall apart. the concept is that maybe with a notification to their phone, we do something so that the teachers are prompted to do things like take attendance and then give notes and feedback. we can do it based on the session timing: they receive the notification because they don't have to do it immediately after getting the notification. they can then wait 10, 15 minutes in case they are not done wrapping up and then do the final feedback.
+>
+> i think the thing is teachers aren't really reading their emails yet so we need to send a ping to iphone. can we just continue to draft this up because it's a very rushed schedule for both of us? we aren't really able to meet but when we meet, it's just to get the ui done and fix up the entire scheduling and stuff. we need to draw out this schedule or we need to draw out this prototype, get a ui done, maybe post-plan it, or just build up the basic ui. let me play with it.
+>
+> i want you to get this done, get this tested, run in full loops, use a bunch of codex, and prototype what this could be like. draw out some diagrams on how you think we should do it. now it's one of our last chances if you want to migrate dbs because we're going to drop the current entire db if you want, wipe it, and replace it with the new thing. the plan starts for tava attendance is the new year so if you really want to do some crazy shit, now's the time to do it. all right. [closing expletive omitted]
+
+### How a 19:00–21:00 class works
+
+The calendar puts the lesson on the responsible teacher's list ahead of time.
+At **20:55** the phone gives a heads-up; at **21:00** it asks the teacher to take
+attendance. If the register is still unfinished, there is a **21:15** follow-up.
+The final reminder would fall at 22:00, inside quiet hours, so it waits until
+**09:00 the next morning**. At **09:15**, unresolved work is overdue for admin
+follow-up; there is no extra push. Admin can already see unfinished lessons after
+their scheduled end.
+
+Still wrapping up? **Remind me in 10** postpones reminders by ten minutes, up to
+three times. For an all-present class, completion takes **three taps from the
+reminder**: **Take attendance → All present → Confirm and submit**. The final
+confirmation fills only unmarked rows and submits in one transaction; existing
+late/absent marks stay intact. Notes are optional. Separate marking and submission
+remain available when the teacher needs to review individual entries.
+
+“Not Here Yet” means no attendance row. It never becomes absent automatically.
+Submission records a reviewed register, not a child's departure. Keep arrival,
+kiosk and dismissal checks; this end-of-lesson flow does not replace them.
+
+Try **Demo Teacher A** for a clean all-present example, or **Demo Teacher D** for
+Mathematics with existing late/absent marks. Every seeded teacher has a lesson
+ending soon, an earlier lesson to review and a submitted lesson today. Switch to
+Demo Admin to see unfinished work. Teacher B cannot open D's substituted lesson.
+All people are invented; all sends are dry-run.
+
+This is a local prototype. The preview access code protects entry to the fake
+identity selector; it is not real teacher authentication. APNs, physical-device
+permissions, associated domains, real-login routing and production operation have
+not been verified here. The iOS work remains an isolated sketch. Edmund owns final
+wording; [strings.md](strings.md) inventories the actual source strings.
+
+## Problem and scope
+
+The prior [research](../../../tav-eod-link/research.md) examined the old clients and
+schema. Its email-first recommendation is superseded by this pass's push brief.
+The relevant observed seams are:
+
+- Existing sessions are created by clients and unique per class/day. That cannot
+  account reliably for every planned lesson or two separate lessons on one day.
+- Native session lists can auto-end a session. That action is not teacher review;
+  ordinary closed-session editing is also blocked in the old schema.
+- Existing device registration serves parents. Teachers need a separately
+  authorized registration path.
+- Existing mobile login redirects to the class list and loses the lesson route.
+
+V2 addresses these together in a separate, fresh-database schema chain under
+`supabase/v2/`. It does not modify the historical migration chain. The contract is
+normative; diagrams and this explanation are companions, not competing interfaces.
+
+## Data model and authority
+
+| Records | Purpose |
+|---|---|
+| `profiles`, `students`, `classes`, `enrollments` | Staff identity/role, minimal child records, classes and dated membership. `teacher` replaces the old `tutor` role in V2. |
+| `terms`, `timetable_rules`, `calendar_exceptions` | Weekly calendar, term boundaries, centre/class holidays and closures. |
+| `lessons`, `lesson_staff`, `lesson_roster` | Stable lesson UUID, scheduled instants, exactly one accountable teacher, assistants/substitutes and a roster snapshot. |
+| `attendance_records`, `lesson_feedback`, `lesson_submissions` | Three-valued attendance, optional notes and explicit immutable confirmation of specific register/feedback revisions. |
+| `mutation_receipts`, `audit_events` | Actor-bound replay protection and minimal operational evidence. |
+| `prompt_policy`, `notification_plans` | Reminder timings and four logical stages per lesson. |
+| `teacher_devices`, `notification_outbox`, `notification_deliveries` | Private device registrations, per-device attempts, leases and normalized outcomes. |
+| `feature_flags`, `runtime_settings` | Shared rollout switches and separately guarded demo mode. |
+
+Generated lessons are unique by `(timetable_rule_id, occurrence_date)`, not
+class/day. A reschedule preserves the lesson UUID and original occurrence identity,
+updates scheduled instants, refreshes the unworked roster using the new Singapore
+date, and replans pending prompts. Closure checks use the actual rescheduled Singapore
+date. Calendar batches validate final overlaps atomically, and active rules require
+an active teacher; unresolved staffing is audited without stopping existing
+reminders. Two nonoverlapping lessons on one day are allowed.
+Class overlaps are rejected under a database lock. A closure retains a cancelled
+occurrence for explanation. Removing a closure does not silently resurrect it.
+
+Roster membership is materialized from inclusive enrollment dates; names remain in
+`students`. Before work begins, safe calendar regeneration can refresh the roster
+and its revision. Once work exists, regeneration preserves it and records conflicts
+for admin review. Overrides protect intentional reschedules and staff changes.
+
+RLS and guarded RPCs enforce authority. JWT `sub` selects an active database profile;
+client metadata cannot grant a role. All ordinary direct writes are denied. Teachers
+can review only their accountable lessons; assistants have scoped read access.
+Parents, anonymous users and inactive/missing profiles have no prototype access.
+Admins receive shaped delivery status, never device tokens or raw queue tables.
+Study Space is excluded at the source of every list, report and prompt.
+
+All writes serialize on the lesson row. Attendance uses expected register revision
+and observed server `marked_at`, including observed-empty rows. Mutation UUIDs are
+bound to actor, operation and arguments. Mark-all-present touches only unmarked
+rows, preserving explicit absent/late records. Revision 1.1 adds
+`confirm_all_present_and_submit`: after an explicit confirmation it validates both
+revisions, fills only missing marks and submits atomically. Any failure rolls back
+marks, submission and receipt together. Ordinary `submit_lesson` does not fill
+missing rows. Feedback has its own revision and
+may be blank. Submit checks both revisions and requires a complete register;
+only admins may submit a zero-member roster. After submission, attendance, notes
+and roster are immutable. A later correction needs a separately designed audited
+reopen workflow. Teachers may finish work through seven Singapore dates after its
+start; older work stays with admins.
+
+## Scheduling and reminder timeline
+
+All instants are `timestamptz`; civil dates and times explicitly use
+`Asia/Singapore` (UTC+8). Generate lessons 42 days ahead and refresh regularly.
+The generator does not depend on client start/end controls. Optional actual
+`started_at` and `ended_at` are evidence, not the source of reminder timing.
+
+For scheduled finish **E**:
+
+| Stage | Default | Example: lesson ends 21:00 SGT |
+|---|---|---|
+| Heads-up | E − 5 minutes | 20:55 |
+| Attendance | E | 21:00 |
+| Follow-up | E + 15 minutes | 21:15 |
+| Final | E + 60 minutes, deferred through quiet hours | Next day 09:00 |
+| Overdue | Effective final due + 15 minutes; no extra push | Next day 09:15 |
+
+Quiet hours are `[22:00,07:00)`; deferred prompts resume at 09:00. Exactly 07:00 is
+allowed; exactly 22:00 is quiet. Defer each stage through quiet hours, then space
+successive stages at least five minutes apart. A 20:00 finish has its final at
+21:00 that day. Revision 1.1 coalesces missed stages: when a later stage is already
+due, older pending stages become terminal `superseded`. Heads-up expires at the
+scheduled end, even if the next stage was snoozed. Recovery sends at most one
+currently meaningful stage per lesson, with per-device fanout; it does not replay
+old stages five minutes apart. Superseded stages never reopen, sent/failed history
+is retained, and a claimed attempt without a receipt is recorded as `unknown`.
+Worker delay, delivery failure and lack of devices never extend the overdue deadline.
+
+Both claim and prepare require that lesson start has arrived and the teacher can
+still complete it: at most seven Singapore dates since its start. Older work stays
+on the admin list without teacher pushes. Future lessons may be planned in advance;
+they are not dispatchable yet.
+
+“Remind me in 10” postpones pending reminders, at most three accepted requests.
+It is available from E−5, extends from the later of now/current snooze, and is
+capped at E+60 before quiet-hour deferral. It updates the effective overdue deadline;
+it does not change scheduled finish, mark students, or submit. An exact retry of
+the same mutation UUID does not spend another snooze.
+
+States are derived in priority order: cancelled, submitted, overdue, awaiting
+attendance, in progress, scheduled. Reading a lesson late may skip intermediate
+states. An admin may cancel before submission, retaining all work and stopping
+pending reminders. There is no uncancel operation in this prototype.
+
+## Push delivery, devices and offline behavior
+
+A durable plan exists independently of phones. When due, the worker materializes
+rows for the recipient's newest five active devices seen in 90 days. With no device,
+it records one terminal `no_devices` outcome for the stage; the next stage can use
+a newly registered device. The teacher's list and backlog remain available.
+
+Claims use a 120-second lease and `SKIP LOCKED`; the transaction commits before any
+network request. Immediately before sending, preparation rechecks current lease,
+revision, lead teacher, flags, device ownership, lesson completion, teacher completion window, superseded stage and quiet hours.
+Submission, cancellation and substitution invalidate pending work atomically. A
+request already in flight may still arrive after that change; opening it rechecks
+current authority and state.
+
+Transient failures retry after one minute, then five minutes, with at most three
+attempts and quiet-hour deferral. Permanent failures terminate. An invalid APNs
+token revokes only that registration version, so a delayed response cannot revoke
+a newer token. An expired lease is an unknown outcome, not proof of non-delivery.
+Timeout after acceptance may cause a duplicate. Provider acceptance is neither a
+read receipt nor evidence of submission.
+
+The future APNs adapter uses HTTP/2, ES256 token authentication, environment-specific
+Apple hosts, a ten-second timeout, stable outbox UUID request IDs and one collapse
+ID per lesson. Payload contains generic text, category, kind and lesson UUID only:
+no names, class labels, counts, status, notes, tokens or authentication URLs. It
+expires by the next stage or one hour, whichever comes first; heads-up also
+expires at scheduled end. The app recomputes
+its badge from outstanding lessons rather than accepting a stale push badge.
+
+Registration follows authenticated active teacher/admin identity, opt-in and flags.
+Use `register_device` and installation-scoped `unregister_device`, not the old
+parent-only RPC. Opt-out/sign-out revokes that account's installation across APNs
+environments, including registrations still in flight. Revocation remains available
+when flags turn OFF or a profile becomes inactive; foreign/missing installations
+return the same acknowledgement. Claim and prepare exclude revoked devices.
+The native sketch clears local tokens/actions, binds cleanup to the original
+account and makes at most three revoke attempts before exposing recovery.
+Re-opt-in waits for cleanup, then explicitly registers again. An already in-flight
+provider request can still arrive. Phone permission denial or offline delivery cannot block
+manual access to the list. APNs is best effort and expired alerts may never appear.
+
+The prototype does not implement offline web submission or background snooze.
+An offline failure remains visibly incomplete until a successful server response.
+Future native attendance queues must remain actor-bound, clear on sign-out, retain
+mutation UUIDs and compare observed server timestamps; they must never overwrite
+newer work or replay another account's mutations. Snooze always needs a fresh,
+authenticated foreground confirmation.
+
+Locally, `DryRunSender` records outcomes without a network push. SQL optionally
+installs a planning-only cron job if `pg_cron` exists; local Postgres needs no such
+extension. The local worker refreshes the schedule and ticks every minute. A future
+hosted worker wakeup and invocation secret require a separate reviewed installation.
+Both shared flags default OFF; fake seed turns only `teacher_prompts` ON. Real
+push remains disabled throughout this work.
+
+## Deep links and preserving the destination through login
+
+The route forms are `https://<approved-host>/t/lesson/<lowercase-uuid>` and
+`tava://teacher/lesson/<lowercase-uuid>`. They locate work; possession grants no
+access. Reject extra segments, encoded separators, queries, fragments, userinfo,
+external `next` values and protocol-relative destinations.
+
+Web stores a validated relative lesson path in an HttpOnly pending-route cookie
+for 24 hours and sends unsigned users to `/demo?next=...`. It validates again at
+resume and resolves `lesson_for_prompt` under the chosen identity before consuming
+the route. Wrong identity shows a neutral unavailable state with an explicit
+account retry; a network failure keeps the route. It never jumps to a default
+list before trying the requested lesson. The demo identity cookie is allowlisted,
+HttpOnly and SameSite=Lax. The implemented `/preview` access-code gate protects
+remote preview entry and can also be enabled locally with `TP_PREVIEW_ACCESS_CODE`.
+It uses an eight-hour HMAC-signed, HttpOnly, SameSite cookie (Secure over forwarded HTTPS or with a remote database),
+with server-side checks on identity/RPC actions and the demo capture route as well
+as the route proxy. The gate preserves a valid lesson destination through entry.
+The local selector deliberately allows selection of Demo Admin; the code grants
+access to fake identities, not real staff authentication. See the preview guide
+for the remaining hosted database bootstrap gate.
+
+The iOS sketch waits for auth restoration, profile load and biometric unlock,
+retaining a pending locator across process restart. Both notification actions
+require foreground authentication. `TAKE_ATTENDANCE` opens the lesson;
+`SNOOZE_10` opens it and asks for fresh confirmation. Sign-out clears route and
+actions. During a login/account transition, navigation intent may survive, but an
+action from the prior account must never execute under the new account.
+
+## Privacy and staff follow-up
+
+Child names are only shown on the authorized register. They never belong in push
+payloads, logs or URLs. No analytics or third-party scripts are needed. Lesson
+feedback is optional, at most 1,000 characters, with guidance to omit personal
+details and an NRIC/FIN-like pattern guard. Pattern detection cannot guarantee
+that free text is safe. Feedback is not parent-visible.
+
+Audit records contain allowlisted event codes, counts and revisions, never copied
+rosters, feedback, tokens or provider response bodies. Device material is service-only.
+Staff notice, processor assessment, feedback purpose, access/correction/erasure and
+retention are school/DPO decisions before real data. Thirty-day delivery-log and
+revoked-token retention are proposals, not implemented jobs or legal claims.
+
+Admin `/admin` uses `admin_missing_submissions` over a bounded Singapore date range.
+It shows noncancelled, unsubmitted lessons whose scheduled end has passed, including
+lessons with no attendance rows, not just those already overdue. Rows show lead,
+progress, deadline and shaped delivery state. `accepted` in this demo means dry-run
+acceptance; it does not mean the teacher received or read anything. Submitted rows
+disappear. Staff can assign a substitute, cancel, or reschedule eligible unworked
+future lessons through guarded RPCs. Removing the old lead immediately removes
+review authority unless separately retained as a read-only assistant.
+
+## Run locally
+
+Use PostgreSQL 17 on `localhost:55432` with trust-auth user `postgres`, Python 3,
+Bun and the checked-in lockfiles. Browser checks need the installed Playwright
+Chrome channel. Neither pg_cron nor pgTAP is required. No `.env` file is loaded;
+the launcher refuses automatic environment files in application/ancestor paths.
+The assigned databases for this pass are **tp_h** and **tp_h2** only.
+
+```bash
+# Fresh fixed-week replay and shared SQL/concurrency/package checks:
+scripts/teacher-prompts-local.sh --db tp_h --reset --fixed-week --check
+# Fresh, now-relative demo, web + dry-run worker; Ctrl-C stops both:
+scripts/teacher-prompts-local.sh --db tp_h --reset
+```
+
+Open `http://127.0.0.1:3100/demo`. The runner sets **TP_DB explicitly** for all
+children and accepts only `tp_` names up to 63 characters. Local adapters fix the
+host/port/user and require any supplied URL to match the assignment. Never point
+these commands at a remote database. The runner strips inherited credentials,
+checks demo mode and real-push OFF, and fingerprints the shim/migrations/seed
+before reusing a database. `--check` includes the hostile-default-ACL fixture
+before migrations and checks OFF defaults before fake seed enables the workflow.
+
+The fixed seed stays in January 2027. Default startup calls `demo_shift_to_today`:
+it retains canonical lessons and adds eleven ad hoc examples so each of four
+teachers has today's ongoing, awaiting-review and submitted scenarios. The existing
+substituted Mathematics UUID remains today's only Mathematics occurrence. Current
+lessons end at the next five-minute boundary, normally starting 115–120 minutes
+ago. Near midnight earlier slots and current duration compress to stay today;
+ends clamp just before next midnight. The earlier pending examples get a demo-only
+future review deadline so they remain reviewable rather than overdue. A same-day
+repeat is a no-op and preserves work; use `--reset` for fresh unfinished examples.
+These synthetic timings do not change normal scheduling policy or real holidays.
+
+Stop the runner before destructive browser tests. From the repository root:
+
+```bash
+bash supabase/v2/tests/run.sh tp_h2 UTC
+bash supabase/v2/tests/run.sh tp_h2 America/Los_Angeles
+TP_DB=tp_h python3 supabase/v2/tests/concurrency_test.py tp_h
+```
+
+From `supabase/v2/functions`:
+
+```bash
+TP_DB=tp_h bun --no-env-file test tests/dispatch.test.ts tests/payload.test.ts tests/apns-sender.test.ts tests/entry.test.ts
+TP_DB=tp_h TEACHER_PROMPTS_RUN_INTEGRATION=1 bun --no-env-file test tests/integration.test.ts
+```
+
+From `prototypes/teacher-prompts` (each browser suite resets only `TP_DB`):
+
+```bash
+TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 bun --no-env-file run test
+TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 bun --no-env-file run test:e2e
+TP_DB=tp_h TEACHER_PROMPTS_DEMO=1 bun --no-env-file run screenshots
+```
+
+Playwright builds/starts its own loopback server, blocks external browser requests
+and exercises the code gate with a fixed test-only code. Screenshots replace stale
+PNGs in `/workspace/tav-teacher-prompts/screens/`. Do not share a database between
+concurrent destructive tests. Python and Bun iOS fixture checks are documented in
+[ios/README.md](ios/README.md); they do not execute Swift.
+
+## Verification
+
+Pass J completed the full local loop **twice**, on **15 November 2026, SGT**,
+using only `tp_j` and `tp_j2` at localhost:55432. Each loop passed:
+
+| Check | Passed | Failed | Skipped |
+|---|---:|---:|---:|
+| Fresh SQL replay, UTC (includes runner guards/concurrency) | 412 | 0 | 0 |
+| Fresh SQL replay, America/Los_Angeles (same coverage) | 412 | 0 | 0 |
+| Standalone concurrency | 17 | 0 | 0 |
+| Dispatcher unit / integration | 77 / 15 | 0 | 0 |
+| Web unit / browser E2E / screenshot scenarios | 99 / 21 / 2 | 0 | 0 |
+| iOS Python / Bun fixture checks | 69 / 47 | 0 | 0 |
+| Exact launcher `--db tp_j --reset --fixed-week --check`: SQL+guards+concurrency / worker / web | 412 / 77 / 99 | 0 | 17* |
+
+Lint, typecheck, and production builds passed in both loops. All **34 PNGs** were
+regenerated under `/workspace/tav-teacher-prompts/screens/`; the light lesson list
+and dark confirmation sheet were visually inspected. The three-tap submission and
+both formerly ambiguous selectors now pass. Preview tests cover 100 rapid wrong
+code attempts, pre-DB throttling, mandatory database assignment, remote configuration
+gates and fail-closed marker verification. Calendar tests cover moved lessons whose
+original dates fall outside the refresh window, using explicit Singapore dates.
+
+*The launcher does not enable dispatcher integration: Bun reports 17 skipped entries
+(15 integration cases plus two hooks). All 15 cases run and pass separately in each
+loop. No required integration coverage was skipped. This is repeated coverage, not
+a count of unique tests. The first screenshot attempt used an obsolete short fixture
+code and failed both themes; corrected before both completed loops. A process exit
+143 interrupted the second browser run; its full rerun passed 21/21. Exact commands,
+SGT timestamps, logs, counts and these preliminary failures are recorded in
+`/workspace/tav-teacher-prompts/RESULTS.md`.
+
+Web configuration now always requires `TP_DB`; its sole optional URL variable is
+`TP_DATABASE_URL`, whose database name must match. Remote preview also requires
+`TP_ALLOW_REMOTE_PREVIEW_DB=1`, `TEACHER_PROMPTS_DEMO=1`, a random access code of at
+least 24 characters and `sslmode=require`; the pool verifies the DB demo marker
+before serving request queries. Remote guards used fake configuration/mocks only.
+See [preview-deploy.md](preview-deploy.md) for proxy trust, throttle limits and the
+shared perimeter limiter required before multi-instance hosting.
+
+Native compilation/XCTest (Swift unavailable; zero executed), real login, APNs,
+physical devices, hosted preview and cutover remain unrun. No remote database,
+production API or real push was used. No commit, push, branch, PR or deployment.
+
+## Fresh database cutover
+
+The intended target is a fresh database for the new year, not applying V2 alongside
+the old schema. [cutover.md](cutover.md) gives ordered gates and rollback. Existing
+parent, kiosk, station, dismissal and PDPA capabilities still need an explicit
+parity decision and implementation before this can replace the current product.
+Never install the local Auth shim or demo seed into the future live backend.
+Old writes are frozen only at an approved switchover. Retain the old environment
+and an approved encrypted archive through the recovery window; deleting the old
+database ends that rollback path. No cutover is authorized or performed here.
+
+For a phone review link, see [preview-deploy.md](preview-deploy.md). The access-code gate and explicit remote-preview opt-in are implemented; that
+guide records exact local commands, future hosting settings and the still-required
+throwaway database bootstrap. No preview is deployed by this pass.
+
+## Open decisions for Edmund and TAVA
+
+1. Approve the stand-in copy against the brief above.
+2. Confirm one accountable lead/substitute and read-only assistants.
+3. Try four prompts, three snoozes and the quiet-hours defaults; decide whether
+   fewer reminders would help teachers more.
+4. Name the person who follows up overdue work and maintains timetable, closures
+   and substitutes; confirm the seven-day teacher editing window.
+5. Confirm the purpose, readers and follow-up for optional lesson notes.
+6. Choose an approved universal-link host and supported teacher devices/platforms.
+7. Decide mandatory launch parity for parent/kiosk/station/privacy workflows.
+8. Approve retention/archive, staff notice, processor review and real-device pilot
+   acceptance before enabling any real deployment or destructive cutover.
+
+## Diagrams
+
+Each Mermaid block below matches the adjacent `.mmd` source. Rendered PNG review
+artifacts are written to `/workspace/tav-teacher-prompts/diagrams/`; those files are
+outside this repository's documentation tree. Regenerate with the installed tool:
+
+```bash
+cd /workspace/tav-teacher-prompts/tools
+npx mmdc -p puppeteer.json -b white -s 2 \
+  -i /workspace/tav-tp/docs/teacher-prompts/diagrams/er.mmd \
+  -o /workspace/tav-teacher-prompts/diagrams/er.png
+```
+
+Repeat for each source below. These describe the contract, not measured deployment.
+
+### Data relationships
+
+Selected columns are shown; `auth_users` denotes hosted/local `auth.users`.
+The diagram shows domain relationships rather than every audit-actor foreign key.
+
+[Mermaid source](diagrams/er.mmd)
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+erDiagram
+    auth_users ||--o| profiles : identifies
+    profiles ||--o{ timetable_rules : default_teacher
+    profiles ||--o{ lessons : accountable_teacher
+    profiles ||--o{ lesson_staff : assigned
+    classes ||--o{ timetable_rules : schedules
+    terms ||--o{ timetable_rules : bounds
+    classes o|--o{ calendar_exceptions : scopes
+    classes ||--o{ enrollments : accepts
+    students ||--o{ enrollments : enrolls
+    timetable_rules o|--o{ lessons : generates
+    classes ||--o{ lessons : contains
+    lessons ||--|{ lesson_staff : staffs
+    lessons ||--o{ lesson_roster : snapshots
+    students ||--o{ lesson_roster : joins
+    enrollments o|--o{ lesson_roster : sources
+    lesson_roster ||--o| attendance_records : marks
+    lessons ||--o| lesson_feedback : notes
+    lessons ||--o| lesson_submissions : confirms
+    profiles ||--o{ lesson_submissions : submits
+    profiles ||--o{ mutation_receipts : owns
+    lessons ||--o{ mutation_receipts : deduplicates
+    lessons o|--o{ audit_events : explains
+    profiles ||--o{ teacher_devices : registers
+    lessons ||--o{ notification_plans : plans
+    profiles ||--o{ notification_plans : receives
+    notification_plans ||--o{ notification_outbox : materializes
+    teacher_devices o|--o{ notification_outbox : targets
+    notification_outbox ||--o{ notification_deliveries : attempts
+    lessons {
+      uuid id PK
+      uuid class_id FK
+      uuid accountable_teacher_id FK
+      timestamptz scheduled_start_at
+      timestamptz scheduled_end_at
+      bigint register_revision
+      bigint plan_revision
+      timestamptz overdue_at
+    }
+    lesson_roster {
+      uuid lesson_id PK,FK
+      uuid student_id PK,FK
+    }
+    attendance_records {
+      uuid lesson_id PK,FK
+      uuid student_id PK,FK
+      text status "present / late / absent; no row = unmarked"
+      boolean absence_informed "nullable; absent only"
+      timestamptz marked_at
+    }
+    lesson_submissions {
+      uuid lesson_id FK,UK
+      bigint register_revision
+      bigint feedback_revision
+      timestamptz submitted_at
+    }
+    notification_plans {
+      uuid id PK
+      uuid lesson_id FK
+      text kind "unique lesson + kind"
+      bigint revision
+      timestamptz due_at
+      text status "pending / completed / cancelled / superseded"
+    }
+    notification_outbox {
+      uuid id PK
+      uuid plan_id FK
+      uuid device_id FK "nullable for no devices"
+      bigint plan_revision
+      text status "pending / claimed / sent / failed / cancelled / superseded"
+      uuid lease_token
+      timestamptz lease_until
+    }
+    feature_flags {
+      text key PK
+      boolean enabled "defaults OFF"
+    }
+    runtime_settings {
+      boolean id PK
+      boolean demo_enabled "defaults false"
+    }
+    prompt_policy {
+      boolean id PK
+      int heads_up_minutes "-5"
+      int attendance_minutes "0"
+      int follow_up_minutes "15"
+      int final_minutes "60"
+      time quiet_start "22:00 Singapore"
+      time quiet_end "07:00 Singapore"
+      time quiet_resume "09:00 Singapore"
+    }
+```
+
+### One lesson from planning to submission
+
+[Mermaid source](diagrams/lesson-lifecycle-sequence.mmd)
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+sequenceDiagram
+    autonumber
+    participant Calendar as Calendar service
+    participant DB as Database / RPCs
+    participant Worker as Dry-run worker (later APNs)
+    participant Phone as Teacher phone
+    participant Route as Login + lesson route
+    participant Admin as Admin outstanding list
+    Calendar->>DB: Generate 42 days ahead, roster and one lead
+    DB->>DB: Plan E-5, E, E+15, E+60, apply quiet hours
+    loop Every minute while work is outstanding
+        Worker->>DB: Refresh schedule, claim due work with lease
+        DB-->>Worker: IDs only, one current stage, obsolete stages superseded
+        Worker->>DB: Prepare: authority, teacher window, current stage, device
+        DB-->>Worker: Generic delivery input or suppress
+        Note over Worker,Phone: Prototype records dry_run only, no real push
+        Worker-->>Phone: Future APNs: generic reminder, lesson UUID
+        Worker->>DB: Record acceptance / retry / permanent failure
+    end
+    Phone->>Route: Tap 1: Take attendance, retain lesson destination
+    Route->>Route: Web preview code gate, then identity, native auth/profile/unlock
+    Route->>DB: lesson_for_prompt under current identity
+    DB-->>Route: Authorized register, revisions and optional notes
+    opt Still teaching
+        Route->>DB: Confirm snooze 10 minutes, mutation UUID
+        DB->>DB: Replan pending stages and deadline, max three snoozes
+    end
+    alt Three-tap all-present path
+        Phone->>Route: Tap 2: All present, inspect confirmation
+        Phone->>Route: Tap 3: Confirm and submit
+        Route->>DB: confirm_all_present_and_submit, both revisions, mutation UUID
+        DB->>DB: Fill missing rows only, preserve late and absent
+    else Individual review
+        Route->>DB: Mark rows, save optional notes, explicit submit_lesson
+    end
+    DB->>DB: Lock lesson, check complete, insert receipt, cancel pending work
+    DB-->>Route: Submitted receipt (replay-safe)
+    Admin->>DB: admin_missing_submissions
+    DB-->>Admin: Ended-by-clock unsubmitted work, omit submitted lesson
+    Note over DB,Phone: In-flight push can still arrive, reopening rechecks current state
+    opt Opt-out or sign-out
+        Route->>DB: unregister_device, original account installation
+        DB->>DB: Revoke devices, claim and prepare suppress delivery
+    end
+```
+
+### Derived lesson states
+
+[Mermaid source](diagrams/lesson-state.mmd)
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+stateDiagram-v2
+    [*] --> scheduled
+    scheduled --> in_progress: start time reached / actual start exists
+    in_progress --> awaiting_attendance: end time reached / actual end exists
+    in_progress --> submitted: explicit complete submission after start
+    awaiting_attendance --> submitted: complete register + matching revisions
+    awaiting_attendance --> overdue: effective final due + grace reached
+    overdue --> submitted: teacher within seven dates or admin
+    scheduled --> cancelled: admin / calendar before work
+    in_progress --> cancelled: admin
+    awaiting_attendance --> cancelled: admin
+    overdue --> cancelled: admin
+    submitted --> [*]
+    cancelled --> [*]
+    note right of scheduled
+      Derived at read time, not a stored status.
+      Priority: cancelled, submitted, overdue,
+      awaiting attendance, in progress, scheduled.
+      A late first read may skip intermediate states.
+    end note
+    note right of awaiting_attendance
+      Snooze changes prompts and deadline only.
+      No automatic absent marks or submission.
+      Ended lesson can still be reviewed.
+    end note
+    note right of submitted
+      Explicit submit or atomic all-present confirmation.
+      Register and notes immutable.
+      Submission is not child dismissal.
+      No reopen or uncancel in prototype.
+    end note
+```
+
+### 21:00 finish and quiet hours
+
+[Mermaid source](diagrams/prompt-timeline.mmd)
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+flowchart LR
+    A["20:55 · E−5<br/>Heads-up"] --> B["21:00 · E<br/>Take attendance"]
+    B --> C["21:15 · E+15<br/>Follow-up"]
+    C --> D["22:00 · E+60<br/>Falls in quiet hours"]
+    D --> F["Next day 09:00<br/>Final reminder"]
+    F --> G["Next day 09:15<br/>Overdue · no extra push"]
+    Q["Asia/Singapore<br/>Quiet: 22:00 inclusive to 07:00 exclusive<br/>Deferred prompts resume at 09:00"] -.-> D
+    S["Remind me in 10<br/>At most three; capped at E+60<br/>Pending stages only; minimum 5-minute spacing"] -.-> B
+    S -.-> F
+    X["Submit / cancel<br/>Stop pending plans and delivery attempts"] -.-> C
+    N["Worker delay / no devices / retries<br/>Never extend overdue deadline<br/>Coalesce missed stages into one current request<br/>Older stages become superseded; heads-up expires at end"] -.-> G
+    W["Teacher dispatch window<br/>Start reached through seven Singapore dates<br/>Older work stays with admin, no teacher push"] -.-> N
+```
+
+### Preserving the lesson route
+
+[Mermaid source](diagrams/auth-route.mmd)
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+flowchart TD
+    Link["User opens lesson UUID link / notification"] --> Parse{"Exact allowed host, scheme,<br/>path and UUID?"}
+    Parse -->|No| Reject["Reject route without roster lookup"]
+    Parse -->|Yes| Pending["Persist pending locator · TTL 24 hours<br/>No bearer credential"]
+    Pending --> Gate{"Web preview access required?"}
+    Gate -->|Yes| Code["Access code → signed eight-hour cookie<br/>Server checks routes and actions<br/>Fake identities only"]
+    Code --> Auth
+    Gate -->|No / already admitted| Auth{"Identity restored,<br/>profile loaded, unlocked?"}
+    Auth -->|No| Login["Web: demo selector<br/>Future real login / native unlock"]
+    Login --> Validate["Validate relative next again<br/>Never resume an external URL"]
+    Validate --> Resolve
+    Auth -->|Yes| Resolve["lesson_for_prompt<br/>Current identity + flag + DB authority"]
+    Resolve -->|Denied| Denied["This lesson is not available.<br/>Keep route for explicit account retry"]
+    Resolve -->|Network failure| Retry["Keep route; show retry"]
+    Denied --> Login
+    Retry --> Resolve
+    Resolve -->|Authorized| Ready["Consume pending route<br/>Show current register or read-only outcome"]
+    Ready --> Action{"Requested snooze?"}
+    Action -->|Yes| Confirm["Fresh foreground confirmation<br/>New mutation UUID; no offline queue"]
+    Action -->|No| Review["Review / submit explicitly"]
+    Signout["Explicit sign-out<br/>Clear route, sensitive screen and actor actions"] -.-> Pending
+    Change["Account change / expired session<br/>Clear actor actions; never replay old snooze<br/>New confirmation after authorized navigation"] -.-> Confirm
+    Revoke["Opt-out / sign-out: unregister_device<br/>Original account, bounded cleanup<br/>Re-opt-in registers after cleanup"] -.-> Signout
+```
+
+### Delivery, retries and suppression
+
+[Mermaid source](diagrams/dispatch.mmd)
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+flowchart TD
+    Tick["Local timer / future reviewed scheduler"] --> Refresh["Refresh calendar and plans"]
+    Refresh -->|Generation failed: audit and continue existing work| Flag
+    Refresh --> Flag{"teacher_prompts enabled?"}
+    Flag -->|No| Stop["No claims"]
+    Flag -->|Yes| Window{"Started and within seven<br/>Singapore dates of start?"}
+    Window -->|Not started| Wait["Keep future plans pending"]
+    Window -->|Too old| Admin["Admin follow-up only; no teacher push"]
+    Window -->|Yes| Coalesce["Supersede obsolete stages<br/>Heads-up expires at lesson end<br/>Choose one meaningful stage"]
+    Coalesce --> Claim["Lock lesson → plan → outbox → device<br/>SKIP LOCKED; due work; one stage per lesson"]
+    Claim --> Devices{"Eligible recent devices?"}
+    Devices -->|None| Missing["Terminal no_devices<br/>Admin still sees outstanding lesson"]
+    Devices -->|Newest five| Lease["Snapshot device IDs; unique outbox keys<br/>120-second lease; commit before network"]
+    Lease --> Prepare["Prepare each send with fresh clock<br/>Lease, revision, recipient, flags, lesson, device<br/>Teacher window and superseded stages again"]
+    Prepare -->|Quiet hours| Quiet["Defer; release unused attempt<br/>No delivery log for unused attempt"]
+    Quiet --> Tick
+    Prepare -->|Stale / completed / cancelled / revoked| Suppress["Suppress; never send"]
+    Prepare -->|Later stage due or heads-up expired| Superseded["Terminal superseded; no reopen<br/>Clear lease; retain sent and failed history<br/>Claim without receipt: unknown outcome"]
+    Prepare -->|Valid| Mode{"Delivery mode"}
+    Mode -->|Demo only| Dry["DryRunSender<br/>No network; provider ID = outbox ID"]
+    Mode -->|Future separately authorized| APNs["APNs HTTP/2 · generic payload<br/>10-second timeout; stable ID; lesson collapse ID"]
+    Dry --> Ack["Record result only with matching lease token"]
+    APNs --> Ack
+    Ack -->|Accepted| Sent["Terminal sent<br/>Acceptance is not read or submission"]
+    Ack -->|Timeout / 429 / 5xx| Retry["Retry after 1 min, then 5 min<br/>Quiet-hour deferral; at most 3 attempts"]
+    Retry --> Tick
+    Ack -->|Permanent / exhausted| Failed["Terminal failed; normalized code only<br/>410 / BadDeviceToken: revoke matching token version"]
+    Crash["Lease expired / crash after acceptance<br/>Unknown outcome; retry may duplicate push"] -.-> Retry
+    OptOut["Opt-out / sign-out<br/>unregister_device for original account installation"] -.-> Prepare
+```

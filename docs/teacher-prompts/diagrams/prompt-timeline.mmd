@@ -1,0 +1,13 @@
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e0f2fe","primaryTextColor":"#0f172a","primaryBorderColor":"#0284c7","lineColor":"#64748b","secondaryColor":"#ccfbf1","tertiaryColor":"#ede9fe","noteBkgColor":"#ede9fe","noteBorderColor":"#64748b","noteTextColor":"#0f172a","background":"#ffffff","fontFamily":"Arial","fontSize":"16px"}}}%%
+flowchart LR
+    A["20:55 · E−5<br/>Heads-up"] --> B["21:00 · E<br/>Take attendance"]
+    B --> C["21:15 · E+15<br/>Follow-up"]
+    C --> D["22:00 · E+60<br/>Falls in quiet hours"]
+    D --> F["Next day 09:00<br/>Final reminder"]
+    F --> G["Next day 09:15<br/>Overdue · no extra push"]
+    Q["Asia/Singapore<br/>Quiet: 22:00 inclusive to 07:00 exclusive<br/>Deferred prompts resume at 09:00"] -.-> D
+    S["Remind me in 10<br/>At most three; capped at E+60<br/>Pending stages only; minimum 5-minute spacing"] -.-> B
+    S -.-> F
+    X["Submit / cancel<br/>Stop pending plans and delivery attempts"] -.-> C
+    N["Worker delay / no devices / retries<br/>Never extend overdue deadline<br/>Coalesce missed stages into one current request<br/>Older stages become superseded; heads-up expires at end"] -.-> G
+    W["Teacher dispatch window<br/>Start reached through seven Singapore dates<br/>Older work stays with admin, no teacher push"] -.-> N
