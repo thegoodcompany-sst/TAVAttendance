@@ -12,6 +12,7 @@ CONVEX_URL = https:/$()/adept-duck-658.convex.cloud
 // Teacher prompts stay OFF in project.yml, including Release/TestFlight.
 // Local review: Debug command-line TEACHER_PROMPTS_V2_ENABLED=YES (v2 backend only),
 // or DEBUG-only --teacher-prompts-demo for deterministic offline fake data.
-// Future paid-team pilot: set TEACHER_PROMPTS_APNS_ENVIRONMENT to the signed
-// aps-environment value (development or production). No entitlement is added here.
-// See HUMANS.md teacher-prompt pilot before changing capability/host/rollout flags.
+// Per-configuration backends: put overrides in Config.Debug.local.xcconfig or
+// Config.Release.local.xcconfig next to this file (both gitignored); see Config/.
+// aps-environment comes from APS_ENVIRONMENT in project.yml (Debug development,
+// Release production); TEACHER_PROMPTS_APNS_ENVIRONMENT follows it automatically.

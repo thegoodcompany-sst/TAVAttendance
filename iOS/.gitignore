@@ -13,3 +13,4 @@ export-builds/
 
 # Secrets
 Config.xcconfig
+Config.*.local.xcconfig
