@@ -61,13 +61,13 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-    # PROD-02: aps-environment entitlement removed 2026-07-11 — personal Apple
-    # teams cannot sign the Push capability, blocking all device builds.
-    # Restore per HUMANS.md 38 once on a paid Apple Developer team:
-    #   entitlements:
-    #     path: TAVAttendance/TAVAttendance.entitlements
-    #     properties:
-    #       aps-environment: development
+    # Push capability is enabled on com.tava.TAVAttendance (team DUU8J39BA7,
+    # 2026-11-21). aps-environment follows APS_ENVIRONMENT: development for
+    # Debug device builds, production for Release/TestFlight.
+    entitlements:
+      path: TAVAttendance/TAVAttendance.entitlements
+      properties:
+        aps-environment: $(APS_ENVIRONMENT)
     dependencies:
       - package: Supabase
         product: Supabase
@@ -78,19 +78,31 @@ targets:
         SWIFT_VERSION: "5.9"
         PRODUCT_BUNDLE_IDENTIFIER: com.tava.TAVAttendance
         TEACHER_PROMPTS_V2_ENABLED: "NO"
-        # Must match signed aps-environment once capability is approved. Empty fails closed.
-        TEACHER_PROMPTS_APNS_ENVIRONMENT: ""
+        # Signed aps-environment and the value the app reports to the server
+        # (development -> sandbox APNs, production -> production APNs).
+        APS_ENVIRONMENT: development
+        TEACHER_PROMPTS_APNS_ENVIRONMENT: "$(APS_ENVIRONMENT)"
         TARGETED_DEVICE_FAMILY: "1,2"
         DEVELOPMENT_TEAM: "DUU8J39BA7"
       configs:
+        Debug:
+          # Device builds sign manually with a Push-enabled development profile
+          # (ASC 2J3JBNJ6BV). Add a device: register it, then regenerate this
+          # profile through the App Store Connect API under the same name.
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Development"
+          PROVISIONING_PROFILE_SPECIFIER: "TAVAttendance Development Push 20261121"
         Release:
           TEACHER_PROMPTS_V2_ENABLED: "NO"
+          APS_ENVIRONMENT: production
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "iPhone Distribution"
-          PROVISIONING_PROFILE_SPECIFIER: "TAVAttendance App Store 20260731"
+          # Regenerated with Push on 2026-11-21 (ASC profile 57W6B5MF4T); the
+          # pre-push App Store profiles are INVALID.
+          PROVISIONING_PROFILE_SPECIFIER: "TAVAttendance App Store Push 20261121"
     configFiles:
-      Debug: Config.xcconfig
-      Release: Config.xcconfig
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
 
   TAVAttendanceTests:
     type: bundle.unit-test

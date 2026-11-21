@@ -1,0 +1,7 @@
+// Debug backend settings. Tracked file: no secrets here.
+// 1. Config.xcconfig (gitignored, copy of Config.xcconfig.example) holds the
+//    backend URL and anon key shared by every configuration.
+// 2. Config.Debug.local.xcconfig (gitignored, optional) overrides them for Debug
+//    only, e.g. a v2 backend for Debug while Release stays on the live backend.
+#include? "../Config.xcconfig"
+#include? "../Config.Debug.local.xcconfig"

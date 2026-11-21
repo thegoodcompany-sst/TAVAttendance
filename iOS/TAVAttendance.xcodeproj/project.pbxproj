@@ -198,6 +198,7 @@
 		27779637419CBFBFEA14E32A /* StudentManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentManagementView.swift; sourceTree = "<group>"; };
 		27F1644BBFF1A4CE70F96CC7 /* TeacherPromptViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeacherPromptViews.swift; sourceTree = "<group>"; };
 		28E5DB45D40605EC5B51C384 /* StudentYearSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentYearSummary.swift; sourceTree = "<group>"; };
+		298026CBE8D6A8F2FEEBC5C7 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		2C36143FEF33A6D9C5370479 /* StudentPrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentPrivacyView.swift; sourceTree = "<group>"; };
 		309D5646A5E18F3D281FEABD /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		374D50CD7AD19737B0A39486 /* OpenKioskIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenKioskIntent.swift; sourceTree = "<group>"; };
@@ -247,7 +248,9 @@
 		B42E49346389B0AF18E12DFA /* TeacherPromptModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeacherPromptModels.swift; sourceTree = "<group>"; };
 		B85DEA9F263B167CCEC35BFC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		BA30B1D7854D1E12C0ABF39C /* StudentProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentProfileView.swift; sourceTree = "<group>"; };
+		BA820A484FA7CF5C6F73E359 /* TAVAttendance.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TAVAttendance.entitlements; sourceTree = "<group>"; };
 		BCF4006BA7BA8A030D68F8E2 /* KioskCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskCard.swift; sourceTree = "<group>"; };
+		C46B0E576E7033937DD89EF3 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		C66652EA0064DADB44F1E820 /* KioskSecurityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KioskSecurityPolicy.swift; sourceTree = "<group>"; };
 		C6E157E52820E90553A8E911 /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
 		C77A7C361D6857E987507B2F /* LayoutLabApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayoutLabApp.swift; sourceTree = "<group>"; };
@@ -277,7 +280,6 @@
 		FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingAttendanceStore.swift; sourceTree = "<group>"; };
 		FEA18DB9555C7936A4D227EC /* ClassEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassEntity.swift; sourceTree = "<group>"; };
 		FF5EC050D1FB11BF60A79BDD /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
-		"TEMP_2447387C-BA27-46DE-B0D2-8A8C05CEDC47" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -345,6 +347,7 @@
 		28E6BCED7C8C917E0F28C5A8 = {
 			isa = PBXGroup;
 			children = (
+				8C64A64D4E89BEB0FE943B68 /* Config */,
 				D389A3D20722CF493206B41F /* LayoutLab */,
 				D54472C23F6626A99D1C3566 /* Packages */,
 				4FF1F3FEA5695821BE4E3EFE /* TAVAttendance */,
@@ -387,6 +390,7 @@
 				309D5646A5E18F3D281FEABD /* Assets.xcassets */,
 				5CAA9B963B7BEE4160883812 /* Info.plist */,
 				96716DCA08CE8D202CCB479C /* Localizable.xcstrings */,
+				BA820A484FA7CF5C6F73E359 /* TAVAttendance.entitlements */,
 				232EA8CD6864FCB17CA40ED4 /* TAVAttendanceApp.swift */,
 				3BB69713E30D1B0586407932 /* AppIntents */,
 				9E1CA679F85B258F455BB18F /* Core */,
@@ -415,6 +419,15 @@
 				FC9A6BD64C394BCFCCA656E1 /* TeacherPromptTests.swift */,
 			);
 			path = TAVAttendanceTests;
+			sourceTree = "<group>";
+		};
+		8C64A64D4E89BEB0FE943B68 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				298026CBE8D6A8F2FEEBC5C7 /* Debug.xcconfig */,
+				C46B0E576E7033937DD89EF3 /* Release.xcconfig */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		9741249C30DA9BAC331808DA /* TeacherPrompts */ = {
@@ -577,14 +590,6 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
-		"TEMP_DFE50C18-D358-4435-91BE-4C620CF719D2" /* iOS */ = {
-			isa = PBXGroup;
-			children = (
-				"TEMP_2447387C-BA27-46DE-B0D2-8A8C05CEDC47" /* Config.xcconfig */,
-			);
-			path = iOS;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -679,6 +684,7 @@
 				TargetAttributes = {
 					B3761B335799DF70F2AAAA46 = {
 						DevelopmentTeam = DUU8J39BA7;
+						ProvisioningStyle = Manual;
 					};
 					C33AEF71EB2B6AB90C38C017 = {
 						TestTargetID = B3761B335799DF70F2AAAA46;
@@ -686,7 +692,6 @@
 				};
 			};
 			buildConfigurationList = A76FA904BD2D2EEF50075B71 /* Build configuration list for PBXProject "TAVAttendance" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -702,13 +707,14 @@
 				08959A85D291AC28BADE310D /* XCLocalSwiftPackageReference "../docs/teacher-prompts/ios" */,
 			);
 			preferredProjectObjectVersion = 77;
+			productRefGroup = F7C1A3B656D06525CBB93444 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				B3761B335799DF70F2AAAA46 /* TAVAttendance */,
 				677EDCAE942890AFBCBEF3FF /* TAVAttendanceTests */,
-				C33AEF71EB2B6AB90C38C017 /* TAVAttendanceUITests */,
 				32D3EAB173B8EB570593A936 /* TAVLayoutLab */,
+				C33AEF71EB2B6AB90C38C017 /* TAVAttendanceUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -1107,9 +1113,11 @@
 		};
 		C6B52A640A5506A8F1158D52 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2447387C-BA27-46DE-B0D2-8A8C05CEDC47" /* Config.xcconfig */;
+			baseConfigurationReference = C46B0E576E7033937DD89EF3 /* Release.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TAVAttendance/TAVAttendance.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
 				DEVELOPMENT_TEAM = DUU8J39BA7;
@@ -1120,21 +1128,24 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tava.TAVAttendance;
-				PROVISIONING_PROFILE_SPECIFIER = "TAVAttendance App Store 20260731";
+				PROVISIONING_PROFILE_SPECIFIER = "TAVAttendance App Store Push 20261121";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEACHER_PROMPTS_APNS_ENVIRONMENT = "";
+				TEACHER_PROMPTS_APNS_ENVIRONMENT = "$(APS_ENVIRONMENT)";
 				TEACHER_PROMPTS_V2_ENABLED = NO;
 			};
 			name = Release;
 		};
 		CDF762052617980158A7E469 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_2447387C-BA27-46DE-B0D2-8A8C05CEDC47" /* Config.xcconfig */;
+			baseConfigurationReference = 298026CBE8D6A8F2FEEBC5C7 /* Debug.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_ENTITLEMENTS = TAVAttendance/TAVAttendance.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Manual;
 				DEVELOPMENT_TEAM = DUU8J39BA7;
 				INFOPLIST_FILE = TAVAttendance/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -1143,10 +1154,11 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.tava.TAVAttendance;
+				PROVISIONING_PROFILE_SPECIFIER = "TAVAttendance Development Push 20261121";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEACHER_PROMPTS_APNS_ENVIRONMENT = "";
+				TEACHER_PROMPTS_APNS_ENVIRONMENT = "$(APS_ENVIRONMENT)";
 				TEACHER_PROMPTS_V2_ENABLED = NO;
 			};
 			name = Debug;

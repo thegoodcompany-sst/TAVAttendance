@@ -52,9 +52,31 @@ DEVELOPER_DIR=/Applications/Xcode-beta.app/Contents/Developer \
   -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGNING_ALLOWED=NO
 ```
 
-Device builds sign with the `DEVELOPMENT_TEAM` set in `project.yml`; the push
-entitlement (`aps-environment`) additionally needs the Push Notifications
-capability enabled on the App ID (see HUMANS.md).
+Device builds sign with the `DEVELOPMENT_TEAM` set in `project.yml`. Push
+Notifications is enabled on the `com.tava.TAVAttendance` App ID (2026-11-21), and
+the app is signed with `aps-environment` from `APS_ENVIRONMENT`: `development`
+(sandbox APNs) for Debug, `production` for Release/TestFlight. Release signs
+manually with the "TAVAttendance App Store Push 20261121" profile and Debug with
+"TAVAttendance Development Push 20261121" (both need to be installed locally);
+older profiles were invalidated when Push was enabled.
+
+Backend settings come from `Config/Debug.xcconfig` and `Config/Release.xcconfig`,
+which include the gitignored `Config.xcconfig` and an optional gitignored
+`Config.<Debug|Release>.local.xcconfig` override, so Debug can point at the v2
+backend while Release stays on the live one.
+
+Debug build of the teacher-prompt flow on a registered iPhone (the server
+`teacher_prompts` and `teacher_prompt_push` flags must also be on):
+
+```bash
+xcodegen generate
+xcodebuild -project TAVAttendance.xcodeproj -scheme TAVAttendance \
+  -configuration Debug -destination 'id=<device-udid>' \
+  TEACHER_PROMPTS_V2_ENABLED=YES build
+```
+
+TestFlight uploads run from the manual `iOS TestFlight` workflow
+(`.github/workflows/ios-testflight.yml`); see its header for the secrets.
 
 For iPhone Duo, build with Xcode 27.1's SDK and use the display/flow matrix in
 [`docs/IPHONE_DUO_QA.md`](../docs/IPHONE_DUO_QA.md). The separate
