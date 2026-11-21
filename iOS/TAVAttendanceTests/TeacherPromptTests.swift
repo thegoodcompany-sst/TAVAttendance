@@ -580,9 +580,8 @@ final class ConvexTeacherTransportTests: XCTestCase {
     }
 
     private var signIn: ConvexProtocolStub.Step {
-        step("action", "auth:signIn", args: ["provider": "password",
-             "params": ["email": email, "password": input, "flow": "signIn"]],
-             value: ["tokens": ["token": access, "refreshToken": refresh]])
+        step("mutation", "auth:signIn", args: ["email": email, "password": input],
+             value: ["status": "complete", "tokens": ["accessToken": access, "refreshToken": refresh]])
     }
 
     private func profile(_ token: String, id: UUID? = nil) -> ConvexProtocolStub.Step {
@@ -597,13 +596,22 @@ final class ConvexTeacherTransportTests: XCTestCase {
         return ConvexTeacherSession(url: url, http: URLSession(configuration: configuration), storage: memory)
     }
 
+    func testLegacyPairIsRemovedDuringRestore() throws {
+        let memory = PromptMemory()
+        try memory.save(JSONSerialization.data(withJSONObject: ["token": access, "refreshToken": refresh]))
+        let url = ConvexProtocolStub.prepare([])
+        defer { ConvexProtocolStub.finish(url) }
+        XCTAssertFalse(try session(url, memory).restore())
+        XCTAssertTrue(memory.data?.isEmpty == true)
+    }
+
     func testRefreshRotatesPersistedPairAndRestoredSessionSignsOut() async throws {
         let fresh = "rotated.access", next = "rotated.refresh"
         let url = ConvexProtocolStub.prepare([signIn,
             step("query", "teacher:my_profile", token: access, status: 401),
-            step("action", "auth:signIn", args: ["refreshToken": refresh],
-                 value: ["tokens": ["token": fresh, "refreshToken": next]]),
-            profile(fresh), profile(fresh), step("action", "auth:signOut", token: fresh)])
+            step("mutation", "auth:refreshSession", args: ["refreshToken": refresh],
+                 value: ["kind": "rotated", "tokens": ["accessToken": fresh, "refreshToken": next]]),
+            profile(fresh), profile(fresh), step("mutation", "auth:signOut", args: ["refreshToken": next])])
         defer { ConvexProtocolStub.finish(url) }
         let memory = PromptMemory(), auth = session(url, memory)
         try await auth.signIn(email: email, password: input)
@@ -611,7 +619,7 @@ final class ConvexTeacherTransportTests: XCTestCase {
         XCTAssertEqual(staff.id, owner)
         XCTAssertEqual(staff.teacher_prompt_push, false)
         let stored = try JSONDecoder().decode([String: String].self, from: XCTUnwrap(memory.data))
-        XCTAssertEqual(stored, ["token": fresh, "refreshToken": next])
+        XCTAssertEqual(stored, ["accessToken": fresh, "refreshToken": next])
         let restored = session(url, memory)
         XCTAssertTrue(try restored.restore())
         _ = try await restored.profile()
@@ -655,7 +663,7 @@ final class ConvexTeacherTransportTests: XCTestCase {
                  args: args.merging(["p_token": apns, "p_environment": "sandbox"]) { _, v in v },
                  value: ["device_id": device.uuidString, "environment": "sandbox", "last_seen_at": "now"]),
             step("mutation", "devices:unregister_device", token: access, args: args, value: ["revoked": true]),
-            step("action", "auth:signOut", token: access), signIn, profile(access, id: other)])
+            step("mutation", "auth:signOut", args: ["refreshToken": refresh]), signIn, profile(access, id: other)])
         defer { ConvexProtocolStub.finish(url) }
         let auth = session(url, PromptMemory())
         try await auth.signIn(email: email, password: input)
@@ -685,8 +693,8 @@ final class ConvexTeacherTransportTests: XCTestCase {
     func testWorkflowGateIsCheckedAgainAfterRefresh() async throws {
         let url = ConvexProtocolStub.prepare([signIn, profile(access),
             step("query", "teacher:my_lessons_today", token: access, status: 401),
-            step("action", "auth:signIn", args: ["refreshToken": refresh],
-                 value: ["tokens": ["token": "rotated", "refreshToken": "next"]])])
+            step("mutation", "auth:refreshSession", args: ["refreshToken": refresh],
+                 value: ["kind": "rotated", "tokens": ["accessToken": "rotated", "refreshToken": "next"]])])
         defer { ConvexProtocolStub.finish(url) }
         let auth = session(url, PromptMemory())
         try await auth.signIn(email: email, password: input)
@@ -714,13 +722,18 @@ final class ConvexTeacherTransportTests: XCTestCase {
     func testRejectedRefreshAndInvalidPasswordRequireSignIn() async throws {
         let url = ConvexProtocolStub.prepare([signIn,
             step("query", "teacher:my_profile", token: access, error: "sessionExpired"),
-            step("action", "auth:signIn", args: ["refreshToken": refresh], value: ["tokens": NSNull()]),
-            { _, _ in (560, ["status": "error", "errorMessage": "Invalid credentials"]) }])
+            step("mutation", "auth:refreshSession", args: ["refreshToken": refresh], value: ["kind": "noSession"]),
+            step("mutation", "auth:signIn", args: ["email": email, "password": input],
+                 value: ["status": "error", "userError": ["error": "INVALID_CREDENTIALS"]])])
         defer { ConvexProtocolStub.finish(url) }
-        let auth = session(url, PromptMemory())
+        let memory = PromptMemory(), auth = session(url, memory)
         try await auth.signIn(email: email, password: input)
+        let originalGeneration = auth.generation
         do { _ = try await auth.profile(); XCTFail("Refresh rejected") }
         catch { XCTAssertEqual(error as? TeacherPromptError, .sessionExpired) }
+        XCTAssertEqual(auth.generation, originalGeneration)
+        XCTAssertNil(auth.accountID)
+        XCTAssertFalse(try session(url, memory).restore())
         do { try await auth.signIn(email: email, password: input); XCTFail("Credentials rejected") }
         catch { XCTAssertEqual(error as? TeacherPromptError, .sessionExpired) }
     }

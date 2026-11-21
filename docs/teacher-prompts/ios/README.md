@@ -23,7 +23,9 @@ CONVEX_URL = https:/$()/adept-duck-658.convex.cloud
 ```
 
 The existing email/password form signs an already activated staff account into
-Convex Auth. The app uses the cloud host for actions, queries and mutations.
+Convex Auth 2.1 through the cloud mutation endpoint. Sign-in takes email and
+password, refresh returns a rotated pair or `noSession`, and sign-out takes the
+refresh token. An old v1 Keychain pair is cleared on restore. [Wire contract](../CONVEX_API.md#session)
 It saves the access/refresh pair as one device-only, when-unlocked Keychain item
 per deployment. A rejected access token triggers a shared refresh and one retry
 with the original arguments. On launch the app restores the pair and fetches
@@ -247,7 +249,9 @@ outcomes, and protect unsaved review/notes from gesture dismissal with an explic
 - Android/app/src/main/java/com/example/tavattendance/screens/
 
 ## New Supabase schema (must be consumed by Android)
-Use Convex Auth Password, encrypted per-deployment token storage and teacher:my_profile.
+Use the auth:signIn, auth:refreshSession and auth:signOut cloud mutations,
+encrypted per-deployment token storage and teacher:my_profile. Test rotated and
+noSession responses, sign-out with an expired access JWT, and revocation.
 Consume the Convex functions in docs/teacher-prompts/CONVEX_API.md including lesson_for_prompt,
 my_lessons_today, confirm_all_present_and_submit, mark_attendance, save_feedback, submit_lesson,
 snooze_prompt and unregister_device. APNs register_device is not an FCM contract;
@@ -294,7 +298,8 @@ region, and protect unsaved review/notes from accidental dismissal with an expli
 
 ## New Supabase schema (must be consumed by Web)
 Use the signed-in user’s Convex bearer and the teacher/calendar projections in
-docs/teacher-prompts/CONVEX_API.md. Scope refresh to that user. Keep the SQL demo selector isolated.
+docs/teacher-prompts/CONVEX_API.md. Use auth:signIn, auth:refreshSession and auth:signOut on the cloud mutation endpoint.
+Keep credentials server-side and serialize refreshes per user. Keep the SQL demo selector isolated.
 
 ## Sample test to write
 unsignedLessonLink(); authenticate(); assert(authorizedLessonBeforeDashboard)

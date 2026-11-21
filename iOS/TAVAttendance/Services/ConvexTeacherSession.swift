@@ -24,10 +24,11 @@ private struct ConvexEmpty: Codable {}
 @MainActor
 final class ConvexTeacherSession {
     private struct Tokens: Codable, Equatable {
-        let token: String
+        let accessToken: String
         let refreshToken: String
     }
-    private struct Issued: Decodable { let tokens: Tokens? }
+    private struct SignInResult: Decodable { let status: String; let tokens: Tokens? }
+    private struct RefreshResult: Decodable { let kind: String; let tokens: Tokens? }
     private let url: URL?
     private let http: URLSession
     private let storage: any PendingRoutePersistence
@@ -44,7 +45,12 @@ final class ConvexTeacherSession {
 
     func restore() throws -> Bool {
         guard let data = try storage.load(), !data.isEmpty else { return false }
-        tokens = try JSONDecoder().decode(Tokens.self, from: data)
+        // A v1 pair uses "token" and cannot authenticate against the v2 issuer.
+        guard let stored = try? JSONDecoder().decode(Tokens.self, from: data) else {
+            try clear()
+            return false
+        }
+        tokens = stored
         return true
     }
 
@@ -67,15 +73,14 @@ final class ConvexTeacherSession {
     }
 
     func signIn(email: String, password: String) async throws {
-        struct Args: Encodable {
-            let provider = "password"
-            let params: [String: String]
-        }
         try clear()
         let started = generation
-        let args = Args(params: ["flow": "signIn", "email": email, "password": password])
-        let issued: Issued = try await post("action", "auth:signIn", args, bearer: nil, passwordSignIn: true)
-        try accept(issued, generation: started)
+        let result: SignInResult = try await post("mutation", "auth:signIn",
+            ["email": email, "password": password], bearer: nil)
+        guard generation == started else { throw CancellationError() }
+        if result.status == "error" { throw TeacherPromptError.sessionExpired }
+        guard result.status == "complete" else { throw TeacherPromptError.network }
+        try accept(result.tokens, generation: started)
     }
 
     func profile() async throws -> TeacherProfile {
@@ -89,22 +94,19 @@ final class ConvexTeacherSession {
     }
 
     func signOut() async throws {
-        let started = generation
-        do {
-            if tokens != nil {
-                let _: ConvexEmpty? = try await call("action", "auth:signOut", ConvexEmpty(), generation: started)
-            }
-        } catch {
-            if started == generation { try clear() }
-            throw error
+        let current = tokens
+        let localRemoval = Result { try clear() }
+        if let current {
+            let _: ConvexEmpty? = try await post("mutation", "auth:signOut",
+                ["refreshToken": current.refreshToken], bearer: nil)
         }
-        if started == generation { try clear() }
+        try localRemoval.get()
     }
 
-    private func accept(_ issued: Issued, generation started: UUID) throws {
+    private func accept(_ tokensToSave: Tokens?, generation started: UUID) throws {
         guard started == generation else { throw CancellationError() }
-        guard let pair = issued.tokens, !pair.token.isEmpty, !pair.refreshToken.isEmpty else {
-            throw TeacherPromptError.sessionExpired
+        guard let pair = tokensToSave, !pair.accessToken.isEmpty, !pair.refreshToken.isEmpty else {
+            throw TeacherPromptError.network
         }
         try storage.save(JSONEncoder().encode(pair))
         tokens = pair
@@ -115,9 +117,19 @@ final class ConvexTeacherSession {
         guard tokens == rejected else { return } // Another request already rotated the pair.
         if let refresh { try await refresh.value; return }
         let task = Task {
-            let issued: Issued = try await post("action", "auth:signIn",
+            let result: RefreshResult = try await post("mutation", "auth:refreshSession",
                                                 ["refreshToken": rejected.refreshToken], bearer: nil)
-            try accept(issued, generation: started)
+            guard generation == started else { throw CancellationError() }
+            if result.kind == "noSession" {
+                // Keep this login generation until AuthManager handles expiry.
+                // Changing it here would discard the sign-out as a stale response.
+                tokens = nil
+                accountID = nil
+                try storage.save(Data())
+                throw TeacherPromptError.sessionExpired
+            }
+            guard result.kind == "rotated" else { throw TeacherPromptError.network }
+            try accept(result.tokens, generation: started)
         }
         refresh = task
         defer { if generation == started { refresh = nil } }
@@ -133,19 +145,21 @@ final class ConvexTeacherSession {
             guard allowed() else { throw TeacherPromptError.disabled }
             let result: Value = try await post(kind, path, args, bearer: bearer)
             guard started == generation else { throw CancellationError() }
+            guard tokens != nil else { throw TeacherPromptError.sessionExpired }
             return result
         }
         guard started == generation, let current = tokens else { throw TeacherPromptError.sessionExpired }
-        do { return try await send(current.token) }
+        do { return try await send(current.accessToken) }
         catch TeacherPromptError.sessionExpired {
             try await refresh(rejected: current, generation: started)
-            guard started == generation, let rotated = tokens else { throw CancellationError() }
-            return try await send(rotated.token)
+            guard started == generation else { throw CancellationError() }
+            guard let rotated = tokens else { throw TeacherPromptError.sessionExpired }
+            return try await send(rotated.accessToken)
         }
     }
 
     private func post<Args: Encodable, Value: Decodable>(
-        _ kind: String, _ path: String, _ args: Args, bearer: String?, passwordSignIn: Bool = false
+        _ kind: String, _ path: String, _ args: Args, bearer: String?
     ) async throws -> Value {
         guard let url else { throw TeacherPromptError.network }
         try Task.checkCancellation()
@@ -167,14 +181,6 @@ final class ConvexTeacherSession {
                 if let code = status.errorData, let error = TeacherPromptError(rawValue: code) { throw error }
                 let message = status.errorMessage ?? ""
                 if response.statusCode == 400 || message.contains("ArgumentValidationError") { throw TeacherPromptError.invalid }
-                // Hosted Auth can redact an ordinary Password provider rejection to "Server Error".
-                if passwordSignIn, response.statusCode == 560, message.hasSuffix("Server Error") {
-                    throw TeacherPromptError.sessionExpired
-                }
-                if path == "auth:signIn", ["Invalid credentials", "InvalidAccountId", "InvalidSecret", "TooManyFailedAttempts",
-                     "Can't parse refresh token"].contains(where: message.contains) {
-                    throw TeacherPromptError.sessionExpired
-                }
                 throw TeacherPromptError.network
             }
             guard (200..<300).contains(response.statusCode), status.status == "success" else {
