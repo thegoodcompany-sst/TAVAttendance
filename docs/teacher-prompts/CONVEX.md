@@ -69,3 +69,13 @@ One minute tick uses about 43,200 scheduled calls per 30-day month per active de
 Enable Push Notifications for the app's explicit App ID. The mobile release owner enables the matching capability and provisioning profile for the installed build. Create an APNs token-signing key for the intended team, topic and environment. Store its .p8, key ID and team ID in deployment secrets. Device tokens must come from the matching APNs environment. A physical phone pilot must verify permission, receipt, deep link, account switch and opt-out. [Apple APNs token setup](https://developer.apple.com/help/account/capabilities/communicate-with-apns-using-authentication-tokens/)
 
 Sign in with Apple is a future method. Mount the v2 Apple component with its Services ID, team ID, key ID and signing key. For an HTTP prefix of `/oauth/apple`, register `https://<deployment>.convex.site/oauth/apple/callback` on the Services ID. Staff-approved account linking and redirect-origin checks are required before enabling the method. [Convex Auth Apple method](https://github.com/convex/convex-auth/blob/main/packages/core/src/methods/apple/server.ts)
+
+### Operator activation without handing out a secret
+
+On dev, `backend/scripts/activate-staff.mjs` provisions (or re-invites an unactivated) staff profile with a freshly generated invitation, then activates it server-side through `auth:activate` with a password read from an environment variable, and closes the activation session. It never prints the password, invitation or tokens, and refuses to run with a deploy key.
+
+```sh
+cd backend
+STAFF_EMAIL=teacher@example.invalid STAFF_NAME="Teacher Name" STAFF_ROLE=teacher \
+STAFF_PASSWORD_ENV=SOME_ENV_VAR node scripts/activate-staff.mjs
+```
