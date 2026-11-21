@@ -4,7 +4,7 @@ import UserNotifications
 import Security
 import PromptRouter
 
-/// Small Keychain documents, device-only; no token, roster or feedback is persisted.
+/// Device-only Keychain items for route, installation, and separately scoped Convex credentials.
 final class TeacherPromptKeychain: PendingRoutePersistence {
     private let key: String
     init(_ key: String) { self.key = key }

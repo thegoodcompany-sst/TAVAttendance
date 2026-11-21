@@ -24,7 +24,7 @@ final class FeatureFlagStore: ObservableObject {
 
     @Published private(set) var flags: [String: Bool] = [:]
 
-    private let db = SupabaseManager.shared.client
+    private var db: SupabaseClient { SupabaseManager.shared.client }
 
     private struct Row: Decodable { let key: String; let enabled: Bool }
 
@@ -34,6 +34,7 @@ final class FeatureFlagStore: ObservableObject {
             applyDemoFlags()
             return
         }
+        guard !TeacherPromptsGate.masterEnabled else { return }
         do {
             let rows: [Row] = try await db
                 .from("feature_flags")
@@ -50,6 +51,11 @@ final class FeatureFlagStore: ObservableObject {
             print("FeatureFlagStore: flag load failed (\(type(of: error)))")
             #endif
         }
+    }
+
+    func applyTeacherFlags(_ profile: TeacherProfile) {
+        flags = [FeatureFlag.teacherPrompts.rawValue: profile.teacher_prompts == true,
+                 FeatureFlag.teacherPromptPush.rawValue: profile.teacher_prompt_push == true]
     }
 
     /// Demo mode uses a fixed local flag set and never reads `feature_flags`.

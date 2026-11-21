@@ -11,7 +11,11 @@ push/deep-link flow. `TEACHER_PROMPTS_V2_ENABLED=NO` remains the build master in
 Debug and Release/TestFlight; shared `teacher_prompts` / `teacher_prompt_push` flags
 and explicit push opt-in provide runtime gates. Debug-only `--teacher-prompts-demo`
 opens fake data without a network; add `--teacher-prompts-dark` for dark screenshots.
-The v2 schema is a separate future backend, not an extension installed over production.
+For a connected teacher build, set `CONVEX_URL` in `Config.xcconfig` (dev example
+`https:/$()/adept-duck-658.convex.cloud`) and pass `TEACHER_PROMPTS_V2_ENABLED=YES`
+to the Debug build. Sign in with an activated Convex staff email and password.
+The app refreshes the token pair from Keychain and loads profile and rollout
+flags from Convex. Master-OFF builds use the usual Supabase settings.
 See [native integration, checks and port handoffs](../docs/teacher-prompts/ios/README.md)
 and `HUMANS.md` §89. No APNs entitlement or Associated Domain was added.
 

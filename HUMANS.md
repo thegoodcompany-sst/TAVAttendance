@@ -1241,6 +1241,11 @@ No new copy, commit, push, remote API/DB, real push or deploy.
   and XCTest results, then optional `ios-screenshots` artifacts (six states × two
   themes). Run Dynamic Type/VoiceOver, iPad, foreground/background/privacy-lock,
   stale/network/expired-session and account-switch flows on the actual SDK/device.
+- [ ] Convex client QA: use the updated dev profile projection, a Debug build with
+  `CONVEX_URL`, and two activated fixture staff accounts. Verify cold launch,
+  refresh, a lesson write, runtime flag removal, original-owner opt-out, sign-out
+  and account switching on iOS. Repeat legacy Supabase sign-in with the build
+  master OFF. Use the separately provisioned device build for real APNs.
 - [ ] Pass-3 UI QA: in both themes scroll away from the top, confirm snooze and
   submit, and verify each outcome is visible immediately and announced by VoiceOver.
   Trigger an offline error from a lower row and verify its message/retry stays visible.

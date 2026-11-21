@@ -5,6 +5,15 @@ This is the source draft for mobile release notes. Keep completed changes under
 
 ## Unreleased
 
+- Teacher-prompts staff authentication now uses Convex Auth 2.1. Staff still activate with a privately issued invitation. iOS refreshes and signs out through the new session mutations. Sign-out immediately revokes staff access for that session. [Native session contract](docs/teacher-prompts/CONVEX_API.md#session)
+
+- Master-enabled iOS teacher builds now use Convex for staff login, lessons,
+  attendance and device registration. Session tokens rotate together in Keychain,
+  and sign-out revokes the installation under its original owner. The staff
+  profile now includes both rollout flags. [iOS setup](docs/teacher-prompts/ios/README.md)
+
+- Added the new-year Convex teacher-prompts backend with provisioned password accounts, calendar-backed registers, atomic submission, and scheduled private APNs reminders. Both rollout flags ship OFF. The [native HTTP contract](docs/teacher-prompts/CONVEX_API.md) and [cutover guide](docs/teacher-prompts/cutover.md) cover client integration and release.
+
 - iOS teacher prompts now run in the real app behind an OFF build master and shared
   runtime flags: authenticated lessons/backlog, attendance review, optional notes,
   explicit submit/snooze, account-bound links and teacher device registration.

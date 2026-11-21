@@ -1,5 +1,11 @@
 # Teacher prompts: review every lesson
 
+## New-year backend
+
+Teacher prompts now run on Convex. Start with the [backend and staff provisioning guide](CONVEX.md), [HTTP contract for iOS and web](CONVEX_API.md), and [cutover procedure](cutover.md). The dev deployment has passed a password sign-in, refresh, roster read, fake device registration and recorded dry-run delivery. The rollout flags default OFF. Native transport integration and a physical phone pilot are separate release steps.
+
+The walkthrough, SQL table names, diagrams and historical test evidence below describe the original reference implementation and interactive preview. The teacher workflow and wire shapes carry forward. Convex-specific scheduling, authorization and operations are documented in the guides above.
+
 ## For Edmund
 
 **Edmund's t466u brief, verbatim** (including the supplied bracketed omission note):
@@ -39,7 +45,7 @@ ending soon, an earlier lesson to review and a submitted lesson today. Switch to
 Demo Admin to see unfinished work. Teacher B cannot open D's substituted lesson.
 All people are invented; all sends are dry-run.
 
-This is a local prototype. The preview access code protects entry to the fake
+This walkthrough uses the local prototype. The preview access code protects entry to the fake
 identity selector; it is not real teacher authentication. APNs, physical-device
 permissions, associated domains, real-login routing and production operation have
 not been verified here. The iOS router is now linked into the real app behind an OFF build master and shared
@@ -60,8 +66,7 @@ The relevant observed seams are:
   authorized registration path.
 - Existing mobile login redirects to the class list and loses the lesson route.
 
-V2 addresses these together in a separate, fresh-database schema chain under
-`supabase/v2/`. It does not modify the historical migration chain. The contract is
+The historical SQL reference implements these together under `supabase/v2/`. The new-year implementation lives in `backend/convex/`. It does not modify the historical migration chain. The contract is
 normative; diagrams and this explanation are companions, not competing interfaces.
 
 ## Data model and authority

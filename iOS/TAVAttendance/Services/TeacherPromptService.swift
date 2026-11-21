@@ -1,5 +1,4 @@
 import Foundation
-import Supabase
 import PromptRouter
 
 @MainActor
@@ -19,32 +18,40 @@ protocol TeacherPromptServing {
 @MainActor
 final class TeacherPromptRPC: TeacherSessionRPC {
     let accountID: UUID
-    private let client: PostgrestClient
-    private let refreshedClient: (() -> PostgrestClient?)?
+    private let session: ConvexTeacherSession
+    private let generation: UUID
     private let allowed: () -> Bool
     private let masterEnabled: () -> Bool
 
-    init(accountID: UUID, client: PostgrestClient, allowed: @escaping () -> Bool,
-         masterEnabled: @escaping () -> Bool, refreshedClient: (() -> PostgrestClient?)? = nil) {
-        self.accountID = accountID; self.client = client
-        self.allowed = allowed; self.masterEnabled = masterEnabled; self.refreshedClient = refreshedClient
+    init(accountID: UUID, session: ConvexTeacherSession, allowed: @escaping () -> Bool,
+         masterEnabled: @escaping () -> Bool) {
+        self.accountID = accountID
+        self.session = session
+        self.generation = session.generation
+        self.allowed = allowed
+        self.masterEnabled = masterEnabled
     }
+
     func call<Parameters: Encodable, Response: Decodable>(
         _ name: String, parameters: Parameters, returning: Response.Type
     ) async throws -> Response {
         guard masterEnabled(), !DemoMode.isActive else { throw TeacherPromptError.disabled }
-        // Owner-bound cleanup must still work after runtime flag/profile removal.
-        guard name == "unregister_device" || allowed() else { throw TeacherPromptError.disabled }
-        try Task.checkCancellation()
-        do {
-            // Refresh only this same account; the request client itself never changes identity.
-            let boundClient = refreshedClient?() ?? client
-            return try await boundClient.rpc(name, params: parameters).execute().value
-        } catch let error as PostgrestError {
-            if error.code == "PGRST301" || error.code == "PGRST303" { throw TeacherPromptError.sessionExpired }
-            throw TeacherPromptError(rawValue: error.message) ?? .network
-        } catch is CancellationError { throw CancellationError() }
-        catch { throw TeacherPromptError.network }
+        guard session.accountID == accountID else { throw TeacherPromptError.sessionExpired }
+        let kind: String
+        let module: String
+        switch name {
+        case "my_lessons_today", "lesson_for_prompt":
+            kind = "query"; module = "teacher"
+        case "register_device", "unregister_device":
+            kind = "mutation"; module = "devices"
+        case "mark_attendance", "mark_all_present", "save_feedback", "submit_lesson",
+             "confirm_all_present_and_submit", "snooze_prompt":
+            kind = "mutation"; module = "teacher"
+        default: throw TeacherPromptError.invalid
+        }
+        return try await session.call(kind, "\(module):\(name)", parameters, generation: generation) {
+            self.masterEnabled() && !DemoMode.isActive && (name == "unregister_device" || self.allowed())
+        }
     }
 }
 

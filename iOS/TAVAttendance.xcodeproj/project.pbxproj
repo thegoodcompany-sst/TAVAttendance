@@ -71,6 +71,7 @@
 		57360712B2FCAB4474584EFF /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF5EC050D1FB11BF60A79BDD /* Analytics.swift */; };
 		57CAD34643A49DF1126EBB08 /* ParentLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DF1807148A196AA37C1204 /* ParentLinkView.swift */; };
 		5BE77151E828B42EA108B974 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A44B53697EDDA16EB00544 /* PushManager.swift */; };
+		0B63981A4650A29A82E60BEB /* ConvexTeacherSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B50BEF79A02BF1AF2C1328 /* ConvexTeacherSession.swift */; };
 		5C341E4836CA3728B3AE8FB0 /* TeacherPromptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA8D245F3166AD94C038A33B /* TeacherPromptService.swift */; };
 		5DC865DCD82DF46B74119A53 /* TeacherPromptViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27F1644BBFF1A4CE70F96CC7 /* TeacherPromptViews.swift */; };
 		5EBCD22F02D32A6DF6D8518F /* PendingAttendanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCFB3EEF935EB33E163FBB14 /* PendingAttendanceStore.swift */; };
@@ -78,6 +79,7 @@
 		603B6BC81A8AF97F0D71FEA0 /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42E65CF322BFF554E531CA30 /* FeatureFlags.swift */; };
 		61A15FE98F1DE3DA980A0221 /* TAVAShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626807EE6AA6433E29B7EEF5 /* TAVAShortcuts.swift */; };
 		65BE112F0EF2D778C6289AFB /* RosterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F44A35FCED4364A1434BFDC /* RosterView.swift */; };
+		99AA999F34F3827524DC2AF7 /* ConvexTeacherSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5B50BEF79A02BF1AF2C1328 /* ConvexTeacherSession.swift */; };
 		67ADF44776FB56D4A58768BC /* TeacherPromptService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA8D245F3166AD94C038A33B /* TeacherPromptService.swift */; };
 		69B9B7E2273C8B9C09BE7AB7 /* TeacherPromptNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08CA4800B16C0E94A50FDF4E /* TeacherPromptNotifications.swift */; };
 		6A3E6B9DC012D7A1A147753F /* SessionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A296E59FB31DDA29EF190F3F /* SessionListView.swift */; };
@@ -257,6 +259,7 @@
 		D56A28E4752FD6F6FA99B737 /* AttendanceStatusAppEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttendanceStatusAppEnum.swift; sourceTree = "<group>"; };
 		D673875F41EE45E065B47053 /* StudentImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudentImportView.swift; sourceTree = "<group>"; };
 		D6DEBD5025C3EA87CF049788 /* AnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTests.swift; sourceTree = "<group>"; };
+		F5B50BEF79A02BF1AF2C1328 /* ConvexTeacherSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvexTeacherSession.swift; sourceTree = "<group>"; };
 		DA8D245F3166AD94C038A33B /* TeacherPromptService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeacherPromptService.swift; sourceTree = "<group>"; };
 		DB24CBEBA4D1AF64A8B04B3A /* TAVLayoutLab.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TAVLayoutLab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E118AE1693C05946C87E9552 /* IntentSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntentSupport.swift; sourceTree = "<group>"; };
@@ -437,6 +440,7 @@
 				42E65CF322BFF554E531CA30 /* FeatureFlags.swift */,
 				F901E97705AA5E096E17C2A1 /* StudentAttendanceHistoryQuery.swift */,
 				28E5DB45D40605EC5B51C384 /* StudentYearSummary.swift */,
+				F5B50BEF79A02BF1AF2C1328 /* ConvexTeacherSession.swift */,
 				DA8D245F3166AD94C038A33B /* TeacherPromptService.swift */,
 			);
 			path = Services;
@@ -815,6 +819,7 @@
 				51C65D98AAB9D56BD244B2DA /* TeacherPromptCoordinator.swift in Sources */,
 				BB32557C6BF567657FBF69DB /* TeacherPromptModels.swift in Sources */,
 				769515BA7B6CFCFE792A9B8D /* TeacherPromptNotifications.swift in Sources */,
+				99AA999F34F3827524DC2AF7 /* ConvexTeacherSession.swift in Sources */,
 				67ADF44776FB56D4A58768BC /* TeacherPromptService.swift in Sources */,
 				5DC865DCD82DF46B74119A53 /* TeacherPromptViews.swift in Sources */,
 				0E802AFD4EE1D64A447B6C9E /* TeacherPromptsGate.swift in Sources */,
@@ -897,6 +902,7 @@
 				CC522FEA1D73CF202C191950 /* TeacherPromptCoordinator.swift in Sources */,
 				2D38C373F73698D5255FC490 /* TeacherPromptModels.swift in Sources */,
 				69B9B7E2273C8B9C09BE7AB7 /* TeacherPromptNotifications.swift in Sources */,
+				0B63981A4650A29A82E60BEB /* ConvexTeacherSession.swift in Sources */,
 				5C341E4836CA3728B3AE8FB0 /* TeacherPromptService.swift in Sources */,
 				4A8DC3C8317B01297A0E0D4D /* TeacherPromptViews.swift in Sources */,
 				381198BEA42B0A44CC5DF656 /* TeacherPromptsGate.swift in Sources */,
