@@ -498,3 +498,230 @@ final class TeacherPromptTests: XCTestCase {
         XCTAssertEqual(restored.ownerID, rpc.accountID); XCTAssertNil(restored.deviceID)
     }
 }
+
+// Each test uses a unique host. Even parallel tests can only consume their own script.
+private final class ConvexProtocolStub: URLProtocol {
+    typealias Step = (URLRequest, [String: Any]) throws -> (Int, [String: Any])
+    private static let lock = NSLock()
+    private static var scripts: [String: [Step]] = [:]
+
+    static func prepare(_ steps: [Step]) -> URL {
+        let host = UUID().uuidString.lowercased() + ".invalid"
+        lock.lock()
+        scripts[host] = steps
+        lock.unlock()
+        return URL(string: "https://" + host)!
+    }
+
+    static func finish(_ url: URL) {
+        lock.lock()
+        let remaining = scripts.removeValue(forKey: url.host!)
+        lock.unlock()
+        XCTAssertEqual(remaining?.count, 0)
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func stopLoading() {}
+    override func startLoading() {
+        Self.lock.lock()
+        let host = request.url?.host ?? ""
+        let step = Self.scripts[host]?.isEmpty == false ? Self.scripts[host]?.removeFirst() : nil
+        Self.lock.unlock()
+        do {
+            let step = try XCTUnwrap(step, "Unexpected Convex request")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+            var body = request.httpBody ?? Data()
+            if let stream = request.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var buffer = [UInt8](repeating: 0, count: 1024)
+                while true {
+                    let n = stream.read(&buffer, maxLength: buffer.count)
+                    if n < 0 { throw URLError(.cannotDecodeContentData) }
+                    if n == 0 { break }
+                    body.append(contentsOf: buffer.prefix(n))
+                }
+            }
+            let envelope = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(Set(envelope.keys), ["format", "path", "args"])
+            XCTAssertEqual(envelope["format"] as? String, "json")
+            let (code, json) = try step(request, envelope)
+            let response = HTTPURLResponse(url: request.url!, statusCode: code, httpVersion: nil, headerFields: nil)!
+            let data = try JSONSerialization.data(withJSONObject: json)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch { client?.urlProtocol(self, didFailWithError: error) }
+    }
+}
+
+@MainActor
+final class ConvexTeacherTransportTests: XCTestCase {
+    private let owner = UUID()
+    private let email = "teacher@example.invalid"
+    private let input = UUID().uuidString
+    private let access = "stub.access"
+    private let refresh = "stub.refresh"
+
+    private func step(_ kind: String, _ path: String, token: String? = nil,
+                      args: [String: Any] = [:], value: Any = NSNull(),
+                      error: String? = nil, status: Int = 200) -> ConvexProtocolStub.Step {
+        { request, envelope in
+            XCTAssertEqual(request.url?.path, "/api/" + kind)
+            XCTAssertEqual(envelope["path"] as? String, path)
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), token.map { "Bearer " + $0 })
+            let actual = try XCTUnwrap(envelope["args"] as? NSDictionary)
+            XCTAssertEqual(actual, args as NSDictionary)
+            if let error { return (status, ["status": "error", "errorData": error]) }
+            return (status, ["status": "success", "value": value])
+        }
+    }
+
+    private var signIn: ConvexProtocolStub.Step {
+        step("action", "auth:signIn", args: ["provider": "password",
+             "params": ["email": email, "password": input, "flow": "signIn"]],
+             value: ["tokens": ["token": access, "refreshToken": refresh]])
+    }
+
+    private func profile(_ token: String, id: UUID? = nil) -> ConvexProtocolStub.Step {
+        step("query", "teacher:my_profile", token: token,
+             value: ["id": (id ?? owner).uuidString, "display_name": "Test teacher", "role": "teacher",
+                     "active": true, "teacher_prompts": true, "teacher_prompt_push": false])
+    }
+
+    private func session(_ url: URL, _ memory: PromptMemory) -> ConvexTeacherSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ConvexProtocolStub.self]
+        return ConvexTeacherSession(url: url, http: URLSession(configuration: configuration), storage: memory)
+    }
+
+    func testRefreshRotatesPersistedPairAndRestoredSessionSignsOut() async throws {
+        let fresh = "rotated.access", next = "rotated.refresh"
+        let url = ConvexProtocolStub.prepare([signIn,
+            step("query", "teacher:my_profile", token: access, status: 401),
+            step("action", "auth:signIn", args: ["refreshToken": refresh],
+                 value: ["tokens": ["token": fresh, "refreshToken": next]]),
+            profile(fresh), profile(fresh), step("action", "auth:signOut", token: fresh)])
+        defer { ConvexProtocolStub.finish(url) }
+        let memory = PromptMemory(), auth = session(url, memory)
+        try await auth.signIn(email: email, password: input)
+        let staff = try await auth.profile()
+        XCTAssertEqual(staff.id, owner)
+        XCTAssertEqual(staff.teacher_prompt_push, false)
+        let stored = try JSONDecoder().decode([String: String].self, from: XCTUnwrap(memory.data))
+        XCTAssertEqual(stored, ["token": fresh, "refreshToken": next])
+        let restored = session(url, memory)
+        XCTAssertTrue(try restored.restore())
+        _ = try await restored.profile()
+        try await restored.signOut()
+        XCTAssertFalse(try session(url, memory).restore())
+    }
+
+    func testMarkRequestAndAllDomainErrorCodes() async throws {
+        let lesson = UUID(), student = UUID(), mutation = UUID()
+        let mark = TeacherMark(p_lesson_id: lesson, p_student_id: student, p_status: nil,
+                               p_absence_informed: nil, p_observed_marked_at: nil,
+                               p_expected_revision: "3", p_mutation_id: mutation)
+        let args: [String: Any] = ["p_lesson_id": lesson.uuidString, "p_student_id": student.uuidString,
+            "p_status": NSNull(), "p_absence_informed": NSNull(), "p_observed_marked_at": NSNull(),
+            "p_expected_revision": "3", "p_mutation_id": mutation.uuidString]
+        let errors = TeacherPromptError.allCases.filter { $0.rawValue.hasPrefix("TP_") }
+        let steps = errors.map { step("mutation", "teacher:mark_attendance", token: access,
+                                      args: args, error: $0.rawValue, status: 560) }
+        let url = ConvexProtocolStub.prepare([signIn, profile(access)] + steps +
+            [step("query", "teacher:my_lessons_today", token: access, error: "UNKNOWN")])
+        defer { ConvexProtocolStub.finish(url) }
+        let auth = session(url, PromptMemory())
+        try await auth.signIn(email: email, password: input)
+        _ = try await auth.profile()
+        let rpc = TeacherPromptRPC(accountID: owner, session: auth, allowed: { true }, masterEnabled: { true })
+        let service = TeacherPromptService(rpc: rpc, allowed: { true })
+        for expected in errors {
+            do { _ = try await service.mark(mark); XCTFail("Expected rejection") }
+            catch { XCTAssertEqual(error as? TeacherPromptError, expected) }
+        }
+        do { _ = try await service.lessons(); XCTFail("Expected rejection") }
+        catch { XCTAssertEqual(error as? TeacherPromptError, .network) }
+    }
+
+    func testOriginalSessionCanOnlyUnregisterAfterRuntimeGateCloses() async throws {
+        let installation = UUID(), device = UUID(), other = UUID()
+        let args = ["p_installation_id": installation.uuidString]
+        let apns = String(repeating: "01", count: 32)
+        let url = ConvexProtocolStub.prepare([signIn, profile(access),
+            step("mutation", "devices:register_device", token: access,
+                 args: args.merging(["p_token": apns, "p_environment": "sandbox"]) { _, v in v },
+                 value: ["device_id": device.uuidString, "environment": "sandbox", "last_seen_at": "now"]),
+            step("mutation", "devices:unregister_device", token: access, args: args, value: ["revoked": true]),
+            step("action", "auth:signOut", token: access), signIn, profile(access, id: other)])
+        defer { ConvexProtocolStub.finish(url) }
+        let auth = session(url, PromptMemory())
+        try await auth.signIn(email: email, password: input)
+        _ = try await auth.profile()
+        var allowed = true, master = true
+        let rpc = TeacherPromptRPC(accountID: owner, session: auth, allowed: { allowed }, masterEnabled: { master })
+        let devices = TeacherDeviceService(rpc: rpc)
+        let registered = try await devices.register(installationID: installation, token: apns, environment: "sandbox")
+        XCTAssertEqual(registered.device_id, device)
+        allowed = false
+        do {
+            _ = try await devices.register(installationID: installation, token: apns, environment: "sandbox")
+            XCTFail("Registration must require workflow access")
+        } catch { XCTAssertEqual(error as? TeacherPromptError, .disabled) }
+        try await devices.unregister(installationID: installation)
+        master = false
+        do { try await devices.unregister(installationID: installation); XCTFail("Master gate closed") }
+        catch { XCTAssertEqual(error as? TeacherPromptError, .disabled) }
+        master = true
+        try await auth.signOut()
+        try await auth.signIn(email: email, password: input)
+        _ = try await auth.profile()
+        do { try await devices.unregister(installationID: installation); XCTFail("Owner changed") }
+        catch { XCTAssertEqual(error as? TeacherPromptError, .sessionExpired) }
+    }
+
+    func testWorkflowGateIsCheckedAgainAfterRefresh() async throws {
+        let url = ConvexProtocolStub.prepare([signIn, profile(access),
+            step("query", "teacher:my_lessons_today", token: access, status: 401),
+            step("action", "auth:signIn", args: ["refreshToken": refresh],
+                 value: ["tokens": ["token": "rotated", "refreshToken": "next"]])])
+        defer { ConvexProtocolStub.finish(url) }
+        let auth = session(url, PromptMemory())
+        try await auth.signIn(email: email, password: input)
+        _ = try await auth.profile()
+        var checks = 0
+        let rpc = TeacherPromptRPC(accountID: owner, session: auth, allowed: {
+            checks += 1
+            return checks == 1
+        }, masterEnabled: { true })
+        do { _ = try await TeacherPromptService(rpc: rpc, allowed: { true }).lessons(); XCTFail("Gate closed") }
+        catch { XCTAssertEqual(error as? TeacherPromptError, .disabled) }
+        XCTAssertEqual(checks, 2)
+    }
+
+    func testRemoteSignOutFailureStillForgetsStoredCredentials() async throws {
+        let url = ConvexProtocolStub.prepare([signIn, { _, _ in (503, [:]) }])
+        defer { ConvexProtocolStub.finish(url) }
+        let memory = PromptMemory(), auth = session(url, memory)
+        try await auth.signIn(email: email, password: input)
+        do { try await auth.signOut(); XCTFail("Expected remote failure") }
+        catch { XCTAssertEqual(error as? TeacherPromptError, .network) }
+        XCTAssertFalse(try session(url, memory).restore())
+    }
+
+    func testRejectedRefreshAndInvalidPasswordRequireSignIn() async throws {
+        let url = ConvexProtocolStub.prepare([signIn,
+            step("query", "teacher:my_profile", token: access, error: "sessionExpired"),
+            step("action", "auth:signIn", args: ["refreshToken": refresh], value: ["tokens": NSNull()]),
+            { _, _ in (560, ["status": "error", "errorMessage": "Invalid credentials"]) }])
+        defer { ConvexProtocolStub.finish(url) }
+        let auth = session(url, PromptMemory())
+        try await auth.signIn(email: email, password: input)
+        do { _ = try await auth.profile(); XCTFail("Refresh rejected") }
+        catch { XCTAssertEqual(error as? TeacherPromptError, .sessionExpired) }
+        do { try await auth.signIn(email: email, password: input); XCTFail("Credentials rejected") }
+        catch { XCTAssertEqual(error as? TeacherPromptError, .sessionExpired) }
+    }
+}

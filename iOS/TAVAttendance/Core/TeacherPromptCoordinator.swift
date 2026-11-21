@@ -1,6 +1,5 @@
 import Foundation
 import Combine
-import Supabase
 import PromptRouter
 
 private final class TeacherPromptEphemeralRoute: PendingRoutePersistence {
@@ -72,7 +71,7 @@ final class TeacherPromptCoordinator: ObservableObject {
     }
 
     /// Called only after profile + flags load; legacy tutor is deliberately not teacher.
-    func configure(profile: Profile?) {
+    func configure(profile: Profile?, session: ConvexTeacherSession? = nil) {
         guard masterEnabled else { return }
         guard let profile else { update(authentication: .signedOut, gate: TeacherPromptsGate(master: true), service: nil); return }
         let demo = DemoMode.isActive
@@ -84,7 +83,6 @@ final class TeacherPromptCoordinator: ObservableObject {
         let account = PromptAccount(id: profile.id, role: PromptAccount.Role(rawValue: profile.role) ?? .other,
                                     isActive: nextGate.active)
         var nextService = service
-        let session = SupabaseManager.shared.client.auth.currentSession
         let replace = service?.accountID != profile.id || gate.demo != demo
         if replace {
             _ = registration?.lifecycle.beginSignOut()
@@ -92,17 +90,11 @@ final class TeacherPromptCoordinator: ObservableObject {
             if demo {
                 nextService = DemoTeacherPromptService(accountID: profile.id)
                 effects = TeacherPromptDemoNotifications()
-            } else if nextGate.staff, let session, session.user.id == profile.id {
+            } else if let session, session.accountID == profile.id {
                 effects = TeacherPromptSystemNotifications()
-                let rpc = TeacherPromptRPC(accountID: profile.id,
-                    client: SupabaseManager.shared.teacherPromptClient(accessToken: session.accessToken),
+                let rpc = TeacherPromptRPC(accountID: profile.id, session: session,
                     allowed: { [weak self] in self?.gate.workflow == true && self?.accountID == profile.id },
-                    masterEnabled: { TeacherPromptsGate.masterEnabled },
-                    refreshedClient: {
-                        guard let refreshed = SupabaseManager.shared.client.auth.currentSession,
-                              refreshed.user.id == profile.id else { return nil }
-                        return SupabaseManager.shared.teacherPromptClient(accessToken: refreshed.accessToken)
-                    })
+                    masterEnabled: { TeacherPromptsGate.masterEnabled })
                 nextService = TeacherPromptService(rpc: rpc, allowed: { [weak self] in
                     self?.gate.workflow == true && self?.accountID == profile.id && self?.unlocked == true
                 })
@@ -230,8 +222,8 @@ final class TeacherPromptCoordinator: ObservableObject {
     func foreground() async {
         guard masterEnabled else { return }
         perform { try router?.refresh(now: Date()) }
-        guard gate.workflow, unlocked else { return }
         registration?.lifecycle.retryPendingRevocation()
+        guard gate.workflow, unlocked else { return }
         await loadLessons()
     }
     func loadLessons() async {

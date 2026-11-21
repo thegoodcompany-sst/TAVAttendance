@@ -38,8 +38,8 @@ Serialize refreshes and replace both tokens together from `value.tokens`. Store 
 
 Send the same bearer authorization and JSON content type to either interface.
 
-- **iOS HTTP** uses `POST https://<deployment>.convex.site/v2/<name>`. Send the argument object directly and decode the result directly. For example, `POST /v2/my_lessons_today` with `{}` returns the lesson list.
-- **Standard Convex** uses `POST https://<deployment>.convex.cloud/api/query` or `/api/mutation`. Send `{"path":"teacher:my_lessons_today","format":"json","args":{}}`. Read `value` on success. The module is `teacher` for lesson/profile calls and `devices` for registration. Thus registering a device uses `"path":"devices:register_device"` at `/api/mutation`.
+- **Site HTTP actions** use `POST https://<deployment>.convex.site/v2/<name>`. Send the argument object directly and decode the result directly. For example, `POST /v2/my_lessons_today` with `{}` returns the lesson list.
+- **Standard Convex (used by iOS)** uses `POST https://<deployment>.convex.cloud/api/query` or `/api/mutation`. Send `{"path":"teacher:my_lessons_today","format":"json","args":{}}`. Read `value` on success. The module is `teacher` for lesson/profile calls and `devices` for registration. Thus registering a device uses `"path":"devices:register_device"` at `/api/mutation`.
 - The dev hosts are `adept-duck-658.convex.site` and `adept-duck-658.convex.cloud`. Key discovery is available at `/.well-known/jwks.json` on the site host.
 
 ### Reads

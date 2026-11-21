@@ -5,7 +5,6 @@ The Foundation-only `PromptRouter` package is now linked into the real
 `Sketch/` files remain historical examples, outside every app/package source target.
 The app adapters live in `Core/TeacherPromptCoordinator.swift` and
 `Core/TeacherPromptNotifications.swift`; there is only one router implementation.
-No remote database/API, credentials, deployment or real APNs was used for this work.
 
 ## Rollout and compatibility
 
@@ -14,21 +13,31 @@ When OFF, no teacher RPC, category registration, permission request or teacher U
 activated. The legacy profile decoder and parent push registration stay in place.
 The v2 role `teacher` never falls through to parent `register_device_token`.
 
-With the master ON, `FeatureFlagStore` reads `teacher_prompts` and
-`teacher_prompt_push`; missing keys and failed refreshes turn these keys OFF.
-`TeacherPromptsGate` requires an explicitly active teacher/admin profile for the
-workflow, plus both flags, account-specific opt-in and non-demo mode for APNs.
-The list remains usable with push OFF or permission denied. Runtime flag/profile
-removal still permits owner-bound installation revocation; a master-OFF binary
-never invokes any v2 RPC, including cleanup.
+For a connected Debug build, copy `iOS/Config.xcconfig.example` to the gitignored
+`iOS/Config.xcconfig`, set the cloud URL below, and build with
+`TEACHER_PROMPTS_V2_ENABLED=YES`. The Info.plist substitution expands the empty
+`$()` so URLSession receives a normal HTTPS URL.
 
-A Debug build can use `TEACHER_PROMPTS_V2_ENABLED=YES` for a separately authorized
-v2 backend. This is a **fresh-schema client**, not a dual-write bridge to the current
-production schema. The master switches Auth's profile projection to
-`id,display_name,role,active`; legacy `tutor` is not silently upgraded to `teacher`.
-When the workflow gate is ON, teacher/admin entry presents My lessons instead of
-legacy class/kiosk screens, whose RPCs are incompatible with v2. The rest of the
-cutover/parity work remains in [cutover.md](../cutover.md).
+```xcconfig
+CONVEX_URL = https:/$()/adept-duck-658.convex.cloud
+```
+
+The existing email/password form signs an already activated staff account into
+Convex Auth. The app uses the cloud host for actions, queries and mutations.
+It saves the access/refresh pair as one device-only, when-unlocked Keychain item
+per deployment. A rejected access token triggers a shared refresh and one retry
+with the original arguments. On launch the app restores the pair and fetches
+`teacher:my_profile`. Its public UUID owns the session, routes and installation.
+
+The profile query returns the staff role, active status and the two rollout
+flags. iOS reloads it on foreground. Missing flags and profile-load failures
+close the workflow. An active teacher or admin with `teacher_prompts` enabled
+sees My lessons. A disabled workflow shows retry and sign-out controls.
+Push also requires `teacher_prompt_push`, account opt-in and a configured
+APNs environment. Runtime flag removal and deactivation permit owner-bound
+revocation. A master-OFF build uses the legacy Supabase auth and data paths.
+Deploy the profile projection in this revision before testing connected rollout.
+[Provisioning and native API contract](../CONVEX_API.md)
 
 For an entirely offline review, launch a Debug app with `--teacher-prompts-demo`.
 It enables DemoMode before Auth transport starts, opens the gated teacher area with
@@ -69,12 +78,14 @@ Automatic sheet dismissal on those transitions does not discard pending navigati
 The package's `TeacherPushRegistrationLifecycle` serializes register/revoke/re-opt-in.
 A durable installation UUID, original owner and optional device UUID live in a separate
 Keychain document; ownership survives sign-out and is never reassigned to evade denial.
-Opt-in is per-account UserDefaults metadata. Tokens stay in memory only.
-`register_device` and `unregister_device(p_installation_id)` use the existing Supabase
-configuration with an immutable PostgREST request client. Same-account refreshed Auth
-sessions may supply a fresh snapshot before a request; an in-flight request never
-adopts another account. Revocation runs before Auth ends, with at most three attempts
-and a ten-second transport bound per attempt, plus one-/two-second delays. A failed
+Opt-in is per-account UserDefaults metadata. The APNs token stays in memory.
+The `devices:register_device` and `devices:unregister_device` mutations use the
+same Convex session as attendance. Every RPC captures the login generation,
+so signing in again invalidates old work, even for the same staff UUID.
+Sign-out drains owner-bound unregister before calling `auth:signOut`, and
+clears local credentials even when remote sign-out fails. Revocation has at
+most three attempts with one-/two-second delays. Each HTTP request has a
+ten-second resource timeout, including the requests in a refresh/retry. A failed
 revocation surfaces fallback copy and retains recovery state; it cannot guarantee
 server cleanup offline. Foreground recovery retries pending revocation.
 
@@ -110,7 +121,7 @@ and reloads authoritative attendance while retaining notes. Partial adjusted wri
 remain saved after failure; no submission is recorded until the final RPC succeeds.
 Outside this preview, individual mark/clear still writes immediately; ordinary Submit
 never fills missing rows. Optional lesson-only notes use `save_feedback`.
-Revisions remain decimal strings; observed server timestamps preserve microseconds,
+Revisions remain decimal strings; observed server timestamps round-trip verbatim,
 and required nullable RPC parameters encode JSON null. Notes are bounded to 1000
 Unicode scalars and remain in memory only. Submit is disabled while notes are unsaved.
 Network failures keep the screen. Explicit retry reuses the same attendance/feedback/
@@ -226,7 +237,7 @@ outcomes, and protect unsaved review/notes from gesture dismissal with an explic
 ## iOS files changed
 - iOS/TAVAttendance/Core/TeacherPromptCoordinator.swift — route/auth/lock lifecycle.
 - iOS/TAVAttendance/Core/TeacherPromptNotifications.swift — device/action boundary.
-- iOS/TAVAttendance/Services/TeacherPromptService.swift — exact v2 RPCs.
+- iOS/TAVAttendance/Services/ConvexTeacherSession.swift and TeacherPromptService.swift — Convex Auth, session generations and RPCs.
 - iOS/TAVAttendance/Views/TeacherPrompts/ — review model and SwiftUI screens.
 - docs/teacher-prompts/ios/Sources/PromptRouter/ — shared policy/copy/fixtures.
 
@@ -236,7 +247,8 @@ outcomes, and protect unsaved review/notes from gesture dismissal with an explic
 - Android/app/src/main/java/com/example/tavattendance/screens/
 
 ## New Supabase schema (must be consumed by Android)
-No SQL changes in this pass. Consume the separate v2 chain's lesson_for_prompt,
+Use Convex Auth Password, encrypted per-deployment token storage and teacher:my_profile.
+Consume the Convex functions in docs/teacher-prompts/CONVEX_API.md including lesson_for_prompt,
 my_lessons_today, confirm_all_present_and_submit, mark_attendance, save_feedback, submit_lesson,
 snooze_prompt and unregister_device. APNs register_device is not an FCM contract;
 FCM schema/transport remains a separately reviewed decision. Never dual-write v1/v2.
@@ -269,7 +281,7 @@ Keep snooze/submit/errors visible while scrolling, announce outcomes through a l
 region, and protect unsaved review/notes from accidental dismissal with an explicit exit.
 
 ## iOS files changed
-- iOS/TAVAttendance/Services/TeacherPromptService.swift — RPC names/parameters.
+- iOS/TAVAttendance/Services/ConvexTeacherSession.swift and TeacherPromptService.swift — Auth, request envelopes and RPC names.
 - iOS/TAVAttendance/Views/TeacherPrompts/TeacherLessonModel.swift — mutation/retry policy.
 - iOS/TAVAttendance/Views/TeacherPrompts/TeacherPromptViews.swift — pinned status and accessible text.
 - iOS/TAVAttendanceUITests/TeacherPromptScreenshotTests.swift — visible outcomes in light/dark.
@@ -281,8 +293,8 @@ region, and protect unsaved review/notes from accidental dismissal with an expli
 - web/app/ — authenticated review UI and route/error regression tests.
 
 ## New Supabase schema (must be consumed by Web)
-No new SQL here. Consume the existing separate v2 RPC contract; keep schema-first
-cutover gating and Study Space exclusion. Do not wire demo identity selection into real auth.
+Use the signed-in user’s Convex bearer and the teacher/calendar projections in
+docs/teacher-prompts/CONVEX_API.md. Scope refresh to that user. Keep the SQL demo selector isolated.
 
 ## Sample test to write
 unsignedLessonLink(); authenticate(); assert(authorizedLessonBeforeDashboard)

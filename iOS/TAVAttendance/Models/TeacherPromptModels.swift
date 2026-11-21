@@ -69,6 +69,8 @@ struct TeacherProfile: Decodable {
     let display_name: String
     let role: String
     let active: Bool
+    let teacher_prompts: Bool?
+    let teacher_prompt_push: Bool?
 }
 struct TeacherMark: Encodable, Equatable {
     let p_lesson_id: UUID
@@ -79,7 +81,7 @@ struct TeacherMark: Encodable, Equatable {
     let p_expected_revision: String
     let p_mutation_id: UUID
 
-    // PostgREST needs explicit JSON null for required nullable parameters.
+    // The v2 API needs explicit JSON null for required nullable parameters.
     enum CodingKeys: String, CodingKey {
         case p_lesson_id, p_student_id, p_status, p_absence_informed
         case p_observed_marked_at, p_expected_revision, p_mutation_id
@@ -147,12 +149,13 @@ struct TeacherSnoozeReceipt: Decodable {
     let replayed: Bool
 }
 
-enum TeacherPromptError: String, Error, CaseIterable {
+enum TeacherPromptError: String, LocalizedError, CaseIterable {
     case disabled = "TP_DISABLED", unavailable = "TP_NOT_AVAILABLE", conflict = "TP_CONFLICT"
     case incomplete = "TP_INCOMPLETE", locked = "TP_LOCKED", tooEarly = "TP_TOO_EARLY"
     case tooOld = "TP_TOO_OLD", snoozeLimit = "TP_SNOOZE_LIMIT", noPrompt = "TP_NO_PENDING_PROMPT"
     case mutationReused = "TP_MUTATION_REUSED", invalid = "TP_INVALID_INPUT"
     case sessionExpired, network
+    var errorDescription: String? { message }
     var message: String {
         switch self {
         case .disabled: return PromptStrings.disabled

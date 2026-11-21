@@ -1,4 +1,5 @@
 import SwiftUI
+import PromptRouter
 
 func shouldShowPrivacyShield(for scenePhase: ScenePhase) -> Bool {
     scenePhase != .active
@@ -46,6 +47,12 @@ struct TAVAttendanceApp: App {
                             Group {
                                 if teacherPrompts.gate.workflow {
                                     TeacherLessonsView(coordinator: teacherPrompts)
+                                } else if TeacherPromptsGate.masterEnabled && !DemoMode.isActive {
+                                    VStack(spacing: 16) {
+                                        Text(authManager.teacherAccessError?.message ?? PromptStrings.disabled)
+                                        Button(PromptStrings.retry) { Task { await authManager.refreshTeacherAccess() } }
+                                        Button(PromptStrings.signOut) { Task { try? await authManager.signOut() } }
+                                    }
                                 } else {
                                     switch signedInDestination(forRole: authManager.currentProfile?.role) {
                                     case .admin:
@@ -75,7 +82,7 @@ struct TAVAttendanceApp: App {
                             PushManager.currentRole = authManager.currentProfile?.role
                             await PushManager.registerIfEnabled()
                             // Analytics: start timer/observers + emit app_launch (no-op unless flag on).
-                            Analytics.shared.start()
+                            if !TeacherPromptsGate.masterEnabled { Analytics.shared.start() }
                         }
                     } else {
                         LoginView()
@@ -111,7 +118,7 @@ struct TAVAttendanceApp: App {
             .onChange(of: isBioUnlocked) { _, _ in updateTeacherUnlock() }
             .onChange(of: biometricUnlockEnabled) { _, _ in updateTeacherUnlock() }
             .onChange(of: featureFlags.flags) { _, _ in
-                teacherPrompts.configure(profile: authManager.currentProfile)
+                if DemoMode.isActive { teacherPrompts.configure(profile: authManager.currentProfile) }
             }
             .onChange(of: authManager.currentProfile?.id) { _, _ in
                 PushManager.currentRole = authManager.currentProfile?.role
@@ -125,8 +132,7 @@ struct TAVAttendanceApp: App {
                 updateTeacherUnlock()
                 if phase == .active && TeacherPromptsGate.masterEnabled {
                     Task {
-                        await FeatureFlagStore.shared.load()
-                        teacherPrompts.configure(profile: authManager.currentProfile)
+                        await authManager.refreshTeacherAccess()
                         await teacherPrompts.foreground()
                     }
                 }
