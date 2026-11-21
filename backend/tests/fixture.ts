@@ -1,4 +1,8 @@
 import { convexTest } from "convex-test";
+import { registerCore, sessionIdentity } from "@convex-dev/auth/test";
+import { registerPassword } from "@convex-dev/auth/components/password/test";
+import { registerUsername } from "@convex-dev/auth/components/username/test";
+import { digest } from "../convex/lib/common";
 import { vi } from "vitest";
 import schema from "../convex/schema";
 import { api, internal } from "../convex/_generated/api";
@@ -7,10 +11,24 @@ export const modules = import.meta.glob([
   "../convex/**/*.{ts,js}",
   "!../convex/**/*.test.ts",
 ]);
+export function credentials(
+  email: string,
+  password: string = crypto.randomUUID(),
+) {
+  return { email, password };
+}
+
+export function authTest() {
+  const t = convexTest(schema, modules);
+  registerCore(t);
+  registerPassword(t);
+  registerUsername(t);
+  return t;
+}
 export async function fixture(minutes = 0) {
   vi.useFakeTimers();
   vi.setSystemTime(now);
-  const t = convexTest(schema, modules);
+  const t = authTest();
   await t.mutation(internal.settings.initialize, {});
   await t.mutation(internal.settings.setFlag, {
     key: "teacher_prompts",
@@ -19,26 +37,34 @@ export async function fixture(minutes = 0) {
   await t.mutation(internal.settings.setDemoEnabled, { enabled: true });
   async function staff(name: string, role: "admin" | "teacher") {
     const email = name + "@example.invalid";
+    const invitation = crypto.randomUUID();
     const uuid = await t.mutation(internal.staff.provision, {
       email,
       name,
       role,
-      invitationHash: "1".repeat(64),
+      invitationHash: await digest(invitation),
     });
-    const { id, user } = await t.run(async (ctx) => {
-      const p = (await ctx.db
-        .query("profiles")
-        .withIndex("email", (q) => q.eq("email", email))
-        .unique())!;
-      const user = await ctx.db.insert("users", { email });
-      await ctx.db.patch(p._id, { user });
-      return { id: p._id, user };
+    const result = await t.mutation(api.auth.activate, {
+      ...credentials(email),
+      invitation,
     });
+    if (result.status !== "complete")
+      throw new Error("Fixture activation failed");
+    const id = await t.run(
+      async (ctx) =>
+        (await ctx.db
+          .query("profiles")
+          .withIndex("uuid", (q) => q.eq("uuid", uuid))
+          .unique())!._id,
+    );
     return {
       uuid,
       id,
       email,
-      client: t.withIdentity({ subject: user + "|test", role: "admin" }),
+      client: t.withIdentity({
+        ...sessionIdentity(result.tokens),
+        role: "admin",
+      }),
     };
   }
   const lead = await staff("lead", "teacher"),

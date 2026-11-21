@@ -1,11 +1,9 @@
 import { httpRouter, type FunctionReference } from "convex/server";
 import { ConvexError } from "convex/values";
-import { auth } from "./auth";
 import { api } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 
 const http = httpRouter();
-auth.addHttpRoutes(http);
 const codes: Record<string, number> = {
   sessionExpired: 401,
   TP_DISABLED: 403,
@@ -31,7 +29,7 @@ function route(
     path: "/v2/" + name,
     method: "POST",
     handler: httpAction(async (ctx, req) => {
-      if (!(await ctx.auth.getUserIdentity()))
+      if (!(await ctx.runQuery(api.auth.isAuthenticated, {})))
         return reply({ error: "sessionExpired" }, 401);
       let args;
       try {

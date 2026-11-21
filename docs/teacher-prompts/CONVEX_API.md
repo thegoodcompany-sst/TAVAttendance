@@ -4,39 +4,45 @@ The Swift app can keep its existing JSON models and use a Convex Auth session. E
 
 ## Session
 
-Use the deployment's **.convex.cloud** host for standard APIs, with `Content-Type: application/json`. The following are exact request bodies with illustrative placeholder strings. No deployment key or Supabase credentials belong in a client.
+All four auth operations accept JSON at `POST https://<deployment>.convex.cloud/api/mutation` with `Content-Type: application/json`. They accept credentials in the body and work with URLSession or curl. Send access JWTs as bearer tokens only on authenticated application calls. Keep passwords, invitations, and request/response token values out of logs.
 
-**Sign in** with `POST /api/action`.
+**Activate once.** A trusted operator provisions the email, role and digest of a privately delivered invitation. The invitation expires after 24 hours. The teacher chooses a password of at least 10 characters. Password policy errors leave the invitation usable.
 
 ```json
-{"path":"auth:signIn","format":"json","args":{"provider":"password","params":{"email":"teacher@example.invalid","password":"<password>","flow":"signIn"}}}
+{"path":"auth:activate","format":"json","args":{"email":"teacher@example.invalid","invitation":"<one-time secret>","password":"<chosen password>"}}
 ```
 
-Success returns this envelope (additional Convex log fields may be present).
+**Sign in** on subsequent visits.
 
 ```json
-{"status":"success","value":{"tokens":{"token":"<access JWT>","refreshToken":"<refresh token>"}}}
+{"path":"auth:signIn","format":"json","args":{"email":"teacher@example.invalid","password":"<password>"}}
 ```
 
-On first activation, change `flow` to `"signUp"` and include `"invitation":"<one-time secret>"` in `params`. A trusted operator must have provisioned the normalized email, role and invitation digest. The invitation expires after 24 hours. A user chooses their own password. Use ordinary sign-in for subsequent sessions.
-
-**Refresh** with `POST /api/action`. The refresh token goes directly in `args`.
+Activation and sign-in both return the following successful response shape. `userId` is internal. Call `teacher:my_profile` for the public staff UUID that owns the device and queued work. Convex verifies the session JWT against the deployment's cloud JWKS.
 
 ```json
-{"path":"auth:signIn","format":"json","args":{"refreshToken":"<current refresh token>"}}
+{"status":"success","value":{"status":"complete","tokens":{"accessToken":"<access JWT>","refreshToken":"<refresh token>","refreshTokenExpiresAt":1800000000000,"userId":"<Convex user ID>"}}}
 ```
 
-Serialize refreshes and replace both tokens together from `value.tokens`. Store them in the Keychain. A missing/null token pair or rejected refresh requires fresh sign-in. Call `my_profile` to obtain the stable UUID for account-bound queues. The JWT subject is an internal Convex Auth identifier.
+Inspect both levels of the response. A password rejection has outer `status:"success"` and inner `value.status:"error"` with `userError.error`. Sign-in uses `INVALID_CREDENTIALS` for unknown, inactive, incorrect, or rate-limited credentials. A denied invitation is a Convex error with `errorData:"TP_NOT_AVAILABLE"`.
 
-**Sign out** by unregistering the current installation using its original session, then posting the following with `Authorization: Bearer <access JWT>` to `/api/action`. Clear local account state and queues on sign-out. Sign-out succeeds with a null value.
+**Refresh** through its own mutation.
 
 ```json
-{"path":"auth:signOut","format":"json","args":{}}
+{"path":"auth:refreshSession","format":"json","args":{"refreshToken":"<current refresh token>"}}
+```
+
+On `value.kind:"rotated"`, persist both tokens from `value.tokens` together. Serialize refreshes within each session. After a lost response, retry with the last persisted refresh token. On `value.kind:"noSession"`, clear credentials and require sign-in. The default access-token lifetime is one minute. An authenticated request rejected for expiry can be retried once after a successful refresh.
+
+**Sign out.** First unregister the installation under its original session. Send the current refresh token to the following mutation, even if the access JWT expired. Success returns `{"status":"success","value":null}`. The revoked session immediately loses access to staff data. Clear local session state on sign-out, including when the server is unreachable.
+
+```json
+{"path":"auth:signOut","format":"json","args":{"refreshToken":"<current refresh token>"}}
 ```
 
 ## Calling the teacher API
 
-Send the same bearer authorization and JSON content type to either interface.
+Send `Authorization: Bearer <access JWT>` and `Content-Type: application/json` to either interface.
 
 - **Site HTTP actions** use `POST https://<deployment>.convex.site/v2/<name>`. Send the argument object directly and decode the result directly. For example, `POST /v2/my_lessons_today` with `{}` returns the lesson list.
 - **Standard Convex (used by iOS)** uses `POST https://<deployment>.convex.cloud/api/query` or `/api/mutation`. Send `{"path":"teacher:my_lessons_today","format":"json","args":{}}`. Read `value` on success. The module is `teacher` for lesson/profile calls and `devices` for registration. Thus registering a device uses `"path":"devices:register_device"` at `/api/mutation`.

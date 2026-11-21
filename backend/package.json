@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit -p convex"
   },
   "dependencies": {
-    "@convex-dev/auth": "0.0.98",
+    "@convex-dev/auth": "^2.1.0",
     "convex": "^1.51.0"
   },
   "devDependencies": {
@@ -16,6 +16,7 @@
     "@types/node": "^26.6.6",
     "convex-test": "^0.0.73",
     "typescript": "^7.0.2",
+    "vite-plugin-wasm-module": "^0.0.0",
     "vitest": "^5.1.1"
   }
 }

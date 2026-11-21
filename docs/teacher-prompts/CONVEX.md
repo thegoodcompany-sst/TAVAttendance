@@ -4,9 +4,11 @@ The new-year teacher workflow lives in `backend/convex`. Convex Auth owns creden
 
 ## Running the backend
 
-From `backend/` on Node 24, run `npm ci`, `npm run typecheck` and `npx vitest run`. Tests use an in-memory Convex database and fake transports. Generated bindings are tracked. For the configured developer checkout use `npx convex dev --once`. Fresh deployments need their own auth key pair and `npx convex run settings:initialize`. Initialization is idempotent and creates both flags OFF, the default timing policy and demo mode OFF.
+From `backend/` on Node 24, run `npm ci`, `npm run typecheck` and `npx vitest run`. Tests use an in-memory Convex database and fake transports. Generated bindings are tracked. For the configured developer checkout use `npx convex dev --once`. On a fresh deployment run `npx convex run settings:initialize`. Initialization is idempotent and creates both flags OFF, the default timing policy and demo mode OFF.
 
-The pinned Auth package is the maintained v1 Password-provider line (0.0.98). It implements the requested native sign-in/refresh protocol and accepts a deployer-managed signing key. A move to Auth v2 needs an identity and session migration. [Convex Auth versions](https://docs.convex.dev/auth/convex-auth) · [Password provider](https://labs.convex.dev/auth/config/passwords)
+Convex Auth 2.1 owns password hashing, verification throttling, session creation, refresh rotation and revocation. TAVA resolves the normalized email to a provisioned staff profile and uses its immutable UUID as the username for the package's username/password method. This keeps the existing private invitation flow independent of email delivery. The public activation mutation verifies the invitation, creates the credential and session, binds the Auth user to that profile, and consumes the invitation in one transaction. The raw sign-up recipe stays private. The adapter in `backend/convex/auth.ts` wraps the package's registered mutation handlers. Re-run the activation and revocation tests on SDK upgrades, since Convex marks that handler accessor internal. [Convex Auth source and setup](https://github.com/convex/convex-auth)
+
+Every staff authorization lookup resolves the JWT session subject with `getAuthUserId`. Signing out makes even an unexpired access JWT unusable for protected calls. The provider trusts the deployment-managed ES256 issuer `<cloud origin>/components/auth`, audience `convex-auth`, and JWKS at `<cloud origin>/.well-known/jwks.json`. The site host continues to serve the application’s `/v2/` HTTP routes. [Native session contract](CONVEX_API.md#session)
 
 ## Provisioning and calendar
 
@@ -29,16 +31,15 @@ The APNs action uses HTTP/2, an allowlisted payload and a stable request/collaps
 |---|---|
 | `CONVEX_DEPLOYMENT` | Local CLI deployment selection, held in ignored configuration |
 | `CONVEX_DEPLOY_KEY` | Scoped operator/CI deployment credential for a separately approved release |
-| `CONVEX_SITE_URL` | Deployment-provided issuer and auth discovery base |
-| `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL` | Deployment-specific signing key, public key set and configured site origin |
+| `CONVEX_CLOUD_URL` | Platform-provided cloud origin for the Auth issuer and JWKS |
 | `APNS_DRY_RUN` | Defaults to true. Only the exact value `false` enables real transport. Tagged demo lessons always use dry-run. |
 | `APNS_ENV` | `sandbox` or `production`, matching the device registration in real mode |
 | `APNS_KEY_P8`, `APNS_KEY_ID`, `APNS_TEAM_ID` | Private .p8 PEM contents or base64 of the PEM, Apple key ID and developer team ID |
 | `APNS_BUNDLE_ID` | APNs topic, default `com.tava.TAVAttendance` |
 
-`teacher_prompts` gates all lesson APIs and dispatch. `teacher_prompt_push` is additionally required for live APNs. `settings:setFlag` is internal. Keep `AUTH_LOG_SECRETS` unset. Device tokens are private. Delivery logs contain normalized outcomes, attempt numbers and provider IDs. Mutation receipts store a request digest and bounded receipt. Feedback and child names belong only in authorized application records.
+`teacher_prompts` gates all lesson APIs and dispatch. `teacher_prompt_push` is additionally required for live APNs. `settings:setFlag` is internal. Device tokens are private. Delivery logs contain normalized outcomes, attempt numbers and provider IDs. Mutation receipts store a request digest and bounded receipt. Feedback and child names belong only in authorized application records.
 
-On the designated dev deployment, initial key generation is `node scripts/auth-keys.mjs adept-duck-658 https://adept-duck-658.convex.site`. The script supplies fresh RSA keys to the CLI over stdin and refuses conflicting existing configuration. Production uses a different key pair. [Cutover procedure](cutover.md)
+Convex manages signing keys for each deployment. Fresh installs can verify the public JWKS and perform a staff login without a key-generation step. An upgrade from v1 invalidates existing sessions. The branch targets a fresh store. A populated v1 deployment needs a separately rehearsed credential and profile migration before installing this backend. [Cutover procedure](cutover.md)
 
 ## Dev fixture
 
@@ -50,8 +51,8 @@ The prototype selects an invented staff UUID using the `tp_identity` cookie.
 Its server-side `lib/rpc.ts` executes SQL under that demo identity, and its
 preview guard verifies a marker in the assigned PostgreSQL database.
 
-A connected mode selected by `NEXT_PUBLIC_CONVEX_URL` needs a Password sign-in
-and sign-out flow, per-user server-side session storage with serialized refresh,
+A connected mode selected by `NEXT_PUBLIC_CONVEX_URL` needs the `auth:signIn`,
+`auth:refreshSession` and `auth:signOut` mutations, per-user server-side session storage with serialized refresh,
 and a profile/role lookup for page access. The RPC adapter can then POST the
 allowlisted teacher and calendar functions to the cloud query/mutation endpoints
 with that session’s bearer. Keep the database-marker checks, demo identity selector
@@ -67,4 +68,4 @@ One minute tick uses about 43,200 scheduled calls per 30-day month per active de
 
 Enable Push Notifications for the app's explicit App ID. The mobile release owner enables the matching capability and provisioning profile for the installed build. Create an APNs token-signing key for the intended team, topic and environment. Store its .p8, key ID and team ID in deployment secrets. Device tokens must come from the matching APNs environment. A physical phone pilot must verify permission, receipt, deep link, account switch and opt-out. [Apple APNs token setup](https://developer.apple.com/help/account/capabilities/communicate-with-apns-using-authentication-tokens/)
 
-Sign in with Apple is a later provider. Enable it on the primary App ID. Create and associate a Services ID, register the deployment's HTTP Actions domain and the exact HTTPS return URL `https://<deployment>.convex.site/api/auth/callback/apple`. Create a separate Apple sign-in key and generate the expiring client-secret JWT. Configure `AUTH_APPLE_ID` and `AUTH_APPLE_SECRET`, add the Apple provider to `auth.ts`, and extend the account-link callback with verified, staff-approved linking. An Apple relay email or client-supplied role cannot grant staff access. Plan client-secret renewal and test account linking before enabling the provider. [Convex Auth Apple setup](https://labs.convex.dev/auth/config/oauth/apple)
+Sign in with Apple is a future method. Mount the v2 Apple component with its Services ID, team ID, key ID and signing key. For an HTTP prefix of `/oauth/apple`, register `https://<deployment>.convex.site/oauth/apple/callback` on the Services ID. Staff-approved account linking and redirect-origin checks are required before enabling the method. [Convex Auth Apple method](https://github.com/convex/convex-auth/blob/main/packages/core/src/methods/apple/server.ts)

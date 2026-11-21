@@ -34,21 +34,21 @@ Run `npm ci && npm run typecheck && npx vitest run` in `backend/` at the reviewe
 
 ## Gate 2 — install the reviewed production backend
 
-The authorized deployer selects the intended Convex project, production region and plan with the centre, records the expected HTTPS cloud/site hosts, and injects its **production deploy key** as `CONVEX_DEPLOY_KEY` through secret storage. Use a clean checkout of the approved revision. Set `TAVA_RELEASE_SITE` to that production HTTPS site origin (public configuration). Keep all signing material outside source control and shell history.
+The authorized deployer selects the intended Convex project, production region and plan with the centre, records the expected HTTPS cloud/site hosts, and injects its **production deploy key** as `CONVEX_DEPLOY_KEY` through secret storage. Use a clean checkout of the approved revision. Keep all signing material outside source control and shell history.
 
-For the **first installation** run these commands. The key bootstrap checks the deployment named in the production key against the site origin and pipes an independent keypair to the CLI. For later releases preserve the deployment's existing keypair and omit the bootstrap command.
+Convex Auth 2.1 uses each deployment’s own ES256 signing key. Omit the v1 RSA key bootstrap on first install and subsequent releases. Use a fresh deployment for this cutover. If the target already holds v1 credentials or profiles, stop here and rehearse their migration first.
 
 ```sh
 cd backend
 npm ci
 npm run typecheck
 npx vitest run
-node scripts/auth-keys.mjs release "$TAVA_RELEASE_SITE"
+printf '%s' true | npx convex env set APNS_DRY_RUN
 npx convex deploy
 npx convex run settings:initialize '{}'
 ```
 
-The bootstrap sets `JWT_PRIVATE_KEY`, `JWKS`, `SITE_URL` and `APNS_DRY_RUN=true`. Convex supplies `CONVEX_SITE_URL`. Deployment registers the daily calendar and minute dispatch crons automatically. Verify the actual production function inventory, both crons, issuer/JWKS discovery, OFF flags and `demoEnabled=false` at the destination. Query only the operational settings:
+The platform supplies `CONVEX_CLOUD_URL`. Verify that the expected cloud host serves a public EC key without printing the key material. Using the pilot login, verify the access token works for the intended staff UUID, refresh rotates it, and sign-out revokes both refresh and profile access. The provider accepts issuer `<cloud origin>/components/auth` and audience `convex-auth`. Retire legacy `JWT_PRIVATE_KEY` and `JWKS` settings after a verified v1 cutover. Deployment registers the daily calendar and minute dispatch crons automatically. Verify the actual production function inventory, both crons, issuer/JWKS discovery, OFF flags and `demoEnabled=false` at the destination. Query only the operational settings:
 
 ```sh
 npx convex run --inline-query 'return {flags:(await ctx.db.query("feature_flags").collect()).map(f=>({key:f.key,enabled:f.enabled})),demo:(await ctx.db.query("runtime_settings").first()).demoEnabled}'

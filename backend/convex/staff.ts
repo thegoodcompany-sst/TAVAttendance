@@ -82,3 +82,16 @@ export const renewInvitation = internalMutation({
     });
   },
 });
+
+// Only the guarded password recipe invokes this callback. The activating
+// mutation links the returned ID to its provisioned profile before committing.
+export const createPasswordUser = internalMutation({
+  args: {
+    method: v.object({
+      name: v.literal("usernamePassword"),
+      profile: v.object({}),
+    }),
+  },
+  returns: v.id("users"),
+  handler: (ctx) => ctx.db.insert("users", {}),
+});

@@ -1,4 +1,3 @@
-import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
@@ -27,7 +26,7 @@ const number = v.number(),
   bool = v.boolean();
 const time = v.optional(number);
 export default defineSchema({
-  ...authTables,
+  users: defineTable({}),
   profiles: defineTable({
     ...publicId,
     email: string,
