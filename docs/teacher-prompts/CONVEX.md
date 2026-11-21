@@ -44,6 +44,21 @@ On the designated dev deployment, initial key generation is `node scripts/auth-k
 
 On an approved development deployment enable `settings:setDemoEnabled {"enabled":true}`. Run `npx convex run seed:demo '{"email":"teacher@example.invalid","minutes":6}'` with the provisioned teacher's email. Repeat calls return the existing tag and lesson UUID. The master flag controls visibility. To restart, pass that tag to `npx convex run seed:wipeDemo '{"tag":"<returned UUID>"}'`, then seed again. All invented class, student, enrollment, lesson, work and delivery records carry this tag. The teacher's profile, account and own device registrations survive the wipe. Restore the demo setting and rollout flags after the exercise.
 
+## Next.js prototype
+
+The prototype selects an invented staff UUID using the `tp_identity` cookie.
+Its server-side `lib/rpc.ts` executes SQL under that demo identity, and its
+preview guard verifies a marker in the assigned PostgreSQL database.
+
+A connected mode selected by `NEXT_PUBLIC_CONVEX_URL` needs a Password sign-in
+and sign-out flow, per-user server-side session storage with serialized refresh,
+and a profile/role lookup for page access. The RPC adapter can then POST the
+allowlisted teacher and calendar functions to the cloud query/mutation endpoints
+with that session’s bearer. Keep the database-marker checks, demo identity selector
+and `simulate_prompt_now` in local demo mode. Verify a teacher cannot access a
+different teacher’s lesson, including after account switching or token refresh.
+[Native request shapes](CONVEX_API.md)
+
 ## Free-plan operations
 
 One minute tick uses about 43,200 scheduled calls per 30-day month per active deployment, before actual lesson work, client queries or other crons. Each attempted device delivery also uses action, prepare and finish calls. Check function calls, database I/O/storage and action compute in the dashboard. Preview/dev deployments also consume team resources. Calendar generation accepts at most 92 days at once. Use smaller date ranges for larger imports and monitor transaction limits as roster sizes grow. Agree delivery retention and recovery/export ownership before real student records are loaded. [Convex resource limits](https://docs.convex.dev/production/state/limits)
